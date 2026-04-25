@@ -491,7 +491,8 @@
       </div>
 
       <div id="${WIDGET_ID}-footer">
-        Servizio sperimentale${cfg.contactEmail ? ` &nbsp;·&nbsp; <a href="mailto:${cfg.contactEmail}" style="color:inherit">Segnala un errore</a>` : ""}
+        ${isItalian ? '🔒 Non inserire dati personali nella chat' : '🔒 Do not enter personal data in the chat'}
+        &nbsp;·&nbsp; ${isItalian ? 'Servizio sperimentale' : 'Experimental service'}${cfg.contactEmail ? ` &nbsp;·&nbsp; <a href="mailto:${cfg.contactEmail}" style="color:inherit">${isItalian ? 'Segnala un errore' : 'Report an error'}</a>` : ""}
       </div>
     </div>
   `;
