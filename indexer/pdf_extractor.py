@@ -47,7 +47,7 @@ def _clean_pdf_text(text: str) -> str:
     text = re.sub(r"\S{200,}", "", text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
-    lines = [l for l in text.splitlines() if re.search(r"[a-zA-ZÀ-ÿ0-9]", l)]
+    lines = [line for line in text.splitlines() if re.search(r"[a-zA-ZÀ-ÿ0-9]", line)]
     return "\n".join(lines).strip()
 
 

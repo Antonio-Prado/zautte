@@ -20,9 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from indexer.embedder import embed_query
-from indexer.vector_store import hybrid_search
-from api.rag import expand_query, retrieve_context, MIN_SIMILARITY
+from api.rag import retrieve_context
 
 # ---------------------------------------------------------------------------
 # Set di domande di test con parole chiave attese nella risposta

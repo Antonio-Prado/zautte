@@ -140,8 +140,8 @@ async def run_sync(mode: str):
     print_separator("RIEPILOGO")
     log.info(f"Modalità:              {mode}")
     log.info(f"Durata:                {elapsed:.0f}s")
-    log.info(f"Chunk totali nel DB:   {stats[total_chunks]}")
-    log.info(f"Completato alle:       {datetime.now().strftime(%Y-%m-%d %H:%M:%S)}")
+    log.info(f"Chunk totali nel DB:   {stats['total_chunks']}")
+    log.info(f"Completato alle:       {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
 
 
