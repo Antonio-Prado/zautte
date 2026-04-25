@@ -109,7 +109,7 @@ chatbot/
 ├── widget/
 │   ├── chatbot-widget.js     # Widget chat (JS/CSS auto-contenuto)
 │   ├── embed-snippet.html    # Snippet da incollare nel sito
-│   └── test.html             # Pagina di test locale
+│   └── dashboard.html        # Pannello di controllo (area riservata)
 │
 ├── scripts/
 │   ├── sync.py               # Orchestratore: crawl + indicizzazione
@@ -706,7 +706,7 @@ Il file `widget/embed-snippet.html` contiene lo snippet pronto da incollare.
 
 ### Test locale
 
-Aprire `widget/test.html` nel browser. Richiede che il backend sia raggiungibile all'indirizzo configurato in `apiUrl`.
+Aprire `widget/dashboard.html` nel browser. Richiede che il backend sia raggiungibile all'indirizzo configurato in `apiUrl`.
 
 ---
 
