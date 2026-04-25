@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zautte — Pannello di controllo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 32px 40px 80px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 { color: #003366; margin-bottom: 4px; }
+    h2 { color: #003366; font-size: 0.95em; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .subtitle { color: #666; margin-top: 0; margin-bottom: 24px; font-size: 0.9em; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      max-width: 800px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px 20px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .card.wide { grid-column: span 2; }
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 0.78em;
+      font-weight: bold;
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    table { border-collapse: collapse; width: 100%; }
+    td { padding: 4px 0; vertical-align: top; }
+    td:first-child { width: 52%; color: #777; font-size: 0.85em; }
+    td:last-child { font-weight: 500; font-size: 0.9em; }
+
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: #ccc; }
+    .dot.ok  { background: #43a047; }
+    .dot.err { background: #e53935; }
+    .latency { font-size: 0.8em; color: #aaa; margin-left: 4px; }
+    .refresh-note { font-size: 0.75em; color: #bbb; margin-top: 8px; text-align: right; }
+
+    /* Metriche numeriche grandi */
+    .stats-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stat-item { flex: 1; min-width: 70px; }
+    .stat-big { font-size: 1.5em; font-weight: bold; color: #003366; line-height: 1.1; }
+    .stat-label { font-size: 0.78em; color: #999; margin-top: 2px; }
+
+    /* Barra feedback */
+    .fb-bar { height: 7px; background: #eee; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+    .fb-bar-fill { height: 100%; background: #43a047; border-radius: 4px; transition: width .4s; }
+
+    /* Ore di picco */
+    .hours-chart { display: flex; align-items: flex-end; gap: 2px; height: 40px; margin-top: 4px; }
+    .hour-bar {
+      flex: 1;
+      background: #c5d0f0;
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
+      transition: height .3s;
+      position: relative;
+    }
+    .hour-bar.active { background: #003366; }
+    .hour-bar:hover::after {
+      content: attr(data-label);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .hours-labels { display: flex; justify-content: space-between; font-size: 0.7em; color: #bbb; margin-top: 2px; }
+
+    /* Lista query */
+    .query-list { list-style: none; padding: 0; margin: 0; }
+    .query-list li {
+      font-size: 0.83em;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .query-list li:last-child { border-bottom: none; }
+    .query-text { color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .query-count { color: #999; font-size: 0.9em; white-space: nowrap; }
+    .gap-text { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #c0392b; font-size: 0.83em; padding: 3px 0; border-bottom: 1px solid #f9eded; }
+    .gap-text:last-child { border-bottom: none; }
+    .gap-ts { color: #bbb; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
+
+    a.site-link { color: #003366; font-size: 0.85em; }
+
+    /* Donut feedback */
+    .feedback-layout { display: flex; align-items: center; gap: 12px; }
+    .feedback-stats { flex: 1; }
+
+    /* Top query bar chart */
+    .qbar-item { margin-bottom: 6px; }
+    .qbar-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.8em; margin-bottom: 2px; }
+    .qbar-text { color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+    .qbar-count { color: #999; flex-shrink: 0; }
+    .qbar-track { height: 6px; background: #eef0ff; border-radius: 3px; overflow: hidden; }
+    .qbar-fill { height: 100%; background: #5c7cfa; border-radius: 3px; transition: width .5s; }
+
+    /* Cost daily chart */
+    .cost-chart { display: flex; align-items: flex-end; gap: 8px; height: 50px; margin: 10px 0 4px; }
+    .cost-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+    .cost-bar { width: 100%; background: #2e7d32; border-radius: 2px 2px 0 0; min-height: 2px; position: relative; transition: height .3s; }
+    .cost-bar:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%); background: #333; color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 3px; white-space: nowrap; z-index: 1; pointer-events: none; }
+    .cost-bar-lbl { font-size: 0.62em; color: #bbb; text-align: center; white-space: nowrap; overflow: hidden; width: 100%; text-overflow: ellipsis; }
+
+    /* Token history table */
+    .token-table { width: 100%; border-collapse: collapse; font-size: 0.8em; margin-top: 8px; }
+    .token-table th { color: #999; font-weight: normal; text-align: left; padding: 3px 4px; border-bottom: 1px solid #eee; }
+    .token-table td { padding: 3px 4px; border-bottom: 1px solid #f5f5f5; color: #555; }
+    .token-table td:nth-child(3), .token-table td:nth-child(4) { text-align: right; color: #333; }
+    .token-table td:nth-child(5) { text-align: right; color: #1a6b1a; }
+    .cost-total { font-size: 1.3em; font-weight: bold; color: #1a6b1a; }
+
+    /* Crawl timeline */
+    .timeline { list-style: none; padding: 0; margin: 8px 0 0; }
+    .timeline li {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 0.82em;
+    }
+    .timeline li:last-child { border-bottom: none; }
+    .tl-ts { color: #bbb; white-space: nowrap; flex-shrink: 0; font-size: 0.9em; }
+    .tl-label { color: #333; flex: 1; }
+    .tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #c5d0f0; margin-top: 3px; }
+    .tl-dot.vs   { background: #43a047; }
+    .tl-dot.html { background: #1565c0; }
+    .tl-dot.crawl { background: #f57c00; }
+    .crawl-progress { font-size: 0.82em; color: #777; margin-top: 8px; }
+    .progress-bar-wrap { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 3px; }
+    .progress-bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+    .progress-bar-fill.html { background: #1565c0; }
+    .progress-bar-fill.pdf  { background: #6a1b9a; }
+
+    /* Changelog */
+    .changelog-section {
+      max-width: 800px;
+      margin-top: 28px;
+    }
+    .changelog-section h2 { color: #003366; font-size: 0.95em; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 10px; }
+    .cl-entry {
+      display: flex;
+      gap: 14px;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.83em;
+    }
+    .cl-entry:last-child { border-bottom: none; }
+    .cl-date { color: #bbb; white-space: nowrap; flex-shrink: 0; width: 80px; }
+    .cl-text { color: #444; flex: 1; line-height: 1.5; }
+    .cl-tag {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      font-weight: bold;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    .cl-tag.fix    { background: #fce4ec; color: #c62828; }
+    .cl-tag.feat   { background: #e8f5e9; color: #2e7d32; }
+    .cl-tag.perf   { background: #fff8e1; color: #f57f17; }
+    .cl-tag.data   { background: #e3f2fd; color: #1565c0; }
+  </style>
+</head>
+<body>
+  <h1>Zautte — Pannello di controllo</h1>
+  <p class="subtitle">
+    Pagina di test interna &nbsp;·&nbsp; <span class="badge">Ambiente di test</span>
+    &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
+  </p>
+
+  <div class="grid">
+
+    <!-- Stato servizio -->
+    <div class="card">
+      <h2>Stato del servizio</h2>
+      <table>
+        <tr><td>Backend</td><td><span class="dot" id="dot"></span><span id="backend-status">verifica…</span><span class="latency" id="latency"></span></td></tr>
+        <tr><td>Uptime</td><td><span id="uptime">—</span></td></tr>
+        <tr><td>Modello LLM</td><td><span id="model-name">—</span> <span style="color:#ccc;font-size:.8em" id="llm-provider"></span></td></tr>
+        <tr><td>Hybrid search</td><td><span id="hybrid">—</span></td></tr>
+        <tr><td>Ultima indicizzazione</td><td><span id="last-indexed">—</span></td></tr>
+      </table>
+      <div class="refresh-note">auto-refresh 30s · <span id="last-update">—</span></div>
+    </div>
+
+    <!-- Contenuto indicizzato -->
+    <div class="card">
+      <h2>Contenuto indicizzato</h2>
+      <table>
+        <tr><td>Documenti sorgente</td><td><span id="unique-sources">—</span></td></tr>
+        <tr><td>Chunk totali</td><td><span id="chunk-count">—</span></td></tr>
+        <tr><td>Breakdown</td><td><span id="doc-types">—</span></td></tr>
+        <tr><td>Doc. più corposo</td><td><span id="top-doc">—</span></td></tr>
+      </table>
+    </div>
+
+    <!-- Attività -->
+    <div class="card">
+      <h2>Attività (cumulativa)</h2>
+      <div class="stats-row">
+        <div class="stat-item">
+          <div class="stat-big" id="query-count">—</div>
+          <div class="stat-label">domande ricevute</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" id="gaps-count">—</div>
+          <div class="stat-label">senza risposta</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" style="font-size:1.1em" id="gaps-pct">—</div>
+          <div class="stat-label">% gap</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" style="font-size:1.1em" id="avg-resp">—</div>
+          <div class="stat-label">ms medi LLM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feedback -->
+    <div class="card">
+      <h2>Feedback utenti</h2>
+      <div class="feedback-layout">
+        <div class="feedback-stats">
+          <div class="stats-row">
+            <div class="stat-item">
+              <div class="stat-big" id="fb-total">—</div>
+              <div class="stat-label">totali</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-big" style="color:#43a047" id="fb-pos">—</div>
+              <div class="stat-label">👍 positivi</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-big" style="color:#e53935" id="fb-neg">—</div>
+              <div class="stat-label">👎 negativi</div>
+            </div>
+          </div>
+        </div>
+        <div id="fb-donut"></div>
+      </div>
+    </div>
+
+    <!-- Ore di picco -->
+    <div class="card">
+      <h2>Domande per ora del giorno</h2>
+      <div class="hours-chart" id="hours-chart"></div>
+      <div class="hours-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+    </div>
+
+    <!-- Query più frequenti -->
+    <div class="card">
+      <h2>Query più frequenti (sessione)</h2>
+      <div id="top-queries"><span style="color:#bbb;font-size:.85em">nessuna ancora</span></div>
+    </div>
+
+    <!-- Gap recenti -->
+    <div class="card wide">
+      <h2>Ultime domande senza risposta</h2>
+      <div id="recent-gaps" style="color:#bbb;font-size:.85em">nessuna registrata</div>
+    </div>
+
+    <!-- Token & Costi API -->
+    <div class="card wide">
+      <h2>Token &amp; Costi API Anthropic</h2>
+      <div class="stats-row" style="margin-bottom:12px">
+        <div class="stat-item">
+          <div class="stat-big" id="tok-in">—</div>
+          <div class="stat-label">token input (totale)</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" id="tok-out">—</div>
+          <div class="stat-label">token output (totale)</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" id="tok-avg-in" style="font-size:1.1em">—</div>
+          <div class="stat-label">input medi/query</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-big" id="tok-avg-out" style="font-size:1.1em">—</div>
+          <div class="stat-label">output medi/query</div>
+        </div>
+        <div class="stat-item">
+          <div class="cost-total" id="tok-cost">—</div>
+          <div class="stat-label">costo totale (USD)</div>
+        </div>
+      </div>
+      <div id="cost-chart-wrap" style="display:none">
+        <div style="font-size:0.78em;color:#999;margin-top:4px">Costo per sessione (USD)</div>
+        <div class="cost-chart" id="cost-chart"></div>
+      </div>
+      <table class="token-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Modello</th>
+            <th>Input tok</th>
+            <th>Output tok</th>
+            <th>Costo USD</th>
+          </tr>
+        </thead>
+        <tbody id="token-history-body">
+          <tr><td colspan="5" style="color:#bbb;text-align:center;padding:8px">nessun dato ancora</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Storico crawling -->
+    <div class="card wide">
+      <h2>Storico crawling &amp; indicizzazione</h2>
+      <div id="crawl-progress-html" class="crawl-progress" style="display:none">
+        <span id="crawl-html-label">—</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill html" id="crawl-html-bar" style="width:0%"></div></div>
+      </div>
+      <div id="crawl-progress-pdf" class="crawl-progress" style="display:none;margin-top:6px">
+        <span id="crawl-pdf-label">—</span>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill pdf" id="crawl-pdf-bar" style="width:0%"></div></div>
+      </div>
+      <ul class="timeline" id="crawl-timeline">
+        <li><span class="tl-label" style="color:#bbb">caricamento…</span></li>
+      </ul>
+    </div>
+
+  </div><!-- /grid -->
+
+  <!-- Changelog -->
+  <div class="changelog-section">
+    <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Rimossi tutti i riferimenti a "comune/PA" dai default del codice: prompt di sistema, widget (titolo, welcome, noInfo, WIDGET_ID), sinonimi spostati in <code>config/synonyms.json</code>, testi RAG ora neutrali.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Widget reso agnostico: rimossi defaults SBT (<code>subtitle</code>, <code>welcomeIt/En</code>, email hardcoded); aggiunto parametro <code>contactEmail</code>; <code>WIDGET_ID</code> rinominato in <code>comunale-chatbot</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Codice reso agnostico rispetto all'ente: <code>SITE_URL</code>, <code>SITE_NAME</code>, <code>CRAWL_ALLOWED_DOMAINS</code> ora da <code>.env</code>; <code>_OFFICE_MAP</code> e <code>_KNOWN_FACTS</code> esternalizzati in <code>config/offices.json</code> e <code>config/known_facts.json</code>; override crawl in <code>config/crawl_extra.json</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Grafici in test.html: donut feedback (positivi/negativi), barre orizzontali top query, barre costo giornaliero API.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Pulizia automatica sorgenti stale: dopo ogni crawl incrementale, i chunk HTML non più presenti sul sito vengono rimossi dal vector store.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Domande senza risposta: aggiunto timestamp per ciascuna entry (ora l'API restituisce oggetti <code>{ts, query}</code> invece di semplici stringhe).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Layout query lunghe: aggiunto <code>min-width:0; overflow:hidden</code> alla classe <code>.card</code> — il grid item ora non supera la larghezza della colonna.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Rimossa sezione "Domande di esempio" da questa pagina.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Token tracking e monitoraggio costi API Anthropic per ogni query.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Storico crawling e indicizzazione con barre di avanzamento in questa pagina.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Widget: regex URL ora si ferma correttamente alle entità HTML escaped (<code>&amp;quot;</code>) evitando href malformati con attributi HTML accodati alle URL.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Sinonimi estesi: <em>gazebo, cosap, occupazione suolo pubblico, banchetto, dehors, raccolta firme</em> — ora mappati verso i termini usati nei documenti indicizzati, con suggerimento Ufficio COSAP.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">22 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span>Avviata indicizzazione completa PDF (1.540 documenti). Vector store passa da 100k a ~153k chunk attesi.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">20 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span>Sync HTML completo: 29.571 pagine indicizzate, vector store a 100.682 chunk.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">16 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Service rc.d: <code>kill -0</code> sostituito con <code>ps -p</code> nel controllo stato (evitava falso "not running" per processi root). Log rotation estesa (100 MB, 14 copie).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">15 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Crawler: aggiunto limite CRAWL_MAX_PAGES=50.000 e escluso <code>/Organigramma/</code> (generava URL quasi-infiniti — 228k pagine in un solo run). Pulizia cache: rimossi 187.764 file.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">13 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Web fallback: query temporali ("quando", "data", "2026") attivano ricerca live su <code>/it/ajax</code> del sito indicizzato prima di rispondere "non so".
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">13 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Crawler: aggiunto timeout asyncio su ogni richiesta HTTP (il timeout httpx proteggeva solo i chunk, non l'intera connessione — causava blocchi indefiniti su server lenti).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">09 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Hybrid search BM25 + cosine similarity con RRF. Query expansion con sinonimi municipali. Re-ranking con boost titolo/categoria. MIN_SIMILARITY abbassato a 0.38.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">08 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Prima versione operativa: crawler, embedder (mxbai-embed-large), vector store numpy custom, API FastAPI + streaming SSE, widget JS embeddabile.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const apiBase = window.location.origin;
+
+    function fmtUptime(sec) {
+      if (sec < 60) return sec + 's';
+      if (sec < 3600) return Math.floor(sec/60) + 'm ' + (sec%60) + 's';
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+      return h + 'h ' + m + 'm';
+    }
+
+    function fmtNum(n) {
+      return n != null ? Number(n).toLocaleString('it') : '—';
+    }
+
+    function updateStats() {
+      const t0 = performance.now();
+      fetch(apiBase + '/health')
+        .then(r => r.json())
+        .then(d => {
+          const ms = Math.round(performance.now() - t0);
+          document.getElementById('dot').className = 'dot ok';
+          document.getElementById('backend-status').textContent = 'online';
+          document.getElementById('latency').textContent = ms + ' ms';
+          document.getElementById('last-update').textContent = new Date().toLocaleTimeString('it');
+          document.getElementById('uptime').textContent = fmtUptime(d.uptime_seconds || 0);
+
+          document.getElementById('model-name').textContent = d.llm_model || '—';
+          document.getElementById('llm-provider').textContent = d.llm_provider ? '(' + d.llm_provider + ')' : '';
+          document.getElementById('hybrid').textContent = d.hybrid_search ? '✓ attivo' : '✗ non disponibile';
+          document.getElementById('last-indexed').textContent = d.last_indexed || '—';
+          document.getElementById('unique-sources').textContent = fmtNum(d.unique_sources);
+          document.getElementById('chunk-count').textContent = fmtNum(d.indexed_chunks);
+
+          if (d.doc_types) {
+            const parts = Object.entries(d.doc_types).sort((a,b)=>b[1]-a[1]).map(([k,v])=>fmtNum(v)+' '+k);
+            document.getElementById('doc-types').textContent = parts.join(' · ');
+          }
+          if (d.top_doc) {
+            const td = d.top_doc;
+            document.getElementById('top-doc').innerHTML =
+              '<a href="'+td.source+'" target="_blank" style="color:#003366;font-size:.9em">'+(td.title||td.source.split('/').pop())+'</a>'
+              +' <span style="color:#aaa;font-size:.8em">('+td.chunks+' chunk)</span>';
+          }
+
+          const q = d.queries_since_restart ?? 0;
+          const g = d.gaps_total ?? 0;
+          document.getElementById('query-count').textContent = fmtNum(q);
+          document.getElementById('gaps-count').textContent = fmtNum(g);
+          document.getElementById('gaps-pct').textContent = q > 0 ? Math.round(g/q*100)+'%' : '—';
+
+          const act = d.activity || {};
+          document.getElementById('avg-resp').textContent = act.avg_response_ms != null ? fmtNum(act.avg_response_ms) : '—';
+
+          // Ore di picco
+          const hc = act.hour_counts || new Array(24).fill(0);
+          const maxH = Math.max(...hc, 1);
+          const chart = document.getElementById('hours-chart');
+          chart.innerHTML = '';
+          const nowH = new Date().getHours();
+          hc.forEach((v, h) => {
+            const bar = document.createElement('div');
+            bar.className = 'hour-bar' + (h === nowH ? ' active' : '');
+            bar.style.height = Math.max(2, Math.round(v/maxH*38)) + 'px';
+            bar.setAttribute('data-label', h + ':00 — ' + v + ' domande');
+            chart.appendChild(bar);
+          });
+
+          // Top queries — barre orizzontali
+          const tq = act.top_queries || [];
+          const qDiv = document.getElementById('top-queries');
+          if (tq.length) {
+            const maxC = Math.max(...tq.map(([,c]) => c), 1);
+            qDiv.innerHTML = tq.map(([q,c]) =>
+              '<div class="qbar-item">' +
+              '<div class="qbar-header"><span class="qbar-text">'+q+'</span><span class="qbar-count">×'+c+'</span></div>' +
+              '<div class="qbar-track"><div class="qbar-fill" style="width:'+Math.round(c/maxC*100)+'%"></div></div>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Gap recenti
+          const gaps = d.gaps_recent || [];
+          const gDiv = document.getElementById('recent-gaps');
+          if (gaps.length) {
+            gDiv.innerHTML = gaps.map(g => {
+              const query = typeof g === 'string' ? g : g.query;
+              const ts = g.ts ? g.ts.replace('T', ' ').slice(0, 16) : '';
+              return '<div class="gap-text"><span>— ' + query + '</span>' +
+                     (ts ? '<span class="gap-ts">' + ts + '</span>' : '') + '</div>';
+            }).join('');
+          }
+
+          // Feedback + donut SVG
+          const fb = d.feedback || {};
+          document.getElementById('fb-total').textContent = fmtNum(fb.total ?? 0);
+          document.getElementById('fb-pos').textContent = fmtNum(fb.positive ?? 0);
+          document.getElementById('fb-neg').textContent = fmtNum(fb.negative ?? 0);
+          {
+            const r = 28, cx = 35, cy = 35, sw = 10;
+            const circ = 2 * Math.PI * r;
+            const t = fb.total || 0;
+            const pos = fb.positive || 0;
+            const neg = fb.negative || 0;
+            const posLen = t > 0 ? (pos/t)*circ : 0;
+            const negLen = t > 0 ? (neg/t)*circ : 0;
+            const posSeg = posLen > 0
+              ? '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#43a047" stroke-width="'+sw+'" stroke-dasharray="'+posLen.toFixed(1)+' '+circ.toFixed(1)+'" stroke-dashoffset="0" transform="rotate(-90 '+cx+' '+cy+')"/>'
+              : '';
+            const negSeg = negLen > 0
+              ? '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#e53935" stroke-width="'+sw+'" stroke-dasharray="'+negLen.toFixed(1)+' '+circ.toFixed(1)+'" stroke-dashoffset="'+(-posLen).toFixed(1)+'" transform="rotate(-90 '+cx+' '+cy+')"/>'
+              : '';
+            const pct = t > 0 ? Math.round(pos/t*100) : 0;
+            document.getElementById('fb-donut').innerHTML =
+              '<svg viewBox="0 0 70 70" width="70" height="70">' +
+              '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#eee" stroke-width="'+sw+'"/>' +
+              posSeg + negSeg +
+              '<text x="'+cx+'" y="'+(cy+1)+'" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="bold" fill="#555">'+pct+'%</text>' +
+              '</svg>';
+          }
+
+          // Token & Costi
+          document.getElementById('tok-in').textContent  = fmtNum(act.token_in_total);
+          document.getElementById('tok-out').textContent = fmtNum(act.token_out_total);
+          document.getElementById('tok-avg-in').textContent  = fmtNum(act.token_avg_in);
+          document.getElementById('tok-avg-out').textContent = fmtNum(act.token_avg_out);
+          const cost = act.token_cost_total;
+          document.getElementById('tok-cost').textContent = cost != null ? '$' + cost.toFixed(4) : '—';
+
+          const hist = act.token_history || [];
+          // Cost chart
+          if (hist.length) {
+            document.getElementById('cost-chart-wrap').style.display = '';
+            const maxCost = Math.max(...hist.map(e => e.cost || 0), 0.001);
+            document.getElementById('cost-chart').innerHTML = hist.map(e => {
+              const h = Math.max(2, Math.round((e.cost || 0) / maxCost * 46));
+              const lbl = (e.ts || '').replace(/T.*/,'').slice(5);
+              return '<div class="cost-bar-col">' +
+                '<div class="cost-bar" style="height:'+h+'px" data-tip="'+lbl+' — $'+(e.cost||0).toFixed(4)+'"></div>' +
+                '<div class="cost-bar-lbl">'+lbl+'</div>' +
+                '</div>';
+            }).join('');
+          }
+          // Token history table
+          const tbody = document.getElementById('token-history-body');
+          if (hist.length) {
+            tbody.innerHTML = [...hist].reverse().map(e =>
+              '<tr>' +
+              '<td>' + (e.ts || '').replace('T',' ') + '</td>' +
+              '<td style="color:#888">' + (e.model || '').replace('claude-','') + '</td>' +
+              '<td>' + fmtNum(e.in) + '</td>' +
+              '<td>' + fmtNum(e.out) + '</td>' +
+              '<td>$' + (e.cost || 0).toFixed(5) + '</td>' +
+              '</tr>'
+            ).join('');
+          }
+        })
+        .catch(() => {
+          document.getElementById('dot').className = 'dot err';
+          document.getElementById('backend-status').textContent = 'non raggiungibile';
+        });
+    }
+
+    function updateCrawlHistory() {
+      fetch(apiBase + '/crawl-history')
+        .then(r => r.json())
+        .then(d => {
+          // Barre di avanzamento
+          const html = d.current_html;
+          if (html) {
+            const pct = html.total > 0 ? Math.round(html.current / html.total * 100) : 0;
+            const done = html.current >= html.total;
+            document.getElementById('crawl-progress-html').style.display = '';
+            document.getElementById('crawl-html-label').textContent =
+              'HTML: ' + fmtNum(html.current) + ' / ' + fmtNum(html.total) + ' pagine' + (done ? ' ✓' : ' — in corso ' + html.ts);
+            document.getElementById('crawl-html-bar').style.width = pct + '%';
+          }
+          const pdf = d.current_pdf;
+          if (pdf) {
+            const pct = pdf.total > 0 ? Math.round(pdf.current / pdf.total * 100) : 0;
+            const done = pdf.current >= pdf.total;
+            document.getElementById('crawl-progress-pdf').style.display = '';
+            document.getElementById('crawl-pdf-label').textContent =
+              'PDF: ' + fmtNum(pdf.current) + ' / ' + fmtNum(pdf.total) + (done ? ' ✓' : ' — in corso ' + pdf.ts);
+            document.getElementById('crawl-pdf-bar').style.width = pct + '%';
+          }
+
+          // Timeline eventi
+          const evs = d.events || [];
+          const tl = document.getElementById('crawl-timeline');
+          if (evs.length) {
+            tl.innerHTML = [...evs].reverse().map(e => {
+              let dotClass = '';
+              if (e.type === 'vs_loaded') dotClass = 'vs';
+              else if (e.type === 'html_done') dotClass = 'html';
+              else if (e.type === 'crawl_end') dotClass = 'crawl';
+              return '<li>' +
+                '<div class="tl-dot ' + dotClass + '"></div>' +
+                '<span class="tl-ts">' + e.ts + '</span>' +
+                '<span class="tl-label">' + (e.label || e.type) + '</span>' +
+                '</li>';
+            }).join('');
+          } else {
+            tl.innerHTML = '<li><span class="tl-label" style="color:#bbb">nessun evento trovato nel log</span></li>';
+          }
+        })
+        .catch(() => {
+          document.getElementById('crawl-timeline').innerHTML =
+            '<li><span class="tl-label" style="color:#e53935">errore caricamento storico</span></li>';
+        });
+    }
+
+    updateStats();
+    updateCrawlHistory();
+    setInterval(updateStats, 30000);
+    setInterval(updateCrawlHistory, 60000);
+
+    function askQuestion(text) {
+      const openBtn = document.querySelector('[id$="-btn"]');
+      if (openBtn) openBtn.click();
+      setTimeout(() => {
+        const input = document.querySelector('[id$="-input"]');
+        const sendBtn = document.querySelector('[id$="-send"]');
+        if (input && sendBtn) {
+          input.value = text;
+          input.dispatchEvent(new Event('input'));
+          sendBtn.click();
+        }
+      }, 400);
+    }
+  </script>
+
+  <script>
+    window.ChatbotConfig = {
+      apiUrl:        window.location.origin,
+      primaryColor:  '#003366',
+      title:         'Zautte',
+      subtitle:      '',
+      welcomeIt:     'Ciao! Sono Zautte il tuo assistente virtuale. Posso aiutarti a trovare informazioni sui contenuti del sito.',
+      contactEmail:  '',
+      position:      'right',
+      lang:          'it',
+      logoUrl:      './logo.png',
+    };
+  </script>
+  <script src="./chatbot-widget.js" defer></script>
+  <footer style="max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
+    Responsabile dello sviluppo: Antonio Prado
+  </footer>
+</body>
+</html>
