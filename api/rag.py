@@ -320,7 +320,6 @@ async def generate_ollama(messages: list[dict]) -> str:
 
 async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
     """Chiama Ollama in streaming, yield di token progressivi. Ritenta una volta su 500."""
-    import json as _json
     import asyncio as _asyncio
     payload = {
         "model": OLLAMA_MODEL,
@@ -328,7 +327,7 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
         "stream": True,
         "options": {"temperature": 0.3, "top_p": 0.9, "num_predict": 512, "num_ctx": 3072},
     }
-    last_exc = None
+    last_exc: Exception = RuntimeError("Ollama non disponibile")
     for attempt in range(2):
         if attempt > 0:
             await _asyncio.sleep(3)
@@ -609,7 +608,7 @@ async def answer(
     if use_cache:
         cached = _cache_get(query)
         if cached:
-            log.info(f"Cache hit: '{query[:60]}'")
+            log.info("Cache hit: '%s'", query[:60].replace('\n', ' ').replace('\r', ' '))
             return cached
 
     language = detect_language(query)
@@ -628,10 +627,9 @@ async def answer(
             seen.add(s["url"])
             unique_sources.append(s)
 
-    log.info(
-        f"Query: '{query[:60]}...' | lang={language} | "
-        f"chunks={len(chunks)} | provider={LLM_PROVIDER}"
-    )
+    _safe_q = query[:60].replace('\n', ' ').replace('\r', ' ')
+    log.info("Query: '%s...' | lang=%s | chunks=%d | provider=%s",
+             _safe_q, language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
         _log_gap(query, 0)

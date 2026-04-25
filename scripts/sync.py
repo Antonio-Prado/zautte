@@ -78,11 +78,11 @@ async def run_sync(mode: str):
 
         print_separator("Fase 2/3: Reset e reindicizzazione")
         clear_collection()
-        docs_html, chunks_html = index_pages(index["pages"])
-        docs_pdf,  chunks_pdf  = index_pdfs(index["pdfs"])
+        index_pages(index["pages"])
+        index_pdfs(index["pdfs"])
 
         print_separator("Fase 3/3: Inbox documenti")
-        ok_inbox, _ = process_inbox()
+        process_inbox()
 
     elif mode == "incremental":
         print_separator("Fase 1/3: Crawl incrementale")
@@ -97,11 +97,10 @@ async def run_sync(mode: str):
         changed_pdfs  = [p for p in index["pdfs"]  if p["url"] in changed_urls]
 
         if changed_pages or changed_pdfs:
-            docs_html, chunks_html = index_pages(changed_pages)
-            docs_pdf,  chunks_pdf  = index_pdfs(changed_pdfs)
+            index_pages(changed_pages)
+            index_pdfs(changed_pdfs)
         else:
             log.info("Nessuna modifica rilevata, niente da reindicizzare.")
-            docs_html = chunks_html = docs_pdf = chunks_pdf = 0
 
         # Pulizia sorgenti HTML non più presenti nel crawl corrente
         current_html_urls = {p["url"] for p in index["pages"]}
@@ -113,22 +112,20 @@ async def run_sync(mode: str):
             remove_sources(stale_html)
 
         print_separator("Fase 3/3: Inbox documenti")
-        ok_inbox, _ = process_inbox()
+        process_inbox()
 
     elif mode == "inbox":
         print_separator("Fase 1/1: Inbox documenti")
-        ok_inbox, _ = process_inbox()
-        docs_html = chunks_html = docs_pdf = chunks_pdf = 0
+        process_inbox()
 
     elif mode == "full-index":
         print_separator("Fase 1/2: Reset e reindicizzazione da file esistenti")
         index = load_index()
         clear_collection()
-        docs_html, chunks_html = index_pages(index["pages"])
-        docs_pdf,  chunks_pdf  = index_pdfs(index["pdfs"])
-        ok_inbox = 0
+        index_pages(index["pages"])
+        index_pdfs(index["pdfs"])
         print_separator("Fase 2/2: Inbox documenti")
-        ok_inbox, _ = process_inbox()
+        process_inbox()
 
     else:
         log.error(f"Modalità sconosciuta: {mode}")
@@ -147,7 +144,7 @@ async def run_sync(mode: str):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Sincronizzazione contenuti chatbot Comune SBT"
+        description="Sincronizzazione contenuti: crawl + indicizzazione"
     )
     parser.add_argument(
         "mode",

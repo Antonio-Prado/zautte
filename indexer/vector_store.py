@@ -33,7 +33,6 @@ _metadata: list[dict] = []
 _ids: list[str] = []
 _id_to_idx: dict[str, int] = {}
 _bm25 = None  # indice BM25, ricostruito quando il corpus cambia
-_dirty = False
 
 
 def _ensure_loaded():
@@ -97,13 +96,11 @@ def _atomic_write_json(path: Path, data):
 
 
 def _save():
-    global _dirty
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
     # embeddings.npy: numpy scrive già su file temporaneo interno
     np.save(str(EMBEDDINGS_FILE), _embeddings)
     _atomic_write_json(METADATA_FILE, _metadata)
     _atomic_write_json(IDS_FILE, _ids)
-    _dirty = False
     _build_bm25()
 
 
@@ -118,7 +115,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]) -> int:
     chunks: lista di {"text": str, "metadata": dict}
     Ritorna il numero di chunk inseriti/aggiornati.
     """
-    global _embeddings, _metadata, _ids, _id_to_idx, _dirty
+    global _embeddings, _metadata, _ids, _id_to_idx
 
     if not chunks:
         return 0
@@ -175,7 +172,6 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]) -> int:
         for i, cid in enumerate(new_ids):
             _id_to_idx[cid] = start_idx + i
 
-    _dirty = True
     _save()
     return inserted
 
