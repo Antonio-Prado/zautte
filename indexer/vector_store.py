@@ -19,7 +19,7 @@ import numpy as np
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import VECTOR_STORE_DIR, RETRIEVAL_TOP_K, EMBEDDING_DIMENSION
+from config.settings import VECTOR_STORE_DIR, RETRIEVAL_TOP_K
 
 log = logging.getLogger(__name__)
 
