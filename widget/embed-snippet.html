@@ -1,0 +1,21 @@
+<!--
+  ISTRUZIONI PER IL GESTORE DEL SITO
+  ====================================
+  Inserire questo codice prima del tag </body> in tutte le pagine
+  (o nel template/footer del CMS).
+
+  Sostituire "https://chatbot.esempio.it" con l'URL reale del backend.
+-->
+
+<script>
+  window.ChatbotConfig = {
+    apiUrl:        'https://chatbot.esempio.it',
+    primaryColor:  '#003366',
+    title:         'Assistente Virtuale',
+    subtitle:      'Nome Organizzazione',
+    position:      'right',
+    logoUrl:       'https://chatbot.esempio.it/widget/logo.png',
+    contactEmail:  'assistenza@esempio.it',
+  };
+</script>
+<script src="https://chatbot.esempio.it/widget/chatbot-widget.js" defer></script>

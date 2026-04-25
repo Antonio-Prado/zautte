@@ -1,0 +1,18 @@
+[
+  {
+    "keywords": ["alberi", "piantumazione", "parcheggio", "parcheggi", "costruire", "costruirei", "costruissi", "alberature", "verde", "piantumate"],
+    "require_any": ["alberi", "piantumazione", "alberature", "piantumate"],
+    "text": "Parcheggi e piantumazione – Art. 61 comma 4 del Regolamento Edilizio Comunale\n\nLe aree a parcheggio devono essere convenientemente piantumate con almeno un albero ad alto fusto di essenza tipica del luogo ogni 25 mq di superficie.\n\nEsempio: un parcheggio da 20 posti auto ha una superficie complessiva di circa 500 mq (stallo ~12,5 mq + corsia ~12,5 mq per posto), quindi richiede almeno 20 alberi (500 mq ÷ 25 mq/albero).\n\nLe essenze tipiche del luogo sono indicate nell'Allegato D del Regolamento Edilizio (Tutela, valorizzazione e incremento del verde pubblico e privato).\n\nPer informazioni: Ufficio Tecnico/Urbanistica – tel. 0735 7941",
+    "title": "Art. 61 REC – Parcheggi e obbligo di piantumazione",
+    "source": "https://sportellounico.comunesbt.it/sue/wp-content/uploads/sites/10/2022/09/regolamento_edilizio.pdf",
+    "category": "regolamento"
+  },
+  {
+    "keywords": ["municipio", "comune", "indirizzo", "sede", "dove", "uffici", "contatti"],
+    "require_any": ["municipio", "indirizzo", "sede", "dove"],
+    "text": "Sede e contatti del Comune di San Benedetto del Tronto\n\nIndirizzo: Viale Alcide De Gasperi, 124 - 63074 San Benedetto del Tronto (AP)\nCentralino: 0735 7941\nEmail: protocollo@comunesbt.it\nPEC: protocollo@cert-sbt.it\nCodice Fiscale / Partita IVA: 00360140446\n\nOrari di apertura al pubblico:\nLunedì, Mercoledì, Venerdì: 9:00 - 12:30\nMartedì e Giovedì: 9:00 - 12:30 e 15:30 - 17:30",
+    "title": "Sede e contatti - Comune di San Benedetto del Tronto",
+    "source_path": "/it/contatti",
+    "category": "pagina"
+  }
+]

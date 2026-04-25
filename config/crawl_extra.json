@@ -1,0 +1,10 @@
+{
+  "exclude_patterns": [
+    "/Engine/RAServePG.php",
+    "uuid=",
+    "&rnd="
+  ],
+  "domain_max_path_depth": {
+    "amministrazionetrasparente.comunesbt.it": 5
+  }
+}

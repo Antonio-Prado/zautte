@@ -1,0 +1,42 @@
+[
+  {
+    "keywords": ["residenza", "anagrafe", "nascita", "morte", "matrimonio", "stato civile", "carta identità", "cie", "certificato"],
+    "name": "Ufficio Anagrafe e Stato Civile",
+    "path": "/it/uffici/anagrafe"
+  },
+  {
+    "keywords": ["tari", "imu", "tributi", "tassa", "imposta", "canone"],
+    "name": "Ufficio Tributi",
+    "path": "/it/uffici/tributi"
+  },
+  {
+    "keywords": ["edilizia", "permesso costruire", "sue", "urbanistica", "piano regolatore", "condono", "agibilità"],
+    "name": "Sportello Unico Edilizia (SUE)",
+    "path": "/it/uffici/sue"
+  },
+  {
+    "keywords": ["suap", "attività commerciale", "apertura negozio", "licenza", "autorizzazione"],
+    "name": "Sportello Unico Attività Produttive (SUAP)",
+    "path": "/it/uffici/suap"
+  },
+  {
+    "keywords": ["gazebo", "chiosco", "tendone", "struttura temporanea", "suolo pubblico", "cosap", "occupazione", "banchetto", "raccolta firme", "dehors"],
+    "name": "Polizia Municipale — Ufficio COSAP (occupazione suolo pubblico)",
+    "path": "/it/uffici/polizia-municipale"
+  },
+  {
+    "keywords": ["scuola", "asilo", "nido", "mensa", "trasporto scolastico", "istruzione"],
+    "name": "Ufficio Pubblica Istruzione",
+    "path": "/it/uffici/istruzione"
+  },
+  {
+    "keywords": ["polizia municipale", "multa", "verbale", "parcheggio", "ztl", "vigili"],
+    "name": "Polizia Municipale",
+    "path": "/it/uffici/polizia-municipale"
+  },
+  {
+    "keywords": ["sociale", "assistenza", "disabilità", "anziani", "contributi", "sussidio"],
+    "name": "Servizi Sociali",
+    "path": "/it/uffici/servizi-sociali"
+  }
+]

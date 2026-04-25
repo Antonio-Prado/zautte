@@ -1,0 +1,37 @@
+# Secrets
+.env
+
+# Dati generati a runtime (non versionare)
+data/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# numpy store
+*.npy
+
+# Log
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Claude Code project settings (contengono comandi specifici del server)
+.claude/
