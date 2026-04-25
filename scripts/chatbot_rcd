@@ -1,0 +1,94 @@
+#!/bin/sh
+#
+# PROVIDE: chatbot
+# REQUIRE: NETWORKING ollama
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="chatbot"
+rcvar="chatbot_enable"
+desc="Chatbot RAG Comune SBT"
+
+chatbot_dir="/opt/chatbot"
+chatbot_user="root"
+chatbot_logfile="/var/log/chatbot.log"
+pidfile="/var/run/${name}.pid"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+
+chatbot_start()
+{
+    if [ -f "${pidfile}" ] && ps -p "$(cat "${pidfile}")" > /dev/null 2>&1; then
+        echo "${name} is already running as pid $(cat "${pidfile}")."
+        return 1
+    fi
+
+    echo "Starting ${name}."
+
+    rm -f /var/run/chatbot.maintenance
+
+    if [ -f "${chatbot_dir}/.env" ]; then
+        export $(grep -v '^#' "${chatbot_dir}/.env" | xargs) 2>/dev/null
+    fi
+
+    cd "${chatbot_dir}" || return 1
+
+    /usr/sbin/daemon \
+        -P "${pidfile}" \
+        -o "${chatbot_logfile}" \
+        "${chatbot_dir}/start.sh"
+}
+
+chatbot_stop()
+{
+    echo "Stopping ${name}."
+
+    touch /var/run/chatbot.maintenance
+
+    if [ ! -f "${pidfile}" ]; then
+        echo "${name} pidfile not found, trying pkill..."
+        pkill -TERM -f "uvicorn api.main:app" 2>/dev/null
+        sleep 2
+        pkill -KILL -f "uvicorn api.main:app" 2>/dev/null
+        return 0
+    fi
+
+    _pid=$(cat "${pidfile}")
+
+    kill -TERM "${_pid}" 2>/dev/null
+
+    _i=0
+    while kill -0 "${_pid}" 2>/dev/null; do
+        _i=$(( _i + 1 ))
+        if [ "${_i}" -ge 10 ]; then
+            echo "Supervisor still alive, forcing stop."
+            kill -KILL "${_pid}" 2>/dev/null
+            break
+        fi
+        sleep 1
+    done
+
+    pkill -TERM -f "uvicorn api.main:app" 2>/dev/null
+    sleep 1
+    pkill -KILL -f "uvicorn api.main:app" 2>/dev/null
+
+    rm -f "${pidfile}"
+    echo "${name} stopped."
+}
+
+chatbot_status()
+{
+    if [ -f "${pidfile}" ] && ps -p "$(cat "${pidfile}")" > /dev/null 2>&1; then
+        echo "${name} is running as pid $(cat "${pidfile}")."
+    else
+        echo "${name} is not running."
+    fi
+}
+
+load_rc_config $name
+: ${chatbot_enable:=NO}
+
+run_rc_command "$1"
