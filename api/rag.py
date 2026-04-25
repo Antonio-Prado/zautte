@@ -197,7 +197,6 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     query_vec = embed_query(expanded_query)
 
     # Rileva fallimento embedding (vettore zero) — usa BM25 puro
-    import numpy as _np
     vec_is_zero = all(v == 0.0 for v in query_vec[:10])
     if vec_is_zero:
         log.warning("Embedding zero — fallback BM25 puro per retrieval")
@@ -355,7 +354,7 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
             last_exc = e
             log.warning(f"Ollama HTTP {e.response.status_code} (tentativo {attempt+1}/2)")
             continue
-        except Exception as e:
+        except Exception:
             raise
     raise last_exc
 

@@ -19,6 +19,9 @@ build/
 *.log
 logs/
 
+# Logo organizzazione (da sostituire con quello del proprio ente)
+widget/logo.png
+
 # macOS
 .DS_Store
 

@@ -16,7 +16,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import CHUNK_SIZE, CHUNK_OVERLAP
+from config.settings import CHUNK_OVERLAP
 
 # Paragrafi più lunghi di questo vengono ulteriormente suddivisi
 MAX_PARAGRAPH_CHARS = 1200

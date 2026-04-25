@@ -172,7 +172,7 @@ def _read_recent_gaps(n: int) -> list[dict]:
         return []
     lines = []
     try:
-        lines = [l for l in f.open(encoding="utf-8") if l.strip()]
+        lines = [line for line in f.open(encoding="utf-8") if line.strip()]
     except Exception:
         return []
     recent = []
@@ -326,7 +326,7 @@ async def crawl_history():
 
     try:
         with open(log_path, encoding="utf-8", errors="replace") as fh:
-            lines = [l.rstrip("\n") for l in fh if any(m in l for m in MARKERS)]
+            lines = [ln.rstrip("\n") for ln in fh if any(m in ln for m in MARKERS)]
     except Exception:
         lines = []
 
@@ -466,7 +466,7 @@ async def chat_stream(request: Request, req: ChatRequest):
                     break
                 elif kind == "error":
                     log.error(f"Errore durante lo streaming: {value}")
-                    yield f'data: {{"error": "Errore durante la generazione"}}\n\n'
+                    yield 'data: {"error": "Errore durante la generazione"}\n\n'
                     yield 'data: {"done": true}\n\n'
                     break
         finally:

@@ -217,7 +217,7 @@ def main():
         log.info(f"PDF: {docs}/{len(pdfs)} documenti, {chunks} chunk")
 
     stats = get_stats()
-    log.info(f"\n=== Indicizzazione completata ===")
+    log.info("\n=== Indicizzazione completata ===")
     log.info(f"Documenti processati: {total_docs}")
     log.info(f"Chunk inseriti questa sessione: {total_chunks}")
     log.info(f"Chunk totali nel vector store: {stats['total_chunks']}")

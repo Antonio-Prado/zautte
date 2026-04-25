@@ -328,7 +328,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
                     # Salta se contenuto invariato (solo in modalità incrementale)
                     if incremental and not state.is_changed(url, page_hash):
-                        log.debug(f"  Invariata, skip")
+                        log.debug("  Invariata, skip")
                         state.mark_unchanged(url)
                         skipped_pages += 1
                         continue
@@ -338,7 +338,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                     meta = extract_metadata(raw_html, url)
 
                     if len(text) < 100:
-                        log.debug(f"  Testo troppo corto, skip")
+                        log.debug("  Testo troppo corto, skip")
                         continue
 
                     fname = url_to_filename(url) + ".json"
@@ -369,7 +369,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 elif "application/pdf" in content_type:
                     pdf_hash = content_hash(resp.content)
                     if incremental and not state.is_changed(url, pdf_hash):
-                        log.debug(f"  PDF invariato, skip")
+                        log.debug("  PDF invariato, skip")
                         state.mark_unchanged(url)
                         continue
 
