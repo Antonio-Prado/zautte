@@ -5,7 +5,7 @@ Salva embedding e metadata su disco, esegue ricerca coseno in memoria.
 Supporta hybrid search: cosine similarity (vettori) + BM25 (keyword),
 combinati tramite Reciprocal Rank Fusion (RRF).
 
-Per corpus di dimensione comunale (< 20.000 chunk) le prestazioni sono
+Per corpus di dimensione ridotta (< 20.000 chunk) le prestazioni sono
 più che adeguate: ricerca su 10.000 chunk in < 50ms.
 """
 

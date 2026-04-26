@@ -1,5 +1,5 @@
 """
-Backend FastAPI del chatbot comunale.
+Backend FastAPI di Zautte.
 
 Endpoints:
   POST /chat          → risposta completa (JSON)

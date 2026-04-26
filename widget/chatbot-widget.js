@@ -8,7 +8,7 @@
  *     window.ChatbotConfig = {
  *       apiUrl:        'https://chatbot.comune.example.it', // URL del backend
  *       primaryColor:  '#003366',                           // colore principale
- *       title:         'Assistente Comunale',               // titolo chat
+ *       title:         'Assistente Zautte',                  // titolo chat
  *       subtitle:      'Comune di ...',                     // sottotitolo
  *       welcomeIt:     'Ciao! Come posso aiutarti?',        // messaggio iniziale IT
  *       welcomeEn:     'Hello! How can I help you?',        // messaggio iniziale EN
