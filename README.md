@@ -624,9 +624,25 @@ Ultime query senza risposta (gap di contenuto da colmare).
 
 ---
 
+#### `GET /feedback/negative?limit=200`
+
+Domande che hanno ricevuto feedback negativo (👎). Restituisce solo `question` e `ts`; nessun dato personale. Non richiede autenticazione. Usato dalla dashboard per mostrare automaticamente le query insoddisfatte.
+
+```json
+{
+  "items": [
+    {"question": "Come si prenota un appuntamento?", "ts": "2026-04-22T18:03:50"}
+  ],
+  "total_negative": 8,
+  "total": 30
+}
+```
+
+---
+
 #### `GET /feedback/list?limit=100` *(admin)*
 
-Lista feedback ricevuti con conteggio positivi/negativi.
+Lista completa feedback ricevuti (tutti i rating) con conteggio positivi/negativi.
 
 ```json
 {
@@ -641,7 +657,7 @@ Lista feedback ricevuti con conteggio positivi/negativi.
 
 ### Autenticazione admin
 
-Gli endpoint `/stats`, `/gaps` e `/feedback/list` richiedono l'header `X-Admin-Key` con il valore di `ADMIN_API_KEY` dal file `.env`.
+Gli endpoint `/stats`, `/gaps` e `/feedback/list` richiedono l'header `X-Admin-Key` con il valore di `ADMIN_API_KEY` dal file `.env`. L'endpoint `/feedback/negative` è pubblico (restituisce solo il testo delle domande, senza dati personali).
 
 Se `ADMIN_API_KEY` è vuoto, l'autenticazione è disabilitata (solo per sviluppo).
 
@@ -893,7 +909,7 @@ I risultati vengono salvati in `data/eval_results.json`.
 
 ### Endpoint admin protetti
 
-`/stats`, `/gaps`, `/feedback/list` richiedono l'header `X-Admin-Key`. Impostare `ADMIN_API_KEY` in `.env` in produzione.
+`/stats`, `/gaps`, `/feedback/list` richiedono l'header `X-Admin-Key`. Impostare `ADMIN_API_KEY` in `.env` in produzione. `/feedback/negative` è pubblico.
 
 ### CORS
 
