@@ -284,6 +284,28 @@ async def feedback(request: Request, req: FeedbackRequest):
     return {"ok": True}
 
 
+@app.get("/feedback/negative")
+async def feedback_negative(limit: int = 200):
+    """Domande con feedback negativo — solo question + ts, nessun dato personale."""
+    import json as _json
+    from pathlib import Path as _Path
+    feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
+    if not feedback_file.exists():
+        return {"items": [], "total_negative": 0, "total": 0}
+    entries = []
+    total = 0
+    with open(feedback_file, encoding="utf-8") as f:
+        for line in f:
+            try:
+                e = _json.loads(line)
+                total += 1
+                if e.get("rating") == -1:
+                    entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
+            except Exception:
+                pass
+    return {"items": entries[-limit:], "total_negative": len(entries), "total": total}
+
+
 @app.get("/feedback/list")
 async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
     """Lista feedback ricevuti — solo admin."""
