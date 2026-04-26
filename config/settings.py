@@ -1,5 +1,5 @@
 """
-Configurazione centralizzata del chatbot comunale.
+Configurazione centralizzata di Zautte.
 Modifica questo file per adattare il sistema al tuo ambiente.
 """
 
