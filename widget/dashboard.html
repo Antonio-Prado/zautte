@@ -188,16 +188,6 @@
     .cl-tag.data   { background: #e3f2fd; color: #1565c0; }
 
     /* Feedback negativi */
-    .admin-key-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
-    .admin-key-row input {
-      flex: 1; max-width: 280px; padding: 5px 9px; border: 1px solid #ddd;
-      border-radius: 5px; font-size: 0.82em; color: #333;
-    }
-    .admin-key-row button {
-      padding: 5px 14px; background: #003366; color: #fff; border: none;
-      border-radius: 5px; font-size: 0.82em; cursor: pointer;
-    }
-    .admin-key-row button:hover { background: #00509e; }
     .neg-list { list-style: none; padding: 0; margin: 0; }
     .neg-list li {
       display: flex; justify-content: space-between; align-items: baseline;
@@ -310,14 +300,9 @@
 
     <!-- Feedback negativi -->
     <div class="card wide">
-      <h2>Domande con feedback negativo 👎</h2>
-      <div class="admin-key-row">
-        <input type="password" id="admin-key-input" placeholder="X-Admin-Key" autocomplete="off">
-        <button onclick="loadNegativeFeedback()">Carica</button>
-        <span id="neg-fb-status" style="font-size:0.78em;color:#999"></span>
-      </div>
+      <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <ul class="neg-list" id="neg-fb-list">
-        <li><span class="neg-q" style="color:#bbb">Inserisci la chiave admin per visualizzare.</span></li>
+        <li><span class="neg-q" style="color:#bbb">caricamento…</span></li>
       </ul>
     </div>
 
@@ -396,7 +381,7 @@
     <div class="cl-entry">
       <div class="cl-date">26 apr 2026</div>
       <div class="cl-text">
-        <span class="cl-tag feat">feat</span>Dashboard: nuova sezione "Domande con feedback negativo" — mostra l'elenco delle query che hanno ricevuto 👎, autenticata con X-Admin-Key (chiave salvata in sessionStorage).
+        <span class="cl-tag feat">feat</span>Dashboard: nuova sezione "Domande con feedback negativo" — endpoint <code>/feedback/negative</code> pubblico (solo question+ts, nessun dato personale), caricamento automatico senza chiave admin.
       </div>
     </div>
     <div class="cl-entry">
@@ -745,56 +730,35 @@
     }
 
     function loadNegativeFeedback() {
-      const keyInput = document.getElementById('admin-key-input');
-      const key = keyInput.value.trim();
-      if (key) sessionStorage.setItem('adminKey', key);
-      const savedKey = key || sessionStorage.getItem('adminKey') || '';
       const statusEl = document.getElementById('neg-fb-status');
       const listEl = document.getElementById('neg-fb-list');
-      if (!savedKey) {
-        statusEl.textContent = 'chiave mancante';
-        return;
-      }
-      statusEl.textContent = 'caricamento…';
-      fetch(apiBase + '/feedback/list?limit=200', {
-        headers: { 'X-Admin-Key': savedKey }
-      })
-        .then(r => {
-          if (r.status === 403) throw new Error('403');
-          return r.json();
-        })
+      fetch(apiBase + '/feedback/negative')
+        .then(r => r.json())
         .then(data => {
-          const neg = (data.feedback || []).filter(e => e.rating === -1).reverse();
-          statusEl.textContent = neg.length + ' negative su ' + (data.total || 0) + ' totali';
-          if (!neg.length) {
+          const items = (data.items || []).slice().reverse();
+          statusEl.textContent = '— ' + items.length + ' negative su ' + (data.total || 0) + ' totali';
+          if (!items.length) {
             listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo.</span></li>';
             return;
           }
-          listEl.innerHTML = neg.map(e => {
+          listEl.innerHTML = items.map(e => {
             const ts = (e.ts || '').replace('T', ' ').slice(0, 16);
             return '<li><span class="neg-q">— ' + e.question + '</span>' +
                    (ts ? '<span class="neg-ts">' + ts + '</span>' : '') + '</li>';
           }).join('');
         })
-        .catch(err => {
-          statusEl.textContent = err.message === '403' ? 'chiave non valida' : 'errore caricamento';
-          listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Impossibile caricare.</span></li>';
+        .catch(() => {
+          statusEl.textContent = '';
+          listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Errore caricamento.</span></li>';
         });
     }
 
-    // Ripristina chiave salvata al caricamento pagina
-    (function() {
-      const saved = sessionStorage.getItem('adminKey');
-      if (saved) {
-        document.getElementById('admin-key-input').value = saved;
-        loadNegativeFeedback();
-      }
-    })();
-
     updateStats();
     updateCrawlHistory();
+    loadNegativeFeedback();
     setInterval(updateStats, 30000);
     setInterval(updateCrawlHistory, 60000);
+    setInterval(loadNegativeFeedback, 60000);
 
     function askQuestion(text) {
       const openBtn = document.querySelector('[id$="-btn"]');
