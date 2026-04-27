@@ -301,7 +301,7 @@ async def feedback_negative(limit: int = 200):
                 total += 1
                 if e.get("rating") == -1:
                     entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
-            except Exception:
+            except _json.JSONDecodeError:
                 pass
     return {"items": entries[-limit:], "total_negative": len(entries), "total": total}
 
