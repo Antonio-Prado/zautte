@@ -302,7 +302,7 @@ async def feedback_negative(limit: int = 200):
                 if e.get("rating") == -1:
                     entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
             except _json.JSONDecodeError:
-                pass
+                pass  # skip malformed lines in feedback.jsonl
     return {"items": entries[-limit:], "total_negative": len(entries), "total": total}
 
 
