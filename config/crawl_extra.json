@@ -2,9 +2,17 @@
   "exclude_patterns": [
     "/Engine/RAServePG.php",
     "uuid=",
-    "&rnd="
+    "&rnd=",
+    "/Organigramma/",
+    "/Organigramma-Servizio/",
+    "tribe-bar-date=",
+    "outlook-ical=",
+    "ical=1",
+    "eventDate="
   ],
   "domain_max_path_depth": {
-    "amministrazionetrasparente.comunesbt.it": 5
+    "amministrazionetrasparente.comunesbt.it": 5,
+    "www.comunesbt.it": 8,
+    "turismo.comunesbt.it": 4
   }
 }
