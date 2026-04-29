@@ -437,7 +437,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
     mode = "incrementale" if incremental else "completo"
-    log.info(f"\n=== Crawl {mode} completato ===")
+    log.info(f"=== Crawl {mode} completato ===")
     if incremental:
         log.info(f"Nuove: {new_pages} | Aggiornate: {updated_pages} | Invariate: {skipped_pages}")
     log.info(f"Totale indice: {len(results_pages)} pagine, {len(results_pdfs)} PDF")

@@ -397,6 +397,18 @@
       </div>
     </div>
     <div class="cl-entry">
+      <div class="cl-date">29 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Secondo crawl runaway su <code>turismo.comunesbt.it</code> (calendario eventi con parametri data, 4GB RAM in 5h): killato; aggiunti pattern di esclusione <code>tribe-bar-date=</code>, <code>ical=1</code>, <code>outlook-ical=</code>, <code>eventDate=</code>; limite profondità 4 per <code>turismo.comunesbt.it</code>; puliti 2.801 URL spuri da <code>crawl_state.json</code> e 2.860 pagine da <code>index.json</code>. Fix bug <code>\n</code> nel log di completamento crawl che impediva il corretto parsing dello storico nel pannello.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">28 apr 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Crawl bloccato da <code>/Organigramma-Servizio/</code> (355k pagine in 39h, 5GB RAM): processo killato, pattern aggiunto alle esclusioni insieme a <code>/Organigramma/</code>; aggiunto limite di profondità 8 per <code>www.comunesbt.it</code>; puliti 178k URL spuri da <code>index.json</code> e <code>crawl_state.json</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">25 apr 2026</div>
       <div class="cl-text">
         <span class="cl-tag feat">feat</span>Rimossi tutti i riferimenti a "comune/PA" dai default del codice: prompt di sistema, widget (titolo, welcome, noInfo, WIDGET_ID), sinonimi spostati in <code>config/synonyms.json</code>, testi RAG ora neutrali.
