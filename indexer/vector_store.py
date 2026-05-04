@@ -142,6 +142,9 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float]]) -> int:
         n = np.linalg.norm(norm_vec)
         if n > 0:
             norm_vec = norm_vec / n
+            chunk["metadata"].pop("needs_reembedding", None)
+        else:
+            chunk["metadata"]["needs_reembedding"] = True
 
         if cid in _id_to_idx:
             # Aggiorna in place
@@ -351,3 +354,36 @@ def clear_collection():
     _reset_state()
     _save()
     log.info("Vector store svuotato.")
+
+
+def get_zero_vector_chunks() -> list[dict]:
+    """Ritorna i chunk con vettore zero — controlla il vettore effettivo (non solo il flag),
+    così trova anche chunk salvati prima dell'introduzione del flag needs_reembedding."""
+    _ensure_loaded()
+    if _embeddings is None or len(_ids) == 0:
+        return []
+    norms = np.linalg.norm(_embeddings, axis=1)
+    return [
+        {"idx": i, "id": _ids[i], "text": _metadata[i].get("text", ""),
+         "source": _metadata[i].get("source", "")}
+        for i, norm in enumerate(norms)
+        if norm == 0
+    ]
+
+
+def update_embeddings(updates: list[tuple[int, list[float]]]) -> int:
+    """Aggiorna embedding in place per una lista di (idx, vector).
+    Rimuove needs_reembedding se il vettore è valido. Ritorna il numero aggiornati."""
+    global _embeddings
+    _ensure_loaded()
+    updated = 0
+    for idx, vec in updates:
+        norm_vec = np.array(vec, dtype=np.float32)
+        n = np.linalg.norm(norm_vec)
+        if n > 0:
+            _embeddings[idx] = norm_vec / n
+            _metadata[idx].pop("needs_reembedding", None)
+            updated += 1
+    if updated:
+        _save()
+    return updated
