@@ -373,6 +373,12 @@
   <div class="changelog-section">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">4 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Embedder: retry con backoff esponenziale (1s/2s/4s, 3 tentativi) su errore HTTP 500 di Ollama prima di salvare vettore zero. Nuova modalità <code>sync reembed</code> per ri-embedare i chunk con vettore zero già presenti nell'indice.
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">26 apr 2026</div>
       <div class="cl-text">
         <span class="cl-tag feat">feat</span>Avviso privacy nel footer del widget: "Non inserire dati personali nella chat" (sempre visibile, bilingue).
