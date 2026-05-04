@@ -10,7 +10,7 @@ cd /opt/chatbot
 lockf -t 0 "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.sync incremental
 STATUS=$?
 
-if [ $STATUS -eq 73 ]; then
+if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then
     logger -t chatbot-sync 'sync precedente ancora in corso — skip'
 elif [ $STATUS -ne 0 ]; then
     logger -t chatbot-sync "sync terminato con errore (exit $STATUS)"
