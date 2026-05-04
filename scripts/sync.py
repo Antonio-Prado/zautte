@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index
-from indexer.vector_store import get_stats, clear_collection, remove_sources, get_indexed_sources
+from indexer.vector_store import get_stats, clear_collection, remove_sources, get_indexed_sources, get_zero_vector_chunks, update_embeddings
 from scripts.inbox_indexer import process_inbox
 
 LOG_FILE = Path("/var/log/chatbot-sync.log")
@@ -114,6 +114,22 @@ async def run_sync(mode: str):
         print_separator("Fase 3/3: Inbox documenti")
         process_inbox()
 
+    elif mode == "reembed":
+        print_separator("Re-embedding chunk con vettore zero")
+        from indexer.embedder import embed_texts
+        candidates = get_zero_vector_chunks()
+        if not candidates:
+            log.info("Nessun chunk con vettore zero trovato — indice pulito.")
+        else:
+            log.info(f"Trovati {len(candidates)} chunk da ri-embedare")
+            texts = [c["text"] for c in candidates]
+            embeddings = embed_texts(texts)
+            updates = [(c["idx"], emb) for c, emb in zip(candidates, embeddings)]
+            updated = update_embeddings(updates)
+            remaining = len(candidates) - updated
+            log.info(f"Re-embedding completato: {updated}/{len(candidates)} aggiornati"
+                     + (f", {remaining} ancora con vettore zero" if remaining else ""))
+
     elif mode == "inbox":
         print_separator("Fase 1/1: Inbox documenti")
         process_inbox()
@@ -148,12 +164,13 @@ def main():
     )
     parser.add_argument(
         "mode",
-        choices=["full", "incremental", "inbox", "full-index"],
+        choices=["full", "incremental", "inbox", "full-index", "reembed"],
         help=(
             "full=crawl completo + reindicizza tutto | "
             "incremental=solo modifiche | "
             "inbox=solo nuovi documenti | "
-            "full-index=reindicizza senza crawl"
+            "full-index=reindicizza senza crawl | "
+            "reembed=ri-embeda chunk con vettore zero"
         )
     )
     args = parser.parse_args()
