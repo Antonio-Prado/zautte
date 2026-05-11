@@ -9,6 +9,6 @@ langchain-text-splitters>=1.1.2
 anthropic>=0.97.0
 python-dotenv>=1.2.2
 aiofiles>=25.1.0
-pydantic-settings>=2.14.0
+pydantic-settings>=2.14.1
 python-docx>=1.2.0
 slowapi>=0.1.9
