@@ -76,10 +76,16 @@ async def run_sync(mode: str):
         print_separator("Fase 1/3: Crawl completo del sito")
         index = await crawl(incremental=False)
 
-        print_separator("Fase 2/3: Reset e reindicizzazione")
-        clear_collection()
-        index_pages(index["pages"])
-        index_pdfs(index["pdfs"])
+        print_separator("Fase 2/3: Reindicizzazione completa (senza svuotare l'indice)")
+        index_pages(index["pages"], replace_existing=True)
+        index_pdfs(index["pdfs"], replace_existing=True)
+
+        # Rimuovi sorgenti che non esistono più nel sito
+        current_urls = {p["url"] for p in index["pages"]} | {p["url"] for p in index["pdfs"]}
+        stale = get_indexed_sources() - current_urls
+        if stale:
+            log.info(f"Pulizia: {len(stale)} sorgenti non più presenti nel sito")
+            remove_sources(stale)
 
         print_separator("Fase 3/3: Inbox documenti")
         process_inbox()
