@@ -20,7 +20,7 @@ from config.settings import CRAWL_CACHE_DIR
 from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
-from indexer.vector_store import upsert_chunks, get_stats, clear_collection, get_indexed_sources
+from indexer.vector_store import upsert_chunks, get_stats, clear_collection, get_indexed_sources, remove_sources
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,7 +42,7 @@ def load_index() -> dict:
         return json.load(f)
 
 
-def index_pages(pages: list[dict], skip_existing: bool = False) -> tuple[int, int]:
+def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
     """Indicizza le pagine HTML. Ritorna (documenti_ok, chunk_totali)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
@@ -87,6 +87,15 @@ def index_pages(pages: list[dict], skip_existing: bool = False) -> tuple[int, in
             continue
 
         log.info(f"  {len(chunks)} chunk")
+
+        if replace_existing:
+            # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
+            if pending_chunks:
+                total_chunks += _flush(pending_chunks, pending_embeddings_texts)
+                pending_chunks.clear()
+                pending_embeddings_texts.clear()
+            remove_sources({page["url"]})
+
         pending_chunks.extend(chunks)
         pending_embeddings_texts.extend(c["text"] for c in chunks)
         docs_ok += 1
@@ -106,7 +115,7 @@ def index_pages(pages: list[dict], skip_existing: bool = False) -> tuple[int, in
     return docs_ok, total_chunks
 
 
-def index_pdfs(pdfs: list[dict], skip_existing: bool = False) -> tuple[int, int]:
+def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
     """Indicizza i documenti PDF. Ritorna (documenti_ok, chunk_totali)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
@@ -145,6 +154,15 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False) -> tuple[int, int]
             continue
 
         log.info(f"  {len(chunks)} chunk da {meta['pages']} pagine")
+
+        if replace_existing:
+            # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
+            if pending_chunks:
+                total_chunks += _flush(pending_chunks, pending_embeddings_texts)
+                pending_chunks.clear()
+                pending_embeddings_texts.clear()
+            remove_sources({pdf["url"]})
+
         pending_chunks.extend(chunks)
         pending_embeddings_texts.extend(c["text"] for c in chunks)
         docs_ok += 1

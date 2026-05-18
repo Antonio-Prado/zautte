@@ -25,13 +25,14 @@ add_cron() {
 
 echo "Configurazione cron job per utente '${CRON_USER}'..."
 
-# --- Sync incrementale ogni notte alle 02:30 ---
+# --- Sync incrementale ogni lunedì alle 02:30 ---
 # Controlla modifiche al sito e indicizza documenti nuovi/aggiornati
-add_cron "30 2 * * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync incremental >> ${LOG_DIR}/sync_incremental.log 2>&1"
+add_cron "30 2 * * 1 cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync incremental >> ${LOG_DIR}/sync_incremental.log 2>&1"
 
-# --- Sync completo ogni domenica alle 03:00 ---
-# Riscansiona tutto il sito da zero (rileva anche pagine rimosse)
-add_cron "0 3 * * 0 cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync full >> ${LOG_DIR}/sync_full.log 2>&1"
+# --- Sync completo il 1° di ogni mese alle 03:00 ---
+# Riscansiona tutto il sito (rileva pagine rimosse, aggiorna contenuti cambiati)
+# Non svuota l'indice: l'indice resta consultabile durante tutta la rielaborazione
+add_cron "0 3 1 * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync full >> ${LOG_DIR}/sync_full.log 2>&1"
 
 # --- Inbox ogni 30 minuti nelle ore lavorative (lun-ven 8-18) ---
 # Processa subito i documenti caricati manualmente
@@ -44,6 +45,6 @@ echo ""
 echo "Cron job configurati. Verifica con: crontab -u ${CRON_USER} -l"
 echo ""
 echo "Schedule attivo:"
-echo "  02:30 ogni notte    → sync incrementale (modifiche)"
-echo "  03:00 ogni domenica → sync completo (full crawl)"
+echo "  02:30 ogni lunedì   → sync incrementale (modifiche)"
+echo "  03:00 il 1° del mese → sync completo (full crawl, indice sempre attivo)"
 echo "  ogni 30min (8-18 lun-ven) → inbox documenti"
