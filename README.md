@@ -1,221 +1,221 @@
-# Zautte — Documentazione Tecnica
+# Zautte — Technical Documentation
 
-Zautte è un assistente virtuale RAG (Retrieval-Augmented Generation) per qualsiasi sito web. Risponde alle domande degli utenti basandosi esclusivamente sui contenuti del sito indicizzato, con supporto multilingue (italiano/inglese) e piena attenzione alla privacy (GDPR-ready).
+Zautte is a RAG (Retrieval-Augmented Generation) virtual assistant for any website. It answers user questions based exclusively on the indexed site's content, with multilingual support (Italian/English) and full privacy compliance (GDPR-ready).
 
 ---
 
-## Indice
+## Table of Contents
 
-1. [Architettura](#architettura)
-2. [Stack tecnologico](#stack-tecnologico)
-3. [Struttura del repository](#struttura-del-repository)
-4. [Installazione](#installazione)
-5. [Configurazione](#configurazione)
-6. [Pipeline RAG](#pipeline-rag)
+1. [Architecture](#architecture)
+2. [Technology Stack](#technology-stack)
+3. [Repository Structure](#repository-structure)
+4. [Installation](#installation)
+5. [Configuration](#configuration)
+6. [RAG Pipeline](#rag-pipeline)
 7. [Crawler](#crawler)
-8. [Indicizzatore](#indicizzatore)
+8. [Indexer](#indexer)
 9. [Vector Store](#vector-store)
 10. [Backend API](#backend-api)
-11. [Widget frontend](#widget-frontend)
-12. [Operazioni periodiche](#operazioni-periodiche)
-13. [Servizio di sistema (FreeBSD)](#servizio-di-sistema-freebsd)
-14. [Monitoraggio e valutazione](#monitoraggio-e-valutazione)
-15. [Privacy e sicurezza](#privacy-e-sicurezza)
-16. [Risoluzione problemi](#risoluzione-problemi)
+11. [Frontend Widget](#frontend-widget)
+12. [Periodic Operations](#periodic-operations)
+13. [System Service (FreeBSD)](#system-service-freebsd)
+14. [Monitoring and Evaluation](#monitoring-and-evaluation)
+15. [Privacy and Security](#privacy-and-security)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Architettura
+## Architecture
 
 ```
                     ┌─────────────────────────────────────────┐
-                    │           Sito da indicizzare            │
-                    │        il-tuo-sito.it  (HTML + PDF)      │
+                    │           Site to be indexed             │
+                    │        your-site.com  (HTML + PDF)       │
                     └──────────────┬──────────────────────────┘
                                    │ crawl
                                    ▼
                     ┌─────────────────────────────────────────┐
                     │             crawler/                     │
-                    │  Scarica pagine, estrae testo e metadati │
-                    │  Modalità: completo | incrementale       │
+                    │  Downloads pages, extracts text/metadata │
+                    │  Mode: full | incremental                │
                     └──────────────┬──────────────────────────┘
                                    │ index.json
                                    ▼
                     ┌─────────────────────────────────────────┐
                     │             indexer/                     │
-                    │  Chunking semantico → Embedding (Ollama) │
-                    │  Upsert nel vector store (numpy)         │
+                    │  Semantic chunking → Embedding (Ollama)  │
+                    │  Upsert into vector store (numpy)        │
                     └──────────────┬──────────────────────────┘
                                    │ data/vectorstore/
                                    ▼
-    Utente ─── Widget JS ─── api/main.py (FastAPI)
+    User ─── JS Widget ─── api/main.py (FastAPI)
                                    │
                               api/rag.py
                          ┌─────────┴──────────┐
                     Hybrid Search           LLM (Ollama/Claude)
-                  (cosine + BM25)          Risposta in streaming
+                  (cosine + BM25)          Streaming response
 ```
 
-Il sistema è **stateless**: le conversazioni non vengono memorizzate sul server. La cronologia dei turni è gestita lato client dal widget e inviata ad ogni richiesta (max 3 turni = 6 messaggi).
+The system is **stateless**: conversations are not stored on the server. Turn history is managed client-side by the widget and sent with every request (max 3 turns = 6 messages).
 
 ---
 
-## Stack tecnologico
+## Technology Stack
 
-| Componente        | Tecnologia                                           |
+| Component         | Technology                                           |
 |-------------------|------------------------------------------------------|
 | OS                | FreeBSD 14                                           |
 | Python            | 3.11+                                                |
 | Web scraping      | httpx + BeautifulSoup4/lxml                          |
-| PDF parsing       | pypdf (puro Python, zero compilazione)               |
+| PDF parsing       | pypdf (pure Python, no compilation)                  |
 | Embedding         | Ollama (`mxbai-embed-large`, 1024 dim)               |
-| Vector store      | numpy (custom, puro Python)                          |
+| Vector store      | numpy (custom, pure Python)                          |
 | Keyword search    | rank-bm25 (BM25Okapi)                                |
-| LLM               | Ollama locale (`qwen2.5:7b`) oppure Claude API       |
+| LLM               | Local Ollama (`qwen2.5:7b`) or Claude API            |
 | Backend           | FastAPI + uvicorn                                    |
 | Rate limiting     | slowapi                                              |
-| Frontend          | Vanilla JS/CSS (zero dipendenze esterne)             |
-| Supervisore       | FreeBSD rc.d + daemon(8)                             |
+| Frontend          | Vanilla JS/CSS (zero external dependencies)          |
+| Supervisor        | FreeBSD rc.d + daemon(8)                             |
 | Log rotation      | newsyslog                                            |
 
 ---
 
-## Struttura del repository
+## Repository Structure
 
 ```
 chatbot/
-├── .env.example              # Template variabili d'ambiente
-├── requirements.txt          # Dipendenze Python
-├── start.sh                  # Avvio rapido (sviluppo)
+├── .env.example              # Environment variable template
+├── requirements.txt          # Python dependencies
+├── start.sh                  # Quick start (development)
 │
 ├── config/
-│   └── settings.py           # Configurazione centralizzata (carica .env)
+│   └── settings.py           # Centralized config (loads .env)
 │
 ├── crawler/
-│   ├── crawler.py            # Crawler asincrono httpx
-│   └── state.py              # Stato crawl per modalità incrementale
+│   ├── crawler.py            # Async httpx crawler
+│   └── state.py              # Crawl state for incremental mode
 │
 ├── indexer/
-│   ├── chunker.py            # Chunking semantico per paragrafo
-│   ├── embedder.py           # Generazione embedding via Ollama
-│   ├── indexer.py            # Orchestratore: crawler output → vector store
-│   ├── pdf_extractor.py      # Estrazione testo da PDF (pypdf)
-│   └── vector_store.py       # Store numpy: cosine search + BM25 hybrid
+│   ├── chunker.py            # Semantic paragraph chunking
+│   ├── embedder.py           # Embedding generation via Ollama
+│   ├── indexer.py            # Orchestrator: crawler output → vector store
+│   ├── pdf_extractor.py      # Text extraction from PDF (pypdf)
+│   └── vector_store.py       # numpy store: cosine search + BM25 hybrid
 │
 ├── api/
-│   ├── main.py               # FastAPI: endpoints, rate limiting, auth admin
-│   └── rag.py                # Pipeline RAG: expand → retrieve → rerank → LLM
+│   ├── main.py               # FastAPI: endpoints, rate limiting, admin auth
+│   └── rag.py                # RAG pipeline: expand → retrieve → rerank → LLM
 │
 ├── widget/
-│   ├── chatbot-widget.js     # Widget chat (JS/CSS auto-contenuto)
-│   ├── embed-snippet.html    # Snippet da incollare nel sito
-│   └── dashboard.html        # Pannello di controllo (area riservata)
+│   ├── chatbot-widget.js     # Chat widget (self-contained JS/CSS)
+│   ├── embed-snippet.html    # Snippet to paste into the site
+│   └── dashboard.html        # Control panel (restricted area)
 │
 ├── scripts/
-│   ├── sync.py               # Orchestratore: crawl + indicizzazione
-│   ├── inbox_indexer.py      # Indicizzazione documenti caricati manualmente
-│   ├── eval.py               # Valutazione qualità RAG
-│   ├── setup_freebsd.sh      # Setup iniziale su FreeBSD
-│   ├── chatbot_rcd           # Script rc.d per il servizio
-│   ├── cron_setup.sh         # Configura cron job
-│   ├── incremental_sync.sh   # Sync notturno incrementale
-│   ├── backup_vectorstore.sh # Backup giornaliero vector store
-│   ├── watchdog.sh           # Watchdog: riavvia se non risponde
-│   └── newsyslog-chatbot.conf# Configurazione rotazione log
+│   ├── sync.py               # Orchestrator: crawl + indexing
+│   ├── inbox_indexer.py      # Indexing of manually uploaded documents
+│   ├── eval.py               # RAG quality evaluation
+│   ├── setup_freebsd.sh      # Initial setup on FreeBSD
+│   ├── chatbot_rcd           # rc.d script for the service
+│   ├── cron_setup.sh         # Configures cron jobs
+│   ├── incremental_sync.sh   # Nightly incremental sync
+│   ├── backup_vectorstore.sh # Daily vector store backup
+│   ├── watchdog.sh           # Watchdog: restarts if unresponsive
+│   └── newsyslog-chatbot.conf# Log rotation configuration
 │
-└── data/                     # Generata automaticamente (non committare)
-    ├── crawl_cache/          # Cache pagine scaricate + index.json
-    ├── documents/            # PDF scaricati
-    ├── vectorstore/          # Embedding + metadata (numpy)
-    ├── inbox/                # Documenti da indicizzare manualmente
-    ├── backups/              # Backup compressi del vector store
-    ├── gaps.jsonl            # Query senza risposta (gap di contenuto)
-    └── feedback.jsonl        # Feedback utenti (pollice su/giù)
+└── data/                     # Auto-generated (do not commit)
+    ├── crawl_cache/          # Downloaded pages cache + index.json
+    ├── documents/            # Downloaded PDFs
+    ├── vectorstore/          # Embeddings + metadata (numpy)
+    ├── inbox/                # Documents to index manually
+    ├── backups/              # Compressed vector store backups
+    ├── gaps.jsonl            # Unanswered queries (content gaps)
+    └── feedback.jsonl        # User feedback (thumbs up/down)
 ```
 
 ---
 
-## Installazione
+## Installation
 
-### Prerequisiti
+### Prerequisites
 
-- FreeBSD 14 (o compatibile)
+- FreeBSD 14 (or compatible)
 - Python 3.11+
-- [Ollama](https://ollama.com) installato e in esecuzione (`ollama serve`)
-- Modelli Ollama scaricati:
+- [Ollama](https://ollama.com) installed and running (`ollama serve`)
+- Ollama models downloaded:
 
 ```sh
 ollama pull mxbai-embed-large   # embedding (1024 dim)
-ollama pull qwen2.5:7b          # LLM (oppure qwen2.5:3b per meno RAM)
+ollama pull qwen2.5:7b          # LLM (or qwen2.5:3b for lower RAM)
 ```
 
-### Setup automatico
+### Automated Setup
 
 ```sh
-# Clona il repository
+# Clone the repository
 git clone <repo_url> /opt/chatbot
 cd /opt/chatbot
 
-# Esegui lo script di setup (come root)
+# Run the setup script (as root)
 sh scripts/setup_freebsd.sh
 ```
 
-Lo script installa i pacchetti di sistema (`python311`, `py311-pip`, etc.), crea il virtualenv e installa le dipendenze Python.
+The script installs system packages (`python311`, `py311-pip`, etc.), creates the virtualenv, and installs Python dependencies.
 
-### Setup manuale
+### Manual Setup
 
 ```sh
 cd /opt/chatbot
 
-# Crea e attiva il virtualenv
+# Create and activate the virtualenv
 python3.11 -m venv venv
 . venv/bin/activate
 
-# Installa dipendenze
+# Install dependencies
 pip install -r requirements.txt
-pip install rank-bm25            # per hybrid search BM25
+pip install rank-bm25            # for BM25 hybrid search
 
-# Configura l'ambiente
+# Configure the environment
 cp .env.example .env
-# Modifica .env con i tuoi valori
+# Edit .env with your values
 
-# Crea le directory dati
+# Create data directories
 mkdir -p data/vectorstore data/documents data/crawl_cache data/inbox
 ```
 
-### Prima indicizzazione
+### First Indexing
 
 ```sh
-# 1. Crawl completo del sito (~6000 pagine, richiede ore)
+# 1. Full site crawl (~6000 pages, takes hours)
 venv/bin/python -m crawler.crawler
 
-# 2. Genera embedding e popola il vector store
+# 2. Generate embeddings and populate the vector store
 venv/bin/python -m indexer.indexer
 
-# Oppure in un solo comando (crawl + indice + inbox):
+# Or in a single command (crawl + index + inbox):
 venv/bin/python -m scripts.sync full
 ```
 
-### Avvio del backend
+### Starting the Backend
 
 ```sh
-# Sviluppo (con reload automatico)
+# Development (with auto-reload)
 venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Produzione (tramite rc.d — vedi sezione dedicata)
+# Production (via rc.d — see dedicated section)
 service chatbot start
 ```
 
 ---
 
-## Configurazione
+## Configuration
 
-Tutta la configurazione è in `config/settings.py`, che carica automaticamente le variabili da `.env` tramite `python-dotenv`.
+All configuration lives in `config/settings.py`, which automatically loads variables from `.env` via `python-dotenv`.
 
-### File `.env`
+### `.env` File
 
 ```ini
-# Provider LLM: "ollama" (locale) oppure "claude" (API Anthropic)
+# LLM provider: "ollama" (local) or "claude" (Anthropic API)
 LLM_PROVIDER=ollama
 
 # Ollama
@@ -223,281 +223,281 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_EMBED_MODEL=mxbai-embed-large
 
-# Claude API (richiede DPA con Anthropic per uso in PA)
+# Claude API (requires DPA with Anthropic for public sector use)
 ANTHROPIC_API_KEY=
 
 # Backend
 API_HOST=127.0.0.1
 API_PORT=8000
-API_CORS_ORIGINS=https://www.tuo-sito.it
+API_CORS_ORIGINS=https://www.your-site.com
 
-# Chiave admin per endpoint protetti (/stats, /gaps, /feedback/list)
-# Lasciare vuoto per disabilitare l'autenticazione (solo sviluppo)
-ADMIN_API_KEY=chiave-segreta-qui
+# Admin key for protected endpoints (/stats, /gaps, /feedback/list)
+# Leave empty to disable authentication (development only)
+ADMIN_API_KEY=your-secret-key-here
 ```
 
-### Parametri principali in `settings.py`
+### Key Parameters in `settings.py`
 
-| Parametro              | Default                        | Descrizione                                          |
+| Parameter              | Default                        | Description                                          |
 |------------------------|--------------------------------|------------------------------------------------------|
-| `SITE_URL`             | *(da .env)*                    | URL radice per il crawl                              |
-| `CRAWL_MAX_PAGES`      | `10000`                        | Limite massimo pagine da scansionare                 |
-| `CRAWL_DELAY_SECONDS`  | `1.0`                          | Pausa tra richieste (rispetto del server)            |
-| `CRAWL_ALLOWED_DOMAINS`| *(da .env)*                    | Domini consentiti nel crawl                          |
-| `CRAWL_EXCLUDE_PATTERNS`| Liste pattern da escludere    | URL da ignorare (admin, feed, immagini, etc.)        |
-| `CHUNK_SIZE`           | `800`                          | Dimensione target chunk (caratteri)                  |
-| `CHUNK_OVERLAP`        | `100`                          | Overlap tra chunk (minimo — effettivo è 150)         |
-| `OLLAMA_EMBED_MODEL`   | `mxbai-embed-large`            | Modello embedding (1024 dim)                         |
-| `EMBEDDING_DIMENSION`  | `1024`                         | Dimensione vettori embedding                         |
-| `RETRIEVAL_TOP_K`      | `5`                            | Chunk da recuperare per query                        |
-| `LLM_PROVIDER`         | `ollama`                       | `ollama` oppure `claude`                             |
-| `OLLAMA_MODEL`         | `llama3.1:8b`                  | Modello LLM locale                                   |
-| `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Modello Claude API                                   |
+| `SITE_URL`             | *(from .env)*                  | Root URL for crawling                                |
+| `CRAWL_MAX_PAGES`      | `10000`                        | Maximum pages to crawl                               |
+| `CRAWL_DELAY_SECONDS`  | `1.0`                          | Delay between requests (server courtesy)             |
+| `CRAWL_ALLOWED_DOMAINS`| *(from .env)*                  | Domains allowed during crawl                         |
+| `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.)          |
+| `CHUNK_SIZE`           | `800`                          | Target chunk size (characters)                       |
+| `CHUNK_OVERLAP`        | `100`                          | Overlap between chunks (minimum — effective is 150)  |
+| `OLLAMA_EMBED_MODEL`   | `mxbai-embed-large`            | Embedding model (1024 dim)                           |
+| `EMBEDDING_DIMENSION`  | `1024`                         | Embedding vector dimension                           |
+| `RETRIEVAL_TOP_K`      | `5`                            | Chunks to retrieve per query                         |
+| `LLM_PROVIDER`         | `ollama`                       | `ollama` or `claude`                                 |
+| `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
+| `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Claude API model                                     |
 
 ---
 
-## Pipeline RAG
+## RAG Pipeline
 
-Ogni domanda percorre questa pipeline in `api/rag.py`:
+Each question flows through this pipeline in `api/rag.py`:
 
 ```
-Domanda utente
+User question
      │
      ▼
-1. expand_query()        — aggiunge sinonimi dal dominio (es. "TARI" → "tassa rifiuti")
+1. expand_query()        — adds domain synonyms (e.g. "TARI" → "waste tax")
      │
      ▼
-2. embed_query()         — vettorizza la query espansa (Ollama mxbai-embed-large)
+2. embed_query()         — vectorizes the expanded query (Ollama mxbai-embed-large)
      │
      ▼
-3. hybrid_search()       — cosine similarity (60%) + BM25 (40%) con RRF
+3. hybrid_search()       — cosine similarity (60%) + BM25 (40%) with RRF
      │
      ▼
-4. filtro MIN_SIMILARITY — scarta chunk con score < 0.45
+4. MIN_SIMILARITY filter — discards chunks with score < 0.45
      │
      ▼
-5. rerank()              — boost titolo, boost categoria "servizio", penalità duplicati
+5. rerank()              — title boost, "service" category boost, duplicate penalty
      │
      ▼
-6. build_context_block() — formatta chunk con metadati (categoria, stato, data)
+6. build_context_block() — formats chunks with metadata (category, status, date)
      │
      ▼
-7. detect_language()     — rileva italiano vs inglese (euristica keyword)
+7. detect_language()     — detects Italian vs English (keyword heuristic)
      │
      ▼
-8. build_prompt()        — system prompt + history conversazionale + contesto + domanda
+8. build_prompt()        — system prompt + conversation history + context + question
      │
      ▼
-9. LLM (Ollama/Claude)   — genera risposta (streaming o completa)
+9. LLM (Ollama/Claude)   — generates response (streaming or complete)
      │
      ▼
-Risposta + fonti
+Answer + sources
 ```
 
-### Query expansion
+### Query Expansion
 
-`expand_query()` cerca termini chiave del dominio nella query e li arricchisce con sinonimi predefiniti (configurabili in `config/synonyms.json`). Esempio:
+`expand_query()` looks for domain-specific keywords in the query and enriches them with predefined synonyms (configurable in `config/synonyms.json`). Examples:
 
-- `"carta identità"` → aggiunge `"documento identità CIE carta d'identità elettronica"`
-- `"TARI"` → aggiunge `"tassa rifiuti raccolta rifiuti"`
-- `"SUE"` → aggiunge `"sportello edilizia permesso costruire concessione"`
+- `"identity card"` → adds `"ID document CIE electronic identity card"`
+- `"TARI"` → adds `"waste tax refuse collection"`
+- `"SUE"` → adds `"building permit construction license concession"`
 
 ### Re-ranking
 
-`rerank()` aggiusta gli score dei chunk senza usare un modello aggiuntivo:
+`rerank()` adjusts chunk scores without using an additional model:
 
-- **+0.02 per ogni termine della query** presente nel titolo del chunk
-- **+0.01** se la categoria è `"servizio"` (più utile per l'utente)
-- **-0.05 × n** se lo stesso source è già apparso (penalizza duplicati)
+- **+0.02 for each query term** present in the chunk's title
+- **+0.01** if the category is `"service"` (more useful to the user)
+- **-0.05 × n** if the same source has already appeared (penalizes duplicates)
 
-### Suggerimento uffici
+### Office Suggestion
 
-Quando non viene trovato nessun chunk rilevante (`chunks == 0`), `suggest_office()` analizza la query e suggerisce il contatto competente con il link diretto. Gli uffici/contatti sono configurabili in `config/offices.json`.
+When no relevant chunk is found (`chunks == 0`), `suggest_office()` analyzes the query and suggests the relevant contact with a direct link. Offices/contacts are configurable in `config/offices.json`.
 
-### Cache risposte
+### Response Cache
 
-Le risposte a query identiche (senza history conversazionale) vengono cachate in memoria con una cache LRU da 200 voci. La chiave di cache è l'hash MD5 della query normalizzata (lowercase, strip).
+Responses to identical queries (without conversation history) are cached in memory with an LRU cache of 200 entries. The cache key is the MD5 hash of the normalized query (lowercase, stripped).
 
-### Gap log
+### Gap Log
 
-Ogni query che produce 0 chunk viene registrata in `data/gaps.jsonl` (timestamp + testo troncato a 200 char, senza dati personali). Consultabile via endpoint admin `GET /gaps`.
+Every query that produces 0 chunks is recorded in `data/gaps.jsonl` (timestamp + text truncated to 200 chars, no personal data). Accessible via the admin endpoint `GET /gaps`.
 
 ---
 
 ## Crawler
 
-`crawler/crawler.py` — crawler asincrono basato su httpx e BeautifulSoup.
+`crawler/crawler.py` — async crawler based on httpx and BeautifulSoup.
 
-### Funzionamento
+### How It Works
 
-1. **BFS** (breadth-first) a partire da `SITE_URL`
-2. Segue solo link verso i domini in `CRAWL_ALLOWED_DOMAINS`
-3. Salta URL corrispondenti a `CRAWL_EXCLUDE_PATTERNS`
-4. Per ogni pagina HTML:
-   - Estrae il testo con `clean_text()` (rimuove nav, footer, widget, righe rumore)
-   - Estrae il titolo con `extract_title()`
-   - Estrae metadati con `extract_metadata()` (categoria, sezione, data, stato servizio)
-   - Salva un `.json` nella cartella `data/crawl_cache/pages/`
-5. Scarica i PDF trovati nelle pagine
-6. Aggiorna lo stato in `data/crawl_cache/crawl_state.json`
-7. Salva l'indice in `data/crawl_cache/index.json`
+1. **BFS** (breadth-first) starting from `SITE_URL`
+2. Follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
+3. Skips URLs matching `CRAWL_EXCLUDE_PATTERNS`
+4. For each HTML page:
+   - Extracts text with `clean_text()` (removes nav, footer, widgets, noise lines)
+   - Extracts the title with `extract_title()`
+   - Extracts metadata with `extract_metadata()` (category, section, date, service status)
+   - Saves a `.json` in `data/crawl_cache/pages/`
+5. Downloads PDFs found in pages
+6. Updates state in `data/crawl_cache/crawl_state.json`
+7. Saves the index in `data/crawl_cache/index.json`
 
-### Modalità incrementale
+### Incremental Mode
 
 ```sh
 python -m crawler.crawler --incremental
 ```
 
-In modalità incrementale il crawler:
-- Carica l'indice esistente come base
-- Confronta l'hash MD5 del contenuto di ogni pagina con quello memorizzato
-- Salta le pagine non modificate (molto più veloce)
-- Rimuove dall'indice le pagine scomparse dal sito
+In incremental mode the crawler:
+- Loads the existing index as a base
+- Compares the MD5 hash of each page's content with the stored one
+- Skips unchanged pages (much faster)
+- Removes from the index pages that have disappeared from the site
 
-Lo stato è gestito dalla classe `CrawlState` in `crawler/state.py`.
+State is managed by the `CrawlState` class in `crawler/state.py`.
 
-### Estrazione metadati
+### Metadata Extraction
 
-`extract_metadata(html, url)` restituisce:
+`extract_metadata(html, url)` returns:
 
-| Campo            | Come viene determinato                                   |
+| Field            | How it is determined                                     |
 |------------------|----------------------------------------------------------|
-| `category`       | Pattern nell'URL (`/services/` → `servizio`, etc.)      |
-| `section`        | Sottodominio (`amministrazionetrasparente` → `trasparenza`) |
-| `date`           | Meta tag `article:modified_time`, `date`, o `<time>`    |
-| `service_status` | Testo "servizio attivo/non attivo" nella pagina          |
+| `category`       | URL pattern (`/services/` → `service`, etc.)            |
+| `section`        | Subdomain (`transparency` → `transparency`)             |
+| `date`           | Meta tags `article:modified_time`, `date`, or `<time>`  |
+| `service_status` | Text "service active/inactive" in the page              |
 
-### Pulizia testo
+### Text Cleaning
 
-`clean_text()` rimuove:
-- Tag `<script>`, `<style>`, `<nav>`, `<header>`, `<footer>`, `<aside>`, `<form>`, `<iframe>`
-- Elementi CSS con classi `feedback`, `rating`, `survey`, `cookie`, `breadcrumb`, `pagination`, etc.
-- Righe rumorose: "vai alla pagina", "leggi di più", "condividi", "stampa", numeri di pagina, etc.
-- Righe più corte di 4 caratteri
+`clean_text()` removes:
+- Tags `<script>`, `<style>`, `<nav>`, `<header>`, `<footer>`, `<aside>`, `<form>`, `<iframe>`
+- CSS elements with classes `feedback`, `rating`, `survey`, `cookie`, `breadcrumb`, `pagination`, etc.
+- Noise lines: "go to page", "read more", "share", "print", page numbers, etc.
+- Lines shorter than 4 characters
 
 ---
 
-## Indicizzatore
+## Indexer
 
-### Chunking semantico (`indexer/chunker.py`)
+### Semantic Chunking (`indexer/chunker.py`)
 
-La divisione in chunk usa una strategia semantica a due livelli:
+The chunking strategy works in two levels:
 
-1. **Split per paragrafo** (`\n\n`): mantiene unità di senso intere
-2. **Se il paragrafo supera 1200 caratteri**: ulteriore divisione con `RecursiveCharacterTextSplitter` e overlap di 150 caratteri
+1. **Split by paragraph** (`\n\n`): preserves whole units of meaning
+2. **If the paragraph exceeds 1200 characters**: further split with `RecursiveCharacterTextSplitter` and 150-character overlap
 
-Per ogni chunk:
-- Si prepone il **titolo della pagina** (migliora il retrieval semantico)
-- Si rimuovono righe rumorose (navigazione, "accedi al servizio", "con SPID", etc.)
-- Si scartano chunk con meno di **80 caratteri**
+For each chunk:
+- The **page title** is prepended (improves semantic retrieval)
+- Noise lines are removed (navigation, "access the service", "with SPID", etc.)
+- Chunks shorter than **80 characters** are discarded
 
-I metadati di ogni chunk includono: `source` (URL), `title`, `doc_type` (`html`/`pdf`), `chunk_index`, `chunk_total`, più i metadati aggiuntivi dalla pagina (`category`, `section`, `date`, `service_status`).
+Each chunk's metadata includes: `source` (URL), `title`, `doc_type` (`html`/`pdf`), `chunk_index`, `chunk_total`, plus additional page metadata (`category`, `section`, `date`, `service_status`).
 
 ### Embedding (`indexer/embedder.py`)
 
-Gli embedding sono generati via Ollama usando il modello `mxbai-embed-large` (1024 dimensioni, buon supporto multilingue).
+Embeddings are generated via Ollama using the `mxbai-embed-large` model (1024 dimensions, good multilingual support).
 
-- Usa l'endpoint `/api/embed` di Ollama con **batch nativi** (32 testi per chiamata)
-- Fallback automatico all'endpoint `/api/embeddings` (uno alla volta) se il batch fallisce
-- `embed_query()` per le query utente (singola chiamata)
+- Uses Ollama's `/api/embed` endpoint with **native batches** (32 texts per call)
+- Automatic fallback to `/api/embeddings` endpoint (one at a time) if batch fails
+- `embed_query()` for user queries (single call)
 
-### Indicizzatore principale (`indexer/indexer.py`)
+### Main Indexer (`indexer/indexer.py`)
 
 ```sh
-python -m indexer.indexer              # indicizza tutto
-python -m indexer.indexer --reset      # svuota e reindicizza
-python -m indexer.indexer --stats      # mostra statistiche
-python -m indexer.indexer --only-html  # solo pagine HTML
-python -m indexer.indexer --only-pdf   # solo PDF
+python -m indexer.indexer              # index everything
+python -m indexer.indexer --reset      # clear and re-index
+python -m indexer.indexer --stats      # show statistics
+python -m indexer.indexer --only-html  # HTML pages only
+python -m indexer.indexer --only-pdf   # PDFs only
 ```
 
-Legge `data/crawl_cache/index.json` e processa in batch da 50 chunk alla volta (embedding + upsert nel vector store).
+Reads `data/crawl_cache/index.json` and processes in batches of 50 chunks at a time (embedding + upsert into vector store).
 
-### Inbox documenti (`scripts/inbox_indexer.py`)
+### Document Inbox (`scripts/inbox_indexer.py`)
 
-Permette di indicizzare documenti caricati manualmente:
+Allows indexing manually uploaded documents:
 
 ```sh
-# Deposita i file in:
-data/inbox/delibera.pdf
-data/inbox/delibera.json   # metadati opzionali
+# Place files in:
+data/inbox/resolution.pdf
+data/inbox/resolution.json   # optional metadata
 
-# Processa manualmente:
+# Process manually:
 python -m scripts.inbox_indexer
 
-# Oppure in modalità watch (polling ogni 60s):
+# Or in watch mode (polling every 60s):
 python -m scripts.inbox_indexer --watch
 ```
 
-**Formati supportati**: PDF, TXT, DOCX
+**Supported formats**: PDF, TXT, DOCX
 
-**Metadati opzionali** (file `.json` accanto al documento):
+**Optional metadata** (`.json` file alongside the document):
 ```json
 {
-    "title": "Delibera n.15 del 2024",
-    "source_url": "https://www.mioente.it/documenti/2024/15",
-    "category": "delibere"
+    "title": "Resolution no. 15 of 2024",
+    "source_url": "https://www.myorg.com/documents/2024/15",
+    "category": "resolutions"
 }
 ```
 
-I file processati vengono spostati in `data/inbox/processed/` (oppure `data/inbox/errors/` in caso di errore).
+Processed files are moved to `data/inbox/processed/` (or `data/inbox/errors/` on failure).
 
 ---
 
 ## Vector Store
 
-`indexer/vector_store.py` — implementazione numpy, zero dipendenze da compilare.
+`indexer/vector_store.py` — numpy implementation, zero dependencies to compile.
 
-### Struttura dati
+### Data Structure
 
-Tre file sul disco:
+Three files on disk:
 
-| File                          | Contenuto                        |
+| File                          | Content                          |
 |-------------------------------|----------------------------------|
-| `data/vectorstore/embeddings.npy` | Matrice numpy (N × 1024) float32 |
-| `data/vectorstore/metadata.json`  | Lista di dict con metadati chunk |
-| `data/vectorstore/ids.json`       | Lista di ID (hash MD5)           |
+| `data/vectorstore/embeddings.npy` | numpy matrix (N × 1024) float32 |
+| `data/vectorstore/metadata.json`  | List of dicts with chunk metadata |
+| `data/vectorstore/ids.json`       | List of IDs (MD5 hashes)         |
 
-### Ricerca coseno
+### Cosine Search
 
-I vettori vengono normalizzati all'inserimento. La ricerca è un semplice prodotto matriciale:
+Vectors are normalized at insertion. Search is a simple matrix product:
 
 ```python
 scores = _embeddings @ query_vector   # cosine similarity
 ```
 
-### Hybrid search (BM25 + vettoriale)
+### Hybrid Search (BM25 + Vector)
 
-`hybrid_search()` combina i due ranking tramite **Reciprocal Rank Fusion (RRF)**:
+`hybrid_search()` combines the two rankings via **Reciprocal Rank Fusion (RRF)**:
 
 ```
-score_finale(doc) = 0.6 × RRF_vettoriale(doc) + 0.4 × RRF_bm25(doc)
+final_score(doc) = 0.6 × RRF_vector(doc) + 0.4 × RRF_bm25(doc)
 RRF(rank) = 1 / (60 + rank + 1)
 ```
 
-L'indice BM25 viene costruito in memoria al primo accesso dopo ogni salvataggio. Richiede il pacchetto `rank-bm25`.
+The BM25 index is built in memory on first access after each save. Requires the `rank-bm25` package.
 
-### Upsert idempotente
+### Idempotent Upsert
 
-`upsert_chunks()` identifica ogni chunk con un hash MD5 di `source_url + chunk_index + testo[:64]`. Se il chunk esiste già, aggiorna l'embedding in place; altrimenti lo aggiunge. Questo rende l'operazione sicura da eseguire più volte.
+`upsert_chunks()` identifies each chunk with an MD5 hash of `source_url + chunk_index + text[:64]`. If the chunk already exists, it updates the embedding in place; otherwise it appends it. This makes the operation safe to run multiple times.
 
-### Nota operativa
+### Operational Note
 
-Il vector store è caricato **una volta sola** in memoria all'avvio del processo API. Nuovi chunk aggiunti dall'indicizzatore mentre l'API è in esecuzione non sono visibili fino al riavvio del servizio.
+The vector store is loaded **once** into memory when the API process starts. New chunks added by the indexer while the API is running are not visible until the service is restarted.
 
 ---
 
 ## Backend API
 
-`api/main.py` — FastAPI con streaming SSE, rate limiting e autenticazione admin.
+`api/main.py` — FastAPI with SSE streaming, rate limiting, and admin authentication.
 
-### Avvio
+### Starting
 
 ```sh
-# Sviluppo
+# Development
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Produzione (2 worker)
+# Production (2 workers)
 uvicorn api.main:app --host 127.0.0.1 --port 8000 --workers 2
 ```
 
@@ -505,7 +505,7 @@ uvicorn api.main:app --host 127.0.0.1 --port 8000 --workers 2
 
 #### `GET /health`
 
-Stato del servizio. Non richiede autenticazione.
+Service status. No authentication required.
 
 ```json
 {
@@ -520,32 +520,32 @@ Stato del servizio. Non richiede autenticazione.
 
 #### `POST /chat`
 
-Risposta completa (non streaming). Attende la risposta intera prima di rispondere.
+Complete response (non-streaming). Waits for the full response before replying.
 
-**Rate limit**: 20 richieste/ora per IP; 200 richieste/ora globali.
+**Rate limit**: 20 requests/hour per IP; 200 requests/hour globally.
 
 **Request:**
 ```json
 {
-  "question": "Come si richiede la carta di identità?",
+  "question": "How do I apply for an identity card?",
   "history": [
-    {"role": "user", "content": "Dove si trova l'anagrafe?"},
-    {"role": "assistant", "content": "L'ufficio anagrafe si trova in..."}
+    {"role": "user", "content": "Where is the registry office?"},
+    {"role": "assistant", "content": "The registry office is located at..."}
   ]
 }
 ```
 
-- `question`: stringa 1–1000 caratteri
-- `history`: opzionale, max 6 messaggi (3 turni)
+- `question`: string 1–1000 characters
+- `history`: optional, max 6 messages (3 turns)
 
 **Response:**
 ```json
 {
-  "answer": "La carta di identità si richiede presso l'Ufficio Anagrafe...",
+  "answer": "An identity card can be requested at the Registry Office...",
   "sources": [
-    {"title": "Carta di Identità Elettronica", "url": "https://...", "score": 0.87}
+    {"title": "Electronic Identity Card", "url": "https://...", "score": 0.87}
   ],
-  "language": "it"
+  "language": "en"
 }
 ```
 
@@ -553,51 +553,51 @@ Risposta completa (non streaming). Attende la risposta intera prima di risponder
 
 #### `POST /chat/stream`
 
-Risposta in streaming via **Server-Sent Events (SSE)**.
+Streaming response via **Server-Sent Events (SSE)**.
 
-**Rate limit**: identico a `/chat`.
+**Rate limit**: same as `/chat`.
 
-**Request**: identica a `/chat`.
+**Request**: same as `/chat`.
 
-**Stream di eventi:**
+**Event stream:**
 ```
-data: {"token": "La "}
-data: {"token": "carta "}
-data: {"token": "di "}
+data: {"token": "An "}
+data: {"token": "identity "}
+data: {"token": "card "}
 ...
 data: {"sources": [{"title": "...", "url": "...", "score": 0.87}]}
 data: {"done": true}
 ```
 
-In caso di errore durante lo stream:
+On error during stream:
 ```
-data: {"error": "Errore durante la generazione"}
+data: {"error": "Error during generation"}
 ```
 
 ---
 
 #### `POST /feedback`
 
-Salva il feedback dell'utente (pollice su/giù). Nessun dato personale memorizzato.
+Saves user feedback (thumbs up/down). No personal data stored.
 
-**Rate limit**: 60 richieste/ora per IP.
+**Rate limit**: 60 requests/hour per IP.
 
 **Request:**
 ```json
 {
-  "question": "Come si richiede la carta di identità?",
-  "answer": "La carta di identità si richiede...",
+  "question": "How do I apply for an identity card?",
+  "answer": "An identity card can be requested...",
   "rating": 1
 }
 ```
 
-- `rating`: `-1` (negativo) oppure `1` (positivo)
+- `rating`: `-1` (negative) or `1` (positive)
 
 ---
 
 #### `GET /stats` *(admin)*
 
-Statistiche sul vector store.
+Vector store statistics.
 
 ```
 Headers: X-Admin-Key: <ADMIN_API_KEY>
@@ -611,12 +611,12 @@ Headers: X-Admin-Key: <ADMIN_API_KEY>
 
 #### `GET /gaps?limit=50` *(admin)*
 
-Ultime query senza risposta (gap di contenuto da colmare).
+Latest unanswered queries (content gaps to fill).
 
 ```json
 {
   "gaps": [
-    {"ts": "2026-04-08T10:23:00", "query": "orari biblioteca", "chunks": 0}
+    {"ts": "2026-04-08T10:23:00", "query": "library hours", "chunks": 0}
   ],
   "total": 42
 }
@@ -626,12 +626,12 @@ Ultime query senza risposta (gap di contenuto da colmare).
 
 #### `GET /feedback/negative?limit=200`
 
-Domande che hanno ricevuto feedback negativo (👎). Restituisce solo `question` e `ts`; nessun dato personale. Non richiede autenticazione. Usato dalla dashboard per mostrare automaticamente le query insoddisfatte.
+Questions that received negative feedback (👎). Returns only `question` and `ts`; no personal data. No authentication required. Used by the dashboard to automatically display unsatisfied queries.
 
 ```json
 {
   "items": [
-    {"question": "Come si prenota un appuntamento?", "ts": "2026-04-22T18:03:50"}
+    {"question": "How do I book an appointment?", "ts": "2026-04-22T18:03:50"}
   ],
   "total_negative": 8,
   "total": 30
@@ -642,7 +642,7 @@ Domande che hanno ricevuto feedback negativo (👎). Restituisce solo `question`
 
 #### `GET /feedback/list?limit=100` *(admin)*
 
-Lista completa feedback ricevuti (tutti i rating) con conteggio positivi/negativi.
+Full list of received feedback (all ratings) with positive/negative count.
 
 ```json
 {
@@ -655,133 +655,133 @@ Lista completa feedback ricevuti (tutti i rating) con conteggio positivi/negativ
 
 ---
 
-### Autenticazione admin
+### Admin Authentication
 
-Gli endpoint `/stats`, `/gaps` e `/feedback/list` richiedono l'header `X-Admin-Key` con il valore di `ADMIN_API_KEY` dal file `.env`. L'endpoint `/feedback/negative` è pubblico (restituisce solo il testo delle domande, senza dati personali).
+The `/stats`, `/gaps`, and `/feedback/list` endpoints require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`. The `/feedback/negative` endpoint is public (returns only question text, no personal data).
 
-Se `ADMIN_API_KEY` è vuoto, l'autenticazione è disabilitata (solo per sviluppo).
+If `ADMIN_API_KEY` is empty, authentication is disabled (development only).
 
 ### CORS
 
-Il middleware CORS è configurato con `API_CORS_ORIGINS` (default: `http://localhost:8000`). In produzione impostare il dominio esatto del sito. Metodi consentiti: `GET`, `POST`, `OPTIONS`.
+The CORS middleware is configured with `API_CORS_ORIGINS` (default: `http://localhost:8000`). In production, set the exact site domain. Allowed methods: `GET`, `POST`, `OPTIONS`.
 
-### Graceful shutdown
+### Graceful Shutdown
 
-Il backend intercetta `SIGTERM` e attende 2 secondi prima di terminare, per permettere il completamento delle risposte streaming in corso.
+The backend intercepts `SIGTERM` and waits 2 seconds before terminating, to allow in-flight streaming responses to complete.
 
-### Widget statico
+### Static Widget
 
-Il file `widget/chatbot-widget.js` è servito come file statico da FastAPI al percorso `/widget/chatbot-widget.js`.
+The `widget/chatbot-widget.js` file is served as a static file by FastAPI at the path `/widget/chatbot-widget.js`.
 
 ---
 
-## Widget frontend
+## Frontend Widget
 
-`widget/chatbot-widget.js` — widget chat auto-contenuto (JS + CSS iniettato, zero dipendenze).
+`widget/chatbot-widget.js` — self-contained chat widget (injected JS + CSS, zero dependencies).
 
-### Integrazione nel sito
+### Site Integration
 
-Incollare prima del `</body>` in tutte le pagine (o nel template del CMS):
+Paste before `</body>` on all pages (or in the CMS template):
 
 ```html
 <script>
   window.ChatbotConfig = {
-    apiUrl:       'https://chatbot.mioente.it',
+    apiUrl:       'https://chatbot.myorg.com',
     primaryColor: '#003366',
     title:        'Zautte',
-    subtitle:     'Il Mio Ente',
+    subtitle:     'My Organization',
     position:     'right',
   };
 </script>
-<script src="https://chatbot.mioente.it/widget/chatbot-widget.js" defer></script>
+<script src="https://chatbot.myorg.com/widget/chatbot-widget.js" defer></script>
 ```
 
-Il file `widget/embed-snippet.html` contiene lo snippet pronto da incollare.
+The `widget/embed-snippet.html` file contains the ready-to-paste snippet.
 
-### Opzioni di configurazione
+### Configuration Options
 
-| Opzione        | Default          | Descrizione                              |
+| Option         | Default          | Description                              |
 |----------------|------------------|------------------------------------------|
-| `apiUrl`       | *(obbligatorio)* | URL base del backend API                 |
-| `primaryColor` | `#003366`        | Colore principale del widget             |
-| `title`        | `'Assistente Virtuale'` | Nome dell'assistente                |
-| `subtitle`     | `''`             | Sottotitolo nella testata del pannello   |
-| `position`     | `'right'`        | `'right'` oppure `'left'`               |
-| `lang`         | `navigator.language` | Lingua forzata (`'it'`, `'en'`, etc.) |
+| `apiUrl`       | *(required)*     | Backend API base URL                     |
+| `primaryColor` | `#003366`        | Widget primary color                     |
+| `title`        | `'Virtual Assistant'` | Assistant name                      |
+| `subtitle`     | `''`             | Subtitle in the panel header             |
+| `position`     | `'right'`        | `'right'` or `'left'`                   |
+| `lang`         | `navigator.language` | Forced language (`'it'`, `'en'`, etc.) |
 
-### Funzionalità
+### Features
 
-- **Streaming SSE**: i token arrivano progressivamente, il cursore lampeggia durante la generazione
-- **Cronologia conversazionale**: mantiene gli ultimi 3 turni (6 messaggi) e li invia ad ogni richiesta
-- **Domande suggerite**: chip cliccabili all'avvio del pannello per guidare l'utente
-- **Feedback**: bottoni pollice su/giù dopo ogni risposta, inviati a `POST /feedback`
-- **Hint d'attesa**: dopo 10 secondi senza risposta compare il testo "Sto elaborando…"
-- **Accessibilità**: `aria-hidden`, `aria-expanded`, gestione focus all'apertura/chiusura
-- **Mobile**: `font-size: 16px` sull'input (previene lo zoom automatico su iOS)
-- **Tasto Chiudi**: `×` in alto a destra, devolve il focus al pulsante di apertura
+- **SSE Streaming**: tokens arrive progressively, cursor blinks during generation
+- **Conversation history**: keeps the last 3 turns (6 messages) and sends them with each request
+- **Suggested questions**: clickable chips at panel open to guide the user
+- **Feedback**: thumbs up/down buttons after each answer, sent to `POST /feedback`
+- **Wait hint**: after 10 seconds without a response, "Processing…" text appears
+- **Accessibility**: `aria-hidden`, `aria-expanded`, focus management on open/close
+- **Mobile**: `font-size: 16px` on input (prevents automatic zoom on iOS)
+- **Close button**: `×` in the top right, returns focus to the open button
 
-### Test locale
+### Local Testing
 
-Aprire `widget/dashboard.html` nel browser. Richiede che il backend sia raggiungibile all'indirizzo configurato in `apiUrl`.
+Open `widget/dashboard.html` in the browser. Requires the backend to be reachable at the address configured in `apiUrl`.
 
 ---
 
-## Operazioni periodiche
+## Periodic Operations
 
-### Orchestratore `scripts/sync.py`
+### Orchestrator `scripts/sync.py`
 
-Comando unico per coordinare crawl + indicizzazione:
+Single command to coordinate crawl + indexing:
 
 ```sh
-# Prima installazione (crawl completo + indice da zero)
+# First installation (full crawl + index from scratch)
 python -m scripts.sync full
 
-# Aggiornamento notturno (solo modifiche)
+# Nightly update (changes only)
 python -m scripts.sync incremental
 
-# Processa solo la cartella inbox
+# Process inbox folder only
 python -m scripts.sync inbox
 
-# Reindicizza senza nuovo crawl (dopo cambio configurazione chunking)
+# Re-index without new crawl (after changing chunking config)
 python -m scripts.sync full-index
 ```
 
-### Cron job
+### Cron Jobs
 
-Configurare con:
+Configure with:
 
 ```sh
 sh scripts/cron_setup.sh
 ```
 
-Schedule installato (utente `chatbot`):
+Installed schedule (user `chatbot`):
 
-| Orario                       | Comando                         | Descrizione                     |
-|------------------------------|---------------------------------|---------------------------------|
-| 02:30 ogni notte             | `sync incremental`              | Aggiorna solo le modifiche      |
-| 03:00 ogni domenica          | `sync full`                     | Scansione completa settimanale  |
-| ogni 30 min (8–18, lun–ven)  | `sync inbox`                    | Processa documenti inbox        |
+| Schedule                         | Command                         | Description                     |
+|----------------------------------|---------------------------------|---------------------------------|
+| 02:30 every night                | `sync incremental`              | Updates changes only            |
+| 03:00 every Sunday               | `sync full`                     | Full weekly scan                |
+| every 30 min (8–18, Mon–Fri)     | `sync inbox`                    | Processes inbox documents       |
 
-I log sono scritti in `/var/log/chatbot/`.
+Logs are written to `/var/log/chatbot/`.
 
-### `/etc/crontab` (root) — watchdog e backup
+### `/etc/crontab` (root) — watchdog and backup
 
 ```
 * * * * * root /opt/chatbot/scripts/watchdog.sh
 0 2 * * * root /opt/chatbot/scripts/backup_vectorstore.sh
 ```
 
-### Backup vector store
+### Vector Store Backup
 
-`scripts/backup_vectorstore.sh` crea ogni notte alle 02:00 un archivio compresso:
+`scripts/backup_vectorstore.sh` creates a compressed archive every night at 02:00:
 
 ```
 data/backups/vectorstore_20260408_020000.tar.gz
 ```
 
-Conserva gli ultimi **7 giorni** di backup, rimuove i più vecchi automaticamente.
+Keeps the last **7 days** of backups, removing older ones automatically.
 
-**Ripristino:**
+**Restore:**
 
 ```sh
 cd /opt/chatbot
@@ -791,139 +791,139 @@ service chatbot restart
 
 ### Watchdog
 
-`scripts/watchdog.sh` viene eseguito ogni minuto da cron. Se il backend non risponde a `GET /health`, lo riavvia tramite `service chatbot start`.
+`scripts/watchdog.sh` runs every minute via cron. If the backend does not respond to `GET /health`, it restarts it via `service chatbot start`.
 
 ---
 
-## Servizio di sistema (FreeBSD)
+## System Service (FreeBSD)
 
-### Installazione
+### Installation
 
 ```sh
-# Copia lo script rc.d
+# Copy the rc.d script
 cp /opt/chatbot/scripts/chatbot_rcd /usr/local/etc/rc.d/chatbot
 chmod +x /usr/local/etc/rc.d/chatbot
 
-# Abilita il servizio
+# Enable the service
 echo 'chatbot_enable="YES"' >> /etc/rc.conf
 
-# Avvia
+# Start
 service chatbot start
 ```
 
-### Comandi di gestione
+### Management Commands
 
 ```sh
-service chatbot start    # avvia
-service chatbot stop     # ferma
-service chatbot restart  # riavvia
-service chatbot status   # stato
+service chatbot start    # start
+service chatbot stop     # stop
+service chatbot restart  # restart
+service chatbot status   # status
 ```
 
-Lo script `scripts/chatbot_rcd` usa `daemon(8)` per:
-- Scrivere il PID in `/var/run/chatbot.pid`
-- Redirigere stdout/stderr in `/var/log/chatbot.log`
-- Riavviare automaticamente in caso di crash (`-r`)
-- Caricare le variabili d'ambiente da `.env` prima dell'avvio
-- Avviare uvicorn con 2 worker
+The `scripts/chatbot_rcd` script uses `daemon(8)` to:
+- Write the PID to `/var/run/chatbot.pid`
+- Redirect stdout/stderr to `/var/log/chatbot.log`
+- Automatically restart on crash (`-r`)
+- Load environment variables from `.env` before starting
+- Launch uvicorn with 2 workers
 
-### Rotazione log
+### Log Rotation
 
-Copiare la configurazione newsyslog:
+Copy the newsyslog configuration:
 
 ```sh
 cp /opt/chatbot/scripts/newsyslog-chatbot.conf /etc/newsyslog.conf.d/chatbot.conf
 ```
 
-Rotazione configurata:
+Rotation configured:
 
-| File                      | Rotazioni | Dimensione max | Compressione |
-|---------------------------|-----------|----------------|--------------|
-| `/var/log/chatbot.log`    | 7         | 10 MB          | gzip (J)     |
-| `/var/log/chatbot-sync.log` | 7       | 5 MB           | gzip (J)     |
+| File                      | Rotations | Max size | Compression  |
+|---------------------------|-----------|----------|--------------|
+| `/var/log/chatbot.log`    | 7         | 10 MB    | gzip (J)     |
+| `/var/log/chatbot-sync.log` | 7       | 5 MB     | gzip (J)     |
 
 ---
 
-## Monitoraggio e valutazione
+## Monitoring and Evaluation
 
-### Health check
+### Health Check
 
 ```sh
 curl http://127.0.0.1:8000/health
 ```
 
-### Statistiche vector store (admin)
+### Vector Store Statistics (admin)
 
 ```sh
-curl -H "X-Admin-Key: <chiave>" http://127.0.0.1:8000/stats
+curl -H "X-Admin-Key: <key>" http://127.0.0.1:8000/stats
 ```
 
-### Gap di contenuto (admin)
+### Content Gaps (admin)
 
 ```sh
-curl -H "X-Admin-Key: <chiave>" http://127.0.0.1:8000/gaps
+curl -H "X-Admin-Key: <key>" http://127.0.0.1:8000/gaps
 ```
 
-Mostra le ultime domande senza risposta. Usarle per identificare argomenti da aggiungere al sito o documenti da caricare nell'inbox.
+Shows the latest unanswered questions. Use them to identify topics to add to the site or documents to upload to the inbox.
 
-### Script di valutazione automatica
+### Automated Evaluation Script
 
-`scripts/eval.py` esegue 10 domande di test e misura retrieval e qualità delle risposte:
+`scripts/eval.py` runs 10 test questions and measures retrieval and answer quality:
 
 ```sh
-# Solo retrieval (più veloce)
+# Retrieval only (faster)
 venv/bin/python -m scripts.eval --no-llm
 
-# Retrieval + risposta LLM completa
+# Retrieval + full LLM answer
 venv/bin/python -m scripts.eval
 ```
 
-**Metriche misurate:**
+**Metrics measured:**
 
-| Metrica              | Descrizione                                              |
+| Metric               | Description                                              |
 |----------------------|----------------------------------------------------------|
-| Retrieval OK         | Domande per cui vengono trovati chunk sufficienti        |
-| Keyword score        | % parole chiave attese presenti nella risposta           |
-| Tempo medio          | Millisecondi per risposta (end-to-end)                   |
+| Retrieval OK         | Questions for which sufficient chunks are found          |
+| Keyword score        | % of expected keywords present in the answer            |
+| Average time         | Milliseconds per response (end-to-end)                   |
 
-I risultati vengono salvati in `data/eval_results.json`.
+Results are saved in `data/eval_results.json`.
 
-**Domande di test incluse (sostituibili con domande specifiche del proprio sito):** carta di identità, cambio residenza, trasporto scolastico, accesso agli atti, orari biblioteca, TARI, permesso di costruire, polizia municipale, asilo nido.
+**Included test questions (replaceable with site-specific ones):** identity card, change of residence, school transport, access to records, library hours, waste tax, building permit, municipal police, nursery school.
 
 ---
 
-## Privacy e sicurezza
+## Privacy and Security
 
 ### GDPR
 
-- **Nessuna conversazione memorizzata**: il backend è stateless. La cronologia viene gestita interamente lato client dal widget.
-- **Gap log**: registra solo il testo della query (troncato a 200 caratteri) e il timestamp, senza dati di sessione o IP.
-- **Feedback**: registra rating, anteprima domanda e risposta (troncate), senza identificativi utente.
-- **Uso di Ollama locale**: nessun dato inviato a server esterni; tutto rimane nel server locale.
-- **Uso di Claude API**: richiede la stipula di un DPA (Data Processing Agreement) con Anthropic. Per enti pubblici italiani verificare i requisiti normativi applicabili.
+- **No conversations stored**: the backend is stateless. History is managed entirely client-side by the widget.
+- **Gap log**: records only the query text (truncated to 200 characters) and timestamp, without session data or IP.
+- **Feedback**: records rating, question and answer preview (truncated), without user identifiers.
+- **Local Ollama**: no data sent to external servers; everything stays on the local server.
+- **Claude API**: requires a DPA (Data Processing Agreement) with Anthropic. For Italian public sector organizations, verify applicable regulatory requirements.
 
-### Rate limiting
+### Rate Limiting
 
-- `/chat` e `/chat/stream`: **20 richieste/ora per IP**, **200/ora globali**
-- `/feedback`: **60 richieste/ora per IP**
+- `/chat` and `/chat/stream`: **20 requests/hour per IP**, **200/hour globally**
+- `/feedback`: **60 requests/hour per IP**
 
-### Endpoint admin protetti
+### Protected Admin Endpoints
 
-`/stats`, `/gaps`, `/feedback/list` richiedono l'header `X-Admin-Key`. Impostare `ADMIN_API_KEY` in `.env` in produzione. `/feedback/negative` è pubblico.
+`/stats`, `/gaps`, `/feedback/list` require the `X-Admin-Key` header. Set `ADMIN_API_KEY` in `.env` in production. `/feedback/negative` is public.
 
 ### CORS
 
-Configurato per accettare richieste solo dagli origin in `API_CORS_ORIGINS`. In produzione impostare il dominio esatto del sito.
+Configured to accept requests only from origins in `API_CORS_ORIGINS`. In production, set the exact site domain.
 
-### Reverse proxy (raccomandato)
+### Reverse Proxy (recommended)
 
-In produzione far girare il backend in ascolto su `127.0.0.1:8000` e usare nginx o caddy come reverse proxy con TLS. Il backend non gestisce HTTPS direttamente. Impostare l'header `X-Accel-Buffering: no` in nginx per lo streaming SSE.
+In production, run the backend listening on `127.0.0.1:8000` and use nginx or caddy as a reverse proxy with TLS. The backend does not handle HTTPS directly. Set the `X-Accel-Buffering: no` header in nginx for SSE streaming.
 
 ---
 
-## Risoluzione problemi
+## Troubleshooting
 
-### Il backend non risponde
+### Backend not responding
 
 ```sh
 service chatbot status
@@ -931,55 +931,55 @@ tail -f /var/log/chatbot.log
 curl http://127.0.0.1:8000/health
 ```
 
-### Vector store vuoto (chunks=0 in tutte le risposte)
+### Empty vector store (chunks=0 in all responses)
 
 ```sh
-# Verifica quanti chunk sono indicizzati
+# Check how many chunks are indexed
 curl http://127.0.0.1:8000/health   # → indexed_chunks
 
-# Se 0: eseguire l'indicizzazione
+# If 0: run indexing
 venv/bin/python -m indexer.indexer --stats
 venv/bin/python -m scripts.sync full
 ```
 
-### Ollama non raggiungibile
+### Ollama unreachable
 
 ```sh
-ollama list                      # verifica modelli disponibili
+ollama list                      # check available models
 curl http://localhost:11434/api/tags
-# Se Ollama non risponde:
-service ollama start             # o il comando equivalente su FreeBSD
+# If Ollama is not responding:
+service ollama start             # or equivalent command on FreeBSD
 ```
 
-### Cambio modello embedding
+### Changing embedding model
 
-Se si cambia `OLLAMA_EMBED_MODEL` è necessario svuotare e reindicizzare il vector store (dimensioni embedding incompatibili):
+If `OLLAMA_EMBED_MODEL` is changed, the vector store must be cleared and re-indexed (incompatible embedding dimensions):
 
 ```sh
 rm -rf data/vectorstore/
 venv/bin/python -m scripts.sync full
 ```
 
-### Cambio configurazione chunking
+### Changing chunking configuration
 
-Se si modificano i parametri di chunking e si vuole applicarli a tutto il corpus già scaricato:
+If chunking parameters are modified and you want to apply them to the entire already-downloaded corpus:
 
 ```sh
 venv/bin/python -m scripts.sync full-index
 ```
 
-Non effettua un nuovo crawl: usa i file già in `data/crawl_cache/`.
+Does not perform a new crawl: uses files already in `data/crawl_cache/`.
 
-### Riavvio manuale senza fermare l'indicizzatore
+### Manual restart without stopping the indexer
 
 ```sh
-# Trova il PID del processo uvicorn (non del daemon wrapper)
+# Find the PID of the uvicorn process (not the daemon wrapper)
 pgrep -f "uvicorn api.main"
 kill <PID>
-# Il daemon lo riavvia automaticamente se chatbot_enable="YES"
+# The daemon restarts it automatically if chatbot_enable="YES"
 ```
 
-### Email cron con "Permission denied"
+### Cron email with "Permission denied"
 
 ```sh
 chmod +x /opt/chatbot/scripts/watchdog.sh
@@ -989,4 +989,4 @@ chmod +x /opt/chatbot/scripts/incremental_sync.sh
 
 ---
 
-*Documentazione aggiornata: aprile 2026*
+*Documentation updated: April 2026*
