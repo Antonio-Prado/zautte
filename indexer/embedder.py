@@ -10,6 +10,7 @@ restituire un vettore zero.
 
 import logging
 import random
+import re
 import time
 import httpx
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,7 +29,12 @@ MAX_RETRIES = 3          # tentativi totali prima di arrendersi con vettore zero
 RETRY_BASE_DELAY = 1.0   # backoff: 1s, 2s, 4s (+ jitter)
 
 
-def _truncate(text: str) -> str:
+_CTRL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
+
+def _clean(text: str) -> str:
+    """Rimuove caratteri di controllo ASCII che causano 400 su /api/embed."""
+    text = _CTRL_CHARS.sub(' ', text)
     return text[:_MAX_CHARS] if len(text) > _MAX_CHARS else text
 
 
@@ -77,7 +83,7 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
         try:
             resp = client.post(
                 f"{OLLAMA_BASE_URL}/api/embed",
-                json={"model": OLLAMA_EMBED_MODEL, "input": [_truncate(t) for t in texts]},
+                json={"model": OLLAMA_EMBED_MODEL, "input": [_clean(t) for t in texts]},
             )
             if resp.status_code == 200:
                 return resp.json()["embeddings"]
@@ -116,7 +122,7 @@ def _embed_one(client: httpx.Client, text: str) -> list[float]:
         try:
             resp = client.post(
                 f"{OLLAMA_BASE_URL}/api/embeddings",
-                json={"model": OLLAMA_EMBED_MODEL, "prompt": _truncate(text)},
+                json={"model": OLLAMA_EMBED_MODEL, "prompt": _clean(text)},
             )
             if resp.status_code == 200:
                 return resp.json()["embedding"]
