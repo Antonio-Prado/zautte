@@ -49,6 +49,7 @@ CRAWL_MAX_PATH_DEPTH = 10
 # Formato: {"dominio.example.it": 5}
 # Utile quando un CMS genera URL molto profondi con contenuto duplicato.
 CRAWL_DOMAIN_MAX_PATH_DEPTH: dict[str, int] = {}
+CRAWL_EXTRA_START_URLS: list[str] = []
 
 # Override specifici per il sito — caricati da config/crawl_extra.json se presente.
 # Permette di aggiungere pattern di esclusione e depth limit senza modificare il codice.
@@ -59,6 +60,7 @@ try:
         _crawl_extra = _json_settings.loads(_crawl_extra_path.read_text(encoding="utf-8"))
         CRAWL_EXCLUDE_PATTERNS += _crawl_extra.get("exclude_patterns", [])
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
+        CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
 except Exception:
     pass
 

@@ -14,5 +14,8 @@
     "amministrazionetrasparente.comunesbt.it": 5,
     "www.comunesbt.it": 8,
     "turismo.comunesbt.it": 4
-  }
+  },
+  "extra_start_urls": [
+    "https://turismo.comunesbt.it/"
+  ]
 }
