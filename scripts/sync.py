@@ -19,6 +19,9 @@ import argparse
 import asyncio
 import logging
 import logging.handlers
+import os
+import signal
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -162,6 +165,26 @@ async def run_sync(mode: str):
     log.info(f"Chunk totali nel DB:   {stats['total_chunks']}")
     log.info(f"Completato alle:       {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
+    _restart_api()
+
+
+def _restart_api():
+    """Invia SIGKILL ai processi uvicorn: il daemon li rilancerà e caricherà il VS aggiornato."""
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "uvicorn api.main:app"],
+            capture_output=True, text=True
+        )
+        pids = [int(p) for p in result.stdout.split() if p.strip()]
+        if not pids:
+            log.warning("Restart API: nessun processo uvicorn trovato")
+            return
+        for pid in pids:
+            os.kill(pid, signal.SIGKILL)
+        log.info(f"Restart API: SIGKILL inviato a {len(pids)} processi uvicorn "
+                 f"(PID: {', '.join(map(str, pids))})")
+    except Exception as e:
+        log.warning(f"Restart API fallito: {e}")
 
 
 def main():
