@@ -25,7 +25,7 @@ from config.settings import (
     SITE_URL, CRAWL_MAX_PAGES, CRAWL_DELAY_SECONDS,
     CRAWL_ALLOWED_DOMAINS, CRAWL_EXCLUDE_PATTERNS,
     CRAWL_MAX_PATH_DEPTH, CRAWL_DOMAIN_MAX_PATH_DEPTH,
-    CRAWL_CACHE_DIR, DOCUMENTS_DIR
+    CRAWL_EXTRA_START_URLS, CRAWL_CACHE_DIR, DOCUMENTS_DIR
 )
 from crawler.state import CrawlState, content_hash
 
@@ -265,7 +265,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     state.reset_changed_flags()
 
     visited: set[str] = set()
-    to_visit: list[str] = [start_url]
+    to_visit: list[str] = [start_url] + CRAWL_EXTRA_START_URLS
     pdf_urls: set[str] = set()
     results_pages = []
     results_pdfs = []
