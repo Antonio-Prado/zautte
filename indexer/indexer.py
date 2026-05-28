@@ -20,7 +20,7 @@ from config.settings import CRAWL_CACHE_DIR
 from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
-from indexer.vector_store import upsert_chunks, get_stats, clear_collection, get_indexed_sources, remove_sources
+from indexer.vector_store import upsert_chunks, get_stats, clear_collection, get_indexed_sources, remove_sources, chunk_id as make_chunk_id, all_chunks_exist
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,6 +46,7 @@ def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing
     """Indicizza le pagine HTML. Ritorna (documenti_ok, chunk_totali)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
+    skipped_unchanged = 0
     docs_ok = 0
     total_chunks = 0
     pending_chunks = []
@@ -88,6 +89,15 @@ def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing
 
         log.info(f"  {len(chunks)} chunk")
 
+        # Se non stiamo sostituendo, controlla se i chunk sono già nel VS con lo stesso
+        # contenuto (stessi ID deterministici). Se sì, salta l'embedding.
+        if not replace_existing:
+            ids = [make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0)) for c in chunks]
+            if all_chunks_exist(ids):
+                log.debug("  Contenuto invariato nel VS, skip embedding")
+                skipped_unchanged += 1
+                continue
+
         if replace_existing:
             # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
             if pending_chunks:
@@ -112,6 +122,8 @@ def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing
 
     if skipped:
         log.info(f"  {skipped} pagine HTML già indicizzate, saltate")
+    if skipped_unchanged:
+        log.info(f"  {skipped_unchanged} pagine HTML invariate nel VS, embedding saltato")
     return docs_ok, total_chunks
 
 
@@ -119,6 +131,7 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: 
     """Indicizza i documenti PDF. Ritorna (documenti_ok, chunk_totali)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
+    skipped_unchanged = 0
     docs_ok = 0
     total_chunks = 0
     pending_chunks = []
@@ -155,6 +168,15 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: 
 
         log.info(f"  {len(chunks)} chunk da {meta['pages']} pagine")
 
+        # Se non stiamo sostituendo, controlla se i chunk sono già nel VS con lo stesso
+        # contenuto (stessi ID deterministici). Se sì, salta l'embedding.
+        if not replace_existing:
+            ids = [make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0)) for c in chunks]
+            if all_chunks_exist(ids):
+                log.debug("  Contenuto invariato nel VS, skip embedding")
+                skipped_unchanged += 1
+                continue
+
         if replace_existing:
             # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
             if pending_chunks:
@@ -177,6 +199,8 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: 
 
     if skipped:
         log.info(f"  {skipped} PDF già indicizzati, saltati")
+    if skipped_unchanged:
+        log.info(f"  {skipped_unchanged} PDF invariati nel VS, embedding saltato")
     return docs_ok, total_chunks
 
 
