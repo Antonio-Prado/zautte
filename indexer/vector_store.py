@@ -295,6 +295,12 @@ def get_indexed_sources() -> set[str]:
     return {m.get("source", "") for m in _metadata if m.get("source")}
 
 
+def all_chunks_exist(chunk_ids: list[str]) -> bool:
+    """Ritorna True se tutti gli ID sono già presenti nel vector store."""
+    _ensure_loaded()
+    return bool(chunk_ids) and all(cid in _id_to_idx for cid in chunk_ids)
+
+
 def is_bm25_active() -> bool:
     return _bm25 is not None
 
