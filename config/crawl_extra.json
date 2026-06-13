@@ -8,14 +8,20 @@
     "tribe-bar-date=",
     "outlook-ical=",
     "ical=1",
-    "eventDate="
+    "eventDate=",
+    "?feed=",
+    "?rest_route=",
+    "xmlrpc.php",
+    "wp-login.php"
   ],
   "domain_max_path_depth": {
     "amministrazionetrasparente.comunesbt.it": 5,
     "www.comunesbt.it": 8,
-    "turismo.comunesbt.it": 4
+    "turismo.comunesbt.it": 4,
+    "sanbenedettodeltronto.nuvolapalitalsoft.it": 4
   },
   "extra_start_urls": [
-    "https://turismo.comunesbt.it/"
+    "https://turismo.comunesbt.it/",
+    "https://sanbenedettodeltronto.nuvolapalitalsoft.it/?page_id=36046"
   ]
 }
