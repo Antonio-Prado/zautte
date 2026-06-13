@@ -40,5 +40,10 @@
   "raccolta firme": ["occupazione suolo pubblico", "gazebo", "autorizzazione temporanea", "petizione"],
   "suolo pubblico": ["COSAP", "occupazione suolo pubblico", "autorizzazione temporanea"],
   "cosap": ["occupazione suolo pubblico", "canone occupazione", "suolo pubblico"],
-  "occupazione": ["suolo pubblico", "COSAP", "autorizzazione temporanea", "spazio pubblico"]
+  "occupazione": ["suolo pubblico", "COSAP", "autorizzazione temporanea", "spazio pubblico"],
+  "giunta": ["assessori", "vicesindaco", "giunta comunale", "nomina assessori", "Mozzoni"],
+  "composizione": ["assessori", "vicesindaco", "componenti", "giunta comunale"],
+  "assessori": ["giunta", "vicesindaco", "assessore", "deleghe"],
+  "vicesindaco": ["vice sindaco", "assessori", "giunta", "deleghe"],
+  "sindaco": ["Mozzoni", "giunta", "assessori", "eletto", "primo cittadino"]
 }
