@@ -373,6 +373,60 @@
   <div class="changelog-section">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">18 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Sinonimi TARI pagamento: aggiunti <em>unica soluzione</em>, <em>pagamento unico</em>, <em>rate tari</em>, <em>pagare tari</em> in <code>config/synonyms.json</code>. Fix retrieval per query come "posso pagare la TARI in unica soluzione?". Aggiunto inbox document focalizzato per risposta diretta.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">15 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Crawler: esclusi URL con <code>?pub_token=</code> da <code>sanbenedettodeltronto.nuvolapalitalsoft.it</code> — il portale Italsoft incorpora token di sessione in ogni link generando URL infiniti (runaway 14h+, oltre 64.000 URL per la stessa pagina).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">14 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Sinonimi giunta comunale: <em>giunta</em>, <em>composizione</em>, <em>assessori</em>, <em>vicesindaco</em>, <em>sindaco</em> → mapping verso termini presenti nei documenti. Fix retrieval per query sulla giunta Mozzoni 2026.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">13 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Aggiunto <code>sanbenedettodeltronto.nuvolapalitalsoft.it</code> come extra start URL (portale NuvolaPA/Italsoft: Amministrazione Trasparente, albo online, SUAP — non linkato dai siti principali).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">28 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag perf">perf</span>Indexer: skip embedding quando tutti i chunk di una pagina sono già nel VS invariati (<code>all_chunks_exist</code> su ID deterministici MD5). Riduce drasticamente il tempo di Phase 2 per pagine non modificate nei sync incrementali.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">24 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Sync: riavvio API via SIGKILL al termine di ogni sync (<code>_restart_api()</code>) per ricaricare dal disco il vector store aggiornato. Prima del fix l'API continuava a servire lo stato iniziale anche dopo ore di indicizzazione.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">24 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Crawler: <code>turismo.comunesbt.it</code> aggiunto come extra start URL tramite <code>config/crawl_extra.json</code> (il sito del turismo non è linkato dal sito principale e non veniva raggiunto dal crawl).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">22 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Embedder: strip caratteri di controllo ASCII (<code>\x01</code>–<code>\x1f</code>, esclusi tab/LF/CR) dai testi estratti da PDF prima dell'embedding, per prevenire errore HTTP 400 su <code>/api/embed</code> di Ollama.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">18 mag 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Full sync senza downtime: rimosso <code>clear_collection()</code> dal flusso <code>full</code>. Ogni sorgente viene sostituita atomicamente con <code>replace_existing=True</code>; l'indice resta consultabile per tutta la durata della reindicizzazione.
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">4 mag 2026</div>
       <div class="cl-text">
         <span class="cl-tag fix">fix</span>Embedder: retry con backoff esponenziale (1s/2s/4s, 3 tentativi) su errore HTTP 500 di Ollama prima di salvare vettore zero. Nuova modalità <code>sync reembed</code> per ri-embedare i chunk con vettore zero già presenti nell'indice.
