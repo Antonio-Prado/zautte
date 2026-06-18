@@ -190,13 +190,21 @@
     /* Feedback negativi */
     .neg-list { list-style: none; padding: 0; margin: 0; }
     .neg-list li {
-      display: flex; justify-content: space-between; align-items: baseline;
+      display: flex; justify-content: space-between; align-items: center;
       gap: 10px; padding: 5px 0; border-bottom: 1px solid #fde8e8;
-      font-size: 0.83em;
+      font-size: 0.83em; transition: opacity 0.3s, max-height 0.3s;
     }
     .neg-list li:last-child { border-bottom: none; }
+    .neg-list li.resolving { opacity: 0; pointer-events: none; }
     .neg-q { color: #c62828; flex: 1; min-width: 0; }
     .neg-ts { color: #bbb; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
+    .btn-resolve {
+      flex-shrink: 0; background: none; border: 1px solid #bbb; border-radius: 4px;
+      color: #777; font-size: 0.78em; padding: 2px 7px; cursor: pointer;
+      white-space: nowrap; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-resolve:hover { background: #e8f5e9; border-color: #43a047; color: #2e7d32; }
+    .btn-resolve:disabled { opacity: 0.5; cursor: default; }
   </style>
 </head>
 <body>
@@ -372,6 +380,12 @@
   <!-- Changelog -->
   <div class="changelog-section">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">18 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Dashboard: bottone "✓ Risolto" su ogni voce di feedback negativo — chiama <code>POST /feedback/resolve</code> (admin), la voce scompare con fade e viene esclusa dai carichi successivi (<code>data/resolved_negative.json</code>).
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">18 giu 2026</div>
       <div class="cl-text">
@@ -801,6 +815,42 @@
         });
     }
 
+    let _adminKey = null;
+
+    function getAdminKey() {
+      if (_adminKey) return _adminKey;
+      _adminKey = prompt('Chiave admin (X-Admin-Key):') || '';
+      return _adminKey;
+    }
+
+    function resolveNegative(ts, question, liEl, btnEl) {
+      const key = getAdminKey();
+      btnEl.disabled = true;
+      btnEl.textContent = '…';
+      fetch(apiBase + '/feedback/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+        body: JSON.stringify({ ts, question }),
+      })
+        .then(r => {
+          if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Chiave admin non valida.'); return; }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          liEl.classList.add('resolving');
+          setTimeout(() => { liEl.remove(); updateNegStatus(); }, 320);
+        })
+        .catch(() => { btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Errore durante la risoluzione.'); });
+    }
+
+    function updateNegStatus() {
+      const statusEl = document.getElementById('neg-fb-status');
+      const listEl = document.getElementById('neg-fb-list');
+      const count = listEl.querySelectorAll('li').length;
+      if (count === 0) {
+        listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo aperto.</span></li>';
+        statusEl.textContent = '— 0 aperte';
+      }
+    }
+
     function loadNegativeFeedback() {
       const statusEl = document.getElementById('neg-fb-status');
       const listEl = document.getElementById('neg-fb-list');
@@ -808,16 +858,24 @@
         .then(r => r.json())
         .then(data => {
           const items = (data.items || []).slice().reverse();
-          statusEl.textContent = '— ' + items.length + ' negative su ' + (data.total || 0) + ' totali';
+          const total = data.total_negative || 0;
+          statusEl.textContent = '— ' + items.length + ' aperte su ' + total + ' totali';
           if (!items.length) {
-            listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo.</span></li>';
+            listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo aperto.</span></li>';
             return;
           }
-          listEl.innerHTML = items.map(e => {
+          listEl.innerHTML = '';
+          items.forEach(e => {
             const ts = (e.ts || '').replace('T', ' ').slice(0, 16);
-            return '<li><span class="neg-q">— ' + e.question + '</span>' +
-                   (ts ? '<span class="neg-ts">' + ts + '</span>' : '') + '</li>';
-          }).join('');
+            const li = document.createElement('li');
+            li.innerHTML =
+              '<span class="neg-q">— ' + e.question.replace(/</g,'&lt;') + '</span>' +
+              (ts ? '<span class="neg-ts">' + ts + '</span>' : '') +
+              '<button class="btn-resolve">✓ Risolto</button>';
+            const btn = li.querySelector('.btn-resolve');
+            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn));
+            listEl.appendChild(li);
+          });
         })
         .catch(() => {
           statusEl.textContent = '';

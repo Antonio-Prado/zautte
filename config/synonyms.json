@@ -50,5 +50,11 @@
   "composizione": ["assessori", "vicesindaco", "componenti", "giunta comunale"],
   "assessori": ["giunta", "vicesindaco", "assessore", "deleghe"],
   "vicesindaco": ["vice sindaco", "assessori", "giunta", "deleghe"],
-  "sindaco": ["Mozzoni", "giunta", "assessori", "eletto", "primo cittadino"]
+  "sindaco": ["Mozzoni", "giunta", "assessori", "eletto", "primo cittadino"],
+  "certificato storico": ["archivio storico", "consultazione archivio storico", "registro storico anagrafico"],
+  "archivio storico": ["certificato storico", "consultazione archivio storico", "registro storico"],
+  "certificati anagrafici": ["certificato anagrafico", "anagrafe nazionale", "ANPR", "residenza certificato"],
+  "certificato anagrafico": ["certificati anagrafici", "anagrafe nazionale", "ANPR"],
+  "certificati elettorali": ["iscrizione liste elettorali", "diritti politici", "ufficio elettorale"],
+  "certificato elettorale": ["iscrizione liste elettorali", "diritti politici", "ufficio elettorale"]
 }
