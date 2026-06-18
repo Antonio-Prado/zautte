@@ -284,14 +284,36 @@ async def feedback(request: Request, req: FeedbackRequest):
     return {"ok": True}
 
 
+def _resolved_negative_file():
+    from pathlib import Path as _P
+    return _P(__file__).parent.parent / "data" / "resolved_negative.json"
+
+
+def _load_resolved_negative() -> set[str]:
+    """Ritorna set di chiavi ts::question già risolte."""
+    import json as _j
+    f = _resolved_negative_file()
+    if not f.exists():
+        return set()
+    try:
+        return {e["key"] for e in _j.loads(f.read_text(encoding="utf-8")) if "key" in e}
+    except Exception:
+        return set()
+
+
+def _resolved_key(ts: str, question: str) -> str:
+    return f"{ts}::{question[:200]}"
+
+
 @app.get("/feedback/negative")
 async def feedback_negative(limit: int = 200):
-    """Domande con feedback negativo — solo question + ts, nessun dato personale."""
+    """Domande con feedback negativo non ancora risolte — solo question + ts."""
     import json as _json
     from pathlib import Path as _Path
     feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
     if not feedback_file.exists():
         return {"items": [], "total_negative": 0, "total": 0}
+    resolved = _load_resolved_negative()
     entries = []
     total = 0
     with open(feedback_file, encoding="utf-8") as f:
@@ -300,10 +322,37 @@ async def feedback_negative(limit: int = 200):
                 e = _json.loads(line)
                 total += 1
                 if e.get("rating") == -1:
-                    entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
+                    key = _resolved_key(e.get("ts", ""), e.get("question", ""))
+                    if key not in resolved:
+                        entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
             except _json.JSONDecodeError:
-                pass  # skip malformed lines in feedback.jsonl
+                pass
     return {"items": entries[-limit:], "total_negative": len(entries), "total": total}
+
+
+class ResolveRequest(BaseModel):
+    ts: str = Field(..., max_length=30)
+    question: str = Field(..., max_length=1000)
+
+
+@app.post("/feedback/resolve")
+async def feedback_resolve(req: ResolveRequest, _: None = Security(require_admin)):
+    """Marca un feedback negativo come risolto — solo admin."""
+    import json as _json
+    f = _resolved_negative_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    existing: list[dict] = []
+    if f.exists():
+        try:
+            existing = _json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            existing = []
+    key = _resolved_key(req.ts, req.question)
+    if not any(e.get("key") == key for e in existing):
+        import datetime as _dt
+        existing.append({"key": key, "resolved_at": _dt.datetime.now().isoformat(timespec="seconds")})
+        f.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True}
 
 
 @app.get("/feedback/list")
