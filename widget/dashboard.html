@@ -101,9 +101,6 @@
     .query-list li:last-child { border-bottom: none; }
     .query-text { color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .query-count { color: #999; font-size: 0.9em; white-space: nowrap; }
-    .gap-text { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #c0392b; font-size: 0.83em; padding: 3px 0; border-bottom: 1px solid #f9eded; }
-    .gap-text:last-child { border-bottom: none; }
-    .gap-ts { color: #bbb; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
 
     a.site-link { color: #003366; font-size: 0.85em; }
 
@@ -300,12 +297,6 @@
       <div id="top-queries"><span style="color:#bbb;font-size:.85em">nessuna ancora</span></div>
     </div>
 
-    <!-- Gap recenti -->
-    <div class="card wide">
-      <h2>Ultime domande senza risposta</h2>
-      <div id="recent-gaps" style="color:#bbb;font-size:.85em">nessuna registrata</div>
-    </div>
-
     <!-- Feedback negativi -->
     <div class="card wide">
       <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
@@ -380,6 +371,30 @@
   <!-- Changelog -->
   <div class="changelog-section">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">25 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Risposte dirette su nuovi temi: <strong>pagamento TARI</strong> (modello F24, Ufficio Tributi) e <strong>Responsabile Protezione Dati / DPO</strong> come <code>known_fact</code>; indicizzati i documenti ufficiali su <strong>orari degli uffici</strong>, <strong>volontariato (Albo volontari civici)</strong> e <strong>segnalazione disservizi/buche</strong> (app Municipium e modulo online).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Sinonimi: intento orari (<em>aprono/apertura → orari</em>), <em>dpo ↔ rpd</em>, <em>volontariato ↔ albo volontari</em>, <em>buca/segnalazione → disservizi/Municipium</em> in <code>config/synonyms.json</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span>Citazioni dei <code>known_fact</code>: corretto l'URL della fonte (prima vuoto per i fatti con <code>source</code>). Aggiunto il logging dei gap "deboli" (recuperi fuori tema) in <code>gaps.jsonl</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">25 giu 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span>Dashboard: rimossa la sezione «Ultime domande senza risposta» (le query senza risposta restano tracciate via <code>/gaps</code> e nella statistica «senza risposta»).
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">18 giu 2026</div>
       <div class="cl-text">
@@ -682,18 +697,6 @@
               '<div class="qbar-track"><div class="qbar-fill" style="width:'+Math.round(c/maxC*100)+'%"></div></div>' +
               '</div>'
             ).join('');
-          }
-
-          // Gap recenti
-          const gaps = d.gaps_recent || [];
-          const gDiv = document.getElementById('recent-gaps');
-          if (gaps.length) {
-            gDiv.innerHTML = gaps.map(g => {
-              const query = typeof g === 'string' ? g : g.query;
-              const ts = g.ts ? g.ts.replace('T', ' ').slice(0, 16) : '';
-              return '<div class="gap-text"><span>— ' + query + '</span>' +
-                     (ts ? '<span class="gap-ts">' + ts + '</span>' : '') + '</div>';
-            }).join('');
           }
 
           // Feedback + donut SVG
