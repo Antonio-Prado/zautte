@@ -34,6 +34,13 @@ log = logging.getLogger(__name__)
 # Soglia minima di similarità per includere un chunk nel contesto
 MIN_SIMILARITY = 0.38
 
+# Soglia di "confidenza" del retrieval: se anche il chunk migliore resta sotto
+# questo valore di similarità coseno, la risposta è probabilmente costruita su
+# documenti solo tematicamente vicini (es. bilanci per una domanda di servizio)
+# e non realmente pertinenti. Serve a loggare questi casi in gaps.jsonl per la
+# revisione — non altera la risposta. Da calibrare sui dati reali di produzione.
+RETRIEVAL_CONFIDENCE = 0.55
+
 # Mappa keyword → ufficio competente — caricata da config/offices.json
 def _load_office_map() -> list[tuple[set, str, str]]:
     import json as _j
@@ -142,7 +149,16 @@ def _load_known_facts() -> list[dict]:
         entries = _j.loads(f.read_text(encoding="utf-8"))
         result = []
         for e in entries:
-            source = e.get("source") or (SITE_URL.rstrip("/") + e["source_path"]) if e.get("source_path") else ""
+            # Precedenza esplicita: "source" (URL completo) ha priorità; altrimenti
+            # "source_path" relativo a SITE_URL; altrimenti nessuna fonte.
+            # (Prima era un'unica espressione con precedenza errata: i fatti con
+            #  solo "source" finivano con URL vuoto.)
+            if e.get("source"):
+                source = e["source"]
+            elif e.get("source_path"):
+                source = SITE_URL.rstrip("/") + e["source_path"]
+            else:
+                source = ""
             result.append({
                 "keywords":    set(e["keywords"]),
                 "require_any": set(e.get("require_any", e["keywords"])),
@@ -250,15 +266,28 @@ def build_prompt(
     """
     system = SYSTEM_PROMPT_IT if language == "it" else SYSTEM_PROMPT_EN
 
+    office_hint = suggest_office(query)
+
     if context:
+        # L'ufficio competente viene fornito anche con contesto presente, come
+        # ripiego: se i chunk recuperati sono fuori tema (es. una domanda di
+        # servizio che pesca documenti di bilancio), il modello deve poter
+        # indirizzare l'utente all'ufficio giusto invece di rispondere da
+        # documenti non pertinenti. È condizionale: se il contesto risponde
+        # davvero, il modello lo ignora.
+        office_text = (
+            f"\n\n(Se il CONTESTO non risponde davvero alla DOMANDA, NON "
+            f"rispondere usando quei documenti: dichiara che non hai "
+            f"l'informazione specifica e indica l'ufficio competente. {office_hint})"
+            if office_hint else ""
+        )
         user_content = (
             f"CONTESTO (estratto dalla base di conoscenza — usa SOLO queste informazioni):\n\n"
             f"{context}\n\n"
             f"---\n\n"
-            f"DOMANDA: {query}"
+            f"DOMANDA: {query}{office_text}"
         )
     else:
-        office_hint = suggest_office(query)
         office_text = f"\n\n{office_hint}" if office_hint else ""
         user_content = (
             f"DOMANDA: {query}\n\n"
@@ -427,14 +456,20 @@ from pathlib import Path as _Path
 _GAPS_LOG = _Path(__file__).parent.parent / "data" / "gaps.jsonl"
 
 
-def _log_gap(query: str, chunks_found: int):
-    """Registra query con 0 chunk o risposta vuota (senza dati personali)."""
+def _log_gap(query: str, chunks_found: int, weak: bool = False):
+    """Registra query con 0 chunk o recupero debole (senza dati personali).
+
+    weak=True indica chunk trovati ma con bassa pertinenza (sotto
+    RETRIEVAL_CONFIDENCE): casi che sfuggono al log a 0 chunk ma che spesso
+    producono risposte scadenti.
+    """
     try:
         _GAPS_LOG.parent.mkdir(parents=True, exist_ok=True)
         entry = {
             "ts": _datetime.datetime.now().isoformat(timespec="seconds"),
             "query": query[:200],
             "chunks": chunks_found,
+            "weak": weak,
         }
         with open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
@@ -633,6 +668,13 @@ async def answer(
 
     if len(chunks) == 0:
         _log_gap(query, 0)
+    else:
+        # Recupero "debole": chunk trovati ma anche il migliore è sotto la
+        # soglia di confidenza (spesso documenti solo tematicamente vicini).
+        # Tracciali per far emergere i gap di contenuto altrimenti invisibili.
+        top_score = max(c.get("score", 0.0) for c in chunks)
+        if top_score < RETRIEVAL_CONFIDENCE:
+            _log_gap(query, len(chunks), weak=True)
 
     if stream:
         if not chunks:

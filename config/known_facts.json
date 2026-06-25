@@ -14,5 +14,21 @@
     "title": "Sede e contatti - Comune di San Benedetto del Tronto",
     "source_path": "/it/contatti",
     "category": "pagina"
+  },
+  {
+    "keywords": ["tari", "rifiuti", "immondizia", "spazzatura"],
+    "require_any": ["pagare", "pagamento", "pago", "pagarla", "versare", "versamento", "f24", "scadenza", "scadenze", "rata", "rate", "rateizzare", "rateizzazione", "bollettino", "avviso", "paga"],
+    "text": "Come pagare la TARI (tassa sui rifiuti) - Comune di San Benedetto del Tronto\n\nIl pagamento della TARI si effettua con modello F24. Ogni anno il Comune invia ai contribuenti una comunicazione con il riepilogo della situazione e il modello F24 gia compilato.\n\nDove pagare:\n- presso gli sportelli postali e bancari (il modello F24 si paga senza commissioni);\n- tramite internet/home banking;\n- online con carta di credito sul portale dedicato.\n\nNON e possibile pagare la TARI presso gli uffici comunali.\n\nIl pagamento avviene generalmente in due rate. Se l'avviso arriva in ritardo, il pagamento puo essere effettuato entro i 15 giorni successivi senza alcuna sanzione. Per le scadenze aggiornate dell'anno in corso consultare la pagina ufficiale del servizio.\n\nCodici per la compilazione del modello F24: Codice Ente H769; codice tributo 3944 (TARI) e codice TEFA (tributo provinciale).\n\nContatti Ufficio Tributi: tel. 0735 7941 - email tributi@comunesbt.it - PEC protocollo@cert-sbt.it",
+    "title": "Come pagare la TARI - Comune di San Benedetto del Tronto",
+    "source": "https://www.comune.sanbenedettodeltronto.ap.it/it/servizi/tari",
+    "category": "servizio"
+  },
+  {
+    "keywords": ["dpo", "rpd", "privacy", "gdpr", "protezione", "responsabile", "dati", "trattamento"],
+    "require_any": ["dpo", "rpd", "privacy", "gdpr", "protezione"],
+    "text": "Responsabile della Protezione dei Dati (RPD / DPO) e Titolare del trattamento - Comune di San Benedetto del Tronto\n\nIl Responsabile della Protezione dei Dati (RPD), in inglese Data Protection Officer (DPO), del Comune di San Benedetto del Tronto e la societa Morolabs Srl, nella persona designata dell'Avv. Massimiliano Galeazzi. Contatti del RPD/DPO: telefono 071 9030585, email dpo@morolabs.it.\n\nIl Titolare del trattamento dei dati e il Comune di San Benedetto del Tronto, con sede in Viale Alcide De Gasperi 124, 63074 San Benedetto del Tronto (AP).",
+    "title": "Responsabile della Protezione dei Dati (RPD/DPO) - Comune di San Benedetto del Tronto",
+    "source": "https://www.comune.sanbenedettodeltronto.ap.it/it/privacy",
+    "category": "pagina"
   }
 ]
