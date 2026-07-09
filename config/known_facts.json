@@ -30,5 +30,13 @@
     "title": "Responsabile della Protezione dei Dati (RPD/DPO) - Comune di San Benedetto del Tronto",
     "source": "https://www.comune.sanbenedettodeltronto.ap.it/it/privacy",
     "category": "pagina"
+  },
+  {
+    "keywords": ["concorso", "concorsi", "concorsuale", "bando", "bandi", "selezione", "selezioni", "assunzione", "assunzioni", "assumere", "graduatoria", "graduatorie", "mobilità", "interpello", "reclutamento", "lavorare"],
+    "require_any": ["concorso", "concorsi", "concorsuale", "selezione", "selezioni", "assunzione", "assunzioni", "assumere", "reclutamento", "interpello"],
+    "text": "Concorsi pubblici, selezioni e bandi di assunzione - Comune di San Benedetto del Tronto\n\nI concorsi pubblici, le selezioni, gli avvisi di mobilità e le graduatorie del Comune di San Benedetto del Tronto sono pubblicati nella sezione \"Amministrazione Trasparente > Bandi di concorso\".\n\nPagina ufficiale con l'elenco aggiornato dei bandi di concorso (sia aperti sia conclusi):\nhttps://sanbenedettodeltronto.nuvolapalitalsoft.it/?page_id=36046&voceamt=544\n\nPer ogni bando sono indicati la descrizione, la data di inizio e fine validità e i documenti allegati (bando, modulo di domanda, esiti/graduatorie). Per sapere quali concorsi sono attualmente aperti occorre consultare direttamente questa pagina, dove i bandi si possono filtrare per data di pubblicazione e di validità.\n\nPer informazioni sui concorsi e sulle procedure di selezione: Ufficio Risorse Umane / Personale del Comune - centralino tel. 0735 7941.",
+    "title": "Concorsi pubblici e bandi di assunzione - Comune di San Benedetto del Tronto",
+    "source": "https://sanbenedettodeltronto.nuvolapalitalsoft.it/?page_id=36046&voceamt=544",
+    "category": "pagina"
   }
 ]
