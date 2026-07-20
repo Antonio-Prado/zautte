@@ -384,8 +384,8 @@
 
   </div><!-- /grid -->
 
-  <!-- Changelog -->
-  <div class="changelog-section">
+  <!-- Changelog (solo vista amministratore) -->
+  <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
     <div class="cl-entry">
       <div class="cl-date">25 giu 2026</div>
@@ -861,7 +861,9 @@
       const grid = document.getElementById('admin-grid');
       const intro = document.getElementById('pilot-intro');
       const unlock = document.getElementById('admin-unlock');
+      const changelog = document.getElementById('changelog-section');
       if (grid) grid.style.display = '';
+      if (changelog) changelog.style.display = '';
       if (intro) intro.style.display = 'none';
       if (unlock) unlock.style.display = 'none';
       if (_statsStarted) return;
@@ -1041,7 +1043,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js" defer></script>
+  <script src="./chatbot-widget.js?v=20260720b" defer></script>
   <footer style="max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
     Responsabile dello sviluppo: Antonio Prado
     &nbsp;·&nbsp;
