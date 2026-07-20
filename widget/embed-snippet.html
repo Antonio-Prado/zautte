@@ -16,6 +16,10 @@
     position:      'right',
     logoUrl:       'https://chatbot.esempio.it/widget/logo.png',
     contactEmail:  'assistenza@esempio.it',
+    // Progetto pilota: true = richiede login (email+password) prima di usare il bot.
+    // Attivare SOLO se il backend ha AUTH_ENABLED=true. Gli utenti si creano con
+    // `python -m scripts.adduser`. Vedi anche AUTH_SECRET nel file .env del server.
+    requireLogin:  false,
     suggestions:  [
       'Prima domanda frequente?',
       'Seconda domanda frequente?',
