@@ -30,6 +30,7 @@ from config.settings import (
     AUTH_ENABLED,
     AUTH_SECRET,
     AUTH_TOKEN_TTL_DAYS,
+    PILOT_LOGIN_URL,
     USERS_FILE,
 )
 
@@ -143,6 +144,26 @@ def _find_user_by_email(email: str) -> dict | None:
     return None
 
 
+def _update_user_password(email: str, new_password: str) -> bool:
+    """Aggiorna l'hash password dell'utente con l'email data. True se aggiornato."""
+    email = email.strip().lower()
+    users = _load_users()
+    changed = False
+    for u in users:
+        if u.get("email", "").strip().lower() == email:
+            u["pw_hash"] = hash_password(new_password)
+            changed = True
+    if changed:
+        try:
+            USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            USERS_FILE.write_text(
+                json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            return False
+    return changed
+
+
 # ---------------------------------------------------------------------------
 # Dependency: identità dell'utente della richiesta
 # ---------------------------------------------------------------------------
@@ -213,3 +234,38 @@ async def login(request: Request, req: LoginRequest):
 async def me(user: dict = Security(require_user)):
     """Restituisce l'identità dell'utente autenticato."""
     return {"uid": user.get("uid"), "name": user.get("name")}
+
+
+class ForgotRequest(BaseModel):
+    email: str = Field(..., max_length=200)
+
+
+@router.post("/forgot")
+@limiter.limit("5/hour")
+async def forgot(request: Request, req: ForgotRequest):
+    """Reset password self-service: genera una nuova password e la invia via email.
+
+    La risposta è sempre identica, esista o meno l'indirizzo (anti-enumerazione).
+    Le password sono cifrate (scrypt): quella originale non è recuperabile, si può
+    solo reimpostare.
+    """
+    generic = {
+        "ok": True,
+        "message": "Se l'indirizzo è registrato, riceverai una nuova password via email.",
+    }
+    if not AUTH_ENABLED:
+        raise HTTPException(status_code=400, detail="Autenticazione non attiva")
+
+    user = _find_user_by_email(req.email)
+    if user:
+        new_pw = secrets.token_urlsafe(12)
+        if _update_user_password(user["email"], new_pw):
+            try:
+                from api.mailer import send_password_reset, smtp_configured
+                if smtp_configured():
+                    send_password_reset(
+                        user["email"], user.get("name", ""), new_pw, PILOT_LOGIN_URL
+                    )
+            except Exception:
+                pass
+    return generic
