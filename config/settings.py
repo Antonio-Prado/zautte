@@ -114,6 +114,19 @@ AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "30"))
 # users.json vive in data/ (già in .gitignore): credenziali fuori dal versionamento
 USERS_FILE = DATA_DIR / "users.json"
 
+# --- Invio email (SMTP) — per recapitare le credenziali ai partecipanti ---
+# Relay interno del Comune (destinatari @comunesbt.it):
+#   SMTP_HOST=mail.comunesbt.it  SMTP_PORT=25  (senza auth né TLS)
+# SMTP_USER/PASSWORD e SMTP_STARTTLS servono solo se il relay li richiede.
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "25"))
+SMTP_FROM = os.getenv("SMTP_FROM", "")
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").strip().lower() in ("1", "true", "yes", "on")
+# URL della pagina dove i partecipanti fanno il login (inserito nell'email)
+PILOT_LOGIN_URL = os.getenv("PILOT_LOGIN_URL", "")
+
 # --- Prompt di sistema ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""
 _contact_hint_it = f"contattare direttamente l'organizzazione o visitare {SITE_URL}" if SITE_URL else "contattare direttamente l'organizzazione"

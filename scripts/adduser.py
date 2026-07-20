@@ -27,8 +27,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.auth import hash_password          # noqa: E402
-from config.settings import USERS_FILE      # noqa: E402
+from api.auth import hash_password                    # noqa: E402
+from api.mailer import send_credentials, smtp_configured  # noqa: E402
+from config.settings import PILOT_LOGIN_URL, USERS_FILE   # noqa: E402
 
 
 def _load() -> list[dict]:
@@ -52,7 +53,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Gestione utenti Zautte")
     ap.add_argument("--email")
     ap.add_argument("--name")
-    ap.add_argument("--password", help="se omessa, viene chiesta in modo interattivo")
+    ap.add_argument("--password", help="se omessa: generata (con --send-email) o chiesta")
+    ap.add_argument("--send-email", action="store_true",
+                    help="recapita le credenziali all'utente via SMTP")
+    ap.add_argument("--login-url", help="override dell'URL di login nell'email")
     ap.add_argument("--list", action="store_true", help="elenca gli utenti")
     ap.add_argument("--remove", metavar="EMAIL", help="rimuove un utente")
     args = ap.parse_args()
@@ -80,7 +84,13 @@ def main() -> None:
         ap.error("--email e --name sono obbligatori (oppure usa --list / --remove)")
 
     email = args.email.strip().lower()
-    password = args.password or getpass.getpass("Password: ")
+    # Password: esplicita, oppure generata (se --send-email), oppure interattiva
+    if args.password:
+        password = args.password
+    elif args.send_email:
+        password = secrets.token_urlsafe(12)  # generata, verrà recapitata via email
+    else:
+        password = getpass.getpass("Password: ")
     if len(password) < 8:
         print("La password deve avere almeno 8 caratteri.")
         sys.exit(1)
@@ -102,6 +112,17 @@ def main() -> None:
         })
         print(f"Creato: {args.name} <{email}>")
     _save(users)
+
+    if args.send_email:
+        url = args.login_url or PILOT_LOGIN_URL
+        if not smtp_configured():
+            print(f"  ATTENZIONE: SMTP non configurato — email NON inviata. Password: {password}")
+        else:
+            try:
+                send_credentials(email, args.name, password, url)
+                print(f"  Email con le credenziali inviata a {email}")
+            except Exception as e:  # noqa: BLE001
+                print(f"  Invio email FALLITO ({e}). Password: {password}")
 
 
 if __name__ == "__main__":
