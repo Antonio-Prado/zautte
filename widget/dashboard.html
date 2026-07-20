@@ -644,7 +644,7 @@
 
     function updateStats() {
       const t0 = performance.now();
-      fetch(apiBase + '/health')
+      fetch(apiBase + '/health', { headers: adminHeaders() })
         .then(r => r.json())
         .then(d => {
           const ms = Math.round(performance.now() - t0);
@@ -779,7 +779,7 @@
     }
 
     function updateCrawlHistory() {
-      fetch(apiBase + '/crawl-history')
+      fetch(apiBase + '/crawl-history', { headers: adminHeaders() })
         .then(r => r.json())
         .then(d => {
           // Barre di avanzamento
@@ -835,6 +835,28 @@
       return _adminKey;
     }
 
+    function adminHeaders() {
+      return _adminKey ? { 'X-Admin-Key': _adminKey } : {};
+    }
+
+    // La dashboard è riservata: verifica la chiave admin contro un endpoint
+    // protetto prima di mostrare qualsiasi dato.
+    async function ensureAdminAccess() {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const key = getAdminKey();
+        if (!key) return false;
+        try {
+          const r = await fetch(apiBase + '/crawl-history', { headers: { 'X-Admin-Key': key } });
+          if (r.ok) return true;
+          if (r.status === 403) { _adminKey = null; alert('Chiave admin non valida.'); continue; }
+          return true; // altri errori: non bloccare la dashboard
+        } catch (_) {
+          return true; // problema di rete: non bloccare
+        }
+      }
+      return false;
+    }
+
     function resolveNegative(ts, question, liEl, btnEl) {
       const key = getAdminKey();
       btnEl.disabled = true;
@@ -866,7 +888,7 @@
     function loadNegativeFeedback() {
       const statusEl = document.getElementById('neg-fb-status');
       const listEl = document.getElementById('neg-fb-list');
-      fetch(apiBase + '/feedback/negative')
+      fetch(apiBase + '/feedback/negative', { headers: adminHeaders() })
         .then(r => r.json())
         .then(data => {
           const items = (data.items || []).slice().reverse();
@@ -939,12 +961,20 @@
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
-    updateStats();
-    updateCrawlHistory();
-    loadNegativeFeedback();
-    setInterval(updateStats, 30000);
-    setInterval(updateCrawlHistory, 60000);
-    setInterval(loadNegativeFeedback, 60000);
+    ensureAdminAccess().then(ok => {
+      if (!ok) {
+        document.body.innerHTML =
+          '<p style="max-width:600px;margin:80px auto;font-family:sans-serif;color:#555;text-align:center;line-height:1.5">' +
+          '🔒 Dashboard riservata. Ricarica la pagina e inserisci la <strong>chiave admin</strong> per visualizzare i dati.</p>';
+        return;
+      }
+      updateStats();
+      updateCrawlHistory();
+      loadNegativeFeedback();
+      setInterval(updateStats, 30000);
+      setInterval(updateCrawlHistory, 60000);
+      setInterval(loadNegativeFeedback, 60000);
+    });
 
     function askQuestion(text) {
       const openBtn = document.querySelector('[id$="-btn"]');

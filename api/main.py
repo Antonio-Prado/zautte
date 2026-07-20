@@ -242,25 +242,35 @@ def _log_usage(uid: str, q_len: int, lang: str | None = None,
 
 
 @app.get("/health")
-async def health():
-    """Verifica che il servizio sia attivo."""
+async def health(key: str | None = Security(_api_key_header)):
+    """Liveness pubblico (minimale). I dettagli operativi (statistiche, query,
+    feedback, costi) sono restituiti SOLO con una chiave admin valida, per non
+    esporli a chiunque conosca l'URL."""
     import datetime as _dt
+
+    base = {
+        "status": "ok",
+        "llm_provider": LLM_PROVIDER,
+        "hybrid_search": is_bm25_active(),
+        "uptime_seconds": int((_dt_module.datetime.now() - _startup_time).total_seconds()),
+    }
+
+    is_admin = (not ADMIN_API_KEY) or (key == ADMIN_API_KEY)
+    if not is_admin:
+        return base
+
     stats = get_stats()
     llm_info = OLLAMA_MODEL if LLM_PROVIDER == "ollama" else CLAUDE_MODEL
-
     last_indexed = None
     if EMBEDDINGS_FILE.exists():
         mtime = EMBEDDINGS_FILE.stat().st_mtime
         last_indexed = _dt.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
 
-    return {
-        "status": "ok",
+    base.update({
         "indexed_chunks": stats["total_chunks"],
         "unique_sources": stats["unique_sources"],
         "doc_types": stats["doc_types"],
-        "llm_provider": LLM_PROVIDER,
         "llm_model": llm_info,
-        "hybrid_search": is_bm25_active(),
         "last_indexed": last_indexed,
         "queries_since_restart": get_query_count(),
         "gaps_total": _read_gaps_count(),
@@ -268,8 +278,8 @@ async def health():
         "feedback": _read_feedback_summary(),
         "activity": get_activity_stats(),
         "top_doc": get_top_doc(),
-        "uptime_seconds": int((_dt_module.datetime.now() - _startup_time).total_seconds()),
-    }
+    })
+    return base
 
 
 @app.get("/stats")
@@ -339,8 +349,8 @@ def _resolved_key(ts: str, question: str) -> str:
 
 
 @app.get("/feedback/negative")
-async def feedback_negative(limit: int = 200):
-    """Domande con feedback negativo non ancora risolte — solo question + ts."""
+async def feedback_negative(limit: int = 200, _: None = Security(require_admin)):
+    """Domande con feedback negativo non ancora risolte — solo question + ts. Solo admin."""
     import json as _json
     from pathlib import Path as _Path
     feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
@@ -493,8 +503,8 @@ async def usage_summary(_: None = Security(require_admin)):
 
 
 @app.get("/crawl-history")
-async def crawl_history():
-    """Storico crawling e indicizzazione (ultimi eventi dal sync log)."""
+async def crawl_history(_: None = Security(require_admin)):
+    """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
     import re
     from pathlib import Path as _P
 
