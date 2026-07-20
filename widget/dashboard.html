@@ -321,6 +321,14 @@
       </div>
     </div>
 
+    <!-- Log messaggi utenti -->
+    <div class="card wide">
+      <h2>Log messaggi utenti <span id="msg-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <div id="msg-body" style="max-height:460px;overflow:auto">
+        <span style="color:#bbb;font-size:.85em">caricamento…</span>
+      </div>
+    </div>
+
     <!-- Token & Costi API -->
     <div class="card wide">
       <h2>Token &amp; Costi API Anthropic</h2>
@@ -871,9 +879,49 @@
       updateStats();
       updateCrawlHistory();
       loadNegativeFeedback();
+      loadUsage();
+      loadMessages();
       setInterval(updateStats, 30000);
       setInterval(updateCrawlHistory, 60000);
       setInterval(loadNegativeFeedback, 60000);
+      setInterval(loadMessages, 30000);
+    }
+
+    function _esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function loadMessages() {
+      const body = document.getElementById('msg-body');
+      const status = document.getElementById('msg-status');
+      fetch(apiBase + '/usage/messages?limit=500', { headers: adminHeaders() })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(data => {
+          const msgs = data.messages || [];
+          status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
+          if (!msgs.length) {
+            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun messaggio registrato finora.</span>';
+            return;
+          }
+          let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
+            + '<thead><tr style="text-align:left;color:#888;border-bottom:1px solid #eee">'
+            + '<th style="padding:6px 8px;white-space:nowrap">Quando</th>'
+            + '<th style="padding:6px 8px;white-space:nowrap">Utente</th>'
+            + '<th style="padding:6px 8px">Domanda</th></tr></thead><tbody>';
+          msgs.forEach(m => {
+            const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
+            html += '<tr style="border-bottom:1px solid #f3f3f3">'
+              + '<td style="padding:6px 8px;color:#888;white-space:nowrap">' + ts + '</td>'
+              + '<td style="padding:6px 8px;white-space:nowrap">' + _esc(m.name) + '</td>'
+              + '<td style="padding:6px 8px">' + _esc(m.q) + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        })
+        .catch(() => {
+          body.innerHTML = '<span style="color:#bbb;font-size:.85em">Errore nel caricamento del log.</span>';
+        });
     }
 
     async function promptAdminKey() {
