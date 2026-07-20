@@ -205,13 +205,20 @@
   </style>
 </head>
 <body>
-  <h1>Zautte — Pannello di controllo</h1>
+  <h1>Zautte — Assistente virtuale</h1>
   <p class="subtitle">
     <span class="badge">Area riservata</span>
     &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
+    &nbsp;·&nbsp; <a class="site-link" href="#" id="admin-unlock">🔓 Vista amministratore</a>
   </p>
 
-  <div class="grid">
+  <div id="pilot-intro" style="max-width:640px;margin:24px 0;padding:20px 22px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.55;color:#444">
+    <strong>Accesso riservato ai colleghi in fase di test.</strong><br>
+    Apri l'assistente dal pulsante in basso a destra, accedi con le credenziali che hai
+    ricevuto e fai le tue domande. Usa 👍 / 👎 per darci un riscontro.
+  </div>
+
+  <div class="grid" id="admin-grid" style="display:none">
 
     <!-- Stato servizio -->
     <div class="card">
@@ -827,7 +834,9 @@
         });
     }
 
+    const ADMIN_KEY_LS = 'zautte_admin_key';
     let _adminKey = null;
+    try { _adminKey = localStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
 
     function getAdminKey() {
       if (_adminKey) return _adminKey;
@@ -839,22 +848,42 @@
       return _adminKey ? { 'X-Admin-Key': _adminKey } : {};
     }
 
-    // La dashboard è riservata: verifica la chiave admin contro un endpoint
-    // protetto prima di mostrare qualsiasi dato.
-    async function ensureAdminAccess() {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const key = getAdminKey();
-        if (!key) return false;
-        try {
-          const r = await fetch(apiBase + '/crawl-history', { headers: { 'X-Admin-Key': key } });
-          if (r.ok) return true;
-          if (r.status === 403) { _adminKey = null; alert('Chiave admin non valida.'); continue; }
-          return true; // altri errori: non bloccare la dashboard
-        } catch (_) {
-          return true; // problema di rete: non bloccare
-        }
+    async function _validateAdminKey(key) {
+      try {
+        const r = await fetch(apiBase + '/crawl-history', { headers: { 'X-Admin-Key': key } });
+        return r.ok;
+      } catch (_) { return false; }
+    }
+
+    // Mostra la vista amministratore (statistiche) e avvia i loader una sola volta.
+    let _statsStarted = false;
+    function startAdminView() {
+      const grid = document.getElementById('admin-grid');
+      const intro = document.getElementById('pilot-intro');
+      const unlock = document.getElementById('admin-unlock');
+      if (grid) grid.style.display = '';
+      if (intro) intro.style.display = 'none';
+      if (unlock) unlock.style.display = 'none';
+      if (_statsStarted) return;
+      _statsStarted = true;
+      updateStats();
+      updateCrawlHistory();
+      loadNegativeFeedback();
+      setInterval(updateStats, 30000);
+      setInterval(updateCrawlHistory, 60000);
+      setInterval(loadNegativeFeedback, 60000);
+    }
+
+    async function promptAdminKey() {
+      const key = prompt('Chiave admin (X-Admin-Key):') || '';
+      if (!key) return;
+      if (await _validateAdminKey(key)) {
+        _adminKey = key;
+        try { localStorage.setItem(ADMIN_KEY_LS, key); } catch (_) {}
+        startAdminView();
+      } else {
+        alert('Chiave admin non valida.');
       }
-      return false;
     }
 
     function resolveNegative(ts, question, liEl, btnEl) {
@@ -961,20 +990,20 @@
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
-    ensureAdminAccess().then(ok => {
-      if (!ok) {
-        document.body.innerHTML =
-          '<p style="max-width:600px;margin:80px auto;font-family:sans-serif;color:#555;text-align:center;line-height:1.5">' +
-          '🔒 Dashboard riservata. Ricarica la pagina e inserisci la <strong>chiave admin</strong> per visualizzare i dati.</p>';
-        return;
+    // I colleghi vedono solo l'assistente (chat con login utente). Le statistiche
+    // admin restano nascoste e compaiono solo sbloccando la vista amministratore
+    // (link "🔓") o se c'è già una chiave admin valida salvata nel browser.
+    const _unlockLink = document.getElementById('admin-unlock');
+    if (_unlockLink) _unlockLink.addEventListener('click', function (e) { e.preventDefault(); promptAdminKey(); });
+
+    (async function initDashboard() {
+      if (_adminKey && await _validateAdminKey(_adminKey)) {
+        startAdminView();
+      } else {
+        _adminKey = null;
+        try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
       }
-      updateStats();
-      updateCrawlHistory();
-      loadNegativeFeedback();
-      setInterval(updateStats, 30000);
-      setInterval(updateCrawlHistory, 60000);
-      setInterval(loadNegativeFeedback, 60000);
-    });
+    })();
 
     function askQuestion(text) {
       const openBtn = document.querySelector('[id$="-btn"]');
@@ -994,6 +1023,7 @@
   <script>
     window.ChatbotConfig = {
       apiUrl:        window.location.origin,
+      requireLogin:  true,
       primaryColor:  '#003366',
       title:         'Zautte',
       subtitle:      '',
