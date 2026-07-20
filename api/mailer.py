@@ -71,3 +71,20 @@ Per qualsiasi problema puoi rispondere a questa email.
 Grazie per la collaborazione.
 """
     send_email(to, subject, body)
+
+
+def send_password_reset(to: str, name: str, password: str, login_url: str) -> None:
+    """Recapita una nuova password dopo una richiesta di reset."""
+    subject = "Zautte — nuova password"
+    link = f"\nAccedi qui: {login_url}\n" if login_url else ""
+    body = f"""Ciao {name},
+
+hai richiesto il reset della password per Zautte. Ecco la nuova password:
+{link}
+  Email:    {to}
+  Password: {password}
+
+Puoi accedere subito con questa password.
+Se NON hai richiesto tu il reset, avvisa l'amministratore.
+"""
+    send_email(to, subject, body)
