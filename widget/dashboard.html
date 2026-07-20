@@ -1010,9 +1010,11 @@
         })
         .then(data => {
           const users = data.users || [];
-          status.textContent = '— ' + (data.total_users || 0) + ' utenti · ' + (data.total_messages || 0) + ' messaggi';
+          const reg = (data.total_registered != null ? data.total_registered : (data.total_users || 0));
+          const act = (data.total_active != null ? data.total_active : users.length);
+          status.textContent = '— ' + reg + ' registrati · ' + act + ' attivi · ' + (data.total_messages || 0) + ' messaggi';
           if (!users.length) {
-            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun accesso registrato finora.</span>';
+            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun utente registrato.</span>';
             return;
           }
           let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
@@ -1022,8 +1024,9 @@
             + '<th style="padding:6px 8px;text-align:right">Giorni attivi</th>'
             + '<th style="padding:6px 8px">Ultimo accesso</th></tr></thead><tbody>';
           users.forEach(u => {
-            const last = (u.last_seen || '').replace('T', ' ').slice(0, 16);
-            html += '<tr style="border-bottom:1px solid #f3f3f3">'
+            const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'mai';
+            const dim = u.messages ? '' : 'color:#bbb;';
+            html += '<tr style="border-bottom:1px solid #f3f3f3;' + dim + '">'
               + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
               + '<td style="padding:6px 8px;text-align:right">' + u.messages + '</td>'
               + '<td style="padding:6px 8px;text-align:right">' + u.active_days + '</td>'

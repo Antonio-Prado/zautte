@@ -479,6 +479,11 @@ async def usage_summary(_: None = Security(require_admin)):
                 day_msgs[day] += 1
                 total += 1
 
+    # Includi anche gli utenti registrati che non hanno ancora usato il bot
+    # (compaiono con 0 messaggi e "ultimo accesso" vuoto).
+    for uid in names:
+        _ = per_user[uid]  # defaultdict crea la voce a zero se assente
+
     users_out = [
         {
             "uid": uid,
@@ -490,7 +495,10 @@ async def usage_summary(_: None = Security(require_admin)):
         }
         for uid, u in per_user.items()
     ]
-    users_out.sort(key=lambda x: x["messages"], reverse=True)
+    # ordina per messaggi (desc) e, a parità, per nome
+    users_out.sort(key=lambda x: (-x["messages"], (x["name"] or "").lower()))
+
+    active = sum(1 for u in per_user.values() if u["messages"] > 0)
 
     daily = [
         {"day": d, "users": len(day_users[d]), "messages": day_msgs[d]}
@@ -500,6 +508,8 @@ async def usage_summary(_: None = Security(require_admin)):
     return {
         "total_messages": total,
         "total_users": len(per_user),
+        "total_registered": len(names),
+        "total_active": active,
         "users": users_out,
         "daily": daily[-30:],
     }
