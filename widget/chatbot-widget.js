@@ -88,6 +88,12 @@
     loginInvalid: isItalian ? "Email o password non validi." : "Invalid email or password.",
     loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
     logout: isItalian ? "Esci" : "Sign out",
+    forgot: isItalian ? "Password dimenticata?" : "Forgot password?",
+    forgotNoEmail: isItalian ? "Inserisci prima la tua email qui sopra." : "Enter your email above first.",
+    forgotSent: isItalian
+      ? "Se l'indirizzo è registrato, riceverai una nuova password via email."
+      : "If the address is registered, you'll receive a new password by email.",
+    forgotSending: isItalian ? "Invio in corso…" : "Sending…",
   };
 
   // ---------------------------------------------------------------------------
@@ -582,7 +588,11 @@
     <button type="submit" id="${WIDGET_ID}-login-submit"
       style="padding:11px 12px;border:none;border-radius:8px;background:${p};color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
       ${T.loginSubmit}
-    </button>`;
+    </button>
+    <a href="#" id="${WIDGET_ID}-forgot"
+      style="font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
+      ${T.forgot}
+    </a>`;
   panel.appendChild(loginEl);
 
   // Pulsante logout (nell'header, visibile solo da autenticati)
@@ -632,6 +642,7 @@
     const errEl = document.getElementById(`${WIDGET_ID}-login-error`);
     const submitBtn = document.getElementById(`${WIDGET_ID}-login-submit`);
     errEl.style.display = "none";
+    errEl.style.color = "#c0392b";
     const email = (emailInput.value || "").trim();
     const password = pwInput.value || "";
     if (!email || !password) return;
@@ -661,6 +672,39 @@
       submitBtn.disabled = false;
       submitBtn.textContent = T.loginSubmit;
     }
+  });
+
+  // "Password dimenticata?" — invia una richiesta di reset per l'email inserita.
+  const _forgotLink = document.getElementById(`${WIDGET_ID}-forgot`);
+  if (_forgotLink) _forgotLink.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
+    const errEl = document.getElementById(`${WIDGET_ID}-login-error`);
+    const email = ((emailInput && emailInput.value) || "").trim();
+    if (!email) {
+      errEl.style.color = "#c0392b";
+      errEl.textContent = T.forgotNoEmail;
+      errEl.style.display = "block";
+      if (emailInput) emailInput.focus();
+      return;
+    }
+    errEl.style.display = "none";
+    const prev = _forgotLink.textContent;
+    _forgotLink.textContent = T.forgotSending;
+    _forgotLink.style.pointerEvents = "none";
+    try {
+      await fetch(`${cfg.apiUrl}/auth/forgot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    } catch (_) {}
+    // Messaggio generico sempre (anti-enumerazione, come il backend).
+    errEl.style.color = "#2e7d32";
+    errEl.textContent = T.forgotSent;
+    errEl.style.display = "block";
+    _forgotLink.textContent = prev;
+    _forgotLink.style.pointerEvents = "";
   });
 
   // ---------------------------------------------------------------------------
