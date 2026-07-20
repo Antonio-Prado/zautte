@@ -212,12 +212,13 @@ def _read_feedback_summary() -> dict:
     return {"total": pos + neg, "positive": pos, "negative": neg}
 
 
-def _log_usage(uid: str, q_len: int, lang: str | None = None,
+def _log_usage(uid: str, question: str, lang: str | None = None,
                response_ms: int | None = None) -> None:
     """Registra un evento d'uso per-utente in data/usage.jsonl.
 
-    Contiene solo un id opaco (uid) e metriche: nome/email restano in users.json
-    e vengono risolti a video solo nella dashboard. Nessun testo della domanda.
+    Include il TESTO della domanda (per la review del pilota), oltre a id utente
+    opaco, timestamp e metriche. Nome/email restano in users.json e vengono
+    risolti a video solo nella dashboard (vista admin).
     """
     if not uid or uid == "anon":
         return
@@ -226,10 +227,12 @@ def _log_usage(uid: str, q_len: int, lang: str | None = None,
     f = _P(__file__).parent.parent / "data" / "usage.jsonl"
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
+        question = question or ""
         entry: dict = {
             "ts": _dt.datetime.now().isoformat(timespec="seconds"),
             "uid": uid,
-            "q_len": q_len,
+            "q": question[:1000],
+            "q_len": len(question),
         }
         if lang:
             entry["lang"] = lang
@@ -502,6 +505,53 @@ async def usage_summary(_: None = Security(require_admin)):
     }
 
 
+@app.get("/usage/messages")
+async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
+    """Log dei messaggi digitati dagli utenti (testo + timestamp + utente) — solo admin.
+
+    Legge data/usage.jsonl risolvendo i nomi da data/users.json. Le voci più
+    vecchie (registrate prima dell'introduzione del testo) sono ignorate.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
+    users_file = _Path(__file__).parent.parent / "data" / "users.json"
+
+    names: dict[str, str] = {}
+    if users_file.exists():
+        try:
+            for u in _json.loads(users_file.read_text(encoding="utf-8")):
+                names[u.get("id")] = u.get("name", "")
+        except Exception:
+            pass
+
+    msgs: list[dict] = []
+    if usage_file.exists():
+        with open(usage_file, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    e = _json.loads(line)
+                except Exception:
+                    continue
+                if "q" not in e:  # voci vecchie senza testo della domanda
+                    continue
+                uid = e.get("uid", "")
+                msgs.append({
+                    "ts": e.get("ts", ""),
+                    "uid": uid,
+                    "name": names.get(uid, uid),
+                    "q": e.get("q", ""),
+                    "lang": e.get("lang"),
+                    "response_ms": e.get("response_ms"),
+                })
+
+    total = len(msgs)
+    recent = msgs[-limit:]
+    recent.reverse()  # più recenti in cima
+    return {"messages": recent, "total": total}
+
+
 @app.get("/crawl-history")
 async def crawl_history(_: None = Security(require_admin)):
     """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
@@ -595,7 +645,7 @@ async def chat(request: Request, req: ChatRequest,
         _t0 = _time.monotonic()
         result = await answer(req.question, stream=False, history=history)
         _lang = result.get("language") if isinstance(result, dict) else None
-        _log_usage(user.get("uid"), len(req.question), _lang,
+        _log_usage(user.get("uid"), req.question, _lang,
                    int((_time.monotonic() - _t0) * 1000))
         return result
     except ValueError as e:
@@ -621,7 +671,7 @@ async def chat_stream(request: Request, req: ChatRequest,
     try:
         history = [m.model_dump() for m in req.history] if req.history else None
         generator, sources = await answer(req.question, stream=True, history=history)
-        _log_usage(user.get("uid"), len(req.question))
+        _log_usage(user.get("uid"), req.question)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
