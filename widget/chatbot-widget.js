@@ -45,6 +45,7 @@
       contactEmail: "",
       zIndex: 99999,
       suggestions: [],
+      requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
     },
     window.ChatbotConfig || {}
   );
@@ -76,6 +77,17 @@
         (cfg.contactEmail ? " Per segnalare errori scrivi a " + cfg.contactEmail : "")
       : "⚠️ Experimental service — answers may be incomplete or inaccurate." +
         (cfg.contactEmail ? " To report errors write to " + cfg.contactEmail : ""),
+    loginTitle: isItalian ? "Accedi" : "Sign in",
+    loginSubtitle: isItalian
+      ? "Servizio riservato ai partecipanti del progetto pilota."
+      : "Reserved for pilot project participants.",
+    loginEmail: isItalian ? "Email" : "Email",
+    loginPassword: isItalian ? "Password" : "Password",
+    loginSubmit: isItalian ? "Accedi" : "Sign in",
+    loginLoading: isItalian ? "Accesso…" : "Signing in…",
+    loginInvalid: isItalian ? "Email o password non validi." : "Invalid email or password.",
+    loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
+    logout: isItalian ? "Esci" : "Sign out",
   };
 
   // ---------------------------------------------------------------------------
@@ -514,6 +526,144 @@
   let conversationHistory = [];  // max 3 turni
 
   // ---------------------------------------------------------------------------
+  // Autenticazione (progetto pilota a gruppo ristretto)
+  // ---------------------------------------------------------------------------
+  const AUTH_TOKEN_KEY = "zautte_token";
+  const AUTH_NAME_KEY = "zautte_name";
+  let authToken = null;
+  let authName = null;
+  try {
+    authToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    authName = localStorage.getItem(AUTH_NAME_KEY);
+  } catch (_) {}
+
+  /** Aggiunge l'header Authorization se c'è un token. */
+  function authHeaders(base) {
+    const h = Object.assign({}, base || {});
+    if (authToken) h["Authorization"] = "Bearer " + authToken;
+    return h;
+  }
+
+  function setAuth(token, name) {
+    authToken = token || null;
+    authName = name || "";
+    try {
+      if (token) {
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
+        localStorage.setItem(AUTH_NAME_KEY, authName);
+      } else {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_NAME_KEY);
+      }
+    } catch (_) {}
+  }
+
+  // Riferimenti alle aree che il login sostituisce
+  const inputArea = document.getElementById(`${WIDGET_ID}-input-area`);
+  const footerEl = document.getElementById(`${WIDGET_ID}-footer`);
+  const headerActions = document.getElementById(`${WIDGET_ID}-header-actions`);
+
+  // Form di login (creato una volta, mostrato solo quando serve)
+  const loginEl = document.createElement("form");
+  loginEl.id = `${WIDGET_ID}-login`;
+  loginEl.style.cssText =
+    "display:none;flex:1;flex-direction:column;gap:12px;padding:24px;justify-content:center;box-sizing:border-box;";
+  loginEl.innerHTML = `
+    <div style="font-weight:600;font-size:16px;color:${p};">${T.loginTitle}</div>
+    <div style="font-size:13px;opacity:.75;line-height:1.4;">${T.loginSubtitle}</div>
+    <input type="email" id="${WIDGET_ID}-login-email" autocomplete="username"
+      placeholder="${T.loginEmail}" required
+      style="padding:11px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+    <input type="password" id="${WIDGET_ID}-login-pw" autocomplete="current-password"
+      placeholder="${T.loginPassword}" required
+      style="padding:11px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+    <div id="${WIDGET_ID}-login-error" role="alert"
+      style="display:none;color:#c0392b;font-size:13px;"></div>
+    <button type="submit" id="${WIDGET_ID}-login-submit"
+      style="padding:11px 12px;border:none;border-radius:8px;background:${p};color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
+      ${T.loginSubmit}
+    </button>`;
+  panel.appendChild(loginEl);
+
+  // Pulsante logout (nell'header, visibile solo da autenticati)
+  const logoutBtn = document.createElement("button");
+  logoutBtn.className = `${WIDGET_ID}-icon-btn`;
+  logoutBtn.id = `${WIDGET_ID}-logout`;
+  logoutBtn.title = T.logout;
+  logoutBtn.setAttribute("aria-label", T.logout);
+  logoutBtn.style.display = "none";
+  logoutBtn.innerHTML =
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>' +
+    '<polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
+  logoutBtn.addEventListener("click", () => {
+    setAuth(null, null);
+    updateHeaderUser();
+    showLogin();
+  });
+  if (headerActions) headerActions.insertBefore(logoutBtn, headerActions.firstChild);
+
+  function updateHeaderUser() {
+    logoutBtn.style.display = (cfg.requireLogin && authToken) ? "" : "none";
+  }
+
+  function showLogin() {
+    messages.style.display = "none";
+    if (inputArea) inputArea.style.display = "none";
+    if (footerEl) footerEl.style.display = "none";
+    loginEl.style.display = "flex";
+    const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
+    if (emailInput) setTimeout(() => emailInput.focus(), 60);
+  }
+
+  function showChat() {
+    loginEl.style.display = "none";
+    messages.style.display = "";
+    if (inputArea) inputArea.style.display = "";
+    if (footerEl) footerEl.style.display = "";
+  }
+
+  // Gestione submit del login
+  loginEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
+    const pwInput = document.getElementById(`${WIDGET_ID}-login-pw`);
+    const errEl = document.getElementById(`${WIDGET_ID}-login-error`);
+    const submitBtn = document.getElementById(`${WIDGET_ID}-login-submit`);
+    errEl.style.display = "none";
+    const email = (emailInput.value || "").trim();
+    const password = pwInput.value || "";
+    if (!email || !password) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = T.loginLoading;
+    try {
+      const resp = await fetch(`${cfg.apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!resp.ok) {
+        errEl.textContent = resp.status === 401 ? T.loginInvalid : T.loginErr;
+        errEl.style.display = "block";
+        return;
+      }
+      const data = await resp.json();
+      setAuth(data.token, data.name);
+      pwInput.value = "";
+      updateHeaderUser();
+      showChat();
+      clearChat();
+    } catch (_) {
+      errEl.textContent = T.loginErr;
+      errEl.style.display = "block";
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = T.loginSubmit;
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Utilità
   // ---------------------------------------------------------------------------
 
@@ -624,7 +774,13 @@
     btnToggle.setAttribute("aria-label", T.close);
     btnToggle.setAttribute("aria-expanded", "true");
     btnToggle.innerHTML = iconClose;
-    setTimeout(() => inputEl.focus(), 100);
+    updateHeaderUser();
+    if (cfg.requireLogin && !authToken) {
+      showLogin();
+    } else {
+      showChat();
+      setTimeout(() => inputEl.focus(), 100);
+    }
   }
 
   function closePanel() {
@@ -683,7 +839,7 @@
         btn.classList.add("selected");
         fetch(`${cfg.apiUrl}/feedback`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             question,
             answer: answerText,
@@ -726,9 +882,21 @@
     try {
       const resp = await fetch(`${cfg.apiUrl}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ question, history: conversationHistory }),
       });
+
+      // Sessione scaduta/assente: torna al login senza mostrare errore generico
+      if (resp.status === 401) {
+        setAuth(null, null);
+        updateHeaderUser();
+        removeTypingIndicator();
+        clearTimeout(waitTimer);
+        if (waitHint) { waitHint.remove(); waitHint = null; }
+        setLoading(false);
+        showLogin();
+        return;
+      }
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
@@ -890,5 +1058,6 @@
   panel.setAttribute("aria-hidden", "true");
   btnToggle.setAttribute("aria-expanded", "false");
   clearChat();
+  updateHeaderUser();
 
 })();

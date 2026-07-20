@@ -101,6 +101,19 @@ API_CORS_ORIGINS = os.getenv("API_CORS_ORIGINS", "http://localhost:8000").split(
 # Lasciare vuoto per disabilitare l'autenticazione (solo in sviluppo)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 
+# --- Autenticazione utenti (login email+password per pilota a gruppo ristretto) ---
+# AUTH_ENABLED=true attiva il gate su /chat, /chat/stream, /feedback: chi non
+# ha effettuato il login non può usare il bot. Serve per capire chi lo usa,
+# quando e quanto (vedi data/usage.jsonl e GET /usage/summary).
+# AUTH_SECRET: segreto per firmare i token di sessione (OBBLIGATORIO se attivo).
+#   Genera con:  python -c "import secrets; print(secrets.token_hex(32))"
+# Gli utenti si creano con:  python -m scripts.adduser --email ... --name "..."
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
+AUTH_SECRET = os.getenv("AUTH_SECRET", "")
+AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "30"))
+# users.json vive in data/ (già in .gitignore): credenziali fuori dal versionamento
+USERS_FILE = DATA_DIR / "users.json"
+
 # --- Prompt di sistema ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""
 _contact_hint_it = f"contattare direttamente l'organizzazione o visitare {SITE_URL}" if SITE_URL else "contattare direttamente l'organizzazione"
