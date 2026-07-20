@@ -18,8 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import sys
@@ -28,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import API_CORS_ORIGINS, SITE_NAME, LLM_PROVIDER, OLLAMA_MODEL, CLAUDE_MODEL, ADMIN_API_KEY
 from api.rag import answer, get_query_count, get_activity_stats
+from api import auth
+from api.auth import require_user
+from api.limiter import limiter
 from indexer.vector_store import get_stats, EMBEDDINGS_FILE, is_bm25_active, get_top_doc
 
 logging.basicConfig(
@@ -35,8 +37,6 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 log = logging.getLogger(__name__)
-
-limiter = Limiter(key_func=get_remote_address)
 
 import datetime as _dt_module
 _startup_time = _dt_module.datetime.now()
@@ -108,8 +108,11 @@ app.add_middleware(
     allow_origins=API_CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+# Router di autenticazione utenti (POST /auth/login, GET /auth/me)
+app.include_router(auth.router)
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +212,35 @@ def _read_feedback_summary() -> dict:
     return {"total": pos + neg, "positive": pos, "negative": neg}
 
 
+def _log_usage(uid: str, q_len: int, lang: str | None = None,
+               response_ms: int | None = None) -> None:
+    """Registra un evento d'uso per-utente in data/usage.jsonl.
+
+    Contiene solo un id opaco (uid) e metriche: nome/email restano in users.json
+    e vengono risolti a video solo nella dashboard. Nessun testo della domanda.
+    """
+    if not uid or uid == "anon":
+        return
+    import datetime as _dt
+    from pathlib import Path as _P
+    f = _P(__file__).parent.parent / "data" / "usage.jsonl"
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        entry: dict = {
+            "ts": _dt.datetime.now().isoformat(timespec="seconds"),
+            "uid": uid,
+            "q_len": q_len,
+        }
+        if lang:
+            entry["lang"] = lang
+        if response_ms is not None:
+            entry["response_ms"] = response_ms
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 @app.get("/health")
 async def health():
     """Verifica che il servizio sia attivo."""
@@ -266,7 +298,8 @@ async def gaps(limit: int = 50, _: None = Security(require_admin)):
 
 @app.post("/feedback")
 @limiter.limit("60/hour")
-async def feedback(request: Request, req: FeedbackRequest):
+async def feedback(request: Request, req: FeedbackRequest,
+                   user: dict = Security(require_user)):
     """Salva il feedback dell'utente (pollice su/giù) senza dati personali."""
     import json as _json
     import datetime as _dt
@@ -380,6 +413,85 @@ async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
     }
 
 
+@app.get("/usage/summary")
+async def usage_summary(_: None = Security(require_admin)):
+    """Riepilogo d'uso per-utente — solo admin.
+
+    Aggrega data/usage.jsonl (id opachi + metriche) risolvendo i nomi da
+    data/users.json. Ritorna: messaggi per utente, primo/ultimo accesso,
+    giorni attivi, e l'andamento giornaliero (utenti attivi + messaggi).
+    """
+    import json as _json
+    from collections import defaultdict
+    from pathlib import Path as _Path
+
+    usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
+    users_file = _Path(__file__).parent.parent / "data" / "users.json"
+
+    names: dict[str, str] = {}
+    if users_file.exists():
+        try:
+            for u in _json.loads(users_file.read_text(encoding="utf-8")):
+                names[u.get("id")] = u.get("name", "")
+        except Exception:
+            pass
+
+    per_user: dict[str, dict] = defaultdict(
+        lambda: {"messages": 0, "first_seen": None, "last_seen": None, "days": set()}
+    )
+    day_users: dict[str, set] = defaultdict(set)
+    day_msgs: dict[str, int] = defaultdict(int)
+    total = 0
+
+    if usage_file.exists():
+        with open(usage_file, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    e = _json.loads(line)
+                except Exception:
+                    continue
+                uid = e.get("uid")
+                ts = e.get("ts", "")
+                if not uid:
+                    continue
+                day = ts[:10]
+                u = per_user[uid]
+                u["messages"] += 1
+                u["days"].add(day)
+                if u["first_seen"] is None or ts < u["first_seen"]:
+                    u["first_seen"] = ts
+                if u["last_seen"] is None or ts > u["last_seen"]:
+                    u["last_seen"] = ts
+                day_users[day].add(uid)
+                day_msgs[day] += 1
+                total += 1
+
+    users_out = [
+        {
+            "uid": uid,
+            "name": names.get(uid, uid),
+            "messages": u["messages"],
+            "active_days": len(u["days"]),
+            "first_seen": u["first_seen"],
+            "last_seen": u["last_seen"],
+        }
+        for uid, u in per_user.items()
+    ]
+    users_out.sort(key=lambda x: x["messages"], reverse=True)
+
+    daily = [
+        {"day": d, "users": len(day_users[d]), "messages": day_msgs[d]}
+        for d in sorted(day_users)
+    ]
+
+    return {
+        "total_messages": total,
+        "total_users": len(per_user),
+        "users": users_out,
+        "daily": daily[-30:],
+    }
+
+
 @app.get("/crawl-history")
 async def crawl_history():
     """Storico crawling e indicizzazione (ultimi eventi dal sync log)."""
@@ -461,14 +573,20 @@ async def crawl_history():
 
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("20/hour")
-async def chat(request: Request, req: ChatRequest):
+async def chat(request: Request, req: ChatRequest,
+               user: dict = Security(require_user)):
     """
     Risposta completa alla domanda del visitatore.
     Attende la risposta intera prima di ritornare.
     """
+    import time as _time
     try:
         history = [m.model_dump() for m in req.history] if req.history else None
+        _t0 = _time.monotonic()
         result = await answer(req.question, stream=False, history=history)
+        _lang = result.get("language") if isinstance(result, dict) else None
+        _log_usage(user.get("uid"), len(req.question), _lang,
+                   int((_time.monotonic() - _t0) * 1000))
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -479,7 +597,8 @@ async def chat(request: Request, req: ChatRequest):
 
 @app.post("/chat/stream")
 @limiter.limit("20/hour")
-async def chat_stream(request: Request, req: ChatRequest):
+async def chat_stream(request: Request, req: ChatRequest,
+                      user: dict = Security(require_user)):
     """
     Risposta in streaming via Server-Sent Events (SSE).
     Il widget riceve i token man mano che vengono generati.
@@ -492,6 +611,7 @@ async def chat_stream(request: Request, req: ChatRequest):
     try:
         history = [m.model_dump() for m in req.history] if req.history else None
         generator, sources = await answer(req.question, stream=True, history=history)
+        _log_usage(user.get("uid"), len(req.question))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

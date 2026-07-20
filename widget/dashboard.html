@@ -305,6 +305,15 @@
       </ul>
     </div>
 
+    <!-- Utenti (progetto pilota, login attivo) -->
+    <div class="card wide">
+      <h2>Utenti (accessi con login) <span id="usage-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <div id="usage-body">
+        <button id="usage-load-btn" class="btn-resolve">Mostra utenti (richiede chiave admin)</button>
+        <div style="color:#bbb;font-size:.8em;margin-top:8px">Visibile solo se il backend ha <code>AUTH_ENABLED=true</code>.</div>
+      </div>
+    </div>
+
     <!-- Token & Costi API -->
     <div class="card wide">
       <h2>Token &amp; Costi API Anthropic</h2>
@@ -885,6 +894,50 @@
           listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Errore caricamento.</span></li>';
         });
     }
+
+    function loadUsage() {
+      const key = getAdminKey();
+      if (!key) return;
+      const body = document.getElementById('usage-body');
+      const status = document.getElementById('usage-status');
+      body.innerHTML = '<span style="color:#bbb;font-size:.85em">caricamento…</span>';
+      fetch(apiBase + '/usage/summary', { headers: { 'X-Admin-Key': key } })
+        .then(r => {
+          if (r.status === 403) { _adminKey = null; throw new Error('key'); }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(data => {
+          const users = data.users || [];
+          status.textContent = '— ' + (data.total_users || 0) + ' utenti · ' + (data.total_messages || 0) + ' messaggi';
+          if (!users.length) {
+            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun accesso registrato finora.</span>';
+            return;
+          }
+          let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
+            + '<thead><tr style="text-align:left;color:#888;border-bottom:1px solid #eee">'
+            + '<th style="padding:6px 8px">Utente</th>'
+            + '<th style="padding:6px 8px;text-align:right">Messaggi</th>'
+            + '<th style="padding:6px 8px;text-align:right">Giorni attivi</th>'
+            + '<th style="padding:6px 8px">Ultimo accesso</th></tr></thead><tbody>';
+          users.forEach(u => {
+            const last = (u.last_seen || '').replace('T', ' ').slice(0, 16);
+            html += '<tr style="border-bottom:1px solid #f3f3f3">'
+              + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + u.messages + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + u.active_days + '</td>'
+              + '<td style="padding:6px 8px;color:#888">' + last + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        })
+        .catch(e => {
+          body.innerHTML = '<button id="usage-load-btn" class="btn-resolve">Riprova (chiave admin)</button>';
+          document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
+          if (String(e && e.message) === 'key') alert('Chiave admin non valida.');
+        });
+    }
+    document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
     updateStats();
     updateCrawlHistory();
