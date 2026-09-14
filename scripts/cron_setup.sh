@@ -26,13 +26,15 @@ add_cron() {
 echo "Configurazione cron job per utente '${CRON_USER}'..."
 
 # --- Sync incrementale ogni lunedì alle 02:30 ---
-# Controlla modifiche al sito e indicizza documenti nuovi/aggiornati
-add_cron "30 2 * * 1 cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync incremental >> ${LOG_DIR}/sync_incremental.log 2>&1"
+# Controlla modifiche al sito e indicizza documenti nuovi/aggiornati.
+# Il wrapper prende il lock /var/run/chatbot-sync.lock (skip se già occupato).
+add_cron "30 2 * * 1 ${CHATBOT_DIR}/scripts/incremental_sync.sh"
 
 # --- Sync completo il 1° di ogni mese alle 03:00 ---
 # Riscansiona tutto il sito (rileva pagine rimosse, aggiorna contenuti cambiati)
-# Non svuota l'indice: l'indice resta consultabile durante tutta la rielaborazione
-add_cron "0 3 1 * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync full >> ${LOG_DIR}/sync_full.log 2>&1"
+# Non svuota l'indice: l'indice resta consultabile durante tutta la rielaborazione.
+# Il wrapper usa lo stesso lock dell'incrementale (aspetta fino a 12h).
+add_cron "0 3 1 * * ${CHATBOT_DIR}/scripts/full_sync.sh"
 
 # --- Inbox ogni 30 minuti nelle ore lavorative (lun-ven 8-18) ---
 # Processa subito i documenti caricati manualmente
