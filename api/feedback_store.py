@@ -123,6 +123,16 @@ def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | 
     return found
 
 
+def find_entry(ts: str, question: str) -> dict | None:
+    """Il feedback con quel timestamp e quella domanda (l'ultimo, se più di uno)."""
+    found = None
+    q = (question or "")[:200]
+    for e in iter_entries():
+        if e.get("ts") == ts and (e.get("question") or "")[:200] == q:
+            found = e
+    return found
+
+
 def resolved_key(ts: str, question: str) -> str:
     """Chiave con cui un feedback negativo viene marcato risolto (le voci
     precedenti al 14/09/2026 non hanno un id)."""

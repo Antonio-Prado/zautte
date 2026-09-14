@@ -32,8 +32,9 @@ def smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_FROM)
 
 
-def send_email(to: str, subject: str, body: str) -> None:
-    """Invia un'email di testo. Solleva un'eccezione se l'invio fallisce."""
+def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
+    """Invia un'email di testo. Solleva un'eccezione se l'invio fallisce.
+    `reply_to`: indirizzo a cui arrivano le risposte (il mittente resta SMTP_FROM)."""
     if not smtp_configured():
         raise RuntimeError("SMTP non configurato (SMTP_HOST/SMTP_FROM mancanti)")
 
@@ -41,6 +42,8 @@ def send_email(to: str, subject: str, body: str) -> None:
     msg["From"] = formataddr(("Zautte", SMTP_FROM))
     msg["To"] = to
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(body)
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
@@ -107,6 +110,42 @@ def send_feedback_notification(to: str, entry: dict, dashboard_url: str = "") ->
     """Avvisa l'amministratore di una nuova segnalazione."""
     subject, body = build_feedback_notification(entry, dashboard_url)
     send_email(to, subject, body)
+
+
+def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
+                            login_url: str = "") -> tuple[str, str]:
+    """Oggetto e corpo dell'email di riscontro al collega che ha segnalato,
+    quando l'amministratore marca il feedback come risolto."""
+    question = (entry.get("question") or "").strip()
+    subject = f"Zautte — la tua segnalazione è stata risolta: {question[:70]}"
+    lines = [
+        f"Ciao {name or 'collega'},",
+        "",
+        "grazie per la segnalazione su Zautte: l'abbiamo esaminata e risolta.",
+        "",
+        "Domanda segnalata:",
+        f"  {question}",
+    ]
+    if entry.get("comment"):
+        lines += ["", "Il tuo commento:", f"  {entry['comment'].strip()}"]
+    if entry.get("urls"):
+        lines += ["", "Pagine che avevi indicato:"] + [f"  {u}" for u in entry["urls"]]
+    if note:
+        lines += ["", "Nota di chi ha risolto:", f"  {note.strip()}"]
+    lines += ["", "Puoi verificare ponendo di nuovo la domanda all'assistente"
+              + (f": {login_url}" if login_url else "."),
+              "Se la risposta non ti convince ancora, rispondi a questa email oppure usa di nuovo",
+              "il 👎 con il modulo di segnalazione.",
+              "",
+              "Grazie per la collaborazione."]
+    return subject, "\n".join(lines) + "\n"
+
+
+def send_feedback_resolved(to: str, name: str, entry: dict, note: str = "",
+                           login_url: str = "", reply_to: str = "") -> None:
+    """Email di riscontro al collega: la sua segnalazione è stata risolta."""
+    subject, body = build_feedback_resolved(entry, name, note, login_url)
+    send_email(to, subject, body, reply_to=reply_to)
 
 
 def send_password_reset(to: str, name: str, password: str, login_url: str) -> None:
