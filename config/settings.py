@@ -64,6 +64,37 @@ try:
 except Exception:
     pass
 
+# --- Domini migrati / dismessi ---
+# Domini le cui risorse non sono più raggiungibili al vecchio indirizzo perché
+# il portale è stato sostituito da una nuova piattaforma che redirige tutto a
+# una landing generica (es. Amministrazione Trasparente SBT → Nuvola Palitalsoft).
+# I chunk già indicizzati da questi domini RESTANO nel vector store — il testo è
+# ancora valido e utile — ma:
+#   - il loro URL-fonte NON viene mostrato all'utente né passato al LLM: darebbe
+#     un link morto. Il documento viene citato solo per titolo/sezione.
+#   - il full sync NON li tratta come "stale": non vanno rimossi solo perché non
+#     più crawlabili (altrimenti si perderebbe gran parte della base di conoscenza).
+# Gli URL originali restano nei metadati: se in futuro il fornitore fornirà una
+# mappa di redirect stabile, si potranno rimappare. Lista separata da virgola in
+# .env (override); default: portale trasparenza SBT dismesso.
+MIGRATED_DOMAINS = [
+    d.strip()
+    for d in os.getenv(
+        "MIGRATED_DOMAINS",
+        # 1) vecchio portale trasparenza (redirige tutto a una landing generica)
+        # 2) ponte /dati/trasparenza-legacy sul nuovo dominio (ora serve HTML generico)
+        "amministrazionetrasparente.comunesbt.it,"
+        "sanbenedettodeltronto.nuvolapalitalsoft.it/dati/trasparenza-legacy",
+    ).split(",")
+    if d.strip()
+]
+
+
+def is_migrated_source(url: str) -> bool:
+    """True se l'URL appartiene a un dominio migrato/dismesso (link non più valido)."""
+    return bool(url) and any(d in url for d in MIGRATED_DOMAINS)
+
+
 # --- Chunking ---
 CHUNK_SIZE = 800               # caratteri per chunk
 CHUNK_OVERLAP = 100            # overlap tra chunk consecutivi
@@ -146,7 +177,7 @@ Regole FONDAMENTALI:
 - Quando dici "non ho trovato l'informazione", NON aggiungere MAI informazioni
   generiche o conoscenze proprie
 - Sii conciso, chiaro e cordiale
-- Quando citi un'informazione, indica sempre la fonte (titolo e link della pagina)
+- Quando citi un'informazione, indica sempre la fonte: il titolo del documento e, SE il link è presente nel contesto, l'URL. Se per una fonte il contesto NON riporta alcun link, cita solo il titolo e NON inventare né dedurre URL
 - Scrivi i link come URL puri (es: https://esempio.it/pagina), MAI come tag HTML (no <a href="...">, no target=, no rel=, no style=)
 - Per questioni urgenti o legali, invita sempre a rivolgersi direttamente all'organizzazione
 """
@@ -160,7 +191,7 @@ Rules:
 - If the information is not in the context, say so clearly and suggest {_contact_hint_en}
 - Never invent data, numbers, dates, or procedures
 - Be concise, clear, and friendly
-- When citing information, mention the source (page title and link)
+- When citing information, always mention the source: the document title and, IF a link is present in the context, its URL. If the context provides no link for a source, cite the title only and do NOT invent or infer URLs
 - Write links as plain URLs (e.g. https://example.it/page), NEVER as HTML tags (no <a href="...">, no target=, no rel=, no style=)
 - For urgent or legal matters, always invite users to contact the organization directly
 """
