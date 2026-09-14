@@ -42,6 +42,43 @@ def url_to_filename(url: str) -> str:
     return f"{path}_{h}" if path else h
 
 
+PDF_MAGIC = b"%PDF"
+
+
+def _is_pdf_file(path: Path) -> bool:
+    """True se il file esiste e inizia con l'intestazione PDF."""
+    try:
+        with open(path, "rb") as f:
+            return f.read(4) == PDF_MAGIC
+    except OSError:
+        return False
+
+
+def _pdf_response_ok(resp: httpx.Response) -> bool:
+    """Una risposta è un PDF solo se 200 e il corpo inizia con %PDF: i server
+    possono rispondere 200 con una pagina HTML di errore, che finiva salvata
+    come .pdf e faceva fallire l'estrazione a ogni sync."""
+    return resp.status_code == 200 and resp.content[:4] == PDF_MAGIC
+
+
+def _describe(resp: httpx.Response) -> str:
+    """Riassunto di una risposta anomala per i log: status, content-type, testo."""
+    ct = resp.headers.get("content-type", "?")
+    snippet = re.sub(r"<[^>]+>", " ", resp.text[:400])
+    snippet = re.sub(r"\s+", " ", snippet).strip()[:80]
+    return f"HTTP {resp.status_code}, {ct}, '{snippet}'"
+
+
+async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
+    """GET senza cookie. Il client httpx conserva i cookie tra richieste; su
+    turismo.comunesbt.it il plugin WordPress Post Views Counter aggiunge al
+    cookie pvc_visits ogni post visitato, e dopo ~1.650 pagine l'header supera
+    il limite di Apache (8 KB): da lì ogni richiesta al sito, PDF compresi,
+    riceveva 400 Bad Request. Nessuna pagina crawlata richiede cookie."""
+    client.cookies.clear()
+    return await client.get(url)
+
+
 def should_skip(url: str) -> bool:
     parsed = urlparse(url)
 
@@ -284,6 +321,15 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
             f"{len(results_pdfs)} PDF già indicizzati"
         )
 
+    # PDF già noti ma con file mancante o non valido (es. pagina di errore HTML
+    # salvata al posto del PDF): tolti dalla base, così vengono riscaricati.
+    if results_pdfs:
+        valid_pdfs = [p for p in results_pdfs if _is_pdf_file(Path(p["file"]))]
+        invalid = len(results_pdfs) - len(valid_pdfs)
+        if invalid:
+            log.warning(f"{invalid} PDF noti con file mancante o non valido: verranno riscaricati")
+            results_pdfs = valid_pdfs
+
     known_page_urls = {p["url"] for p in results_pages}
     known_pdf_urls = {p["url"] for p in results_pdfs}
 
@@ -310,8 +356,14 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
             try:
                 limit_str = str(CRAWL_MAX_PAGES) if CRAWL_MAX_PAGES else "∞"
                 log.info(f"[{len(visited)}/{limit_str}] {url}")
-                resp = await client.get(url)
+                resp = await _get(client, url)
                 content_type = resp.headers.get("content-type", "")
+
+                if resp.status_code >= 400:
+                    # Pagine di errore (404, 400, 503...) non vanno indicizzate
+                    # né trattate come contenuto: prima finivano nel parser HTML.
+                    log.warning(f"  Errore HTTP: {url} — {_describe(resp)}")
+                    continue
 
                 # --- Pagina HTML ---
                 if "text/html" in content_type:
@@ -367,6 +419,9 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
                 # --- PDF diretto ---
                 elif "application/pdf" in content_type:
+                    if not _pdf_response_ok(resp):
+                        log.warning(f"  PDF non valido: {url} — {_describe(resp)}")
+                        continue
                     pdf_hash = content_hash(resp.content)
                     if incremental and not state.is_changed(url, pdf_hash):
                         log.debug("  PDF invariato, skip")
@@ -406,11 +461,15 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 continue
             visited.add(pdf_url)
             try:
-                resp = await client.get(pdf_url)
-                pdf_hash = content_hash(resp.content)
-                if incremental and not state.is_changed(pdf_url, pdf_hash):
-                    state.mark_unchanged(pdf_url)
+                resp = await _get(client, pdf_url)
+                if not _pdf_response_ok(resp):
+                    log.warning(f"  PDF non valido: {pdf_url} — {_describe(resp)}")
                     continue
+                # Un PDF non presente nell'indice va sempre salvato e marcato
+                # changed, anche se lo stato ne conosce già l'hash: altrimenti
+                # un PDF tolto dall'indice (file corrotto, rimozione) resterebbe
+                # fuori per sempre. Reindicizzarlo costa poco (confronto per chunk).
+                pdf_hash = content_hash(resp.content)
                 fname = url_to_filename(pdf_url) + ".pdf"
                 fpath = DOCUMENTS_DIR / fname
                 fpath.write_bytes(resp.content)
