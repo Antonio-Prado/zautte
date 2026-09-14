@@ -396,8 +396,10 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
 # Generazione con Claude API
 # ---------------------------------------------------------------------------
 
-async def generate_claude(messages: list[dict]) -> str:
-    """Chiama Claude API e ritorna la risposta completa."""
+async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
+    """Chiama Claude API e ritorna la risposta completa.
+
+    uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
     import anthropic
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
@@ -414,14 +416,17 @@ async def generate_claude(messages: list[dict]) -> str:
     )
     try:
         if response.usage:
-            _record_tokens(response.usage.input_tokens, response.usage.output_tokens, CLAUDE_MODEL)
+            _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
+                           CLAUDE_MODEL, uid=uid)
     except Exception:
         pass
     return response.content[0].text.strip()
 
 
-async def stream_claude(messages: list[dict]) -> AsyncGenerator[str, None]:
-    """Chiama Claude API in streaming."""
+async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGenerator[str, None]:
+    """Chiama Claude API in streaming.
+
+    uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
     import anthropic
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
@@ -441,7 +446,8 @@ async def stream_claude(messages: list[dict]) -> AsyncGenerator[str, None]:
         try:
             final = await stream.get_final_message()
             if final and final.usage:
-                _record_tokens(final.usage.input_tokens, final.usage.output_tokens, CLAUDE_MODEL)
+                _record_tokens(final.usage.input_tokens, final.usage.output_tokens,
+                               CLAUDE_MODEL, uid=uid)
         except Exception:
             pass
 
@@ -513,19 +519,27 @@ def _cost_usd(in_tok: int, out_tok: int, model: str) -> float:
     return 0.0
 
 
-def _record_tokens(in_tok: int, out_tok: int, model: str) -> None:
+def _record_tokens(in_tok: int, out_tok: int, model: str,
+                   uid: str | None = None) -> None:
+    """Registra token e costo di una chiamata al modello.
+
+    uid: id opaco dell'utente (come in usage.jsonl). Il nome resta in
+    users.json e viene risolto solo nella dashboard (vista admin)."""
     global _token_in_total, _token_out_total, _token_cost_total
     cost = _cost_usd(in_tok, out_tok, model)
     _token_in_total  += in_tok
     _token_out_total += out_tok
     _token_cost_total += cost
-    _token_history.append({
+    entry = {
         "ts":    _datetime.datetime.now().isoformat(timespec="seconds"),
         "in":    in_tok,
         "out":   out_tok,
         "model": model,
         "cost":  round(cost, 6),
-    })
+    }
+    if uid:
+        entry["uid"] = uid
+    _token_history.append(entry)
     if len(_token_history) > _TOKEN_HISTORY_MAX:
         _token_history.pop(0)
     _save_stats()  # persisti subito: per lo streaming i token arrivano dopo _save_stats() di answer()
@@ -624,6 +638,7 @@ async def answer(
     query: str,
     stream: bool = False,
     history: list[dict] | None = None,
+    uid: str | None = None,
 ):
     """
     Risponde a una domanda usando RAG.
@@ -633,6 +648,8 @@ async def answer(
 
     history: lista di {"role": "user"|"assistant", "content": str}
              per mantenere il contesto conversazionale (max 3 turni).
+    uid:     id opaco dell'utente autenticato, registrato nello storico
+             token/costi (dashboard admin).
     """
     global _query_count
     query = query.strip()
@@ -708,7 +725,7 @@ async def answer(
             return _no_context_gen(), unique_sources
 
         if LLM_PROVIDER == "claude":
-            gen = stream_claude(messages)
+            gen = stream_claude(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
         _save_stats()
@@ -717,7 +734,7 @@ async def answer(
     else:
         _t0 = _time.monotonic()
         if LLM_PROVIDER == "claude":
-            text = await generate_claude(messages)
+            text = await generate_claude(messages, uid=uid)
         else:
             text = await generate_ollama(messages)
         _response_times.append(_time.monotonic() - _t0)

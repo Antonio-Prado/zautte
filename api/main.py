@@ -222,6 +222,23 @@ def _read_feedback_summary() -> dict:
     return {"total": pos + neg, "positive": pos, "negative": neg}
 
 
+def _load_user_names() -> dict[str, str]:
+    """Mappa id utente -> nome da data/users.json (vuota se assente).
+
+    Usata solo nelle risposte admin: i file dati (usage.jsonl, stats.json)
+    contengono l'id opaco, il nome viene risolto a video."""
+    from pathlib import Path as _P
+    users_file = _P(__file__).parent.parent / "data" / "users.json"
+    names: dict[str, str] = {}
+    if users_file.exists():
+        try:
+            for u in json.loads(users_file.read_text(encoding="utf-8")):
+                names[u.get("id")] = u.get("name", "")
+        except Exception:
+            pass
+    return names
+
+
 def _log_usage(uid: str, question: str, lang: str | None = None,
                response_ms: int | None = None) -> None:
     """Registra un evento d'uso per-utente in data/usage.jsonl.
@@ -279,6 +296,14 @@ async def health(key: str | None = Security(_api_key_header)):
         mtime = EMBEDDINGS_FILE.stat().st_mtime
         last_indexed = _dt.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
 
+    # Storico token: risolvi l'id utente in nome (solo qui, vista admin).
+    activity = get_activity_stats()
+    names = _load_user_names()
+    activity["token_history"] = [
+        {**e, "user": names.get(e.get("uid"), e.get("uid", "")) or ""}
+        for e in activity.get("token_history", [])
+    ]
+
     base.update({
         "indexed_chunks": stats["total_chunks"],
         "unique_sources": stats["unique_sources"],
@@ -289,7 +314,7 @@ async def health(key: str | None = Security(_api_key_header)):
         "gaps_total": _read_gaps_count(),
         "gaps_recent": _read_recent_gaps(5),
         "feedback": _read_feedback_summary(),
-        "activity": get_activity_stats(),
+        "activity": activity,
         "top_doc": get_top_doc(),
     })
     return base
@@ -505,15 +530,7 @@ async def usage_summary(_: None = Security(require_admin)):
     from pathlib import Path as _Path
 
     usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
-    users_file = _Path(__file__).parent.parent / "data" / "users.json"
-
-    names: dict[str, str] = {}
-    if users_file.exists():
-        try:
-            for u in _json.loads(users_file.read_text(encoding="utf-8")):
-                names[u.get("id")] = u.get("name", "")
-        except Exception:
-            pass
+    names = _load_user_names()
 
     per_user: dict[str, dict] = defaultdict(
         lambda: {"messages": 0, "first_seen": None, "last_seen": None, "days": set()}
@@ -592,15 +609,7 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
     from pathlib import Path as _Path
 
     usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
-    users_file = _Path(__file__).parent.parent / "data" / "users.json"
-
-    names: dict[str, str] = {}
-    if users_file.exists():
-        try:
-            for u in _json.loads(users_file.read_text(encoding="utf-8")):
-                names[u.get("id")] = u.get("name", "")
-        except Exception:
-            pass
+    names = _load_user_names()
 
     msgs: list[dict] = []
     if usage_file.exists():
@@ -719,7 +728,8 @@ async def chat(request: Request, req: ChatRequest,
     try:
         history = [m.model_dump() for m in req.history] if req.history else None
         _t0 = _time.monotonic()
-        result = await answer(req.question, stream=False, history=history)
+        result = await answer(req.question, stream=False, history=history,
+                              uid=user.get("uid"))
         _lang = result.get("language") if isinstance(result, dict) else None
         _log_usage(user.get("uid"), req.question, _lang,
                    int((_time.monotonic() - _t0) * 1000))
@@ -746,7 +756,8 @@ async def chat_stream(request: Request, req: ChatRequest,
     """
     try:
         history = [m.model_dump() for m in req.history] if req.history else None
-        generator, sources = await answer(req.question, stream=True, history=history)
+        generator, sources = await answer(req.question, stream=True, history=history,
+                                          uid=user.get("uid"))
         _log_usage(user.get("uid"), req.question)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
