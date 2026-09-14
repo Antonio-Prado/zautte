@@ -25,6 +25,7 @@ from config.settings import (
     SYSTEM_PROMPT_IT, SYSTEM_PROMPT_EN,
     RETRIEVAL_TOP_K,
     SITE_URL,
+    is_migrated_source,
 )
 from indexer.embedder import embed_query
 from indexer.vector_store import hybrid_search
@@ -248,7 +249,11 @@ def build_context_block(chunks: list[dict]) -> str:
             label_parts.append(f"stato={chunk['service_status']}")
         if chunk.get("date"):
             label_parts.append(f"aggiornato={chunk['date']}")
-        label_parts.append(chunk["source"])
+        # Ometti il link per i domini migrati (sarebbe morto): il LLM cita solo
+        # il titolo. L'URL originale resta nei metadati per eventuale rimappatura.
+        source = chunk.get("source", "")
+        if source and not is_migrated_source(source):
+            label_parts.append(source)
         source_label = f"[{' — '.join(label_parts)}]"
         parts.append(f"{source_label}\n{chunk['text']}")
     return "\n\n---\n\n".join(parts)
@@ -651,15 +656,24 @@ async def answer(
     context = build_context_block(chunks)
     messages = build_prompt(query, context, language, history=history)
 
+    # Nascondi l'URL delle fonti su domini migrati: il link sarebbe morto, quindi
+    # la fonte viene mostrata solo per titolo (url vuoto).
     sources = [
-        {"title": c["title"], "url": c["source"], "score": c["score"]}
+        {
+            "title": c["title"],
+            "url": "" if is_migrated_source(c.get("source", "")) else c.get("source", ""),
+            "score": c["score"],
+        }
         for c in chunks
     ]
     seen = set()
     unique_sources = []
     for s in sources:
-        if s["url"] not in seen:
-            seen.add(s["url"])
+        # Dedup per URL quando presente; per titolo quando il link è nascosto —
+        # i documenti "solo titolo" hanno url vuoto e non vanno collassati in uno solo.
+        key = s["url"] or f"title::{s['title']}"
+        if key not in seen:
+            seen.add(key)
             unique_sources.append(s)
 
     _safe_q = query[:60].replace('\n', ' ').replace('\r', ' ')
