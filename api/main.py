@@ -123,6 +123,16 @@ class FeedbackRequest(BaseModel):
     question: str = Field(..., max_length=1000)
     answer: str = Field(..., max_length=5000)
     rating: int = Field(..., ge=-1, le=1, description="-1=negativo, 1=positivo")
+    comment: str | None = Field(None, max_length=2000,
+                                description="perché la risposta non va bene (facoltativo)")
+    urls: list[str] = Field(default_factory=list,
+                            description="pagine con l'informazione corretta (facoltative)")
+
+
+class FeedbackDetailRequest(BaseModel):
+    id: str = Field(..., max_length=32)
+    comment: str | None = Field(None, max_length=2000)
+    urls: list[str] = Field(default_factory=list)
 
 
 class HistoryMessage(BaseModel):
@@ -313,20 +323,42 @@ async def gaps(limit: int = 50, _: None = Security(require_admin)):
 @limiter.limit("60/hour")
 async def feedback(request: Request, req: FeedbackRequest,
                    user: dict = Security(require_user)):
-    """Salva il feedback dell'utente (pollice su/giù) senza dati personali."""
-    import json as _json
-    import datetime as _dt
-    from pathlib import Path as _Path
-    feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
-    feedback_file.parent.mkdir(parents=True, exist_ok=True)
+    """Salva il feedback dell'utente (pollice su/giù). Con il login attivo registra
+    anche chi lo ha dato (nome del collega), così l'amministratore sa a chi
+    chiedere. Commento e URL possono arrivare qui oppure dopo, con
+    POST /feedback/detail. Ritorna l'id del feedback appena salvato."""
+    from api import feedback_store as fs
     entry = {
-        "ts": _dt.datetime.now().isoformat(timespec="seconds"),
+        "ts": fs.now_iso(),
         "rating": req.rating,
         "question": req.question[:200],
         "answer_preview": req.answer[:100],
+        "uid": user.get("uid", ""),
+        "user": user.get("name", ""),
     }
-    with open(feedback_file, "a", encoding="utf-8") as f:
-        f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
+    comment = fs.clean_comment(req.comment)
+    urls = fs.clean_urls(req.urls[:20])
+    if comment:
+        entry["comment"] = comment
+    if urls:
+        entry["urls"] = urls
+    entry = fs.append(entry)
+    return {"ok": True, "id": entry["id"]}
+
+
+@app.post("/feedback/detail")
+@limiter.limit("60/hour")
+async def feedback_detail(request: Request, req: FeedbackDetailRequest,
+                          user: dict = Security(require_user)):
+    """Allega a un feedback già registrato il motivo (testo libero) e i link
+    alle pagine con l'informazione corretta. Solo l'autore del feedback."""
+    from api import feedback_store as fs
+    comment = fs.clean_comment(req.comment)
+    urls = fs.clean_urls(req.urls[:20])
+    if not comment and not urls:
+        raise HTTPException(status_code=400, detail="Nessun dettaglio da salvare")
+    if not fs.attach_details(req.id, user.get("uid", ""), comment, urls):
+        raise HTTPException(status_code=404, detail="Feedback non trovato")
     return {"ok": True}
 
 
@@ -353,27 +385,11 @@ def _resolved_key(ts: str, question: str) -> str:
 
 @app.get("/feedback/negative")
 async def feedback_negative(limit: int = 200, _: None = Security(require_admin)):
-    """Domande con feedback negativo non ancora risolte — solo question + ts. Solo admin."""
-    import json as _json
-    from pathlib import Path as _Path
-    feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
-    if not feedback_file.exists():
-        return {"items": [], "total_negative": 0, "total": 0}
-    resolved = _load_resolved_negative()
-    entries = []
-    total = 0
-    with open(feedback_file, encoding="utf-8") as f:
-        for line in f:
-            try:
-                e = _json.loads(line)
-                total += 1
-                if e.get("rating") == -1:
-                    key = _resolved_key(e.get("ts", ""), e.get("question", ""))
-                    if key not in resolved:
-                        entries.append({"question": e.get("question", ""), "ts": e.get("ts", "")})
-            except _json.JSONDecodeError:
-                pass
-    return {"items": entries[-limit:], "total_negative": len(entries), "total": total}
+    """Domande con feedback negativo non ancora risolte, con autore, commento
+    e link segnalati dal collega. Solo admin."""
+    from api import feedback_store as fs
+    items, open_negative, total = fs.negative_open(_load_resolved_negative(), _resolved_key, limit)
+    return {"items": items, "total_negative": open_negative, "total": total}
 
 
 class ResolveRequest(BaseModel):

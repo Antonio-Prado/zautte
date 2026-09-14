@@ -46,6 +46,7 @@
       zIndex: 99999,
       suggestions: [],
       requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
+      feedbackDetails: true, // dopo un 👎 chiede il motivo e i link alle pagine corrette
     },
     window.ChatbotConfig || {}
   );
@@ -94,6 +95,18 @@
       ? "Se l'indirizzo è registrato, riceverai una nuova password via email."
       : "If the address is registered, you'll receive a new password by email.",
     forgotSending: isItalian ? "Invio in corso…" : "Sending…",
+    fbWhy: isItalian
+      ? "Cosa non va nella risposta? Se conosci la pagina con l'informazione corretta, incolla qui il link."
+      : "What's wrong with the answer? If you know the page with the correct information, paste its link here.",
+    fbComment: isItalian ? "Scrivi qui il tuo commento (facoltativo)" : "Write your comment here (optional)",
+    fbUrl: isItalian ? "https://… pagina con l'informazione corretta" : "https://… page with the correct information",
+    fbAddUrl: isItalian ? "+ aggiungi un'altra pagina" : "+ add another page",
+    fbSend: isItalian ? "Invia segnalazione" : "Send report",
+    fbSkip: isItalian ? "Non ora" : "Not now",
+    fbSending: isItalian ? "Invio…" : "Sending…",
+    fbThanks: isItalian ? "Grazie! Segnalazione registrata." : "Thanks! Your report has been saved.",
+    fbEmpty: isItalian ? "Scrivi un commento o inserisci almeno un link." : "Write a comment or enter at least one link.",
+    fbError: isItalian ? "Invio non riuscito. Riprova." : "Sending failed. Please try again.",
   };
 
   // ---------------------------------------------------------------------------
@@ -284,6 +297,58 @@
     }
     .${WIDGET_ID}-feedback button:hover { background: #f0f0f0; }
     .${WIDGET_ID}-feedback button.selected { background: #e8f5e9; border-color: #a5d6a7; }
+
+    /* Modulo di segnalazione dopo un 👎 */
+    .${WIDGET_ID}-fbform {
+      margin-top: 8px;
+      padding: 10px;
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #444;
+    }
+    .${WIDGET_ID}-fbform p { margin: 0 0 6px; }
+    .${WIDGET_ID}-fbform textarea,
+    .${WIDGET_ID}-fbform input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font: inherit;
+      font-size: 13px;
+      margin-bottom: 6px;
+      background: #fff;
+      color: #333;
+    }
+    .${WIDGET_ID}-fbform textarea { resize: vertical; min-height: 52px; }
+    .${WIDGET_ID}-fbform textarea:focus,
+    .${WIDGET_ID}-fbform input:focus { outline: none; border-color: ${p}; }
+    .${WIDGET_ID}-fbform-add {
+      background: none;
+      border: none;
+      color: ${p};
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0;
+      margin: 0 0 8px;
+    }
+    .${WIDGET_ID}-fbform-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .${WIDGET_ID}-fbform-actions button {
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background: #fff;
+      color: #444;
+    }
+    .${WIDGET_ID}-fbform-actions button.primary { background: ${p}; color: #fff; border-color: ${p}; }
+    .${WIDGET_ID}-fbform-actions button:disabled { opacity: 0.6; cursor: default; }
+    .${WIDGET_ID}-fbform-msg { font-size: 12px; }
+    .${WIDGET_ID}-fbform-msg.err { color: #c62828; }
+    .${WIDGET_ID}-fbform-thanks { margin-top: 8px; font-size: 13px; color: #2e7d32; }
 
     /* Fonti */
     .${WIDGET_ID}-sources {
@@ -900,19 +965,138 @@
       btn.addEventListener("click", () => {
         fb.querySelectorAll("button").forEach(b => b.classList.remove("selected"));
         btn.classList.add("selected");
+        removeFeedbackForm(wrap);
+        const rating = i === 0 ? 1 : -1;
         fetch(`${cfg.apiUrl}/feedback`, {
           method: "POST",
           headers: authHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            question,
-            answer: answerText,
-            rating: i === 0 ? 1 : -1,
-          }),
-        }).catch(() => {});
+          body: JSON.stringify({ question, answer: answerText, rating }),
+        })
+          .then(r => (r.ok ? r.json() : null))
+          .then(data => {
+            // Il modulo compare solo dopo un 👎 e solo se il backend ha
+            // restituito l'id del feedback (le versioni precedenti non lo fanno).
+            if (rating === -1 && cfg.feedbackDetails && data && data.id) {
+              showFeedbackForm(wrap, data.id);
+            }
+          })
+          .catch(() => {});
       });
       fb.appendChild(btn);
     });
     wrap.appendChild(fb);
+  }
+
+  function removeFeedbackForm(wrap) {
+    wrap.querySelectorAll(`.${WIDGET_ID}-fbform, .${WIDGET_ID}-fbform-thanks`)
+      .forEach(el => el.remove());
+  }
+
+  /**
+   * Modulo sotto la risposta bocciata: commento libero + link alle pagine
+   * con l'informazione corretta. Sostituisce l'email all'amministratore:
+   * i dettagli finiscono nella dashboard accanto al feedback negativo.
+   */
+  function showFeedbackForm(wrap, feedbackId) {
+    removeFeedbackForm(wrap);
+    const MAX_URLS = 5;
+    const form = document.createElement("form");
+    form.className = `${WIDGET_ID}-fbform`;
+
+    const intro = document.createElement("p");
+    intro.textContent = T.fbWhy;
+    form.appendChild(intro);
+
+    const comment = document.createElement("textarea");
+    comment.placeholder = T.fbComment;
+    comment.maxLength = 2000;
+    comment.rows = 2;
+    form.appendChild(comment);
+
+    const urlsBox = document.createElement("div");
+    form.appendChild(urlsBox);
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = `${WIDGET_ID}-fbform-add`;
+    addBtn.textContent = T.fbAddUrl;
+
+    function addUrlInput() {
+      if (urlsBox.children.length >= MAX_URLS) return null;
+      const input = document.createElement("input");
+      input.type = "text";          // non "url": la validazione la fa il backend
+      input.inputMode = "url";
+      input.placeholder = T.fbUrl;
+      input.maxLength = 500;
+      urlsBox.appendChild(input);
+      if (urlsBox.children.length >= MAX_URLS) addBtn.style.display = "none";
+      return input;
+    }
+    addBtn.addEventListener("click", () => {
+      const el = addUrlInput();
+      if (el) el.focus();
+    });
+    addUrlInput();
+    form.appendChild(addBtn);
+
+    const actions = document.createElement("div");
+    actions.className = `${WIDGET_ID}-fbform-actions`;
+    const sendBtn = document.createElement("button");
+    sendBtn.type = "submit";
+    sendBtn.className = "primary";
+    sendBtn.textContent = T.fbSend;
+    const skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.textContent = T.fbSkip;
+    skipBtn.addEventListener("click", () => form.remove());
+    const msg = document.createElement("span");
+    msg.className = `${WIDGET_ID}-fbform-msg`;
+    actions.appendChild(sendBtn);
+    actions.appendChild(skipBtn);
+    actions.appendChild(msg);
+    form.appendChild(actions);
+
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const text = comment.value.trim();
+      const urls = Array.from(urlsBox.querySelectorAll("input"))
+        .map(el => el.value.trim())
+        .filter(Boolean);
+      if (!text && !urls.length) {
+        msg.textContent = T.fbEmpty;
+        msg.classList.add("err");
+        return;
+      }
+      msg.textContent = "";
+      msg.classList.remove("err");
+      sendBtn.disabled = true;
+      sendBtn.textContent = T.fbSending;
+      fetch(`${cfg.apiUrl}/feedback/detail`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ id: feedbackId, comment: text, urls }),
+      })
+        .then(r => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+        })
+        .then(() => {
+          const thanks = document.createElement("div");
+          thanks.className = `${WIDGET_ID}-fbform-thanks`;
+          thanks.textContent = T.fbThanks;
+          form.replaceWith(thanks);
+          scrollToBottom();
+        })
+        .catch(() => {
+          sendBtn.disabled = false;
+          sendBtn.textContent = T.fbSend;
+          msg.textContent = T.fbError;
+          msg.classList.add("err");
+        });
+    });
+
+    wrap.appendChild(form);
+    scrollToBottom();
+    comment.focus();
   }
 
   // ---------------------------------------------------------------------------
