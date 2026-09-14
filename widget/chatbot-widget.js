@@ -306,6 +306,14 @@
       white-space: nowrap;
     }
     .${WIDGET_ID}-sources a:hover { text-decoration: underline; }
+    .${WIDGET_ID}-sources span {
+      display: block;
+      color: #666;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
     /* Typing indicator */
     .${WIDGET_ID}-typing {
@@ -745,6 +753,23 @@
       .replace(/\n/g, "<br>");
   }
 
+  // Rende una fonte: link cliccabile se ha URL, altrimenti solo il titolo come
+  // testo (documento su dominio migrato, il cui link non è più valido).
+  function renderSource(s) {
+    let el;
+    if (s.url) {
+      el = document.createElement("a");
+      el.href = s.url;
+      el.target = "_blank";
+      el.rel = "noopener noreferrer";
+      el.title = s.url;
+    } else {
+      el = document.createElement("span");
+    }
+    el.textContent = s.title || s.url || "";
+    return el;
+  }
+
   function addMessage(role, text, sources) {
     const wrap = document.createElement("div");
     wrap.className = `${WIDGET_ID}-msg ${role}`;
@@ -762,13 +787,7 @@
       label.textContent = T.sources;
       srcDiv.appendChild(label);
       sources.forEach((s) => {
-        const a = document.createElement("a");
-        a.href = s.url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.textContent = s.title || s.url;
-        a.title = s.url;
-        srcDiv.appendChild(a);
+        srcDiv.appendChild(renderSource(s));
       });
       wrap.appendChild(srcDiv);
     }
@@ -1007,13 +1026,7 @@
                 label.textContent = T.sources;
                 srcDiv.appendChild(label);
                 receivedSources.forEach((s) => {
-                  const a = document.createElement("a");
-                  a.href = s.url;
-                  a.target = "_blank";
-                  a.rel = "noopener noreferrer";
-                  a.textContent = s.title || s.url;
-                  a.title = s.url;
-                  srcDiv.appendChild(a);
+                  srcDiv.appendChild(renderSource(s));
                 });
                 wrap.appendChild(srcDiv);
                 scrollToBottom();

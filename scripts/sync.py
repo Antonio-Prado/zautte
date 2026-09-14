@@ -32,6 +32,7 @@ from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index
 from indexer.vector_store import get_stats, clear_collection, remove_sources, get_indexed_sources, get_zero_vector_chunks, update_embeddings
 from scripts.inbox_indexer import process_inbox
+from config.settings import is_migrated_source
 
 LOG_FILE = Path("/var/log/chatbot-sync.log")
 
@@ -83,9 +84,16 @@ async def run_sync(mode: str):
         index_pages(index["pages"], replace_existing=True)
         index_pdfs(index["pdfs"], replace_existing=True)
 
-        # Rimuovi sorgenti che non esistono più nel sito
+        # Rimuovi sorgenti che non esistono più nel sito.
+        # I domini migrati (MIGRATED_DOMAINS) sono ESCLUSI: le loro risorse non
+        # sono più crawlabili (il portale redirige a una landing generica), ma il
+        # testo già indicizzato è ancora valido — non vanno trattate come "stale",
+        # altrimenti il full sync cancellerebbe gran parte della base di conoscenza.
         current_urls = {p["url"] for p in index["pages"]} | {p["url"] for p in index["pdfs"]}
-        stale = get_indexed_sources() - current_urls
+        stale = {
+            s for s in (get_indexed_sources() - current_urls)
+            if not is_migrated_source(s)
+        }
         if stale:
             log.info(f"Pulizia: {len(stale)} sorgenti non più presenti nel sito")
             remove_sources(stale)
@@ -115,7 +123,8 @@ async def run_sync(mode: str):
         current_html_urls = {p["url"] for p in index["pages"]}
         all_indexed = get_indexed_sources()
         stale_html = {s for s in all_indexed if s not in current_html_urls
-                      and not s.lower().endswith(".pdf")}
+                      and not s.lower().endswith(".pdf")
+                      and not is_migrated_source(s)}
         if stale_html:
             log.info(f"Pulizia: {len(stale_html)} sorgenti HTML stale da rimuovere")
             remove_sources(stale_html)
