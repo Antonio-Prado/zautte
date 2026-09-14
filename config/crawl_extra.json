@@ -13,7 +13,9 @@
     "?rest_route=",
     "xmlrpc.php",
     "wp-login.php",
-    "pub_token="
+    "pub_token=",
+    "?page_id=490",
+    "?page_id=683"
   ],
   "domain_max_path_depth": {
     "amministrazionetrasparente.comunesbt.it": 5,
