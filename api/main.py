@@ -12,7 +12,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Security
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -321,7 +321,7 @@ async def gaps(limit: int = 50, _: None = Security(require_admin)):
 
 @app.post("/feedback")
 @limiter.limit("60/hour")
-async def feedback(request: Request, req: FeedbackRequest,
+async def feedback(request: Request, req: FeedbackRequest, background_tasks: BackgroundTasks,
                    user: dict = Security(require_user)):
     """Salva il feedback dell'utente (pollice su/giù). Con il login attivo registra
     anche chi lo ha dato (nome del collega), così l'amministratore sa a chi
@@ -343,23 +343,42 @@ async def feedback(request: Request, req: FeedbackRequest,
     if urls:
         entry["urls"] = urls
     entry = fs.append(entry)
+    if req.rating == -1 and (comment or urls):
+        background_tasks.add_task(_notify_feedback, entry)
     return {"ok": True, "id": entry["id"]}
 
 
 @app.post("/feedback/detail")
 @limiter.limit("60/hour")
-async def feedback_detail(request: Request, req: FeedbackDetailRequest,
+async def feedback_detail(request: Request, req: FeedbackDetailRequest, background_tasks: BackgroundTasks,
                           user: dict = Security(require_user)):
     """Allega a un feedback già registrato il motivo (testo libero) e i link
-    alle pagine con l'informazione corretta. Solo l'autore del feedback."""
+    alle pagine con l'informazione corretta. Solo l'autore del feedback.
+    Se FEEDBACK_NOTIFY_EMAIL è impostata, avvisa l'amministratore via email."""
     from api import feedback_store as fs
     comment = fs.clean_comment(req.comment)
     urls = fs.clean_urls(req.urls[:20])
     if not comment and not urls:
         raise HTTPException(status_code=400, detail="Nessun dettaglio da salvare")
-    if not fs.attach_details(req.id, user.get("uid", ""), comment, urls):
+    entry = fs.attach_details(req.id, user.get("uid", ""), comment, urls)
+    if entry is None:
         raise HTTPException(status_code=404, detail="Feedback non trovato")
+    background_tasks.add_task(_notify_feedback, entry)
     return {"ok": True}
+
+
+def _notify_feedback(entry: dict) -> None:
+    """Email all'amministratore per una segnalazione. Gira in background dopo
+    la risposta HTTP: un relay lento o giù non deve mai bloccare il collega."""
+    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
+    from api.mailer import send_feedback_notification, smtp_configured
+    if not FEEDBACK_NOTIFY_EMAIL or not smtp_configured():
+        return
+    try:
+        send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, entry, PILOT_LOGIN_URL)
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            f"Notifica segnalazione non inviata a {FEEDBACK_NOTIFY_EMAIL}: {e}")
 
 
 def _resolved_negative_file():

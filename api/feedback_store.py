@@ -89,12 +89,13 @@ def iter_entries() -> list[dict]:
     return out
 
 
-def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> bool:
+def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | None:
     """Allega commento e URL al feedback `fid`, solo se appartiene a `uid`.
-    Riscrive il file in modo atomico. Ritorna False se non trovato o non suo."""
+    Riscrive il file in modo atomico. Ritorna la voce aggiornata, oppure None
+    se non trovata o non sua."""
     if not fid or not FEEDBACK_FILE.exists():
-        return False
-    found = False
+        return None
+    found = None
     new_lines = []
     for line in FEEDBACK_FILE.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -110,15 +111,15 @@ def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> bool:
             if urls:
                 e["urls"] = urls
             e["details_ts"] = now_iso()
-            found = True
+            found = e
             line = json.dumps(e, ensure_ascii=False)
         new_lines.append(line)
-    if not found:
-        return False
+    if found is None:
+        return None
     tmp = FEEDBACK_FILE.with_suffix(".tmp")
     tmp.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
     tmp.replace(FEEDBACK_FILE)
-    return True
+    return found
 
 
 def negative_open(resolved: set[str], key_fn, limit: int = 200) -> tuple[list[dict], int, int]:
