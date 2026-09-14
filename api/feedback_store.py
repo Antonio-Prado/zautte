@@ -18,6 +18,7 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
+RESOLVED_FILE = DATA_DIR / "resolved_negative.json"   # [{key, resolved_at}]
 
 MAX_URLS = 5
 MAX_URL_LEN = 500
@@ -122,16 +123,38 @@ def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | 
     return found
 
 
-def negative_open(resolved: set[str], key_fn, limit: int = 200) -> tuple[list[dict], int, int]:
-    """Feedback negativi non risolti, con i dettagli per la dashboard.
-    Ritorna (ultimi `limit` elementi, negativi aperti, feedback totali)."""
+def resolved_key(ts: str, question: str) -> str:
+    """Chiave con cui un feedback negativo viene marcato risolto (le voci
+    precedenti al 14/09/2026 non hanno un id)."""
+    return f"{ts}::{question[:200]}"
+
+
+def load_resolved() -> set[str]:
+    """Chiavi dei feedback negativi già marcati risolti dall'amministratore."""
+    if not RESOLVED_FILE.exists():
+        return set()
+    try:
+        return {e["key"] for e in json.loads(RESOLVED_FILE.read_text(encoding="utf-8")) if "key" in e}
+    except Exception:
+        return set()
+
+
+def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
+                  include_resolved: bool = False) -> tuple[list[dict], int, int]:
+    """Feedback negativi con i dettagli segnalati (autore, commento, link).
+    Di default solo quelli non risolti; con include_resolved anche gli altri,
+    con il campo `resolved`. Ritorna (ultimi `limit`, negativi aperti, totali)."""
     items = []
     total = 0
+    open_count = 0
     for e in iter_entries():
         total += 1
         if e.get("rating") != -1:
             continue
-        if key_fn(e.get("ts", ""), e.get("question", "")) in resolved:
+        is_resolved = key_fn(e.get("ts", ""), e.get("question", "")) in resolved
+        if not is_resolved:
+            open_count += 1
+        elif not include_resolved:
             continue
         items.append({
             "id": e.get("id", ""),
@@ -141,5 +164,6 @@ def negative_open(resolved: set[str], key_fn, limit: int = 200) -> tuple[list[di
             "user": e.get("user", ""),
             "comment": e.get("comment", ""),
             "urls": e.get("urls", []) or [],
+            "resolved": is_resolved,
         })
-    return items[-limit:], len(items), total
+    return items[-limit:], open_count, total
