@@ -127,8 +127,8 @@
     .token-table { width: 100%; border-collapse: collapse; font-size: 0.8em; margin-top: 8px; }
     .token-table th { color: #999; font-weight: normal; text-align: left; padding: 3px 4px; border-bottom: 1px solid #eee; }
     .token-table td { padding: 3px 4px; border-bottom: 1px solid #f5f5f5; color: #555; }
-    .token-table td:nth-child(3), .token-table td:nth-child(4) { text-align: right; color: #333; }
-    .token-table td:nth-child(5) { text-align: right; color: #1a6b1a; }
+    .token-table td:nth-child(4), .token-table td:nth-child(5) { text-align: right; color: #333; }
+    .token-table td:nth-child(6) { text-align: right; color: #1a6b1a; }
     .cost-total { font-size: 1.3em; font-weight: bold; color: #1a6b1a; }
 
     /* Crawl timeline */
@@ -374,6 +374,7 @@
         <thead>
           <tr>
             <th>Timestamp</th>
+            <th>Utente</th>
             <th>Modello</th>
             <th>Input tok</th>
             <th>Output tok</th>
@@ -381,7 +382,7 @@
           </tr>
         </thead>
         <tbody id="token-history-body">
-          <tr><td colspan="5" style="color:#bbb;text-align:center;padding:8px">nessun dato ancora</td></tr>
+          <tr><td colspan="6" style="color:#bbb;text-align:center;padding:8px">nessun dato ancora</td></tr>
         </tbody>
       </table>
     </div>
@@ -839,6 +840,7 @@
             tbody.innerHTML = [...hist].reverse().map(e =>
               '<tr>' +
               '<td>' + (e.ts || '').replace('T',' ') + '</td>' +
+              '<td>' + (e.user ? _esc(e.user) : '<span style="color:#bbb">—</span>') + '</td>' +
               '<td style="color:#888">' + (e.model || '').replace('claude-','') + '</td>' +
               '<td>' + fmtNum(e.in) + '</td>' +
               '<td>' + fmtNum(e.out) + '</td>' +
