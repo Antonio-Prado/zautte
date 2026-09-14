@@ -158,6 +158,11 @@ SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").strip().lower() in ("1", "tr
 # URL della pagina dove i partecipanti fanno il login (inserito nell'email)
 PILOT_LOGIN_URL = os.getenv("PILOT_LOGIN_URL", "")
 
+# Indirizzo che riceve un'email per ogni segnalazione dal widget (👎 con
+# commento e/o link). Vuoto = nessuna notifica; la segnalazione resta
+# comunque visibile nella dashboard (vista amministratore).
+FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
+
 # --- Prompt di sistema ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""
 _contact_hint_it = f"contattare direttamente l'organizzazione o visitare {SITE_URL}" if SITE_URL else "contattare direttamente l'organizzazione"
