@@ -410,7 +410,7 @@
     <div class="cl-entry">
       <div class="cl-date">14 set 2026</div>
       <div class="cl-text">
-        <span class="cl-tag feat">feat</span><strong>Segnalazioni dal widget</strong>: dopo un 👎 compare un modulo con commento libero e fino a 5 link alle pagine con l'informazione corretta (<code>POST /feedback/detail</code>). Ogni feedback registra anche il nome del collega; la vista amministratore mostra autore, commento e link accanto a ogni feedback negativo, e l'amministratore riceve un'email automatica per ogni segnalazione (<code>FEEDBACK_NOTIFY_EMAIL</code>). Non serve più scrivere email.
+        <span class="cl-tag feat">feat</span><strong>Segnalazioni dal widget</strong>: dopo un 👎 compare un modulo con commento libero e fino a 5 link alle pagine con l'informazione corretta (<code>POST /feedback/detail</code>). Ogni feedback registra anche il nome del collega; la vista amministratore mostra autore, commento e link accanto a ogni feedback negativo, e l'amministratore riceve un'email automatica per ogni segnalazione (<code>FEEDBACK_NOTIFY_EMAIL</code>). Quando la segnalazione viene marcata "✓ Risolto", il collega riceve un'email di riscontro con una nota facoltativa (le risposte arrivano all'amministratore). Non serve più scrivere email.
       </div>
     </div>
     <div class="cl-entry">
@@ -996,14 +996,26 @@
       }
     }
 
-    function resolveNegative(ts, question, liEl, btnEl) {
+    function resolveNegative(ts, question, liEl, btnEl, user) {
       const key = getAdminKey();
+      // Se il feedback ha un autore, chi risolve può avvisarlo via email con una
+      // nota facoltativa: OK = risolvi e avvisa, Annulla = risolvi in silenzio.
+      let note = '';
+      let notify = false;
+      if (user) {
+        const answer = prompt(
+          'Risolvo la segnalazione di ' + user + '.\n\n' +
+          'OK = risolvi e invia l\'email di riscontro al collega (qui sotto puoi aggiungere una nota facoltativa).\n' +
+          'Annulla = risolvi senza inviare email.', '');
+        notify = answer !== null;
+        note = answer || '';
+      }
       btnEl.disabled = true;
       btnEl.textContent = '…';
       fetch(apiBase + '/feedback/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-        body: JSON.stringify({ ts, question }),
+        body: JSON.stringify({ ts, question, note, notify }),
       })
         .then(r => {
           if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Chiave admin non valida.'); return; }
@@ -1057,7 +1069,7 @@
             const btn = document.createElement('button');
             btn.className = 'btn-resolve';
             btn.textContent = '✓ Risolto';
-            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn));
+            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn, e.user || ''));
             li.appendChild(main);
             li.appendChild(btn);
             listEl.appendChild(li);

@@ -136,6 +136,16 @@ def _load_users() -> list[dict]:
         return []
 
 
+def get_user_by_id(uid: str) -> dict | None:
+    """Utente (id, name, email) corrispondente all'id del token; None se non esiste."""
+    if not uid:
+        return None
+    for u in _load_users():
+        if u.get("id") == uid:
+            return {"id": u["id"], "name": u.get("name", ""), "email": u.get("email", "")}
+    return None
+
+
 def _find_user_by_email(email: str) -> dict | None:
     email = email.strip().lower()
     for u in _load_users():

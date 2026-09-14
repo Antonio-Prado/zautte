@@ -409,12 +409,19 @@ async def feedback_negative(limit: int = 200, _: None = Security(require_admin))
 class ResolveRequest(BaseModel):
     ts: str = Field(..., max_length=30)
     question: str = Field(..., max_length=1000)
+    note: str | None = Field(None, max_length=1000,
+                             description="nota per il collega, inclusa nell'email di riscontro")
+    notify: bool = Field(True, description="invia l'email di riscontro a chi ha segnalato")
 
 
 @app.post("/feedback/resolve")
-async def feedback_resolve(req: ResolveRequest, _: None = Security(require_admin)):
-    """Marca un feedback negativo come risolto — solo admin."""
+async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTasks,
+                           _: None = Security(require_admin)):
+    """Marca un feedback negativo come risolto — solo admin. Se il feedback ha
+    un autore con email (login attivo) e `notify` è vero, gli invia un'email di
+    riscontro con l'eventuale nota. Ritorna `notified` = email in partenza."""
     import json as _json
+    from api import feedback_store as fs
     f = _resolved_negative_file()
     f.parent.mkdir(parents=True, exist_ok=True)
     existing: list[dict] = []
@@ -424,11 +431,40 @@ async def feedback_resolve(req: ResolveRequest, _: None = Security(require_admin
         except Exception:
             existing = []
     key = _resolved_key(req.ts, req.question)
-    if not any(e.get("key") == key for e in existing):
-        import datetime as _dt
-        existing.append({"key": key, "resolved_at": _dt.datetime.now().isoformat(timespec="seconds")})
-        f.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"ok": True}
+    if any(e.get("key") == key for e in existing):
+        return {"ok": True, "notified": False}
+
+    note = (req.note or "").strip()[:1000]
+    record = {"key": key, "resolved_at": fs.now_iso()}
+    if note:
+        record["note"] = note
+    notified_to = ""
+    entry = fs.find_entry(req.ts, req.question)
+    if req.notify and entry and entry.get("uid"):
+        from api.auth import get_user_by_id
+        u = get_user_by_id(entry["uid"])
+        if u and u.get("email"):
+            notified_to = u["email"]
+            background_tasks.add_task(_notify_resolved, u["email"], u.get("name") or entry.get("user", ""),
+                                      entry, note)
+    if notified_to:
+        record["notified"] = notified_to
+    existing.append(record)
+    f.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "notified": bool(notified_to)}
+
+
+def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
+    """Email di riscontro al collega, in background. Le risposte arrivano
+    all'amministratore (Reply-To = FEEDBACK_NOTIFY_EMAIL)."""
+    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
+    from api.mailer import send_feedback_resolved, smtp_configured
+    if not smtp_configured():
+        return
+    try:
+        send_feedback_resolved(to, name, entry, note, PILOT_LOGIN_URL, reply_to=FEEDBACK_NOTIFY_EMAIL)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Email di riscontro non inviata a {to}: {e}")
 
 
 @app.get("/feedback/list")
