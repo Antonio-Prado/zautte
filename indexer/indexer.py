@@ -1,6 +1,14 @@
 """
 Indexer principale: legge l'output del crawler, estrae testo, genera
-embedding e popola ChromaDB. Può essere rieseguito (upsert idempotente).
+embedding e popola il vector store. Può essere rieseguito (upsert idempotente).
+
+Per ogni documento si confrontano i chunk nuovi con quelli già nello store
+(stesso id e stesso testo, vettore non nullo): solo i chunk cambiati o mai
+embeddati passano da Ollama, gli altri aggiornano soltanto i metadati.
+I chunk di una sorgente che non compaiono più nella sua versione aggiornata
+vengono rimossi in blocco ai checkpoint. Le scritture su disco sono
+differite (vedi vector_store.deferred_saves): un salvataggio ogni
+CHECKPOINT_INTERVAL invece di due per documento.
 
 Uso:
     python -m indexer.indexer              # indicizza tutto
@@ -12,6 +20,7 @@ import argparse
 import json
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,7 +29,11 @@ from config.settings import CRAWL_CACHE_DIR
 from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
-from indexer.vector_store import upsert_chunks, get_stats, clear_collection, get_indexed_sources, remove_sources, chunk_id as make_chunk_id, all_chunks_exist
+from indexer.vector_store import (
+    upsert_chunks, get_stats, clear_collection, get_indexed_sources,
+    chunk_id as make_chunk_id, chunks_to_embed, source_chunk_ids,
+    remove_chunk_ids, deferred_saves, checkpoint, checkpoint_due,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +41,56 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-BATCH_SIZE = 50  # chunk per batch di embedding
+BATCH_SIZE = 50  # chunk da embeddare per ogni chiamata a embed_texts
+
+
+class _Batcher:
+    """Accumula i chunk in attesa di upsert e gli id stale da rimuovere.
+    L'embedding parte quando i chunk da embeddare raggiungono BATCH_SIZE;
+    rimozioni e salvataggio su disco avvengono ai checkpoint."""
+
+    def __init__(self):
+        self.chunks: list[dict] = []
+        self.flags: list[bool] = []      # True = il chunk va embeddato
+        self.to_embed = 0
+        self.stale_ids: set[str] = set()
+        self.total_inserted = 0
+        self.total_removed = 0
+
+    def add(self, chunks: list[dict], flags: list[bool], stale_ids: set[str]):
+        self.chunks.extend(chunks)
+        self.flags.extend(flags)
+        self.to_embed += sum(flags)
+        self.stale_ids |= stale_ids
+        if self.to_embed >= BATCH_SIZE:
+            self.flush()
+
+    def flush(self):
+        """Genera gli embedding mancanti e fa l'upsert di tutti i chunk pendenti."""
+        if not self.chunks:
+            return
+        texts = [c["text"] for c, f in zip(self.chunks, self.flags) if f]
+        vecs = iter(embed_texts(texts) if texts else [])
+        embeddings = [next(vecs) if f else None for f in self.flags]
+        inserted = upsert_chunks(self.chunks, embeddings)
+        if texts:
+            log.info(f"  → {inserted} chunk inseriti nel vector store")
+        self.total_inserted += inserted
+        self.chunks, self.flags, self.to_embed = [], [], 0
+
+    def checkpoint(self, force: bool = False):
+        """Ai checkpoint: flush, rimozione in blocco degli id stale, scrittura su disco."""
+        if not force and not checkpoint_due():
+            return
+        self.flush()
+        if self.stale_ids:
+            self.total_removed += remove_chunk_ids(self.stale_ids)
+            self.stale_ids = set()
+        if checkpoint(force=True):
+            log.info("  Checkpoint: vector store salvato su disco")
+
+    def finish(self):
+        self.checkpoint(force=True)
 
 
 def load_index() -> dict:
@@ -42,174 +104,134 @@ def load_index() -> dict:
         return json.load(f)
 
 
-def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
-    """Indicizza le pagine HTML. Ritorna (documenti_ok, chunk_totali)."""
+def _queue_document(batcher: _Batcher, chunks: list[dict], source: str) -> tuple[int, int]:
+    """Decide quali chunk del documento vanno embeddati e quali chunk già nello
+    store per la stessa sorgente sono diventati stale. Ritorna (da_embeddare, stale)."""
+    ids = [
+        make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0))
+        for c in chunks
+    ]
+    flags = chunks_to_embed(chunks, ids)
+    stale = source_chunk_ids(source) - set(ids)
+    batcher.add(chunks, flags, stale)
+    return sum(flags), len(stale)
+
+
+def _index_documents(
+    docs: list[dict],
+    label: str,
+    make_chunks: Callable[[dict], list[dict] | None],
+    skip_existing: bool,
+) -> tuple[int, int]:
+    """Ciclo comune a pagine e PDF. Ritorna (documenti_ok, chunk_inseriti)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
-    skipped_unchanged = 0
+    unchanged = 0
     docs_ok = 0
-    total_chunks = 0
-    pending_chunks = []
-    pending_embeddings_texts = []
+    batcher = _Batcher()
 
-    for i, page in enumerate(pages, 1):
-        if skip_existing and page["url"] in already_indexed:
-            skipped += 1
-            continue
-        log.info(f"[HTML {i}/{len(pages)}] {page['url']}")
+    with deferred_saves():
+        for i, doc in enumerate(docs, 1):
+            if skip_existing and doc["url"] in already_indexed:
+                skipped += 1
+                continue
+            log.info(f"[{label} {i}/{len(docs)}] {doc['url']}")
 
-        # Leggi il testo salvato dal crawler
-        fpath = Path(page["file"])
-        if not fpath.exists():
-            log.warning(f"  File non trovato: {fpath}")
-            continue
-
-        with open(fpath, encoding="utf-8") as f:
-            data = json.load(f)
-
-        text = data.get("text", "").strip()
-        if not text:
-            log.debug("  Testo vuoto, skip")
-            continue
-
-        extra = {}
-        for key in ("category", "section", "date", "service_status"):
-            if key in page:
-                extra[key] = page[key]
-
-        chunks = chunk_document(
-            text=text,
-            source_url=page["url"],
-            title=page.get("title", ""),
-            doc_type="html",
-            extra_metadata=extra if extra else None,
-        )
-        if not chunks:
-            continue
-
-        log.info(f"  {len(chunks)} chunk")
-
-        # Se non stiamo sostituendo, controlla se i chunk sono già nel VS con lo stesso
-        # contenuto (stessi ID deterministici). Se sì, salta l'embedding.
-        if not replace_existing:
-            ids = [make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0)) for c in chunks]
-            if all_chunks_exist(ids):
-                log.debug("  Contenuto invariato nel VS, skip embedding")
-                skipped_unchanged += 1
+            chunks = make_chunks(doc)
+            if not chunks:
                 continue
 
-        if replace_existing:
-            # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
-            if pending_chunks:
-                total_chunks += _flush(pending_chunks, pending_embeddings_texts)
-                pending_chunks.clear()
-                pending_embeddings_texts.clear()
-            remove_sources({page["url"]})
+            n_embed, n_stale = _queue_document(batcher, chunks, doc["url"])
+            detail = f"{n_embed} da embeddare"
+            if n_stale:
+                detail += f", {n_stale} stale da rimuovere"
+            log.info(f"  {len(chunks)} chunk ({detail})")
+            if n_embed == 0 and n_stale == 0:
+                unchanged += 1
+            docs_ok += 1
+            batcher.checkpoint()
 
-        pending_chunks.extend(chunks)
-        pending_embeddings_texts.extend(c["text"] for c in chunks)
-        docs_ok += 1
-
-        # Processa in batch
-        if len(pending_chunks) >= BATCH_SIZE:
-            total_chunks += _flush(pending_chunks, pending_embeddings_texts)
-            pending_chunks.clear()
-            pending_embeddings_texts.clear()
-
-    # Flush finale
-    if pending_chunks:
-        total_chunks += _flush(pending_chunks, pending_embeddings_texts)
+        batcher.finish()
 
     if skipped:
-        log.info(f"  {skipped} pagine HTML già indicizzate, saltate")
-    if skipped_unchanged:
-        log.info(f"  {skipped_unchanged} pagine HTML invariate nel VS, embedding saltato")
-    return docs_ok, total_chunks
+        log.info(f"  {skipped} {label} già indicizzati, saltati")
+    if unchanged:
+        log.info(f"  {unchanged} {label} invariati nel VS, embedding saltato")
+    if batcher.total_removed:
+        log.info(f"  {batcher.total_removed} chunk stale rimossi")
+    return docs_ok, batcher.total_inserted
+
+
+def _page_chunks(page: dict) -> list[dict] | None:
+    """Legge il testo salvato dal crawler e lo spezza in chunk."""
+    fpath = Path(page["file"])
+    if not fpath.exists():
+        log.warning(f"  File non trovato: {fpath}")
+        return None
+
+    with open(fpath, encoding="utf-8") as f:
+        data = json.load(f)
+
+    text = data.get("text", "").strip()
+    if not text:
+        log.debug("  Testo vuoto, skip")
+        return None
+
+    extra = {}
+    for key in ("category", "section", "date", "service_status"):
+        if key in page:
+            extra[key] = page[key]
+
+    return chunk_document(
+        text=text,
+        source_url=page["url"],
+        title=page.get("title", ""),
+        doc_type="html",
+        extra_metadata=extra if extra else None,
+    )
+
+
+def _pdf_chunks(pdf: dict) -> list[dict] | None:
+    """Estrae il testo dal PDF e lo spezza in chunk."""
+    fpath = Path(pdf["file"])
+    if not fpath.exists():
+        log.warning(f"  File non trovato: {fpath}")
+        return None
+
+    text = extract_text_from_pdf(fpath)
+    if not text:
+        log.debug("  Testo vuoto (PDF scansionato o protetto?), skip")
+        return None
+
+    meta = get_pdf_metadata(fpath)
+    title = meta["title"] or fpath.stem
+
+    chunks = chunk_document(
+        text=text,
+        source_url=pdf["url"],
+        title=title,
+        doc_type="pdf",
+        extra_metadata={"pdf_pages": meta["pages"]},
+    )
+    if chunks:
+        log.info(f"  {meta['pages']} pagine")
+    return chunks
+
+
+def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
+    """Indicizza le pagine HTML. Ritorna (documenti_ok, chunk_inseriti).
+
+    `replace_existing` è mantenuto per compatibilità: il confronto per chunk
+    (testo e vettore) vale in ogni modalità, quindi anche il sync full
+    riembedda solo ciò che è cambiato e rimuove i chunk stale della sorgente.
+    """
+    return _index_documents(pages, "HTML", _page_chunks, skip_existing)
 
 
 def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
-    """Indicizza i documenti PDF. Ritorna (documenti_ok, chunk_totali)."""
-    already_indexed = get_indexed_sources() if skip_existing else set()
-    skipped = 0
-    skipped_unchanged = 0
-    docs_ok = 0
-    total_chunks = 0
-    pending_chunks = []
-    pending_embeddings_texts = []
-
-    for i, pdf in enumerate(pdfs, 1):
-        if skip_existing and pdf["url"] in already_indexed:
-            skipped += 1
-            continue
-        log.info(f"[PDF {i}/{len(pdfs)}] {pdf['url']}")
-
-        fpath = Path(pdf["file"])
-        if not fpath.exists():
-            log.warning(f"  File non trovato: {fpath}")
-            continue
-
-        text = extract_text_from_pdf(fpath)
-        if not text:
-            log.debug("  Testo vuoto (PDF scansionato o protetto?), skip")
-            continue
-
-        meta = get_pdf_metadata(fpath)
-        title = meta["title"] or fpath.stem
-
-        chunks = chunk_document(
-            text=text,
-            source_url=pdf["url"],
-            title=title,
-            doc_type="pdf",
-            extra_metadata={"pdf_pages": meta["pages"]},
-        )
-        if not chunks:
-            continue
-
-        log.info(f"  {len(chunks)} chunk da {meta['pages']} pagine")
-
-        # Se non stiamo sostituendo, controlla se i chunk sono già nel VS con lo stesso
-        # contenuto (stessi ID deterministici). Se sì, salta l'embedding.
-        if not replace_existing:
-            ids = [make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0)) for c in chunks]
-            if all_chunks_exist(ids):
-                log.debug("  Contenuto invariato nel VS, skip embedding")
-                skipped_unchanged += 1
-                continue
-
-        if replace_existing:
-            # Flush chunks precedenti, poi sostituisci atomicamente questa sorgente
-            if pending_chunks:
-                total_chunks += _flush(pending_chunks, pending_embeddings_texts)
-                pending_chunks.clear()
-                pending_embeddings_texts.clear()
-            remove_sources({pdf["url"]})
-
-        pending_chunks.extend(chunks)
-        pending_embeddings_texts.extend(c["text"] for c in chunks)
-        docs_ok += 1
-
-        if len(pending_chunks) >= BATCH_SIZE:
-            total_chunks += _flush(pending_chunks, pending_embeddings_texts)
-            pending_chunks.clear()
-            pending_embeddings_texts.clear()
-
-    if pending_chunks:
-        total_chunks += _flush(pending_chunks, pending_embeddings_texts)
-
-    if skipped:
-        log.info(f"  {skipped} PDF già indicizzati, saltati")
-    if skipped_unchanged:
-        log.info(f"  {skipped_unchanged} PDF invariati nel VS, embedding saltato")
-    return docs_ok, total_chunks
-
-
-def _flush(chunks: list[dict], texts: list[str]) -> int:
-    """Genera embedding e inserisce nel vector store. Ritorna chunk inseriti."""
-    embeddings = embed_texts(texts)
-    inserted = upsert_chunks(chunks, embeddings)
-    log.info(f"  → {inserted} chunk inseriti nel vector store")
-    return inserted
+    """Indicizza i documenti PDF. Ritorna (documenti_ok, chunk_inseriti).
+    Vedi index_pages per il significato di `replace_existing`."""
+    return _index_documents(pdfs, "PDF", _pdf_chunks, skip_existing)
 
 
 def main():
