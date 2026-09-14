@@ -73,6 +73,42 @@ Grazie per la collaborazione.
     send_email(to, subject, body)
 
 
+def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[str, str]:
+    """Oggetto e corpo dell'email per una segnalazione (👎 con commento/link).
+    `entry` è la riga di data/feedback.jsonl."""
+    user = entry.get("user") or "un collega"
+    question = (entry.get("question") or "").strip()
+    subject = f"Zautte — segnalazione di {user}: {question[:70]}"
+    when = (entry.get("details_ts") or entry.get("ts") or "").replace("T", " ")
+    urls = entry.get("urls") or []
+    lines = [
+        f"{user} ha segnalato una risposta non soddisfacente ({when}).",
+        "",
+        "Domanda:",
+        f"  {question}",
+        "",
+        "Risposta (inizio):",
+        f"  {(entry.get('answer_preview') or '').strip()}",
+        "",
+        "Commento:",
+        f"  {(entry.get('comment') or '').strip() or '(nessuno)'}",
+        "",
+        "Pagine con l'informazione corretta:",
+    ]
+    lines += [f"  {u}" for u in urls] if urls else ["  (nessuna)"]
+    if dashboard_url:
+        lines += ["", f"Dashboard (vista amministratore): {dashboard_url}"]
+    lines += ["", "Email automatica di Zautte: la segnalazione è già nella dashboard,",
+              "dove può essere marcata come risolta."]
+    return subject, "\n".join(lines) + "\n"
+
+
+def send_feedback_notification(to: str, entry: dict, dashboard_url: str = "") -> None:
+    """Avvisa l'amministratore di una nuova segnalazione."""
+    subject, body = build_feedback_notification(entry, dashboard_url)
+    send_email(to, subject, body)
+
+
 def send_password_reset(to: str, name: str, password: str, login_url: str) -> None:
     """Recapita una nuova password dopo una richiesta di reset."""
     subject = "Zautte — nuova password"
