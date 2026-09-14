@@ -2,41 +2,41 @@
   {
     "keywords": ["residenza", "anagrafe", "nascita", "morte", "matrimonio", "stato civile", "carta identità", "cie", "certificato"],
     "name": "Ufficio Anagrafe e Stato Civile",
-    "path": "/it/uffici/anagrafe"
+    "path": "/it/unita_organizzative/servizi-demografici-e-statistica"
   },
   {
     "keywords": ["tari", "imu", "tributi", "tassa", "imposta", "canone"],
-    "name": "Ufficio Tributi",
-    "path": "/it/uffici/tributi"
+    "name": "Ufficio Tributi (Tributi e recupero coattivo)",
+    "path": "/it/unita_organizzative/tributi-e-recupero-coattivo"
   },
   {
     "keywords": ["edilizia", "permesso costruire", "sue", "urbanistica", "piano regolatore", "condono", "agibilità"],
     "name": "Sportello Unico Edilizia (SUE)",
-    "path": "/it/uffici/sue"
+    "path": "/it/unita_organizzative/sue-e-edilizia-privata"
   },
   {
     "keywords": ["suap", "attività commerciale", "apertura negozio", "licenza", "autorizzazione"],
     "name": "Sportello Unico Attività Produttive (SUAP)",
-    "path": "/it/uffici/suap"
+    "path": "/it/unita_organizzative/suap-e-mercato-ittico"
   },
   {
     "keywords": ["gazebo", "chiosco", "tendone", "struttura temporanea", "suolo pubblico", "cosap", "occupazione", "banchetto", "raccolta firme", "dehors"],
     "name": "Polizia Municipale — Ufficio COSAP (occupazione suolo pubblico)",
-    "path": "/it/uffici/polizia-municipale"
+    "path": "/it/unita_organizzative/polizia-municipale"
   },
   {
     "keywords": ["scuola", "asilo", "nido", "mensa", "trasporto scolastico", "istruzione"],
     "name": "Ufficio Pubblica Istruzione",
-    "path": "/it/uffici/istruzione"
+    "path": "/it/unita_organizzative/cultura-e-pubblica-istruzione"
   },
   {
     "keywords": ["polizia municipale", "multa", "verbale", "parcheggio", "ztl", "vigili"],
     "name": "Polizia Municipale",
-    "path": "/it/uffici/polizia-municipale"
+    "path": "/it/unita_organizzative/polizia-municipale"
   },
   {
     "keywords": ["sociale", "assistenza", "disabilità", "anziani", "contributi", "sussidio"],
     "name": "Servizi Sociali",
-    "path": "/it/uffici/servizi-sociali"
+    "path": "/it/unita_organizzative/politiche-sociali"
   }
 ]

@@ -119,7 +119,11 @@ def process_file(doc_path: Path) -> bool:
             source_url=source_url,
             title=title,
             doc_type="pdf" if doc_path.suffix.lower() == ".pdf" else "document",
-            extra_metadata={"category": category, "filename": doc_path.name},
+            # origin=inbox: il vector store non li rimuove come "stale" nei sync
+            # (non sono nel crawl) né li sostituisce con la pagina crawlata che
+            # ha lo stesso source_url. Senza questo marker ogni full sync li
+            # cancellava tutti (14/09/2026: zero documenti inbox nel VS).
+            extra_metadata={"category": category, "filename": doc_path.name, "origin": "inbox"},
         )
 
         if not chunks:

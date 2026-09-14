@@ -295,10 +295,28 @@ def chunks_to_embed(chunks: list[dict], ids: list[str]) -> list[bool]:
     return flags
 
 
-def source_chunk_ids(source: str) -> set[str]:
-    """Ritorna gli id dei chunk attualmente nello store per una sorgente."""
+def _is_inbox(meta: dict) -> bool:
+    """Chunk caricato a mano dall'inbox (scripts/inbox_indexer): va conservato
+    anche se la sua sorgente non compare nel crawl o viene ricrawlata.
+    `doc_type == "document"` copre i documenti inbox precedenti al marker."""
+    return meta.get("origin") == "inbox" or meta.get("doc_type") == "document"
+
+
+def source_chunk_ids(source: str, include_inbox: bool = False) -> set[str]:
+    """Ritorna gli id dei chunk attualmente nello store per una sorgente.
+    I chunk inbox sono esclusi di default: l'indexer li userebbe come "stale"
+    quando reindicizza la pagina crawlata con lo stesso URL."""
     _ensure_loaded()
-    return {_ids[i] for i, m in enumerate(_metadata) if m.get("source") == source}
+    return {
+        _ids[i] for i, m in enumerate(_metadata)
+        if m.get("source") == source and (include_inbox or not _is_inbox(m))
+    }
+
+
+def inbox_sources() -> set[str]:
+    """Sorgenti dei chunk caricati dall'inbox."""
+    _ensure_loaded()
+    return {m.get("source", "") for m in _metadata if _is_inbox(m) and m.get("source")}
 
 
 def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
@@ -470,13 +488,18 @@ def _apply_keep(keep: list[int]):
     _bm25_dirty = True
 
 
-def remove_sources(stale: set[str]) -> int:
+def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
     """Rimuove tutti i chunk le cui sorgenti non sono più nel crawl corrente.
+    I chunk inbox restano (keep_inbox): non provengono dal crawl, quindi la
+    loro assenza dal sito non significa che siano superati.
     Ritorna il numero di chunk rimossi."""
     if not stale:
         return 0
     _ensure_loaded()
-    keep = [i for i, m in enumerate(_metadata) if m.get("source") not in stale]
+    keep = [
+        i for i, m in enumerate(_metadata)
+        if m.get("source") not in stale or (keep_inbox and _is_inbox(m))
+    ]
     removed = len(_metadata) - len(keep)
     if removed == 0:
         return 0
