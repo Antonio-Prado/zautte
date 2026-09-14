@@ -382,24 +382,19 @@ def _notify_feedback(entry: dict) -> None:
 
 
 def _resolved_negative_file():
-    from pathlib import Path as _P
-    return _P(__file__).parent.parent / "data" / "resolved_negative.json"
+    from api.feedback_store import RESOLVED_FILE
+    return RESOLVED_FILE
 
 
 def _load_resolved_negative() -> set[str]:
     """Ritorna set di chiavi ts::question già risolte."""
-    import json as _j
-    f = _resolved_negative_file()
-    if not f.exists():
-        return set()
-    try:
-        return {e["key"] for e in _j.loads(f.read_text(encoding="utf-8")) if "key" in e}
-    except Exception:
-        return set()
+    from api.feedback_store import load_resolved
+    return load_resolved()
 
 
 def _resolved_key(ts: str, question: str) -> str:
-    return f"{ts}::{question[:200]}"
+    from api.feedback_store import resolved_key
+    return resolved_key(ts, question)
 
 
 @app.get("/feedback/negative")
