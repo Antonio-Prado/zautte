@@ -3,11 +3,17 @@ Generazione embedding tramite Ollama (modello OLLAMA_EMBED_MODEL, in
 produzione mxbai-embed-large: contesto massimo 512 token).
 
 Strategia: tenta prima il batch endpoint /api/embed (veloce quando funziona).
-Se restituisce 400, cade back su chiamate singole, sempre su /api/embed con
-`truncate: true`: l'endpoint legacy /api/embeddings NON tronca e risponde 500
-per ogni testo oltre il contesto del modello, che finiva salvato con vettore
-zero (14.896 chunk su 244k al 14/09/2026). Su errore 500 riprova con backoff
-esponenziale prima di restituire un vettore zero.
+Se restituisce 400, cade back su chiamate singole su /api/embed. Su errore 500
+riprova con backoff esponenziale prima di restituire un vettore zero.
+
+Troncamento: Ollama 0.19 IGNORA `truncate: true` per mxbai-embed-large e
+risponde 400 "the input length exceeds the context length" (512 token) sia in
+batch sia in singolo; l'endpoint legacy /api/embeddings risponde 500 per lo
+stesso motivo. Ne restavano 5.861 chunk a vettore zero al 16/09/2026 (testi
+di 500-1500 caratteri ma densi di token: tabelle numeriche, PDF illeggibili).
+Il troncamento va quindi fatto lato client: su 400 "context length" il testo
+viene ritagliato a _CUT_STEPS caratteri in sequenza finché Ollama lo accetta
+(verificato sul server: 800 caratteri passano su tutti i campioni).
 """
 
 import logging
@@ -26,9 +32,12 @@ log = logging.getLogger(__name__)
 
 BATCH_SIZE = 16          # batch più piccoli → meno tempo sprecato su 400
 CONCURRENCY = 1          # Ollama serializza comunque le richieste di embedding
-_MAX_CHARS  = 6000       # limite di sicurezza lato client; il troncamento al
-                         # contesto del modello lo fa Ollama (/api/embed, truncate)
+_MAX_CHARS  = 6000       # limite di sicurezza lato client (i chunk sono < 1500 ch)
+_CUT_STEPS  = (800, 500, 300)  # tagli progressivi quando Ollama rifiuta il testo
+                               # per il contesto del modello (512 token per mxbai)
+_CTX_ERROR  = "context length"
 MAX_RETRIES = 3          # tentativi totali prima di arrendersi con vettore zero
+BATCH_GIVE_UP = 3        # batch 400 consecutivi dopo i quali si usano solo singoli
 RETRY_BASE_DELAY = 1.0   # backoff: 1s, 2s, 4s (+ jitter)
 
 
@@ -52,6 +61,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
     all_embeddings = []
     total = len(texts)
+    batch_failures = 0   # 400 consecutivi del batch endpoint
 
     with httpx.Client(timeout=120.0) as client:
         for i in range(0, total, BATCH_SIZE):
@@ -59,7 +69,22 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             batch_num = i // BATCH_SIZE + 1
             total_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
             log.info(f"  Embedding {batch_num}/{total_batches} ({len(batch)} testi)...")
-            vecs = _embed_batch(client, batch)
+            if batch_failures >= BATCH_GIVE_UP:
+                # Un batch rifiutato costa 30-50 s: se falliscono in serie (es.
+                # reembed dei chunk problematici) si passa ai singoli.
+                vecs = _embed_parallel(client, batch)
+            else:
+                vecs = _try_batch(client, batch)
+                if vecs is None:
+                    batch_failures += 1
+                    if batch_failures == BATCH_GIVE_UP:
+                        log.warning(f"  {BATCH_GIVE_UP} batch consecutivi rifiutati: "
+                                    "singoli per il resto della corsa")
+                    else:
+                        log.warning(f"  Batch {len(batch)} testi fallito, uso singoli paralleli...")
+                    vecs = _embed_parallel(client, batch)
+                else:
+                    batch_failures = 0
             all_embeddings.extend(vecs)
 
     return all_embeddings
@@ -72,16 +97,6 @@ def embed_query(query: str) -> list[float]:
         if result:
             return result[0]
         return _embed_one(client, query)
-
-
-def _embed_batch(client: httpx.Client, texts: list[str]) -> list[list[float]]:
-    """Prova il batch endpoint; se fallisce usa chiamate singole parallele."""
-    result = _try_batch(client, texts)
-    if result is not None:
-        return result
-
-    log.warning(f"  Batch {len(texts)} testi fallito, uso singoli paralleli...")
-    return _embed_parallel(client, texts)
 
 
 def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | None:
@@ -129,10 +144,31 @@ def _embed_parallel(client: httpx.Client, texts: list[str]) -> list[list[float]]
 
 
 def _embed_one(client: httpx.Client, text: str) -> list[float]:
-    """Singola chiamata a /api/embed (con troncamento al contesto del modello)
-    e retry su 500. Se /api/embed rifiuta il testo con 400 prova l'endpoint
-    legacy /api/embeddings. Vettore zero solo se tutto fallisce."""
-    payload = {"model": OLLAMA_EMBED_MODEL, "input": [_clean(text)], "truncate": True}
+    """Singola chiamata a /api/embed con retry su 500. Se Ollama rifiuta il
+    testo perché supera il contesto del modello (400, il flag `truncate` non
+    basta) ritenta con tagli progressivi lato client (_CUT_STEPS). Per gli
+    altri 400 prova l'endpoint legacy /api/embeddings. Vettore zero solo se
+    tutto fallisce."""
+    cleaned = _clean(text)
+    lengths = [len(cleaned)] + [n for n in _CUT_STEPS if n < len(cleaned)]
+    for n in lengths:
+        vec, too_long = _embed_request(client, cleaned[:n], text)
+        if vec is not None:
+            if n < len(cleaned):
+                log.info(f"  Testo troncato a {n} caratteri per il contesto del modello: {text[:60]!r}")
+            return vec
+        if not too_long:
+            return _zero()
+    log.warning(f"  Testo oltre il contesto anche a {lengths[-1]} caratteri, vettore zero: {text[:80]!r}")
+    return _zero()
+
+
+def _embed_request(client: httpx.Client, text: str,
+                   original: str) -> tuple[list[float] | None, bool]:
+    """Una richiesta a /api/embed con retry su 500. Ritorna (vettore, False) su
+    successo, (None, True) se il testo supera il contesto del modello, (vettore
+    legacy o zero, False) per gli altri 400, (None, False) se tutto fallisce."""
+    payload = {"model": OLLAMA_EMBED_MODEL, "input": [text], "truncate": True}
     for attempt in range(MAX_RETRIES + 1):
         status = "errore"
         try:
@@ -141,28 +177,30 @@ def _embed_one(client: httpx.Client, text: str) -> list[float]:
             if resp.status_code == 200:
                 embeddings = resp.json().get("embeddings") or []
                 if embeddings:
-                    return embeddings[0]
+                    return embeddings[0], False
                 log.warning("  /api/embed ha risposto senza embedding, vettore zero")
-                return _zero()
+                return None, False
             if resp.status_code == 400:
-                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — testo: {text[:80]!r}")
-                return _embed_one_legacy(client, text)
+                if _CTX_ERROR in resp.text:
+                    return None, True
+                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — testo: {original[:80]!r}")
+                return _embed_one_legacy(client, text), False
             if attempt == MAX_RETRIES:
                 log.warning(f"  Embedding singolo fallito (HTTP {resp.status_code}), vettore zero")
-                return _zero()
+                return None, False
         except Exception as e:
             if attempt == MAX_RETRIES:
                 log.warning(f"  Embedding singolo fallito: {e}, vettore zero")
-                return _zero()
+                return None, False
         delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
         log.warning(f"  Ollama {status}, retry {attempt + 1}/{MAX_RETRIES} tra {delay:.1f}s...")
         time.sleep(delay)
-    return _zero()
+    return None, False
 
 
 def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
-    """Ultimo tentativo su /api/embeddings. Non tronca: oltre il contesto del
-    modello risponde 500 e il chunk resta con vettore zero."""
+    """Ultimo tentativo su /api/embeddings per i 400 non dovuti al contesto.
+    Non tronca: oltre il contesto del modello risponde 500 (vettore zero)."""
     try:
         resp = client.post(
             f"{OLLAMA_BASE_URL}/api/embeddings",
