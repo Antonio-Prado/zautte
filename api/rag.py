@@ -22,6 +22,7 @@ from config.settings import (
     LLM_PROVIDER,
     OLLAMA_BASE_URL, OLLAMA_MODEL,
     ANTHROPIC_API_KEY, CLAUDE_MODEL,
+    QUERY_REWRITE, CLAUDE_REWRITE_MODEL,
     SYSTEM_PROMPT_IT, SYSTEM_PROMPT_EN,
     RETRIEVAL_TOP_K,
     SITE_URL,
@@ -264,14 +265,19 @@ def build_prompt(
     context: str,
     language: str = "it",
     history: list[dict] | None = None,
+    topic_query: str | None = None,
 ) -> list[dict]:
     """
     Costruisce i messaggi per il LLM nel formato chat.
     Supporta history conversazionale (lista di {"role", "content"}).
+
+    topic_query: versione autonoma della domanda (vedi contextualize_query),
+                 usata solo per individuare l'ufficio competente; la DOMANDA
+                 mostrata al modello resta quella originale dell'utente.
     """
     system = SYSTEM_PROMPT_IT if language == "it" else SYSTEM_PROMPT_EN
 
-    office_hint = suggest_office(query)
+    office_hint = suggest_office(topic_query or query)
 
     if context:
         # L'ufficio competente viene fornito anche con contesto presente, come
@@ -326,6 +332,116 @@ def detect_language(text: str) -> str:
     it_score = len(words & it_words)
     en_score = len(words & en_words)
     return "en" if en_score > it_score else "it"
+
+
+# ---------------------------------------------------------------------------
+# Contestualizzazione della domanda per il retrieval
+# ---------------------------------------------------------------------------
+#
+# Il retrieval lavora solo sul testo della domanda corrente: in un dialogo, un
+# follow-up come "ma quali sono i requisiti per avere il beneficio?" non
+# contiene più l'argomento ("sconto autobus") e pesca documenti fuori tema,
+# anche se il modello riceve la storia. Qui la domanda viene riscritta in forma
+# autonoma (solo quando c'è storia) e usata per ricerca, fatti noti e ufficio
+# competente; al modello arriva comunque la domanda originale + storia.
+
+_REWRITE_SYSTEM = (
+    "Riscrivi l'ultimo messaggio dell'utente come una domanda autonoma, "
+    "comprensibile senza leggere la conversazione precedente, nella stessa "
+    "lingua del messaggio. Esplicita l'argomento a cui si riferiscono pronomi "
+    "e riferimenti impliciti (per esempio 'il beneficio', 'lo sconto', "
+    "'questo servizio', 'quell'ufficio') usando le parole della conversazione. "
+    "Non rispondere, non aggiungere informazioni, non cambiare il senso. "
+    "Se il messaggio è già autonomo o introduce un argomento nuovo, "
+    "restituiscilo invariato. Rispondi SOLO con la domanda riscritta, "
+    "su una riga, senza virgolette né commenti."
+)
+_REWRITE_MAX_TURN_CHARS = 600   # caratteri di ogni turno di storia inclusi nel prompt
+_REWRITE_MAX_LEN = 400          # oltre questa lunghezza la riscrittura è sospetta
+
+
+def _fallback_contextualize(query: str, history: list[dict]) -> str:
+    """Contestualizzazione senza modello: accoda l'ultima domanda dell'utente.
+
+    Meno precisa della riscrittura, ma porta nel retrieval le parole chiave
+    del turno precedente quando il modello non è raggiungibile."""
+    prev = next(
+        (m.get("content", "") for m in reversed(history) if m.get("role") == "user"),
+        "",
+    )
+    prev = re.sub(r"\s+", " ", prev).strip()
+    return f"{query} {prev}".strip() if prev else query
+
+
+def _rewrite_prompt(query: str, history: list[dict]) -> list[dict]:
+    lines = []
+    for m in history[-6:]:
+        who = "Utente" if m.get("role") == "user" else "Assistente"
+        text = re.sub(r"\s+", " ", m.get("content", "")).strip()
+        if len(text) > _REWRITE_MAX_TURN_CHARS:
+            text = text[:_REWRITE_MAX_TURN_CHARS] + "…"
+        lines.append(f"{who}: {text}")
+    user_content = (
+        "Conversazione precedente:\n" + "\n".join(lines)
+        + f"\n\nUltimo messaggio dell'utente da riscrivere: {query}"
+    )
+    return [
+        {"role": "system", "content": _REWRITE_SYSTEM},
+        {"role": "user", "content": user_content},
+    ]
+
+
+async def contextualize_query(
+    query: str,
+    history: list[dict] | None,
+    uid: str | None = None,
+) -> str:
+    """Restituisce la domanda in forma autonoma per il retrieval.
+
+    Senza storia (o con QUERY_REWRITE disattivo) restituisce la domanda
+    invariata. In caso di errore del modello usa il ripiego deterministico:
+    la funzione non deve mai far fallire la risposta."""
+    if not history:
+        return query
+    if not QUERY_REWRITE:
+        return _fallback_contextualize(query, history)
+    try:
+        messages = _rewrite_prompt(query, history)
+        if LLM_PROVIDER == "claude":
+            text = await _rewrite_claude(messages, uid=uid)
+        else:
+            text = await generate_ollama(messages)
+        text = text.strip().splitlines()[0].strip().strip('"«»\'') if text.strip() else ""
+        if not text or len(text) > _REWRITE_MAX_LEN:
+            return _fallback_contextualize(query, history)
+        return text
+    except Exception as exc:
+        log.warning("Riscrittura della domanda fallita (%s): uso il ripiego", exc)
+        return _fallback_contextualize(query, history)
+
+
+async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
+    """Chiamata breve e non in streaming per la riscrittura della domanda."""
+    import anthropic
+    system_content = next(
+        (m["content"] for m in messages if m["role"] == "system"), ""
+    )
+    user_messages = [m for m in messages if m["role"] != "system"]
+    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    response = await client.with_options(timeout=20.0).messages.create(
+        model=CLAUDE_REWRITE_MODEL,
+        max_tokens=200,
+        system=system_content,
+        messages=user_messages,
+        temperature=0.0,
+    )
+    try:
+        if response.usage:
+            _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
+                           CLAUDE_REWRITE_MODEL, uid=uid)
+    except Exception:
+        pass
+    return "".join(b.text for b in response.content if b.type == "text")
 
 
 # ---------------------------------------------------------------------------
@@ -669,9 +785,16 @@ async def answer(
             return cached
 
     language = detect_language(query)
-    chunks = retrieve_context(query)
+    # Nei turni successivi al primo il retrieval usa la domanda resa autonoma
+    # (l'argomento del dialogo), non il solo testo del follow-up.
+    retrieval_query = await contextualize_query(query, history, uid=uid)
+    if retrieval_query != query:
+        log.info("Domanda contestualizzata: '%s' -> '%s'",
+                 query[:80].replace('\n', ' '), retrieval_query[:120].replace('\n', ' '))
+    chunks = retrieve_context(retrieval_query)
     context = build_context_block(chunks)
-    messages = build_prompt(query, context, language, history=history)
+    messages = build_prompt(query, context, language, history=history,
+                            topic_query=retrieval_query)
 
     # Nascondi l'URL delle fonti su domini migrati: il link sarebbe morto, quindi
     # la fonte viene mostrata solo per titolo (url vuoto).
@@ -698,19 +821,19 @@ async def answer(
              _safe_q, language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
-        _log_gap(query, 0)
+        _log_gap(retrieval_query, 0)
     else:
         # Recupero "debole": chunk trovati ma anche il migliore è sotto la
         # soglia di confidenza (spesso documenti solo tematicamente vicini).
         # Tracciali per far emergere i gap di contenuto altrimenti invisibili.
         top_score = max(c.get("score", 0.0) for c in chunks)
         if top_score < RETRIEVAL_CONFIDENCE:
-            _log_gap(query, len(chunks), weak=True)
+            _log_gap(retrieval_query, len(chunks), weak=True)
 
     if stream:
         if not chunks:
             # Nessun contesto trovato — bypassa il LLM con fallback affidabile
-            office_hint = suggest_office(query)
+            office_hint = suggest_office(retrieval_query)
             fallback = (
                 "Non ho trovato informazioni specifiche su questo argomento "
                 "nella base di conoscenza."
