@@ -122,6 +122,16 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 
+# Riscrittura della domanda per il retrieval nei turni successivi al primo:
+# il retrieval usa solo il testo della domanda corrente, quindi un follow-up
+# come "quali sono i requisiti?" perde l'argomento del turno precedente.
+# Con QUERY_REWRITE attivo la domanda viene resa autonoma dal modello prima
+# della ricerca (solo quando c'è storia conversazionale). Il modello per la
+# riscrittura è per default lo stesso della risposta; se ne può indicare uno
+# più economico in .env (es. claude-haiku-4-5).
+QUERY_REWRITE = os.getenv("QUERY_REWRITE", "true").strip().lower() in ("1", "true", "yes", "on")
+CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
+
 # --- API Backend ---
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
