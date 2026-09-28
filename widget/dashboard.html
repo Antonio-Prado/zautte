@@ -409,6 +409,48 @@
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">28 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag perf">perf</span><strong>Dashboard più reattiva e codice allineato al lint</strong>: le viste amministratore che leggono il log d'uso e il log del sync (decine di MB) non bloccano più le risposte del bot durante la lettura. I timestamp registrati includono ora il fuso orario, le eccezioni sono gestite in modo mirato e loggate con il dettaglio. Adottate le regole di ruff 0.16: la CI su GitHub torna verde dopo settimane. Aggiornati i requisiti minimi delle librerie (Dependabot); numpy 2.5 rinviato perché richiede Python 3.12.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">26 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span><strong>Matrimonio civile</strong>: fatto noto con pubblicazioni, documenti, testimoni, sedi (sala De Gasperi, Palazzina Azzurra, Piacentini), tempi e costi; «sposarsi» e «nozze» riconosciuti come sinonimi di «matrimonio». Da una segnalazione di un collega.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">24 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span><strong>Carta d'identità: durata e validità</strong>: il fatto noto CIE spiega ora la validità di 10/5/3 anni per fascia d'età, i 3 anni per i richiedenti asilo (validi solo in Italia) e i documenti per cittadini comunitari ed extracomunitari. Da una segnalazione di un collega.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">23 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Domande di seguito capite nel contesto</strong>: nelle conversazioni a più turni («e quali sono i requisiti?») la ricerca usava solo l'ultima frase e perdeva l'argomento. Ora la domanda viene riscritta dal modello con il contesto precedente prima di cercare nella base di conoscenza. Aggiunto il fatto noto sul trasporto pubblico agevolato (DGR 1303/2024).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">18 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span><strong>Rinuncia di proprietà del cane</strong>: fatto noto su ricovero nel canile comprensoriale, ufficio competente e contatti (AMS, canile, anagrafe canina). La scheda con il modulo non è pubblicata online.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">16 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Zero chunk senza vettore</strong>: Ollama rifiutava i testi troppo densi di token anche con il troncamento richiesto; ora il testo viene accorciato lato client (800/500/300 caratteri) e i 5.861 chunk residui sono stati riparati. Tutti i contenuti sono di nuovo raggiungibili dalla ricerca semantica.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">16 set 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag data">data</span><strong>Atti del Comune</strong>: fatto noto con i link di ricerca su Nuvola per decreti del Sindaco, ordinanze, determine, delibere e albo pretorio. Da una segnalazione di un collega.
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">14 set 2026</div>
       <div class="cl-text">
         <span class="cl-tag feat">feat</span><strong>Segnalazioni dal widget</strong>: dopo un 👎 compare un modulo con commento libero e fino a 5 link alle pagine con l'informazione corretta (<code>POST /feedback/detail</code>). Ogni feedback registra anche il nome del collega; la vista amministratore mostra autore, commento e link accanto a ogni feedback negativo, e l'amministratore riceve un'email automatica per ogni segnalazione (<code>FEEDBACK_NOTIFY_EMAIL</code>). Quando la segnalazione viene marcata "✓ Risolto", il collega riceve un'email di riscontro con una nota facoltativa (le risposte arrivano all'amministratore). Non serve più scrivere email.
