@@ -18,6 +18,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import time
 
@@ -73,7 +74,7 @@ def verify_password(password: str, stored: str) -> bool:
             n=int(n), r=int(r), p=int(p), dklen=len(expected),
         )
         return hmac.compare_digest(dk, expected)
-    except Exception:
+    except (ValueError, TypeError):  # hash memorizzato malformato: fallisce chiuso
         return False
 
 
@@ -119,7 +120,7 @@ def verify_token(token: str) -> dict | None:
         if int(claims.get("exp", 0)) < int(time.time()):
             return None
         return claims
-    except Exception:
+    except (ValueError, TypeError, AttributeError):  # token malformato
         return None
 
 
@@ -132,7 +133,7 @@ def _load_users() -> list[dict]:
     try:
         data = json.loads(USERS_FILE.read_text(encoding="utf-8"))
         return data if isinstance(data, list) else []
-    except Exception:
+    except (OSError, ValueError):
         return []
 
 
@@ -169,7 +170,7 @@ def _update_user_password(email: str, new_password: str) -> bool:
             USERS_FILE.write_text(
                 json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8"
             )
-        except Exception:
+        except (OSError, TypeError, ValueError):
             return False
     return changed
 
@@ -177,6 +178,7 @@ def _update_user_password(email: str, new_password: str) -> bool:
 # ---------------------------------------------------------------------------
 # Dependency: identità dell'utente della richiesta
 # ---------------------------------------------------------------------------
+log = logging.getLogger(__name__)
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -277,5 +279,6 @@ async def forgot(request: Request, req: ForgotRequest):
                         user["email"], user.get("name", ""), new_pw, PILOT_LOGIN_URL
                     )
             except Exception:
-                pass
+                log.warning("Email di reset password non inviata a %s",
+                            user.get("email"), exc_info=True)
     return generic

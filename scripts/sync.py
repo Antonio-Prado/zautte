@@ -23,16 +23,22 @@ import os
 import signal
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from config.settings import is_migrated_source, now_local
 from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index
-from indexer.vector_store import get_stats, clear_collection, remove_sources, get_indexed_sources, get_zero_vector_chunks, update_embeddings
+from indexer.vector_store import (
+    clear_collection,
+    get_indexed_sources,
+    get_stats,
+    get_zero_vector_chunks,
+    remove_sources,
+    update_embeddings,
+)
 from scripts.inbox_indexer import process_inbox
-from config.settings import is_migrated_source
 
 LOG_FILE = Path("/var/log/chatbot-sync.log")
 
@@ -50,7 +56,7 @@ def _setup_logging():
         fh = logging.handlers.WatchedFileHandler(str(LOG_FILE), encoding="utf-8")
         fh.setFormatter(fmt)
         root.addHandler(fh)
-    except Exception as e:
+    except OSError as e:
         print(f"[WARN] impossibile aprire log file {LOG_FILE}: {e}", file=sys.stderr)
 
     # Stdout: utile quando lanciato manualmente
@@ -73,7 +79,7 @@ def print_separator(title: str = ""):
 
 
 async def run_sync(mode: str):
-    started_at = datetime.now()
+    started_at = now_local()
     print_separator(f"SYNC — modalità: {mode.upper()}")
 
     if mode == "full":
@@ -165,14 +171,14 @@ async def run_sync(mode: str):
         log.error(f"Modalità sconosciuta: {mode}")
         sys.exit(1)
 
-    elapsed = (datetime.now() - started_at).total_seconds()
+    elapsed = (now_local() - started_at).total_seconds()
     stats = get_stats()
 
     print_separator("RIEPILOGO")
     log.info(f"Modalità:              {mode}")
     log.info(f"Durata:                {elapsed:.0f}s")
     log.info(f"Chunk totali nel DB:   {stats['total_chunks']}")
-    log.info(f"Completato alle:       {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log.info(f"Completato alle:       {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
     _restart_api()
 
@@ -182,7 +188,7 @@ def _restart_api():
     try:
         result = subprocess.run(
             ["pgrep", "-f", "uvicorn api.main:app"],
-            capture_output=True, text=True
+            capture_output=True, text=True, check=False
         )
         pids = [int(p) for p in result.stdout.split() if p.strip()]
         if not pids:
@@ -192,7 +198,7 @@ def _restart_api():
             os.kill(pid, signal.SIGKILL)
         log.info(f"Restart API: SIGKILL inviato a {len(pids)} processi uvicorn "
                  f"(PID: {', '.join(map(str, pids))})")
-    except Exception as e:
+    except (OSError, ValueError) as e:
         log.warning(f"Restart API fallito: {e}")
 
 

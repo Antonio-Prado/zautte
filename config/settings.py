@@ -3,6 +3,8 @@ Configurazione centralizzata di Zautte.
 Modifica questo file per adattare il sistema al tuo ambiente.
 """
 
+import datetime as _datetime
+import logging
 import os
 from pathlib import Path
 
@@ -11,6 +13,13 @@ try:
     load_dotenv(Path(__file__).parent.parent / ".env")
 except ImportError:
     pass
+
+
+def now_local() -> _datetime.datetime:
+    """Ora corrente del server con fuso locale (timezone-aware).
+    Usata per tutti i timestamp registrati nei file di dati."""
+    return _datetime.datetime.now(_datetime.UTC).astimezone()
+
 
 # --- Percorsi ---
 BASE_DIR = Path(__file__).parent.parent
@@ -61,8 +70,8 @@ try:
         CRAWL_EXCLUDE_PATTERNS += _crawl_extra.get("exclude_patterns", [])
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
-except Exception:
-    pass
+except (OSError, ValueError, TypeError, AttributeError) as _e:
+    logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
 # --- Domini migrati / dismessi ---
 # Domini le cui risorse non sono più raggiungibili al vecchio indirizzo perché

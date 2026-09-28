@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import feedback_store as fs  # noqa: E402
+from api import feedback_store as fs
 
 
 def format_entry(e: dict) -> str:

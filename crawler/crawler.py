@@ -13,19 +13,25 @@ import hashlib
 import json
 import logging
 import re
+import sys
 from pathlib import Path
-from urllib.parse import urljoin, urlparse, urldefrag
+from urllib.parse import urldefrag, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import (
-    SITE_URL, CRAWL_MAX_PAGES, CRAWL_DELAY_SECONDS,
-    CRAWL_ALLOWED_DOMAINS, CRAWL_EXCLUDE_PATTERNS,
-    CRAWL_MAX_PATH_DEPTH, CRAWL_DOMAIN_MAX_PATH_DEPTH,
-    CRAWL_EXTRA_START_URLS, CRAWL_CACHE_DIR, DOCUMENTS_DIR
+    CRAWL_ALLOWED_DOMAINS,
+    CRAWL_CACHE_DIR,
+    CRAWL_DELAY_SECONDS,
+    CRAWL_DOMAIN_MAX_PATH_DEPTH,
+    CRAWL_EXCLUDE_PATTERNS,
+    CRAWL_EXTRA_START_URLS,
+    CRAWL_MAX_PAGES,
+    CRAWL_MAX_PATH_DEPTH,
+    DOCUMENTS_DIR,
+    SITE_URL,
 )
 from crawler.state import CrawlState, content_hash
 
@@ -113,10 +119,7 @@ def should_skip(url: str) -> bool:
     # Loop detector: se un segmento non numerico appare più volte nel path,
     # è probabile che il CMS stia accumulando breadcrumb → scarta l'URL.
     non_numeric = [s for s in segments if not s.isdigit()]
-    if len(non_numeric) != len(set(non_numeric)):
-        return True
-
-    return False
+    return len(non_numeric) != len(set(non_numeric))
 
 
 def extract_links(html: str, base_url: str) -> list[str]:
@@ -168,14 +171,14 @@ def clean_text(html: str) -> str:
     # Rimuovi widget di feedback/valutazione
     for tag in soup.find_all(class_=re.compile(
         r"feedback|rating|survey|cookie|breadcrumb|pagination|share|social|"
-        r"widget|banner|alert|modal|tooltip|dropdown|collapse", re.I
+        r"widget|banner|alert|modal|tooltip|dropdown|collapse", re.IGNORECASE
     )):
         tag.decompose()
 
     main = (
         soup.find("main") or
-        soup.find(id=re.compile(r"content|main|body", re.I)) or
-        soup.find(class_=re.compile(r"content|main|article", re.I)) or
+        soup.find(id=re.compile(r"content|main|body", re.IGNORECASE)) or
+        soup.find(class_=re.compile(r"content|main|article", re.IGNORECASE)) or
         soup.find("article") or
         soup.body
     )
@@ -311,8 +314,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     existing_index: dict = {"pages": [], "pdfs": []}
     index_path = CRAWL_CACHE_DIR / "index.json"
     if incremental and index_path.exists():
-        with open(index_path, encoding="utf-8") as f:
-            existing_index = json.load(f)
+        existing_index = json.loads(index_path.read_text(encoding="utf-8"))
         # Pre-popola results con tutto ciò che già conosciamo
         results_pages = list(existing_index.get("pages", []))
         results_pdfs = list(existing_index.get("pdfs", []))
@@ -447,8 +449,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
             except httpx.RequestError as e:
                 log.warning(f"  Errore di rete: {url} — {e}")
-            except Exception as e:
-                log.error(f"  Errore: {url} — {e}")
+            except Exception:
+                log.exception(f"  Errore inatteso: {url}")
 
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
@@ -476,7 +478,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 state.update(pdf_url, pdf_hash, file=str(fpath))
                 results_pdfs.append({"url": pdf_url, "file": str(fpath)})
                 log.info(f"  PDF: {fname} ({len(resp.content)//1024} KB)")
-            except Exception as e:
+            except (httpx.HTTPError, OSError) as e:
                 log.warning(f"  Errore PDF {pdf_url}: {e}")
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 

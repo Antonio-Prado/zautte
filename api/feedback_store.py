@@ -10,11 +10,12 @@ il motivo e i link alle pagine dove sta l'informazione corretta. Così non
 deve più scrivere email all'amministratore, che vede tutto in dashboard.
 """
 
-import datetime
 import json
 import re
 import secrets
 from pathlib import Path
+
+from config.settings import now_local
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
@@ -28,7 +29,7 @@ _HOST_RE = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$", re.IGNORECASE)
 
 
 def now_iso() -> str:
-    return datetime.datetime.now().isoformat(timespec="seconds")
+    return now_local().isoformat(timespec="seconds")
 
 
 def new_id() -> str:
@@ -145,7 +146,7 @@ def load_resolved() -> set[str]:
         return set()
     try:
         return {e["key"] for e in json.loads(RESOLVED_FILE.read_text(encoding="utf-8")) if "key" in e}
-    except Exception:
+    except (OSError, ValueError, TypeError):
         return set()
 
 
