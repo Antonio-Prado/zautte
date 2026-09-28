@@ -32,7 +32,7 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         full_text = "\n\n".join(parts)
         return _clean_pdf_text(full_text)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - pypdf solleva tipi eterogenei sui PDF corrotti
         log.error(f"Errore estrazione PDF {pdf_path.name}: {e}")
         return ""
 
@@ -72,5 +72,5 @@ def get_pdf_metadata(pdf_path: str | Path) -> dict:
             "author": _meta_str(meta.get("/Author")),
             "pages": len(reader.pages),
         }
-    except Exception:
+    except Exception:  # noqa: BLE001 - pypdf solleva tipi eterogenei sui PDF corrotti
         return {"title": pdf_path.stem, "author": "", "pages": 0}

@@ -82,7 +82,7 @@ def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[s
     user = entry.get("user") or "un collega"
     question = (entry.get("question") or "").strip()
     subject = f"Zautte — segnalazione di {user}: {question[:70]}"
-    when = (entry.get("details_ts") or entry.get("ts") or "").replace("T", " ")
+    when = (entry.get("details_ts") or entry.get("ts") or "").replace("T", " ")[:19]
     urls = entry.get("urls") or []
     lines = [
         f"{user} ha segnalato una risposta non soddisfacente ({when}).",

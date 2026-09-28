@@ -23,9 +23,11 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import (
-    CRAWL_ALLOWED_DOMAINS, CRAWL_EXCLUDE_PATTERNS,
-    CRAWL_MAX_PATH_DEPTH, CRAWL_DOMAIN_MAX_PATH_DEPTH,
+    CRAWL_ALLOWED_DOMAINS,
     CRAWL_CACHE_DIR,
+    CRAWL_DOMAIN_MAX_PATH_DEPTH,
+    CRAWL_EXCLUDE_PATTERNS,
+    CRAWL_MAX_PATH_DEPTH,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -58,10 +60,7 @@ def should_skip(url: str) -> bool:
         return True
 
     non_numeric = [s for s in segments if not s.isdigit()]
-    if len(non_numeric) != len(set(non_numeric)):
-        return True
-
-    return False
+    return len(non_numeric) != len(set(non_numeric))
 
 
 def cleanup(dry_run: bool = False):

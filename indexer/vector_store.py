@@ -16,15 +16,15 @@ import hashlib
 import json
 import logging
 import re
+import sys
 import time
 from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import VECTOR_STORE_DIR, RETRIEVAL_TOP_K
+from config.settings import RETRIEVAL_TOP_K, VECTOR_STORE_DIR
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def _ensure_loaded():
             log.info(f"Vector store caricato: {len(_ids)} chunk, dim={dim}")
             _build_bm25()
         except Exception as e:
-            log.warning(f"Errore caricamento vector store: {e} — parto da zero")
+            log.warning(f"Errore caricamento vector store: {e} — parto da zero", exc_info=True)
             _reset_state()
     else:
         _reset_state()
@@ -194,7 +194,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memoria (evita di richiamare Ollama per contenuti invariati).
     Ritorna il numero di chunk inseriti o aggiornati con un nuovo vettore.
     """
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty
+    global _embeddings, _bm25_dirty
 
     if not chunks:
         return 0
@@ -284,11 +284,7 @@ def chunks_to_embed(chunks: list[dict], ids: list[str]) -> list[bool]:
     flags = []
     for chunk, cid in zip(chunks, ids):
         idx = _id_to_idx.get(cid)
-        if idx is None:
-            flags.append(True)
-        elif _metadata[idx].get("text") != chunk["text"]:
-            flags.append(True)
-        elif not np.any(_embeddings[idx]):
+        if idx is None or _metadata[idx].get("text") != chunk["text"] or not np.any(_embeddings[idx]):
             flags.append(True)
         else:
             flags.append(False)
@@ -550,7 +546,6 @@ def get_zero_vector_chunks() -> list[dict]:
 def update_embeddings(updates: list[tuple[int, list[float]]]) -> int:
     """Aggiorna embedding in place per una lista di (idx, vector).
     Rimuove needs_reembedding se il vettore è valido. Ritorna il numero aggiornati."""
-    global _embeddings
     _ensure_loaded()
     updated = 0
     for idx, vec in updates:

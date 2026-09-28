@@ -6,3 +6,7 @@ line-length = 100
 # E402: module-level import not at top of file
 # Ignorato perché i moduli usano sys.path.insert() prima degli import interni.
 ignore = ["E402"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Security()/Depends() nei default dei parametri è l'idioma di FastAPI (B008).
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Security"]

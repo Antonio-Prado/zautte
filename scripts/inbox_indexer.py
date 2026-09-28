@@ -25,16 +25,16 @@ Esempio: per "delibera_2024.pdf" crea "delibera_2024.json":
 import json
 import logging
 import shutil
+import sys
 import time
 from pathlib import Path
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import DATA_DIR
-from indexer.pdf_extractor import extract_text_from_pdf
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
+from indexer.pdf_extractor import extract_text_from_pdf
 from indexer.vector_store import upsert_chunks
 
 logging.basicConfig(
@@ -61,8 +61,8 @@ def load_metadata(doc_path: Path) -> dict:
         try:
             with open(meta_path, encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            log.warning(f"Metadati {meta_path.name} non leggibili: {e}")
     return {}
 
 
@@ -136,8 +136,8 @@ def process_file(doc_path: Path) -> bool:
         log.info(f"  OK: {inserted} chunk indicizzati da '{title}'")
         return True
 
-    except Exception as e:
-        log.error(f"  ERRORE: {doc_path.name} — {e}", exc_info=True)
+    except Exception:
+        log.exception(f"  ERRORE: {doc_path.name}")
         return False
 
 

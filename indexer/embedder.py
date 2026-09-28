@@ -19,14 +19,15 @@ viene ritagliato a _CUT_STEPS caratteri in sequenza finché Ollama lo accetta
 import logging
 import random
 import re
-import time
-import httpx
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+import httpx
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import OLLAMA_BASE_URL, OLLAMA_EMBED_MODEL, EMBEDDING_DIMENSION
+from config.settings import EMBEDDING_DIMENSION, OLLAMA_BASE_URL, OLLAMA_EMBED_MODEL
 
 log = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
             if attempt == MAX_RETRIES:
                 log.warning(f"  Batch Ollama HTTP {resp.status_code} dopo {MAX_RETRIES} retry")
                 return None
-        except Exception as e:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
             if attempt == MAX_RETRIES:
                 log.warning(f"  Batch Ollama errore dopo {MAX_RETRIES} retry: {e}")
                 return None
@@ -188,7 +189,7 @@ def _embed_request(client: httpx.Client, text: str,
             if attempt == MAX_RETRIES:
                 log.warning(f"  Embedding singolo fallito (HTTP {resp.status_code}), vettore zero")
                 return None, False
-        except Exception as e:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
             if attempt == MAX_RETRIES:
                 log.warning(f"  Embedding singolo fallito: {e}, vettore zero")
                 return None, False
@@ -209,7 +210,7 @@ def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
         if resp.status_code == 200:
             return resp.json()["embedding"]
         log.warning(f"  /api/embeddings HTTP {resp.status_code}: {resp.text[:200]!r}, vettore zero")
-    except Exception as e:
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
         log.warning(f"  /api/embeddings errore: {e}, vettore zero")
     return _zero()
 
@@ -223,5 +224,5 @@ def check_ollama_embed() -> bool:
                 json={"model": OLLAMA_EMBED_MODEL, "input": ["test"]},
             )
             return resp.status_code == 200
-    except Exception:
+    except httpx.HTTPError:
         return False

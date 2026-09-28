@@ -26,13 +26,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import CRAWL_CACHE_DIR
-from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
+from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
 from indexer.vector_store import (
-    upsert_chunks, get_stats, clear_collection, get_indexed_sources,
-    chunk_id as make_chunk_id, chunks_to_embed, source_chunk_ids,
-    remove_chunk_ids, deferred_saves, checkpoint, checkpoint_due,
+    checkpoint,
+    checkpoint_due,
+    chunks_to_embed,
+    clear_collection,
+    deferred_saves,
+    get_indexed_sources,
+    get_stats,
+    remove_chunk_ids,
+    source_chunk_ids,
+    upsert_chunks,
+)
+from indexer.vector_store import (
+    chunk_id as make_chunk_id,
 )
 
 logging.basicConfig(
