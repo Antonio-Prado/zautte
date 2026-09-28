@@ -10,23 +10,28 @@ Pipeline di retrieval:
 
 import logging
 import re
-from typing import AsyncGenerator
+import sys
+from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import httpx
 
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import (
+    ANTHROPIC_API_KEY,
+    CLAUDE_MODEL,
+    CLAUDE_REWRITE_MODEL,
     LLM_PROVIDER,
-    OLLAMA_BASE_URL, OLLAMA_MODEL,
-    ANTHROPIC_API_KEY, CLAUDE_MODEL,
-    QUERY_REWRITE, CLAUDE_REWRITE_MODEL,
-    SYSTEM_PROMPT_IT, SYSTEM_PROMPT_EN,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    QUERY_REWRITE,
     RETRIEVAL_TOP_K,
     SITE_URL,
+    SYSTEM_PROMPT_EN,
+    SYSTEM_PROMPT_IT,
     is_migrated_source,
+    now_local,
 )
 from indexer.embedder import embed_query
 from indexer.vector_store import hybrid_search
@@ -56,7 +61,7 @@ def _load_office_map() -> list[tuple[set, str, str]]:
             url = SITE_URL.rstrip("/") + e["path"] if e.get("path") else e.get("url", "")
             result.append((set(e["keywords"]), e["name"], url))
         return result
-    except Exception as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         log.warning(f"Impossibile caricare offices.json: {exc}")
         return []
 
@@ -81,7 +86,7 @@ def _load_synonyms() -> dict[str, list[str]]:
         return {}
     try:
         return _j.loads(f.read_text(encoding="utf-8"))
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         log.warning(f"Impossibile caricare synonyms.json: {exc}")
         return {}
 
@@ -173,7 +178,7 @@ def _load_known_facts() -> list[dict]:
                 },
             })
         return result
-    except Exception as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         log.warning(f"Impossibile caricare known_facts.json: {exc}")
         return []
 
@@ -415,8 +420,8 @@ async def contextualize_query(
         if not text or len(text) > _REWRITE_MAX_LEN:
             return _fallback_contextualize(query, history)
         return text
-    except Exception as exc:
-        log.warning("Riscrittura della domanda fallita (%s): uso il ripiego", exc)
+    except Exception:
+        log.warning("Riscrittura della domanda fallita: uso il ripiego", exc_info=True)
         return _fallback_contextualize(query, history)
 
 
@@ -439,8 +444,8 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
         if response.usage:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
                            CLAUDE_REWRITE_MODEL, uid=uid)
-    except Exception:
-        pass
+    except (AttributeError, TypeError, ValueError) as exc:
+        log.debug("Conteggio token non registrato: %s", exc)
     return "".join(b.text for b in response.content if b.type == "text")
 
 
@@ -482,23 +487,24 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
         if attempt > 0:
             await _asyncio.sleep(3)
         try:
-            async with httpx.AsyncClient(timeout=600.0) as client:
-                async with client.stream("POST", f"{OLLAMA_BASE_URL}/api/chat",
-                                          json=payload) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        if not line:
-                            continue
-                        try:
-                            chunk = _json.loads(line)
-                            token = chunk.get("message", {}).get("content", "")
-                            if token:
-                                yield token
-                            if chunk.get("done"):
-                                return
-                        except _json.JSONDecodeError:
-                            continue
-                    return
+            async with (
+                httpx.AsyncClient(timeout=600.0) as client,
+                client.stream("POST", f"{OLLAMA_BASE_URL}/api/chat", json=payload) as resp,
+            ):
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = _json.loads(line)
+                        token = chunk.get("message", {}).get("content", "")
+                        if token:
+                            yield token
+                        if chunk.get("done"):
+                            return
+                    except _json.JSONDecodeError:
+                        continue
+                return
         except httpx.HTTPStatusError as e:
             last_exc = e
             log.warning(f"Ollama HTTP {e.response.status_code} (tentativo {attempt+1}/2)")
@@ -534,8 +540,8 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
         if response.usage:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
                            CLAUDE_MODEL, uid=uid)
-    except Exception:
-        pass
+    except (AttributeError, TypeError, ValueError) as exc:
+        log.debug("Conteggio token non registrato: %s", exc)
     return response.content[0].text.strip()
 
 
@@ -564,8 +570,8 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
             if final and final.usage:
                 _record_tokens(final.usage.input_tokens, final.usage.output_tokens,
                                CLAUDE_MODEL, uid=uid)
-        except Exception:
-            pass
+        except (AttributeError, TypeError, ValueError) as exc:
+            log.debug("Conteggio token non registrato: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -574,9 +580,9 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
 
 import hashlib as _hashlib
 import json as _json
-import datetime as _datetime
 import time as _time
-from collections import OrderedDict, Counter as _Counter
+from collections import Counter as _Counter
+from collections import OrderedDict
 from pathlib import Path as _Path
 
 # Log query senza risposta per identificare gap di contenuto
@@ -593,15 +599,15 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False):
     try:
         _GAPS_LOG.parent.mkdir(parents=True, exist_ok=True)
         entry = {
-            "ts": _datetime.datetime.now().isoformat(timespec="seconds"),
+            "ts": now_local().isoformat(timespec="seconds"),
             "query": query[:200],
             "chunks": chunks_found,
             "weak": weak,
         }
         with open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    except (OSError, TypeError, ValueError) as exc:
+        log.debug("Log dei gap non scritto: %s", exc)
 
 _CACHE_MAX = 200  # max risposte cachate
 _response_cache: OrderedDict = OrderedDict()
@@ -647,7 +653,7 @@ def _record_tokens(in_tok: int, out_tok: int, model: str,
     _token_out_total += out_tok
     _token_cost_total += cost
     entry = {
-        "ts":    _datetime.datetime.now().isoformat(timespec="seconds"),
+        "ts":    now_local().isoformat(timespec="seconds"),
         "in":    in_tok,
         "out":   out_tok,
         "model": model,
@@ -678,7 +684,7 @@ def _load_stats():
         _token_out_total  = d.get("token_out_total", 0)
         _token_cost_total = d.get("token_cost_total", 0.0)
         _token_history    = d.get("token_history", [])[-_TOKEN_HISTORY_MAX:]
-    except Exception as e:
+    except (OSError, ValueError, TypeError, AttributeError) as e:
         log.warning(f"Impossibile caricare stats: {e}")
 
 
@@ -696,7 +702,7 @@ def _save_stats():
                 "token_cost_total": _token_cost_total,
                 "token_history":    _token_history[-_TOKEN_HISTORY_MAX:],
             }, f)
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         log.warning(f"Impossibile salvare stats: {e}")
 
 
@@ -772,7 +778,7 @@ async def answer(
     if not query:
         raise ValueError("Query vuota")
     _query_count += 1
-    _hour_counts[_datetime.datetime.now().hour] += 1
+    _hour_counts[now_local().hour] += 1
     _norm = re.sub(r"\s+", " ", query.lower().strip("?! "))
     _query_freq[_norm] += 1
 

@@ -8,10 +8,10 @@ Stato salvato in: data/crawl_cache/crawl_state.json
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import CRAWL_CACHE_DIR
 
@@ -21,7 +21,7 @@ STATE_FILE = CRAWL_CACHE_DIR / "crawl_state.json"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def content_hash(data: str | bytes) -> str:
@@ -47,7 +47,7 @@ class CrawlState:
                 with open(STATE_FILE, encoding="utf-8") as f:
                     self._state = json.load(f)
                 log.info(f"Stato caricato: {len(self._state)} URL tracciati")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 log.warning(f"Impossibile caricare lo stato: {e} — parto da zero")
                 self._state = {}
 
