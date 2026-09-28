@@ -11,10 +11,11 @@ Strategia:
 """
 
 import re
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 import sys
 from pathlib import Path
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import CHUNK_OVERLAP
 

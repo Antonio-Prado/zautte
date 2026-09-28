@@ -27,9 +27,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.auth import hash_password                    # noqa: E402
-from api.mailer import send_credentials, smtp_configured  # noqa: E402
-from config.settings import PILOT_LOGIN_URL, USERS_FILE   # noqa: E402
+from api.auth import hash_password
+from api.mailer import send_credentials, smtp_configured
+from config.settings import PILOT_LOGIN_URL, USERS_FILE
 
 
 def _load() -> list[dict]:
@@ -37,7 +37,7 @@ def _load() -> list[dict]:
         try:
             data = json.loads(USERS_FILE.read_text(encoding="utf-8"))
             return data if isinstance(data, list) else []
-        except Exception:
+        except (OSError, ValueError):
             return []
     return []
 

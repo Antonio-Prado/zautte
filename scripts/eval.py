@@ -156,8 +156,7 @@ async def main():
     # Salva risultati
     out = Path(__file__).parent.parent / "data" / "eval_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+    out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Risultati salvati in {out}")
 
 

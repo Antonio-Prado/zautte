@@ -8,29 +8,39 @@ Endpoints:
   GET  /stats         → statistiche vector store
 """
 
+import asyncio
+import datetime
 import json
 import logging
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
-from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import API_CORS_ORIGINS, SITE_NAME, LLM_PROVIDER, OLLAMA_MODEL, CLAUDE_MODEL, ADMIN_API_KEY
-from api.rag import answer, get_query_count, get_activity_stats
 from api import auth
 from api.auth import require_user
 from api.limiter import limiter
-from indexer.vector_store import get_stats, EMBEDDINGS_FILE, is_bm25_active, get_top_doc
+from api.rag import answer, get_activity_stats, get_query_count
+from config.settings import (
+    ADMIN_API_KEY,
+    API_CORS_ORIGINS,
+    CLAUDE_MODEL,
+    LLM_PROVIDER,
+    OLLAMA_MODEL,
+    SITE_NAME,
+    now_local,
+)
+from indexer.vector_store import EMBEDDINGS_FILE, get_stats, get_top_doc, is_bm25_active
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,8 +48,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-import datetime as _dt_module
-_startup_time = _dt_module.datetime.now()
+_startup_time = now_local()
+_DATA_DIR = Path(__file__).parent.parent / "data"
 
 # --- Autenticazione endpoint admin ---
 _api_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
@@ -66,8 +76,8 @@ async def lifespan(app: FastAPI):
             log.info(f"Pronto. Ollama raggiungibile. Vector store: {stats['total_chunks']} chunk.")
         else:
             log.warning("Ollama non raggiungibile all'avvio. Assicurarsi che 'ollama serve' sia attivo.")
-    except Exception as e:
-        log.error(f"Errore durante l'avvio: {e}")
+    except Exception:
+        log.exception("Errore durante l'avvio")
 
     # Graceful shutdown: attende il completamento delle richieste in corso
     shutdown_event = asyncio.Event()
@@ -166,59 +176,66 @@ class ChatResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-def _read_gaps_count() -> int:
-    from pathlib import Path as _P
-    f = _P(__file__).parent.parent / "data" / "gaps.jsonl"
-    if not f.exists():
-        return 0
+def _read_jsonl(path: Path) -> list[dict]:
+    """Legge un file JSONL tollerando righe vuote o malformate (file append-only:
+    una riga può restare troncata da un crash). Funzione sincrona: negli endpoint
+    async va chiamata con asyncio.to_thread per non bloccare l'event loop."""
+    entries: list[dict] = []
     try:
-        return sum(1 for line in f.open(encoding="utf-8") if line.strip())
-    except Exception:
-        return 0
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    log.debug("Riga JSONL malformata in %s ignorata", path.name)
+                    continue
+                if isinstance(obj, dict):
+                    entries.append(obj)
+    except OSError as e:
+        log.warning("Impossibile leggere %s: %s", path, e)
+    return entries
+
+
+def _grep_lines(path: Path, markers: tuple[str, ...]) -> list[str]:
+    """Righe di `path` che contengono almeno uno dei marker (lettura riga per riga,
+    il file può pesare decine di MB). Sincrona: chiamare con asyncio.to_thread."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return [ln.rstrip("\n") for ln in fh if any(m in ln for m in markers)]
+    except OSError as e:
+        log.warning("Impossibile leggere %s: %s", path, e)
+        return []
+
+
+def _read_gaps_count() -> int:
+    f = _DATA_DIR / "gaps.jsonl"
+    return len(_read_jsonl(f)) if f.exists() else 0
 
 
 def _read_recent_gaps(n: int) -> list[dict]:
-    from pathlib import Path as _P
-    import json as _j
-    f = _P(__file__).parent.parent / "data" / "gaps.jsonl"
+    f = _DATA_DIR / "gaps.jsonl"
     if not f.exists():
         return []
-    lines = []
-    try:
-        lines = [line for line in f.open(encoding="utf-8") if line.strip()]
-    except Exception:
-        return []
     recent = []
-    for line in reversed(lines):
-        try:
-            e = _j.loads(line)
+    for e in reversed(_read_jsonl(f)):
+        if "query" in e:
             recent.append({"ts": e.get("ts", ""), "query": e["query"]})
-        except Exception:
-            pass
         if len(recent) >= n:
             break
     return list(reversed(recent))
 
 
 def _read_feedback_summary() -> dict:
-    from pathlib import Path as _P
-    import json as _j
-    f = _P(__file__).parent.parent / "data" / "feedback.jsonl"
-    if not f.exists():
-        return {"total": 0, "positive": 0, "negative": 0}
+    f = _DATA_DIR / "feedback.jsonl"
     pos = neg = 0
-    try:
-        for line in f.open(encoding="utf-8"):
-            try:
-                e = _j.loads(line)
-                if e.get("rating") == 1:
-                    pos += 1
-                elif e.get("rating") == -1:
-                    neg += 1
-            except Exception:
-                pass
-    except Exception:
-        pass
+    if f.exists():
+        for e in _read_jsonl(f):
+            if e.get("rating") == 1:
+                pos += 1
+            elif e.get("rating") == -1:
+                neg += 1
     return {"total": pos + neg, "positive": pos, "negative": neg}
 
 
@@ -227,15 +244,14 @@ def _load_user_names() -> dict[str, str]:
 
     Usata solo nelle risposte admin: i file dati (usage.jsonl, stats.json)
     contengono l'id opaco, il nome viene risolto a video."""
-    from pathlib import Path as _P
-    users_file = _P(__file__).parent.parent / "data" / "users.json"
+    users_file = _DATA_DIR / "users.json"
     names: dict[str, str] = {}
     if users_file.exists():
         try:
             for u in json.loads(users_file.read_text(encoding="utf-8")):
                 names[u.get("id")] = u.get("name", "")
-        except Exception:
-            pass
+        except (OSError, ValueError, TypeError, AttributeError) as e:
+            log.warning("users.json non leggibile: %s", e)
     return names
 
 
@@ -249,14 +265,12 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
     """
     if not uid or uid == "anon":
         return
-    import datetime as _dt
-    from pathlib import Path as _P
-    f = _P(__file__).parent.parent / "data" / "usage.jsonl"
+    f = _DATA_DIR / "usage.jsonl"
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
         question = question or ""
         entry: dict = {
-            "ts": _dt.datetime.now().isoformat(timespec="seconds"),
+            "ts": now_local().isoformat(timespec="seconds"),
             "uid": uid,
             "q": question[:1000],
             "q_len": len(question),
@@ -267,8 +281,8 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
             entry["response_ms"] = response_ms
         with open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    except (OSError, TypeError, ValueError) as e:
+        log.warning("Registrazione uso non riuscita: %s", e)
 
 
 @app.get("/health")
@@ -276,13 +290,11 @@ async def health(key: str | None = Security(_api_key_header)):
     """Liveness pubblico (minimale). I dettagli operativi (statistiche, query,
     feedback, costi) sono restituiti SOLO con una chiave admin valida, per non
     esporli a chiunque conosca l'URL."""
-    import datetime as _dt
-
     base = {
         "status": "ok",
         "llm_provider": LLM_PROVIDER,
         "hybrid_search": is_bm25_active(),
-        "uptime_seconds": int((_dt_module.datetime.now() - _startup_time).total_seconds()),
+        "uptime_seconds": int((now_local() - _startup_time).total_seconds()),
     }
 
     is_admin = (not ADMIN_API_KEY) or (key == ADMIN_API_KEY)
@@ -294,7 +306,8 @@ async def health(key: str | None = Security(_api_key_header)):
     last_indexed = None
     if EMBEDDINGS_FILE.exists():
         mtime = EMBEDDINGS_FILE.stat().st_mtime
-        last_indexed = _dt.datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
+        last_indexed = (datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC)
+                        .astimezone().strftime("%d/%m/%Y %H:%M"))
 
     # Storico token: risolvi l'id utente in nome (solo qui, vista admin).
     activity = get_activity_stats()
@@ -329,18 +342,10 @@ async def stats(_: None = Security(require_admin)):
 @app.get("/gaps")
 async def gaps(limit: int = 50, _: None = Security(require_admin)):
     """Query senza risposta — utile per identificare gap di contenuto."""
-    import json as _json
-    from pathlib import Path as _Path
-    gaps_file = _Path(__file__).parent.parent / "data" / "gaps.jsonl"
+    gaps_file = _DATA_DIR / "gaps.jsonl"
     if not gaps_file.exists():
         return {"gaps": [], "total": 0}
-    entries = []
-    with open(gaps_file, encoding="utf-8") as f:
-        for line in f:
-            try:
-                entries.append(_json.loads(line))
-            except Exception:
-                pass
+    entries = await asyncio.to_thread(_read_jsonl, gaps_file)
     return {"gaps": entries[-limit:], "total": len(entries)}
 
 
@@ -395,15 +400,14 @@ async def feedback_detail(request: Request, req: FeedbackDetailRequest, backgrou
 def _notify_feedback(entry: dict) -> None:
     """Email all'amministratore per una segnalazione. Gira in background dopo
     la risposta HTTP: un relay lento o giù non deve mai bloccare il collega."""
-    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     from api.mailer import send_feedback_notification, smtp_configured
+    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     if not FEEDBACK_NOTIFY_EMAIL or not smtp_configured():
         return
     try:
         send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, entry, PILOT_LOGIN_URL)
-    except Exception as e:
-        logging.getLogger(__name__).warning(
-            f"Notifica segnalazione non inviata a {FEEDBACK_NOTIFY_EMAIL}: {e}")
+    except Exception:
+        log.warning("Notifica segnalazione non inviata a %s", FEEDBACK_NOTIFY_EMAIL, exc_info=True)
 
 
 def _resolved_negative_file():
@@ -446,6 +450,7 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
     un autore con email (login attivo) e `notify` è vero, gli invia un'email di
     riscontro con l'eventuale nota. Ritorna `notified` = email in partenza."""
     import json as _json
+
     from api import feedback_store as fs
     f = _resolved_negative_file()
     f.parent.mkdir(parents=True, exist_ok=True)
@@ -453,7 +458,7 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
     if f.exists():
         try:
             existing = _json.loads(f.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, ValueError):
             existing = []
     key = _resolved_key(req.ts, req.question)
     if any(e.get("key") == key for e in existing):
@@ -482,31 +487,23 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
 def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
     """Email di riscontro al collega, in background. Le risposte arrivano
     all'amministratore (Reply-To = FEEDBACK_NOTIFY_EMAIL)."""
-    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     from api.mailer import send_feedback_resolved, smtp_configured
+    from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     if not smtp_configured():
         return
     try:
         send_feedback_resolved(to, name, entry, note, PILOT_LOGIN_URL, reply_to=FEEDBACK_NOTIFY_EMAIL)
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"Email di riscontro non inviata a {to}: {e}")
+    except Exception:
+        log.warning("Email di riscontro non inviata a %s", to, exc_info=True)
 
 
 @app.get("/feedback/list")
 async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
     """Lista feedback ricevuti — solo admin."""
-    import json as _json
-    from pathlib import Path as _Path
-    feedback_file = _Path(__file__).parent.parent / "data" / "feedback.jsonl"
+    feedback_file = _DATA_DIR / "feedback.jsonl"
     if not feedback_file.exists():
         return {"feedback": [], "total": 0, "positive": 0, "negative": 0}
-    entries = []
-    with open(feedback_file, encoding="utf-8") as f:
-        for line in f:
-            try:
-                entries.append(_json.loads(line))
-            except Exception:
-                pass
+    entries = await asyncio.to_thread(_read_jsonl, feedback_file)
     positive = sum(1 for e in entries if e.get("rating") == 1)
     negative = sum(1 for e in entries if e.get("rating") == -1)
     return {
@@ -525,11 +522,9 @@ async def usage_summary(_: None = Security(require_admin)):
     data/users.json. Ritorna: messaggi per utente, primo/ultimo accesso,
     giorni attivi, e l'andamento giornaliero (utenti attivi + messaggi).
     """
-    import json as _json
     from collections import defaultdict
-    from pathlib import Path as _Path
 
-    usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
+    usage_file = _DATA_DIR / "usage.jsonl"
     names = _load_user_names()
 
     per_user: dict[str, dict] = defaultdict(
@@ -539,28 +534,23 @@ async def usage_summary(_: None = Security(require_admin)):
     day_msgs: dict[str, int] = defaultdict(int)
     total = 0
 
-    if usage_file.exists():
-        with open(usage_file, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    e = _json.loads(line)
-                except Exception:
-                    continue
-                uid = e.get("uid")
-                ts = e.get("ts", "")
-                if not uid:
-                    continue
-                day = ts[:10]
-                u = per_user[uid]
-                u["messages"] += 1
-                u["days"].add(day)
-                if u["first_seen"] is None or ts < u["first_seen"]:
-                    u["first_seen"] = ts
-                if u["last_seen"] is None or ts > u["last_seen"]:
-                    u["last_seen"] = ts
-                day_users[day].add(uid)
-                day_msgs[day] += 1
-                total += 1
+    entries = await asyncio.to_thread(_read_jsonl, usage_file) if usage_file.exists() else []
+    for e in entries:
+        uid = e.get("uid")
+        ts = e.get("ts", "")
+        if not uid:
+            continue
+        day = ts[:10]
+        u = per_user[uid]
+        u["messages"] += 1
+        u["days"].add(day)
+        if u["first_seen"] is None or ts < u["first_seen"]:
+            u["first_seen"] = ts
+        if u["last_seen"] is None or ts > u["last_seen"]:
+            u["last_seen"] = ts
+        day_users[day].add(uid)
+        day_msgs[day] += 1
+        total += 1
 
     # Includi anche gli utenti registrati che non hanno ancora usato il bot
     # (compaiono con 0 messaggi e "ultimo accesso" vuoto).
@@ -605,31 +595,23 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
     Legge data/usage.jsonl risolvendo i nomi da data/users.json. Le voci più
     vecchie (registrate prima dell'introduzione del testo) sono ignorate.
     """
-    import json as _json
-    from pathlib import Path as _Path
-
-    usage_file = _Path(__file__).parent.parent / "data" / "usage.jsonl"
+    usage_file = _DATA_DIR / "usage.jsonl"
     names = _load_user_names()
 
+    entries = await asyncio.to_thread(_read_jsonl, usage_file) if usage_file.exists() else []
     msgs: list[dict] = []
-    if usage_file.exists():
-        with open(usage_file, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    e = _json.loads(line)
-                except Exception:
-                    continue
-                if "q" not in e:  # voci vecchie senza testo della domanda
-                    continue
-                uid = e.get("uid", "")
-                msgs.append({
-                    "ts": e.get("ts", ""),
-                    "uid": uid,
-                    "name": names.get(uid, uid),
-                    "q": e.get("q", ""),
-                    "lang": e.get("lang"),
-                    "response_ms": e.get("response_ms"),
-                })
+    for e in entries:
+        if "q" not in e:  # voci vecchie senza testo della domanda
+            continue
+        uid = e.get("uid", "")
+        msgs.append({
+            "ts": e.get("ts", ""),
+            "uid": uid,
+            "name": names.get(uid, uid),
+            "q": e.get("q", ""),
+            "lang": e.get("lang"),
+            "response_ms": e.get("response_ms"),
+        })
 
     total = len(msgs)
     recent = msgs[-limit:]
@@ -641,9 +623,8 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
 async def crawl_history(_: None = Security(require_admin)):
     """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
     import re
-    from pathlib import Path as _P
 
-    log_path = _P("/var/log/chatbot-sync.log")
+    log_path = Path("/var/log/chatbot-sync.log")
     if not log_path.exists():
         return {"events": [], "current_html": None, "current_pdf": None}
 
@@ -652,11 +633,7 @@ async def crawl_history(_: None = Security(require_admin)):
     MARKERS = ("Vector store caricato:", "Crawl incrementale completato",
                "=== Crawl", "[HTML ", "[PDF ")
 
-    try:
-        with open(log_path, encoding="utf-8", errors="replace") as fh:
-            lines = [ln.rstrip("\n") for ln in fh if any(m in ln for m in MARKERS)]
-    except Exception:
-        lines = []
+    lines = await asyncio.to_thread(_grep_lines, log_path, MARKERS)
 
     ts_re   = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):\d{2},\d+ \[INFO\] (.+)$")
     html_re = re.compile(r"\[HTML (\d+)/(\d+)\]")
@@ -736,8 +713,8 @@ async def chat(request: Request, req: ChatRequest,
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        log.error(f"Errore in /chat: {e}", exc_info=True)
+    except Exception:
+        log.exception("Errore in /chat")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
 
@@ -761,8 +738,8 @@ async def chat_stream(request: Request, req: ChatRequest,
         _log_usage(user.get("uid"), req.question)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        log.error(f"Errore in /chat/stream: {e}", exc_info=True)
+    except Exception:
+        log.exception("Errore in /chat/stream")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
     async def event_stream():
@@ -777,6 +754,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 await queue.put(("sources", None))
                 await queue.put(("done", None))
             except Exception as exc:
+                log.warning("Errore durante lo streaming della risposta", exc_info=True)
                 await queue.put(("error", str(exc)))
 
         task = _asyncio.create_task(_produce())
@@ -784,7 +762,7 @@ async def chat_stream(request: Request, req: ChatRequest,
             while True:
                 try:
                     kind, value = await _asyncio.wait_for(queue.get(), timeout=15.0)
-                except _asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": keep-alive\n\n"
                     continue
 
