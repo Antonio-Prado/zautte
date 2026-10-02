@@ -212,23 +212,33 @@
     }
     .btn-resolve:hover { background: #e8f5e9; border-color: #43a047; color: #2e7d32; }
     .btn-resolve:disabled { opacity: 0.5; cursor: default; }
+
+    /* Vista collega: titolo, descrizione e chat che riempie il resto della finestra */
+    body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-bottom: 24px; }
+    #chat-area { max-width: 640px; }
+    body.user-view #chat-area { flex: 1; min-height: 420px; }
+    body.admin-view #chat-area { height: 640px; margin: 24px 0; }
+    @media (max-width: 480px) {
+      body { padding: 20px 16px 40px; }
+    }
   </style>
 </head>
-<body>
+<body class="user-view">
   <h1>Zautte — Assistente virtuale</h1>
-  <p class="subtitle">
+  <p class="subtitle" id="admin-subtitle" style="display:none">
     <span class="badge">Area riservata</span>
     &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
-    &nbsp;·&nbsp; <a class="site-link" href="#" id="admin-unlock">🔓 Vista amministratore</a>
   </p>
 
   <div id="pilot-intro" style="max-width:640px;margin:24px 0;padding:20px 22px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.55;color:#444">
     <strong>Accesso riservato ai colleghi in fase di test.</strong><br>
-    Apri l'assistente dal pulsante in basso a destra, accedi con le credenziali che hai
-    ricevuto e fai le tue domande. Usa 👍 / 👎 per darci un riscontro.<br>
+    Accedi con le credenziali che hai ricevuto e fai le tue domande.
+    Usa 👍 / 👎 per darci un riscontro.<br>
     Se metti 👎, sotto la risposta compare un modulo: scrivi cosa non va e incolla il link
     della pagina dove si trova l'informazione corretta. Non serve più mandare un'email.
   </div>
+
+  <div id="chat-area"></div>
 
   <div class="grid" id="admin-grid" style="display:none">
 
@@ -408,6 +418,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">2 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Accesso diretto alla chat</strong>: la pagina dei colleghi mostra solo titolo, descrizione e il modulo di accesso; dopo il login Zautte compare già aperto nella pagina, senza il pulsante flottante (nuova opzione <code>inline</code> del widget). Un token scaduto riporta subito al login invece di far perdere la prima domanda. La vista amministratore si apre con <code>dashboard.html#admin</code>.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">28 set 2026</div>
       <div class="cl-text">
@@ -978,12 +994,18 @@
     function startAdminView() {
       const grid = document.getElementById('admin-grid');
       const intro = document.getElementById('pilot-intro');
-      const unlock = document.getElementById('admin-unlock');
+      const chat = document.getElementById('chat-area');
       const changelog = document.getElementById('changelog-section');
+      ['admin-subtitle', 'page-footer'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
       if (grid) grid.style.display = '';
       if (changelog) changelog.style.display = '';
       if (intro) intro.style.display = 'none';
-      if (unlock) unlock.style.display = 'none';
+      // La chat resta disponibile anche all'amministratore, sotto le statistiche.
+      document.body.classList.replace('user-view', 'admin-view');
+      if (grid && chat) grid.after(chat);
       if (_statsStarted) return;
       _statsStarted = true;
       updateStats();
@@ -1178,11 +1200,13 @@
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
-    // I colleghi vedono solo l'assistente (chat con login utente). Le statistiche
-    // admin restano nascoste e compaiono solo sbloccando la vista amministratore
-    // (link "🔓") o se c'è già una chiave admin valida salvata nel browser.
-    const _unlockLink = document.getElementById('admin-unlock');
-    if (_unlockLink) _unlockLink.addEventListener('click', function (e) { e.preventDefault(); promptAdminKey(); });
+    // I colleghi vedono solo titolo, descrizione e il login dell'assistente (poi la
+    // chat già aperta). Le statistiche admin compaiono aprendo la pagina con #admin
+    // (chiede la chiave) o se c'è già una chiave admin valida salvata nel browser.
+    function _adminFromHash() {
+      if (location.hash === '#admin' && !_statsStarted) promptAdminKey();
+    }
+    window.addEventListener('hashchange', _adminFromHash);
 
     (async function initDashboard() {
       if (_adminKey && await _validateAdminKey(_adminKey)) {
@@ -1190,28 +1214,17 @@
       } else {
         _adminKey = null;
         try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+        _adminFromHash();
       }
     })();
-
-    function askQuestion(text) {
-      const openBtn = document.querySelector('[id$="-btn"]');
-      if (openBtn) openBtn.click();
-      setTimeout(() => {
-        const input = document.querySelector('[id$="-input"]');
-        const sendBtn = document.querySelector('[id$="-send"]');
-        if (input && sendBtn) {
-          input.value = text;
-          input.dispatchEvent(new Event('input'));
-          sendBtn.click();
-        }
-      }, 400);
-    }
   </script>
 
   <script>
     window.ChatbotConfig = {
       apiUrl:        window.location.origin,
       requireLogin:  true,
+      inline:        '#chat-area',
+      inlineHeight:  '100%',
       primaryColor:  '#003366',
       title:         'Zautte',
       subtitle:      '',
@@ -1229,8 +1242,8 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20260914" defer></script>
-  <footer style="max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
+  <script src="./chatbot-widget.js?v=20261002" defer></script>
+  <footer id="page-footer" style="display:none;max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
     Responsabile dello sviluppo: Antonio Prado
     &nbsp;·&nbsp;
     <a href="https://github.com/Antonio-Prado/zautte" target="_blank" style="color:#aaa;">Codice sorgente ↗</a>
