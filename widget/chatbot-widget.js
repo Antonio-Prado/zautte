@@ -522,7 +522,7 @@
       pointer-events: auto;
       transition: none;
     }
-    #${WIDGET_ID}-panel.inline.login { height: auto; max-width: 420px; }
+    #${WIDGET_ID}-panel.inline.login { height: auto; max-width: 420px; margin: 0 auto; }
     #${WIDGET_ID}-panel.inline.login #${WIDGET_ID}-header,
     #${WIDGET_ID}-panel.inline #${WIDGET_ID}-close { display: none; }
 
