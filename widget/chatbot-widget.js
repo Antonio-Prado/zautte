@@ -671,6 +671,14 @@
         localStorage.removeItem(AUTH_NAME_KEY);
       }
     } catch (_) {}
+    emitAuth();
+  }
+
+  /** Notifica alla pagina ospite lo stato di accesso (evento `zautte:auth`). */
+  function emitAuth() {
+    document.dispatchEvent(new CustomEvent("zautte:auth", {
+      detail: { loggedIn: !!authToken, name: authName || "" },
+    }));
   }
 
   // Riferimenti alle aree che il login sostituisce
@@ -716,11 +724,12 @@
     'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>' +
     '<polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>';
-  logoutBtn.addEventListener("click", () => {
+  function logout() {
     setAuth(null, null);
     updateHeaderUser();
     showLogin();
-  });
+  }
+  logoutBtn.addEventListener("click", logout);
   if (headerActions) headerActions.insertBefore(logoutBtn, headerActions.firstChild);
 
   function updateHeaderUser() {
@@ -1341,6 +1350,10 @@
   clearChat();
   updateHeaderUser();
   if (inlineHost) openPanel();
+  if (cfg.requireLogin) emitAuth();
+
+  // API minima per la pagina ospite (es. pulsante "Esci" fuori dal widget).
+  window.ZautteChatbot = { logout };
 
   // Token salvato ma scaduto o revocato: torna subito al login, invece di
   // scoprirlo alla prima domanda (che andrebbe persa).

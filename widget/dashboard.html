@@ -218,13 +218,32 @@
     #chat-area { max-width: 640px; }
     body.user-view #chat-area { flex: 1; min-height: 420px; }
     body.admin-view #chat-area { height: 640px; margin: 24px 0; }
+
+    /* Intestazione con utente collegato e pulsante "Esci" */
+    .page-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 6px 16px; flex-wrap: wrap; max-width: 640px;
+    }
+    body.admin-view .page-head { max-width: 800px; }
+    #session-box { font-size: 0.85em; color: #666; white-space: nowrap; }
+    .btn-logout {
+      margin-left: 8px; background: #fff; border: 1px solid #003366; border-radius: 6px;
+      color: #003366; font-size: 0.95em; padding: 4px 12px; cursor: pointer;
+    }
+    .btn-logout:hover { background: #003366; color: #fff; }
     @media (max-width: 480px) {
       body { padding: 20px 16px 40px; }
     }
   </style>
 </head>
 <body class="user-view">
-  <h1>Zautte — Assistente virtuale</h1>
+  <div class="page-head">
+    <h1>Zautte — Assistente virtuale</h1>
+    <div id="session-box" style="display:none">
+      <span id="session-name"></span>
+      <button type="button" class="btn-logout" id="logout-btn">Esci</button>
+    </div>
+  </div>
   <p class="subtitle" id="admin-subtitle" style="display:none">
     <span class="badge">Area riservata</span>
     &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
@@ -418,6 +437,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">2 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Pulsante «Esci» nella pagina</strong>: dopo l'accesso, accanto al titolo compaiono il nome del collega e il pulsante «Esci», che riporta al modulo di login. In vista amministratore «Esci» dimentica anche la chiave admin e torna alla vista collega.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">2 ott 2026</div>
       <div class="cl-text">
@@ -1006,6 +1031,7 @@
       // La chat resta disponibile anche all'amministratore, sotto le statistiche.
       document.body.classList.replace('user-view', 'admin-view');
       if (grid && chat) grid.after(chat);
+      updateSessionBox();
       if (_statsStarted) return;
       _statsStarted = true;
       updateStats();
@@ -1203,6 +1229,32 @@
     // I colleghi vedono solo titolo, descrizione e il login dell'assistente (poi la
     // chat già aperta). Le statistiche admin compaiono aprendo la pagina con #admin
     // (chiede la chiave) o se c'è già una chiave admin valida salvata nel browser.
+    // "Esci": chiude la sessione utente del widget e, in vista admin, dimentica
+    // anche la chiave admin e torna alla vista collega.
+    let _user = { loggedIn: false, name: '' };
+    function updateSessionBox() {
+      const box = document.getElementById('session-box');
+      const name = document.getElementById('session-name');
+      if (!box || !name) return;
+      const parts = [];
+      if (_user.loggedIn && _user.name) parts.push(_user.name);
+      if (_statsStarted) parts.push('amministratore');
+      name.textContent = parts.join(' · ');
+      box.style.display = (_user.loggedIn || _statsStarted) ? '' : 'none';
+    }
+    document.addEventListener('zautte:auth', function (e) {
+      _user = e.detail || { loggedIn: false, name: '' };
+      updateSessionBox();
+    });
+    document.getElementById('logout-btn').addEventListener('click', function () {
+      if (window.ZautteChatbot) window.ZautteChatbot.logout();
+      if (_statsStarted) {
+        _adminKey = null;
+        try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+        location.replace(location.pathname);
+      }
+    });
+
     function _adminFromHash() {
       if (location.hash === '#admin' && !_statsStarted) promptAdminKey();
     }
@@ -1242,7 +1294,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261002" defer></script>
+  <script src="./chatbot-widget.js?v=20261002b" defer></script>
   <footer id="page-footer" style="display:none;max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
     Responsabile dello sviluppo: Antonio Prado
     &nbsp;·&nbsp;
