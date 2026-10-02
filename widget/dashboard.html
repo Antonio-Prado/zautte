@@ -225,6 +225,14 @@
       gap: 6px 16px; flex-wrap: wrap; max-width: 640px;
     }
     body.admin-view .page-head { max-width: 800px; }
+
+    /* Vista collega: titolo, descrizione, login e chat centrati nella pagina */
+    body.user-view { align-items: center; }
+    body.user-view > .page-head,
+    body.user-view > #pilot-intro,
+    body.user-view > #chat-area { width: 100%; max-width: 640px; }
+    body.user-view .page-head { flex-direction: column; align-items: center; text-align: center; }
+    body.user-view #pilot-intro { text-align: center; }
     #session-box { font-size: 0.85em; color: #666; white-space: nowrap; }
     .btn-logout {
       margin-left: 8px; background: #fff; border: 1px solid #003366; border-radius: 6px;
@@ -440,7 +448,7 @@
     <div class="cl-entry">
       <div class="cl-date">2 ott 2026</div>
       <div class="cl-text">
-        <span class="cl-tag feat">feat</span><strong>Pulsante «Esci» nella pagina</strong>: dopo l'accesso, accanto al titolo compaiono il nome del collega e il pulsante «Esci», che riporta al modulo di login. In vista amministratore «Esci» dimentica anche la chiave admin e torna alla vista collega.
+        <span class="cl-tag feat">feat</span><strong>Pulsante «Esci» nella pagina</strong>: titolo, descrizione, modulo di accesso e chat sono centrati nella pagina. Dopo l'accesso, sotto il titolo compaiono il nome del collega e il pulsante «Esci», che riporta al modulo di login. In vista amministratore «Esci» dimentica anche la chiave admin e torna alla vista collega.
       </div>
     </div>
     <div class="cl-entry">
@@ -1294,7 +1302,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261002b" defer></script>
+  <script src="./chatbot-widget.js?v=20261002c" defer></script>
   <footer id="page-footer" style="display:none;max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
     Responsabile dello sviluppo: Antonio Prado
     &nbsp;·&nbsp;
