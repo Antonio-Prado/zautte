@@ -1031,9 +1031,9 @@
       // La chat resta disponibile anche all'amministratore, sotto le statistiche.
       document.body.classList.replace('user-view', 'admin-view');
       if (grid && chat) grid.after(chat);
-      updateSessionBox();
       if (_statsStarted) return;
       _statsStarted = true;
+      updateSessionBox();
       updateStats();
       updateCrawlHistory();
       loadNegativeFeedback();
