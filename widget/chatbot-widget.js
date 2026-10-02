@@ -16,6 +16,7 @@
  *       logoUrl:       '',                                  // URL logo (opzionale)
  *       contactEmail:  '',                                  // email segnalazione errori (opzionale)
  *       lang:          'it',                                // lingua default ('it' | 'en')
+ *       inline:        '#chat-area',                        // pannello dentro la pagina (opzionale)
  *     };
  *   </script>
  *   <script src="chatbot-widget.js"></script>
@@ -47,6 +48,10 @@
       suggestions: [],
       requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
       feedbackDetails: true, // dopo un 👎 chiede il motivo e i link alle pagine corrette
+      // Selettore CSS (o elemento) in cui mostrare il pannello sempre aperto, senza
+      // pulsante flottante. Con requireLogin, finché non si accede si vede solo il form.
+      inline: null,
+      inlineHeight: "min(640px, calc(100vh - 32px))",
     },
     window.ChatbotConfig || {}
   );
@@ -500,6 +505,27 @@
       font-style: italic;
     }
 
+    /* Modalità inline: pannello dentro la pagina, sempre aperto */
+    #${WIDGET_ID}-panel.inline {
+      position: relative;
+      bottom: auto;
+      left: auto;
+      right: auto;
+      width: 100%;
+      max-width: 100%;
+      height: ${cfg.inlineHeight};
+      max-height: none;
+      border-radius: 16px;
+      z-index: auto;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+      transition: none;
+    }
+    #${WIDGET_ID}-panel.inline.login { height: auto; max-width: 420px; }
+    #${WIDGET_ID}-panel.inline.login #${WIDGET_ID}-header,
+    #${WIDGET_ID}-panel.inline #${WIDGET_ID}-close { display: none; }
+
     /* Mobile */
     @media (max-width: 480px) {
       #${WIDGET_ID}-panel {
@@ -587,7 +613,11 @@
       </div>
     </div>
   `;
-  document.body.appendChild(container);
+  const inlineHost = cfg.inline
+    ? (typeof cfg.inline === "string" ? document.querySelector(cfg.inline) : cfg.inline)
+    : null;
+  if (inlineHost) container.style.height = "100%";  // per inlineHeight in percentuale
+  (inlineHost || document.body).appendChild(container);
 
   // ---------------------------------------------------------------------------
   // Riferimenti DOM
@@ -599,6 +629,12 @@
   const sendBtn    = document.getElementById(`${WIDGET_ID}-send`);
   const closeBtn   = document.getElementById(`${WIDGET_ID}-close`);
   const newBtn     = document.getElementById(`${WIDGET_ID}-new`);
+
+  if (inlineHost) {
+    panel.classList.add("inline");
+    panel.removeAttribute("aria-modal");
+    btnToggle.style.display = "none";
+  }
 
   let isOpen = false;
   let isLoading = false;
@@ -692,15 +728,17 @@
   }
 
   function showLogin() {
+    panel.classList.add("login");
     messages.style.display = "none";
     if (inputArea) inputArea.style.display = "none";
     if (footerEl) footerEl.style.display = "none";
     loginEl.style.display = "flex";
     const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
-    if (emailInput) setTimeout(() => emailInput.focus(), 60);
+    if (emailInput) setTimeout(() => emailInput.focus({ preventScroll: true }), 60);
   }
 
   function showChat() {
+    panel.classList.remove("login");
     loginEl.style.display = "none";
     messages.style.display = "";
     if (inputArea) inputArea.style.display = "";
@@ -738,6 +776,7 @@
       updateHeaderUser();
       showChat();
       clearChat();
+      inputEl.focus({ preventScroll: true });
     } catch (_) {
       errEl.textContent = T.loginErr;
       errEl.style.display = "block";
@@ -907,11 +946,12 @@
       showLogin();
     } else {
       showChat();
-      setTimeout(() => inputEl.focus(), 100);
+      setTimeout(() => inputEl.focus({ preventScroll: true }), 100);
     }
   }
 
   function closePanel() {
+    if (inlineHost) return;  // in modalità inline il pannello resta sempre aperto
     isOpen = false;
     panel.classList.remove("open");
     panel.setAttribute("aria-hidden", "true");
@@ -1300,5 +1340,19 @@
   btnToggle.setAttribute("aria-expanded", "false");
   clearChat();
   updateHeaderUser();
+  if (inlineHost) openPanel();
+
+  // Token salvato ma scaduto o revocato: torna subito al login, invece di
+  // scoprirlo alla prima domanda (che andrebbe persa).
+  if (cfg.requireLogin && authToken) {
+    fetch(`${cfg.apiUrl}/auth/me`, { headers: authHeaders() })
+      .then((r) => {
+        if (r.status !== 401) return;
+        setAuth(null, null);
+        updateHeaderUser();
+        if (isOpen) showLogin();
+      })
+      .catch(() => {});
+  }
 
 })();

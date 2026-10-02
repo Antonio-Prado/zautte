@@ -20,6 +20,9 @@
     // Attivare SOLO se il backend ha AUTH_ENABLED=true. Gli utenti si creano con
     // `python -m scripts.adduser`. Vedi anche AUTH_SECRET nel file .env del server.
     requireLogin:  false,
+    // Facoltativo: selettore di un elemento della pagina in cui mostrare la chat
+    // sempre aperta, senza pulsante flottante (es. '#chat-area').
+    // inline:        '#chat-area',
     suggestions:  [
       'Prima domanda frequente?',
       'Seconda domanda frequente?',
