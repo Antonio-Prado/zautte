@@ -109,10 +109,21 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+class _RevalidatedStaticFiles(StaticFiles):
+    """File statici con Cache-Control: no-cache: il browser può tenerli in cache ma
+    li ricontrolla a ogni apertura (risposta 304 se invariati), così pagine e
+    script aggiornati arrivano subito senza dover forzare il ricaricamento."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Serve il widget JS come file statico (GET /widget/chatbot-widget.js)
 _widget_dir = Path(__file__).parent.parent / "widget"
 if _widget_dir.exists():
-    app.mount("/widget", StaticFiles(directory=str(_widget_dir)), name="widget")
+    app.mount("/widget", _RevalidatedStaticFiles(directory=str(_widget_dir)), name="widget")
 
 app.add_middleware(
     CORSMiddleware,
