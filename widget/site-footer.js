@@ -4,9 +4,8 @@
  *
  *   <script src="./site-footer.js" defer></script>
  *
- * Mostra il responsabile dello sviluppo, il link al codice sorgente, l'ultimo commit
- * su GitHub (letto dall'API pubblica a ogni apertura della pagina; il link porta sempre al
- * repository) e "Powered by SBTAP".
+ * Mostra l'ultimo commit su GitHub (letto dall'API pubblica a ogni apertura della
+ * pagina; il link porta sempre al repository) e "Powered by SBTAP".
  */
 (function () {
   "use strict";
@@ -23,10 +22,8 @@
       "color:#666", "text-align:center", "flex-shrink:0",
     ].join(";"));
     footer.innerHTML =
-      "Responsabile dello sviluppo: Antonio Prado" +
-      " &nbsp;·&nbsp; <a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\">Codice sorgente ↗</a>" +
-      "<span id=\"zautte-last-commit\" hidden> &nbsp;·&nbsp; <a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a></span>" +
-      " &nbsp;·&nbsp; Powered by SBTAP";
+      "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
+      "Powered by SBTAP";
     document.body.appendChild(footer);
 
     // Ultimo commit su main; se GitHub non risponde il riferimento resta nascosto
