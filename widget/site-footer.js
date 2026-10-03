@@ -5,7 +5,7 @@
  *   <script src="./site-footer.js" defer></script>
  *
  * Mostra l'ultimo commit su GitHub (letto dall'API pubblica a ogni apertura della
- * pagina; il link porta sempre al repository) e "Powered by SBTAP".
+ * pagina; il link porta sempre al repository) e "Powered by SBTAP" (link a as59715.net).
  */
 (function () {
   "use strict";
@@ -23,7 +23,7 @@
     ].join(";"));
     footer.innerHTML =
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
-      "Powered by SBTAP";
+      "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\">SBTAP</a>";
     document.body.appendChild(footer);
 
     // Ultimo commit su main; se GitHub non risponde il riferimento resta nascosto
