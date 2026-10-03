@@ -327,6 +327,8 @@ def build_prompt(
     system = SYSTEM_PROMPT_IT if language == "it" else SYSTEM_PROMPT_EN
 
     office_hint = suggest_office(topic_query or query)
+    # Data di oggi: serve al modello per capire se scadenze e bandi sono già passati
+    today = f"(Data di oggi: {now_local():%d/%m/%Y})\n" if language == "it" else f"(Today's date: {now_local():%Y-%m-%d})\n"
 
     if context:
         # L'ufficio competente viene fornito anche con contesto presente, come
@@ -345,12 +347,12 @@ def build_prompt(
             f"CONTESTO (estratto dalla base di conoscenza — usa SOLO queste informazioni):\n\n"
             f"{context}\n\n"
             f"---\n\n"
-            f"DOMANDA: {query}{office_text}"
+            f"{today}DOMANDA: {query}{office_text}"
         )
     else:
         office_text = f"\n\n{office_hint}" if office_hint else ""
         user_content = (
-            f"DOMANDA: {query}\n\n"
+            f"{today}DOMANDA: {query}\n\n"
             f"(Non ho trovato nella base di conoscenza informazioni specifiche "
             f"su questo argomento. Dillo chiaramente all'utente.{office_text})"
         )
@@ -401,6 +403,8 @@ _REWRITE_SYSTEM = (
     "e riferimenti impliciti (per esempio 'il beneficio', 'lo sconto', "
     "'questo servizio', 'quell'ufficio') usando le parole della conversazione. "
     "Non rispondere, non aggiungere informazioni, non cambiare il senso. "
+    "Non aggiungere nomi di luoghi, città o enti che l'utente non ha scritto "
+    "(la conversazione riguarda già il sito su cui si trova l'assistente). "
     "Se il messaggio è già autonomo o introduce un argomento nuovo, "
     "restituiscilo invariato. Rispondi SOLO con la domanda riscritta, "
     "su una riga, senza virgolette né commenti."
