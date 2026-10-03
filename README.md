@@ -64,7 +64,7 @@ The system is **stateless**: conversations are not stored on the server. Turn hi
 
 | Component         | Technology                                           |
 |-------------------|------------------------------------------------------|
-| OS                | FreeBSD 14                                           |
+| OS                | FreeBSD 15 (production: 15.0-RELEASE)                |
 | Python            | 3.11+                                                |
 | Web scraping      | httpx + BeautifulSoup4/lxml                          |
 | PDF parsing       | pypdf (pure Python, no compilation)                  |
@@ -161,8 +161,14 @@ chatbot/
 
 ### Prerequisites
 
-- FreeBSD 14 (or compatible)
+- FreeBSD 15 (production runs 15.0-RELEASE; 14.x should also work)
 - Python 3.11+
+- Build tools: PyPI has no binary wheels for FreeBSD, so `pip` compiles numpy, lxml,
+  pydantic-core, jiter and the other native packages. Install `rust`, `ninja`, `pkgconf`,
+  `libxml2` and `libxslt` first (`setup_freebsd.sh` does it). Without a system `ninja`, pip
+  builds ninja and CMake from source to compile numpy, which takes a long time. The latest
+  `orjson` needs Rust 1.95 or newer: with an older Rust, install with the constraint
+  `orjson<3.12`.
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
 - Ollama models downloaded:
 
@@ -182,7 +188,7 @@ cd /opt/chatbot
 sh scripts/setup_freebsd.sh
 ```
 
-The script installs system packages (`python311`, `py311-pip`, etc.), creates the virtualenv, and installs Python dependencies.
+The script installs system packages (`python311`, the build tools above, etc.), creates the virtualenv, installs `requirements.txt` and downloads the Ollama models.
 
 ### Manual Setup
 
@@ -194,8 +200,7 @@ python3.11 -m venv venv
 . venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.txt
-pip install rank-bm25            # for BM25 hybrid search
+pip install -r requirements.txt   # includes rank-bm25 for BM25 hybrid search
 
 # Configure the environment
 cp .env.example .env
