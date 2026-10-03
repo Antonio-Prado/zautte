@@ -44,9 +44,9 @@ python3.11 -m venv venv
 
 pip install --upgrade pip setuptools wheel
 
-# orjson 3.12+ richiede Rust 1.95: con un Rust più vecchio si resta alla serie 3.11
+# orjson 3.11.9 e successivi richiedono Rust 1.95: con un Rust più vecchio si resta alla 3.11.8
 if rustc --version 2>/dev/null | awk '{split($2, v, "."); exit !(v[1] == 1 && v[2] < 95)}'; then
-    echo "orjson<3.12" > /tmp/zautte-constraints.txt
+    echo "orjson<=3.11.8" > /tmp/zautte-constraints.txt
     pip install -r requirements.txt -c /tmp/zautte-constraints.txt
 else
     pip install -r requirements.txt
