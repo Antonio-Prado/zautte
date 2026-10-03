@@ -121,7 +121,8 @@ VECTOR_STORE_DIR = DATA_DIR / "vectorstore"
 RETRIEVAL_TOP_K = 7            # chunk da recuperare per ogni query
 
 # --- LLM ---
-# Scegli: "ollama" (locale, privacy totale) oppure "claude" (API Anthropic)
+# Scegli: "ollama" (locale, privacy totale), "claude" (API diretta Anthropic)
+# oppure "bedrock" (modelli Claude su AWS Bedrock, elaborazione in UE)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
 # Ollama (locale)
@@ -141,6 +142,38 @@ CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 # più economico in .env (es. claude-haiku-4-5).
 QUERY_REWRITE = os.getenv("QUERY_REWRITE", "true").strip().lower() in ("1", "true", "yes", "on")
 CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
+
+# Claude su AWS Bedrock (LLM_PROVIDER=bedrock; richiede `pip install "anthropic[bedrock]"`).
+# Il profilo di inferenza "eu." elabora le richieste solo in regioni AWS dell'UE;
+# chiamando da Milano (eu-south-1) le destinazioni sono Milano, Francoforte,
+# Parigi, Irlanda, Spagna e Stoccolma. Credenziali dalla catena standard AWS
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE o AWS_BEARER_TOKEN_BEDROCK).
+BEDROCK_AWS_REGION = os.getenv("BEDROCK_AWS_REGION", "eu-south-1")
+BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-6")
+BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
+
+# --- Dati personali nelle domande (vedi api/pii.py) ---
+# Con PII_REDACTION attivo codice fiscale, IBAN, carte di pagamento, email e
+# telefoni vengono sostituiti da un segnaposto prima dell'invio al modello e
+# della registrazione nei log. PII_KEEP_EMAIL_DOMAINS: domini istituzionali le
+# cui email restano in chiaro (es. "comune.example.it,pec.example.it").
+PII_REDACTION = os.getenv("PII_REDACTION", "true").strip().lower() in ("1", "true", "yes", "on")
+PII_KEEP_EMAIL_DOMAINS = [
+    d.strip().lower().lstrip("@") for d in os.getenv("PII_KEEP_EMAIL_DOMAINS", "").split(",") if d.strip()
+]
+
+# --- Conservazione dei log (giorni; 0 = nessuna scadenza) ---
+# Applicata da scripts/purge_logs.py (cron giornaliero). Valori da concordare con
+# il DPO e riportare nell'informativa privacy.
+#   RETENTION_USAGE_TEXT_DAYS: testo delle domande in usage.jsonl (poi restano
+#                              solo data, utente e metriche)
+#   RETENTION_USAGE_DAYS:      voci di usage.jsonl
+#   RETENTION_GAPS_DAYS:       domande senza risposta in gaps.jsonl
+#   RETENTION_FEEDBACK_DAYS:   feedback (voto, domanda, commento, autore)
+RETENTION_USAGE_TEXT_DAYS = int(os.getenv("RETENTION_USAGE_TEXT_DAYS", "90"))
+RETENTION_USAGE_DAYS = int(os.getenv("RETENTION_USAGE_DAYS", "365"))
+RETENTION_GAPS_DAYS = int(os.getenv("RETENTION_GAPS_DAYS", "180"))
+RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
 
 # --- API Backend ---
 API_HOST = os.getenv("API_HOST", "127.0.0.1")

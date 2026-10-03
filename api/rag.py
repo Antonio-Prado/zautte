@@ -20,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import (
     ANTHROPIC_API_KEY,
+    BEDROCK_AWS_REGION,
+    BEDROCK_MODEL,
+    BEDROCK_REWRITE_MODEL,
     CLAUDE_MODEL,
     CLAUDE_REWRITE_MODEL,
     LLM_PROVIDER,
@@ -37,6 +40,24 @@ from indexer.embedder import embed_query
 from indexer.vector_store import hybrid_search
 
 log = logging.getLogger(__name__)
+
+# Modelli Claude: API diretta Anthropic ("claude") oppure AWS Bedrock ("bedrock")
+_USES_CLAUDE = LLM_PROVIDER in ("claude", "bedrock")
+_ANSWER_MODEL = BEDROCK_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_MODEL
+_REWRITE_MODEL = BEDROCK_REWRITE_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_REWRITE_MODEL
+_claude_client_instance = None
+
+
+def _claude_client():
+    """Client asincrono per i modelli Claude, creato una volta per processo."""
+    global _claude_client_instance
+    if _claude_client_instance is None:
+        import anthropic
+        if LLM_PROVIDER == "bedrock":
+            _claude_client_instance = anthropic.AsyncAnthropicBedrock(aws_region=BEDROCK_AWS_REGION)
+        else:
+            _claude_client_instance = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    return _claude_client_instance
 
 # Soglia minima di similarità per includere un chunk nel contesto
 MIN_SIMILARITY = 0.38
@@ -412,7 +433,7 @@ async def contextualize_query(
         return _fallback_contextualize(query, history)
     try:
         messages = _rewrite_prompt(query, history)
-        if LLM_PROVIDER == "claude":
+        if _USES_CLAUDE:
             text = await _rewrite_claude(messages, uid=uid)
         else:
             text = await generate_ollama(messages)
@@ -427,23 +448,23 @@ async def contextualize_query(
 
 async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
     """Chiamata breve e non in streaming per la riscrittura della domanda."""
-    import anthropic
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
     user_messages = [m for m in messages if m["role"] != "system"]
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-    response = await client.with_options(timeout=20.0).messages.create(
-        model=CLAUDE_REWRITE_MODEL,
+    response = await _claude_client().with_options(timeout=20.0).messages.create(
+        model=_REWRITE_MODEL,
         max_tokens=200,
         system=system_content,
         messages=user_messages,
-        temperature=0.0,
+        # temperature via extra_body: anthropic 1.x l'ha tolta dalla firma, l'API
+        # la accetta ancora per i modelli 4.6 (funziona anche con 0.x)
+        extra_body={"temperature": 0.0},
     )
     try:
         if response.usage:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
-                           CLAUDE_REWRITE_MODEL, uid=uid)
+                           _REWRITE_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
         log.debug("Conteggio token non registrato: %s", exc)
     return "".join(b.text for b in response.content if b.type == "text")
@@ -519,49 +540,45 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
 # ---------------------------------------------------------------------------
 
 async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
-    """Chiama Claude API e ritorna la risposta completa.
+    """Chiama Claude (API diretta o Bedrock) e ritorna la risposta completa.
 
     uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
-    import anthropic
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
     user_messages = [m for m in messages if m["role"] != "system"]
 
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-    response = await client.messages.create(
-        model=CLAUDE_MODEL,
+    response = await _claude_client().messages.create(
+        model=_ANSWER_MODEL,
         max_tokens=1024,
         system=system_content,
         messages=user_messages,
-        temperature=0.3,
+        extra_body={"temperature": 0.3},  # vedi _rewrite_claude
     )
     try:
         if response.usage:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
-                           CLAUDE_MODEL, uid=uid)
+                           _ANSWER_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
         log.debug("Conteggio token non registrato: %s", exc)
     return response.content[0].text.strip()
 
 
 async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGenerator[str, None]:
-    """Chiama Claude API in streaming.
+    """Chiama Claude (API diretta o Bedrock) in streaming.
 
     uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
-    import anthropic
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
     user_messages = [m for m in messages if m["role"] != "system"]
 
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-    async with client.messages.stream(
-        model=CLAUDE_MODEL,
+    async with _claude_client().messages.stream(
+        model=_ANSWER_MODEL,
         max_tokens=1024,
         system=system_content,
         messages=user_messages,
-        temperature=0.3,
+        extra_body={"temperature": 0.3},  # vedi _rewrite_claude
     ) as stream:
         async for text in stream.text_stream:
             yield text
@@ -569,7 +586,7 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
             final = await stream.get_final_message()
             if final and final.usage:
                 _record_tokens(final.usage.input_tokens, final.usage.output_tokens,
-                               CLAUDE_MODEL, uid=uid)
+                               _ANSWER_MODEL, uid=uid)
         except (AttributeError, TypeError, ValueError) as exc:
             log.debug("Conteggio token non registrato: %s", exc)
 
@@ -626,18 +643,24 @@ _token_cost_total: float = 0.0
 _token_history: list[dict] = []   # ultimi 100 record
 _TOKEN_HISTORY_MAX = 100
 
-# Prezzi USD per milione di token (input, output)
+# Prezzi USD per milione di token (input, output), listino API Anthropic
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
-    "claude-opus-4-7":   (15.00, 75.00),
+    "claude-opus-4-7":   (5.00, 25.00),
     "claude-sonnet-4-6":  (3.00, 15.00),
-    "claude-haiku-4-5":   (0.80,  4.00),
+    "claude-haiku-4-5":   (1.00,  5.00),
 }
+# Su Bedrock i profili geografici (eu., us., ...) costano circa il 10% in più
+_BEDROCK_GEO_PREFIXES = ("eu.", "us.", "jp.", "apac.", "au.", "ca.")
+_BEDROCK_GEO_MARKUP = 1.10
 
 
 def _cost_usd(in_tok: int, out_tok: int, model: str) -> float:
+    # Id Bedrock: "eu.anthropic.claude-sonnet-4-6" → "claude-sonnet-4-6" (stima)
+    markup = _BEDROCK_GEO_MARKUP if model.startswith(_BEDROCK_GEO_PREFIXES) else 1.0
+    base = model.split("anthropic.", 1)[1] if "anthropic." in model else model
     for prefix, (p_in, p_out) in _MODEL_PRICING.items():
-        if model.startswith(prefix):
-            return (in_tok * p_in + out_tok * p_out) / 1_000_000
+        if base.startswith(prefix):
+            return (in_tok * p_in + out_tok * p_out) * markup / 1_000_000
     return 0.0
 
 
@@ -853,7 +876,7 @@ async def answer(
             _save_stats()
             return _no_context_gen(), unique_sources
 
-        if LLM_PROVIDER == "claude":
+        if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
@@ -862,7 +885,7 @@ async def answer(
 
     else:
         _t0 = _time.monotonic()
-        if LLM_PROVIDER == "claude":
+        if _USES_CLAUDE:
             text = await generate_claude(messages, uid=uid)
         else:
             text = await generate_ollama(messages)

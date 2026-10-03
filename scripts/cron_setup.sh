@@ -40,6 +40,11 @@ add_cron "0 3 1 * * ${CHATBOT_DIR}/scripts/full_sync.sh"
 # Processa subito i documenti caricati manualmente
 add_cron "*/30 8-18 * * 1-5 cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync inbox >> ${LOG_DIR}/sync_inbox.log 2>&1"
 
+# --- Conservazione dei log degli utenti ogni giorno alle 02:15 ---
+# Elimina (o spoglia del testo) le voci di usage/gaps/feedback oltre i giorni
+# RETENTION_* configurati in .env (vedi config/settings.py).
+add_cron "15 2 * * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.purge_logs >> ${LOG_DIR}/purge_logs.log 2>&1"
+
 # --- Rotazione log settimanale (domenica alle 04:00) ---
 add_cron "0 4 * * 0 find ${LOG_DIR} -name '*.log' -size +10M -exec sh -c 'mv \"\$1\" \"\$1.old\" && gzip \"\$1.old\"' _ {} \;"
 
@@ -50,3 +55,4 @@ echo "Schedule attivo:"
 echo "  02:30 ogni lunedì   → sync incrementale (modifiche)"
 echo "  03:00 il 1° del mese → sync completo (full crawl, indice sempre attivo)"
 echo "  ogni 30min (8-18 lun-ven) → inbox documenti"
+echo "  02:15 ogni giorno     → scadenza dei log degli utenti (purge_logs)"

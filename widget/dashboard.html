@@ -446,6 +446,24 @@
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">3 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Avviso «Stai dialogando con un sistema di intelligenza artificiale»</strong> sotto il messaggio di benvenuto (sempre presente, anche con benvenuto personalizzato), badge «IA» nell'intestazione e «Risposte generate dall'IA» nel footer, con contrasto del testo più leggibile (AI Act, art. 50). Link facoltativi a «Come funziona» e all'informativa privacy (<code>infoUrl</code>, <code>privacyUrl</code>); nuova pagina <code>come-funziona.html</code>.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">3 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Dati personali mascherati</strong>: codice fiscale, IBAN, carte, email e telefoni scritti nelle domande vengono sostituiti da un segnaposto prima dell'invio al modello e della registrazione nei log e nei feedback (le risposte del bot nella cronologia restano intatte). <strong>Scadenza dei log</strong>: <code>scripts/purge_logs.py</code> (cron giornaliero) toglie il testo delle domande dopo 90 giorni e cancella le voci oltre 12 mesi (domande senza risposta: 6 mesi).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">3 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Claude su AWS Bedrock</strong> (<code>LLM_PROVIDER=bedrock</code>, profilo UE da Milano), pronto per il passaggio a un servizio qualificato ACN con elaborazione in UE. <span class="cl-tag fix">fix</span> <code>temperature</code> passata in modo compatibile con la libreria anthropic 1.x; costi Haiku 4.5 corretti (1/5 $ per milione di token).
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">2 ott 2026</div>
       <div class="cl-text">
         <span class="cl-tag feat">feat</span><strong>Pulsante «Esci» nella pagina</strong>: titolo, descrizione (giustificata nel riquadro), modulo di accesso e chat sono centrati nella pagina. Dopo l'accesso, sotto il titolo compaiono il nome del collega e il pulsante «Esci», che riporta al modulo di login. In vista amministratore «Esci» dimentica anche la chiave admin e torna alla vista collega.
@@ -1288,7 +1306,7 @@
       primaryColor:  '#003366',
       title:         'Zautte',
       subtitle:      '',
-      welcomeIt:     'Ciao! Sono Zautte il tuo assistente virtuale. Posso aiutarti a trovare informazioni sui contenuti del sito.',
+      welcomeIt:     'Ciao! Sono Zautte, l\'assistente virtuale del Comune basato sull\'intelligenza artificiale. Posso aiutarti a trovare informazioni sui contenuti del sito.',
       contactEmail:  '',
       position:      'right',
       lang:          'it',
