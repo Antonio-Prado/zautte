@@ -166,9 +166,9 @@ chatbot/
 - Build tools: PyPI has no binary wheels for FreeBSD, so `pip` compiles numpy, lxml,
   pydantic-core, jiter and the other native packages. Install `rust`, `ninja`, `pkgconf`,
   `libxml2` and `libxslt` first (`setup_freebsd.sh` does it). Without a system `ninja`, pip
-  builds ninja and CMake from source to compile numpy, which takes a long time. The latest
-  `orjson` needs Rust 1.95 or newer: with an older Rust, install with the constraint
-  `orjson<3.12`.
+  builds ninja and CMake from source to compile numpy, which takes a long time. `orjson`
+  3.11.9 and later need Rust 1.95 or newer: with an older Rust, install with the constraint
+  `orjson<=3.11.8`.
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
 - Ollama models downloaded:
 
