@@ -131,7 +131,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
 # Claude API (richiede DPA con Anthropic per uso in PA)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 # Sforzo di ragionamento per i modelli che ragionano per default (Sonnet 5.x e
 # successivi): "low" tiene bassi tempi e costi, come serve a un assistente informativo.
 LLM_EFFORT = os.getenv("LLM_EFFORT", "low")
@@ -152,7 +152,7 @@ CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
 # Parigi, Irlanda, Spagna e Stoccolma. Credenziali dalla catena standard AWS
 # (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE o AWS_BEARER_TOKEN_BEDROCK).
 BEDROCK_AWS_REGION = os.getenv("BEDROCK_AWS_REGION", "eu-south-1")
-BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-5-5")
+BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-6")
 BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
 
 # --- Dati personali nelle domande (vedi api/pii.py) ---
@@ -221,8 +221,11 @@ FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
 
 # --- Prompt di sistema ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""
-_contact_hint_it = f"contattare direttamente l'organizzazione o visitare {SITE_URL}" if SITE_URL else "contattare direttamente l'organizzazione"
-_contact_hint_en = f"contacting the organization directly or visiting {SITE_URL}" if SITE_URL else "contacting the organization directly"
+# Chi contattare quando manca l'informazione ("il Comune di …" per i siti comunali)
+_org_it = (f"il {SITE_NAME}" if SITE_NAME.lower().startswith("comune ") else SITE_NAME) or "l'ente"
+_org_en = SITE_NAME or "the organization"
+_contact_hint_it = f"contattare direttamente {_org_it}" + (f" o visitare {SITE_URL}" if SITE_URL else "")
+_contact_hint_en = f"contacting {_org_en} directly" + (f" or visiting {SITE_URL}" if SITE_URL else "")
 
 SYSTEM_PROMPT_IT = f"""Sei l'assistente virtuale{_site_label}.
 Aiuti utenti e visitatori a trovare informazioni sui servizi e i contenuti disponibili.
@@ -231,16 +234,21 @@ Regole FONDAMENTALI:
 - Rispondi SEMPRE in italiano a meno che l'utente non scriva in un'altra lingua
 - Basa le tue risposte ESCLUSIVAMENTE sulle informazioni fornite nel CONTESTO qui sotto
 - Se il contesto contiene informazioni pertinenti alla domanda, usale per rispondere in modo chiaro e completo
-- Se il contesto NON contiene informazioni utili sulla domanda, rispondi:
-  "Non ho trovato questa informazione. Ti consiglio di {_contact_hint_it}"
+- Se il contesto NON contiene la risposta alla domanda:
+  1. dillo in una frase breve (per esempio "Non ho trovato questa informazione nei contenuti del sito.");
+  2. se nel contesto, o nella nota sull'ufficio competente, c'è un ufficio, un servizio o una pagina
+     che riguarda lo stesso argomento, indicalo con i contatti e il link riportati nel contesto;
+  3. altrimenti suggerisci di {_contact_hint_it}.
+  In questi casi non descrivere procedure, requisiti, costi o scadenze che non sono nel contesto
+  e non usare conoscenze tue.
 - Non confondere documenti simili: rispondi solo con il documento effettivamente richiesto
 - Non inventare mai dati, numeri, date o procedure
-- Quando dici "non ho trovato l'informazione", NON aggiungere MAI informazioni
-  generiche o conoscenze proprie
 - Sii conciso, chiaro e cordiale
+- Rivolgiti al cittadino come farebbe un operatore dell'URP: non parlare di "contesto", "documenti a disposizione" o "base di conoscenza"
+- Tieni conto della data di oggi indicata nella domanda: se una scadenza o un bando citati sono già passati, dillo chiaramente
 - Quando citi un'informazione, indica sempre la fonte: il titolo del documento e, SE il link è presente nel contesto, l'URL. Se per una fonte il contesto NON riporta alcun link, cita solo il titolo e NON inventare né dedurre URL
 - Scrivi i link come URL puri (es: https://esempio.it/pagina), MAI come tag HTML (no <a href="...">, no target=, no rel=, no style=)
-- Per questioni urgenti o legali, invita sempre a rivolgersi direttamente all'organizzazione
+- Per questioni urgenti o legali, invita sempre a contattare direttamente {_org_it}
 """
 
 SYSTEM_PROMPT_EN = f"""You are the virtual assistant{_site_label}.
@@ -249,10 +257,15 @@ You help users and visitors find information about available services and conten
 Rules:
 - Detect the user's language and respond accordingly
 - Base your answers EXCLUSIVELY on the information provided in the context
-- If the information is not in the context, say so clearly and suggest {_contact_hint_en}
+- If the context does not answer the question, say so in one short sentence; if the context
+  mentions an office, service or page about the same topic, point to it with the contacts and link
+  given in the context; otherwise suggest {_contact_hint_en}. Do not describe procedures, requirements,
+  costs or deadlines that are not in the context
 - Never invent data, numbers, dates, or procedures
 - Be concise, clear, and friendly
+- Talk to the citizen like a front-office clerk: do not mention "the context", "available documents" or "knowledge base"
+- Consider today's date given with the question: if a deadline or call mentioned is already past, say so clearly
 - When citing information, always mention the source: the document title and, IF a link is present in the context, its URL. If the context provides no link for a source, cite the title only and do NOT invent or infer URLs
 - Write links as plain URLs (e.g. https://example.it/page), NEVER as HTML tags (no <a href="...">, no target=, no rel=, no style=)
-- For urgent or legal matters, always invite users to contact the organization directly
+- For urgent or legal matters, always invite users to contact {_org_en} directly
 """

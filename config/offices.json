@@ -10,7 +10,7 @@
     "path": "/it/unita_organizzative/tributi-e-recupero-coattivo"
   },
   {
-    "keywords": ["edilizia", "permesso costruire", "sue", "urbanistica", "piano regolatore", "condono", "agibilità"],
+    "keywords": ["edilizia", "permesso costruire", "sue", "urbanistica", "piano regolatore", "condono", "agibilità", "planimetria", "planimetrie", "pratica edilizia"],
     "name": "Sportello Unico Edilizia (SUE)",
     "path": "/it/unita_organizzative/sue-e-edilizia-privata"
   },
@@ -35,7 +35,7 @@
     "path": "/it/unita_organizzative/polizia-municipale"
   },
   {
-    "keywords": ["sociale", "assistenza", "disabilità", "anziani", "contributi", "sussidio"],
+    "keywords": ["sociale", "assistenza", "disabilità", "anziani", "contributi", "sussidio", "affitto", "locazione", "isee"],
     "name": "Servizi Sociali",
     "path": "/it/unita_organizzative/politiche-sociali"
   }
