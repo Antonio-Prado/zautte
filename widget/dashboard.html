@@ -448,7 +448,7 @@
     <div class="cl-entry">
       <div class="cl-date">3 ott 2026</div>
       <div class="cl-text">
-        <span class="cl-tag feat">feat</span><strong>Footer</strong>: riferimento all'ultimo commit su GitHub (letto all'apertura della pagina, con link al commit) e dicitura «Powered by SBTAP». <span class="cl-tag perf">perf</span> Server aggiornato a FreeBSD 15.1 e librerie Python aggiornate (nessuna vulnerabilità nota).
+        <span class="cl-tag feat">feat</span><strong>Footer visibile a tutti</strong> in ogni pagina (accesso, chat dei colleghi, vista amministratore, pagina pilota, «Come funziona»): responsabile, codice sorgente, ultimo commit su GitHub (letto all'apertura della pagina, con link) e «Powered by SBTAP». <span class="cl-tag perf">perf</span> Server aggiornato a FreeBSD 15.1 e librerie Python aggiornate (nessuna vulnerabilità nota).
       </div>
     </div>
     <div class="cl-entry">
@@ -1059,7 +1059,7 @@
       const intro = document.getElementById('pilot-intro');
       const chat = document.getElementById('chat-area');
       const changelog = document.getElementById('changelog-section');
-      ['admin-subtitle', 'page-footer'].forEach(function (id) {
+      ['admin-subtitle'].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.style.display = '';
       });
@@ -1334,32 +1334,6 @@
     };
   </script>
   <script src="./chatbot-widget.js?v=20261003a" defer></script>
-  <footer id="page-footer" style="display:none;max-width:800px;margin:40px 0 20px;padding-top:16px;border-top:1px solid #e0e0e0;font-size:0.8em;color:#aaa;">
-    Responsabile dello sviluppo: Antonio Prado
-    &nbsp;·&nbsp;
-    <a href="https://github.com/Antonio-Prado/zautte" target="_blank" style="color:#aaa;">Codice sorgente ↗</a>
-    <span id="last-commit" hidden>&nbsp;·&nbsp; <a id="last-commit-link" href="https://github.com/Antonio-Prado/zautte/commits/main" target="_blank" rel="noopener" style="color:#aaa;"></a></span>
-    &nbsp;·&nbsp; Powered by SBTAP
-  </footer>
-  <script>
-    // Ultimo commit su main, letto dall'API pubblica di GitHub a ogni apertura della pagina
-    (function () {
-      var repo = 'Antonio-Prado/zautte';
-      fetch('https://api.github.com/repos/' + repo + '/commits/main', { headers: { 'Accept': 'application/vnd.github+json' } })
-        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(function (c) {
-          var sha = String(c.sha || '').slice(0, 7);
-          if (!/^[0-9a-f]{7}$/.test(sha)) return;
-          var when = c.commit && c.commit.committer && c.commit.committer.date
-            ? new Date(c.commit.committer.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
-            : '';
-          var link = document.getElementById('last-commit-link');
-          link.href = 'https://github.com/' + repo + '/commit/' + c.sha;
-          link.textContent = 'Ultimo commit ' + sha + (when ? ' (' + when + ')' : '');
-          document.getElementById('last-commit').hidden = false;
-        })
-        .catch(function () { /* GitHub non raggiungibile o limite di richieste: il riferimento resta nascosto */ });
-    })();
-  </script>
+  <script src="./site-footer.js?v=20261003a" defer></script>
 </body>
 </html>
