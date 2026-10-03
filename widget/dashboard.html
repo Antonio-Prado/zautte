@@ -448,6 +448,12 @@
     <div class="cl-entry">
       <div class="cl-date">3 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Footer</strong>: riferimento all'ultimo commit su GitHub (letto all'apertura della pagina, con link al commit) e dicitura «Powered by SBTAP». <span class="cl-tag perf">perf</span> Server aggiornato a FreeBSD 15.1 e librerie Python aggiornate (nessuna vulnerabilità nota).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">3 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag perf">perf</span><strong>Modello Claude Sonnet 5.5</strong> al posto di Sonnet 4.6: sulle stesse 40 domande del pilota risposte complete in 4 s invece di 8,5 s (mediana), circa l'11% in meno di costo, testi più asciutti; preferito in 5 confronti su 7. Ragionamento a sforzo basso (<code>LLM_EFFORT=low</code>); se il modello rifiuta una richiesta il widget mostra un messaggio che rimanda agli uffici. Si torna al modello precedente con <code>CLAUDE_MODEL=claude-sonnet-4-6</code> nel <code>.env</code>.
       </div>
     </div>
@@ -1332,6 +1338,28 @@
     Responsabile dello sviluppo: Antonio Prado
     &nbsp;·&nbsp;
     <a href="https://github.com/Antonio-Prado/zautte" target="_blank" style="color:#aaa;">Codice sorgente ↗</a>
+    <span id="last-commit" hidden>&nbsp;·&nbsp; <a id="last-commit-link" href="https://github.com/Antonio-Prado/zautte/commits/main" target="_blank" rel="noopener" style="color:#aaa;"></a></span>
+    &nbsp;·&nbsp; Powered by SBTAP
   </footer>
+  <script>
+    // Ultimo commit su main, letto dall'API pubblica di GitHub a ogni apertura della pagina
+    (function () {
+      var repo = 'Antonio-Prado/zautte';
+      fetch('https://api.github.com/repos/' + repo + '/commits/main', { headers: { 'Accept': 'application/vnd.github+json' } })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (c) {
+          var sha = String(c.sha || '').slice(0, 7);
+          if (!/^[0-9a-f]{7}$/.test(sha)) return;
+          var when = c.commit && c.commit.committer && c.commit.committer.date
+            ? new Date(c.commit.committer.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
+            : '';
+          var link = document.getElementById('last-commit-link');
+          link.href = 'https://github.com/' + repo + '/commit/' + c.sha;
+          link.textContent = 'Ultimo commit ' + sha + (when ? ' (' + when + ')' : '');
+          document.getElementById('last-commit').hidden = false;
+        })
+        .catch(function () { /* GitHub non raggiungibile o limite di richieste: il riferimento resta nascosto */ });
+    })();
+  </script>
 </body>
 </html>
