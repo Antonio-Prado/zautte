@@ -89,7 +89,11 @@ chatbot/
 ├── start.sh                  # Quick start (development)
 │
 ├── config/
-│   └── settings.py           # Centralized config (loads .env)
+│   ├── settings.py           # Centralized config (loads .env)
+│   ├── known_facts.json      # Curated facts injected for specific topics
+│   ├── synonyms.json         # Query expansion synonyms
+│   ├── offices.json          # Office suggestions for unanswered queries
+│   └── crawl_extra.json      # Extra seed URLs for the crawler
 │
 ├── crawler/
 │   ├── crawler.py            # Async httpx crawler
@@ -104,17 +108,32 @@ chatbot/
 │
 ├── api/
 │   ├── main.py               # FastAPI: endpoints, rate limiting, admin auth
-│   └── rag.py                # RAG pipeline: expand → retrieve → rerank → LLM
+│   ├── rag.py                # RAG pipeline: expand → retrieve → rerank → LLM
+│   ├── auth.py               # User login (pilot), stateless HMAC tokens
+│   ├── pii.py                # Masks personal data in questions before LLM and logs
+│   ├── feedback_store.py     # Feedback archive (votes, comments, links)
+│   ├── mailer.py             # Email notifications (credentials, reports)
+│   └── limiter.py            # Rate limiting (slowapi)
 │
 ├── widget/
 │   ├── chatbot-widget.js     # Chat widget (self-contained JS/CSS)
 │   ├── embed-snippet.html    # Snippet to paste into the site
-│   └── dashboard.html        # Control panel (restricted area)
+│   ├── dashboard.html        # Login + chat for pilot users; admin panel (#admin)
+│   ├── come-funziona.html    # Public "how it works" page (AI transparency)
+│   └── pilot.html            # Pilot landing page
+│
+├── docs/
+│   └── informativa-privacy-zautte.md  # Draft privacy notice (to be approved by the DPO)
 │
 ├── scripts/
 │   ├── sync.py               # Orchestrator: crawl + indexing
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── eval.py               # RAG quality evaluation
+│   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
+│   ├── adduser.py            # Creates/updates/removes pilot users
+│   ├── feedback_open.py      # Lists open negative feedback
+│   ├── cleanup_index.py      # Removes stale sources from the vector store
+│   ├── full_sync.sh          # Monthly full sync (zero downtime)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
 │   ├── chatbot_rcd           # rc.d script for the service
 │   ├── cron_setup.sh         # Configures cron jobs
@@ -130,7 +149,10 @@ chatbot/
     ├── inbox/                # Documents to index manually
     ├── backups/              # Compressed vector store backups
     ├── gaps.jsonl            # Unanswered queries (content gaps)
-    └── feedback.jsonl        # User feedback (thumbs up/down)
+    ├── feedback.jsonl        # User feedback (thumbs up/down, comments)
+    ├── resolved_negative.json# Negative feedback marked as resolved
+    ├── usage.jsonl           # Per-user usage (pilot users only)
+    └── users.json            # Pilot users (password stored as scrypt hash)
 ```
 
 ---
@@ -215,7 +237,7 @@ All configuration lives in `config/settings.py`, which automatically loads varia
 ### `.env` File
 
 ```ini
-# LLM provider: "ollama" (local) or "claude" (Anthropic API)
+# LLM provider: "ollama" (local), "claude" (Anthropic API) or "bedrock" (Claude on AWS Bedrock)
 LLM_PROVIDER=ollama
 
 # Ollama
@@ -223,8 +245,33 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
 OLLAMA_EMBED_MODEL=mxbai-embed-large
 
-# Claude API (requires DPA with Anthropic for public sector use)
+# Claude API (see "Using Claude in a public administration" below)
 ANTHROPIC_API_KEY=
+CLAUDE_MODEL=claude-sonnet-4-6
+# Rewrites follow-up questions into standalone queries before retrieval
+QUERY_REWRITE=true
+
+# Claude on AWS Bedrock (pip install "anthropic[bedrock]"); the "eu." inference
+# profile keeps processing inside EU regions. AWS credentials come from the
+# standard chain (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, ...).
+BEDROCK_AWS_REGION=eu-south-1
+BEDROCK_MODEL=eu.anthropic.claude-sonnet-4-6
+
+# Personal data in questions: masked before the LLM and the logs
+PII_REDACTION=true
+PII_KEEP_EMAIL_DOMAINS=your-municipality.it,pec.your-municipality.it
+
+# Retention of user logs in days (0 = keep forever), applied by scripts/purge_logs.py
+RETENTION_USAGE_TEXT_DAYS=90
+RETENTION_USAGE_DAYS=365
+RETENTION_GAPS_DAYS=180
+RETENTION_FEEDBACK_DAYS=365
+
+# Pilot login (email + password) and email delivery
+AUTH_ENABLED=false
+AUTH_SECRET=
+SMTP_HOST=
+SMTP_FROM=
 
 # Backend
 API_HOST=127.0.0.1
@@ -250,9 +297,14 @@ ADMIN_API_KEY=your-secret-key-here
 | `OLLAMA_EMBED_MODEL`   | `mxbai-embed-large`            | Embedding model (1024 dim)                           |
 | `EMBEDDING_DIMENSION`  | `1024`                         | Embedding vector dimension                           |
 | `RETRIEVAL_TOP_K`      | `5`                            | Chunks to retrieve per query                         |
-| `LLM_PROVIDER`         | `ollama`                       | `ollama` or `claude`                                 |
+| `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
 | `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
 | `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Claude API model                                     |
+| `CLAUDE_REWRITE_MODEL` | `CLAUDE_MODEL`                 | Model used to rewrite follow-up questions            |
+| `BEDROCK_AWS_REGION`   | `eu-south-1`                   | AWS region for Bedrock (Milan)                       |
+| `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
+| `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
+| `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365`   | Retention of question text, usage, gaps, feedback    |
 
 ---
 
@@ -655,9 +707,19 @@ Full list of received feedback (all ratings) with positive/negative count.
 
 ---
 
+#### Other endpoints
+
+| Endpoint | Access | Description |
+|---|---|---|
+| `POST /login`, `POST /forgot`, `GET /me` | public / user | Pilot login, password reset by email, current user |
+| `POST /feedback/detail` | user | Adds a comment and links to the user's own 👎 |
+| `POST /feedback/resolve` | admin | Marks a negative feedback as resolved (optional email to the user) |
+| `GET /usage/summary`, `GET /usage/messages` | admin | Per-user usage and question log (pilot) |
+| `GET /crawl-history` | admin | Recent sync runs |
+
 ### Admin Authentication
 
-The `/stats`, `/gaps`, and `/feedback/list` endpoints require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`. The `/feedback/negative` endpoint is public (returns only question text, no personal data).
+The `/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/*` and `/crawl-history` endpoints require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`.
 
 If `ADMIN_API_KEY` is empty, authentication is disabled (development only).
 
@@ -761,6 +823,7 @@ Installed schedule (user `chatbot`):
 | 02:30 every night                | `sync incremental`              | Updates changes only            |
 | 03:00 every Sunday               | `sync full`                     | Full weekly scan                |
 | every 30 min (8–18, Mon–Fri)     | `sync inbox`                    | Processes inbox documents       |
+| 02:15 every night                | `purge_logs`                    | Applies log retention periods   |
 
 Logs are written to `/var/log/chatbot/`.
 
@@ -896,11 +959,23 @@ Results are saved in `data/eval_results.json`.
 
 ### GDPR
 
-- **No conversations stored**: the backend is stateless. History is managed entirely client-side by the widget.
-- **Gap log**: records only the query text (truncated to 200 characters) and timestamp, without session data or IP.
-- **Feedback**: records rating, question and answer preview (truncated), without user identifiers.
+- **Conversation history** is kept client-side by the widget; the backend does not store conversations.
+- **Personal data masking** (`api/pii.py`): tax codes, IBANs, payment card numbers, email addresses (except institutional domains in `PII_KEEP_EMAIL_DOMAINS`) and Italian phone numbers are replaced with a placeholder before the question reaches the LLM, the logs and the feedback archive. Free-form data such as names cannot be detected reliably, so the widget still asks users not to enter personal data.
+- **What is stored**: `gaps.jsonl` (question text, no user), `feedback.jsonl` (rating, question, comment, author for pilot users), `usage.jsonl` (question text and metrics, pilot users only).
+- **Retention**: `scripts/purge_logs.py` deletes entries older than the `RETENTION_*_DAYS` settings (and removes the question text from `usage.jsonl` earlier). Run it daily via cron.
+- **Privacy notice**: a draft is in `docs/informativa-privacy-zautte.md`; it must be approved by the DPO before publication. Link it from the widget with `privacyUrl`.
 - **Local Ollama**: no data sent to external servers; everything stays on the local server.
-- **Claude API**: requires a DPA (Data Processing Agreement) with Anthropic. For Italian public sector organizations, verify applicable regulatory requirements.
+
+### AI transparency
+
+- The widget states at the first interaction that the user is talking to an AI system (EU AI Act, Art. 50), shows an "IA" badge in the header and an "AI-generated answers" note in the footer.
+- `widget/come-funziona.html` explains in plain language how answers are produced, their limits and human oversight (Italian Law 132/2025, Art. 14). Link it from the widget with `infoUrl`.
+
+### Using Claude in a public administration
+
+- **Direct Anthropic API** (`LLM_PROVIDER=claude`): EEA customers contract with Anthropic Ireland; the Data Processing Addendum (with EU Standard Contractual Clauses) is part of the Commercial Terms; API data is not used for training and is deleted within 30 days. Processing can take place outside the EU (no EU data-residency option as of October 2026), and the service is not in the Italian ACN catalogue of qualified cloud services.
+- **Claude on AWS Bedrock** (`LLM_PROVIDER=bedrock`): with the `eu.` inference profile called from `eu-south-1` (Milan) requests are processed only in EU regions; AWS does not store prompts or completions and does not share them with Anthropic. AWS machine-learning services, Bedrock included, are ACN-qualified (QC2).
+- In both cases the municipality is the data controller: it needs a DPIA, a record of processing activities and a privacy notice, and must purchase the service in line with public procurement rules.
 
 ### Rate Limiting
 

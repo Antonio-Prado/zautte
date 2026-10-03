@@ -30,10 +30,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api import auth
 from api.auth import require_user
 from api.limiter import limiter
+from api.pii import redact, redact_history
 from api.rag import answer, get_activity_stats, get_query_count
 from config.settings import (
     ADMIN_API_KEY,
     API_CORS_ORIGINS,
+    BEDROCK_MODEL,
     CLAUDE_MODEL,
     LLM_PROVIDER,
     OLLAMA_MODEL,
@@ -301,7 +303,7 @@ async def health(key: str | None = Security(_api_key_header)):
         return base
 
     stats = get_stats()
-    llm_info = OLLAMA_MODEL if LLM_PROVIDER == "ollama" else CLAUDE_MODEL
+    llm_info = {"ollama": OLLAMA_MODEL, "bedrock": BEDROCK_MODEL}.get(LLM_PROVIDER, CLAUDE_MODEL)
     last_indexed = None
     if EMBEDDINGS_FILE.exists():
         mtime = EMBEDDINGS_FILE.stat().st_mtime
@@ -360,7 +362,7 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
     entry = {
         "ts": fs.now_iso(),
         "rating": req.rating,
-        "question": req.question[:200],
+        "question": redact(req.question)[:200],
         "answer_preview": req.answer[:100],
         "uid": user.get("uid", ""),
         "user": user.get("name", ""),
@@ -702,12 +704,14 @@ async def chat(request: Request, req: ChatRequest,
     """
     import time as _time
     try:
-        history = [m.model_dump() for m in req.history] if req.history else None
+        # Dati personali riconoscibili mascherati prima del modello e dei log
+        question = redact(req.question)
+        history = redact_history([m.model_dump() for m in req.history]) if req.history else None
         _t0 = _time.monotonic()
-        result = await answer(req.question, stream=False, history=history,
+        result = await answer(question, stream=False, history=history,
                               uid=user.get("uid"))
         _lang = result.get("language") if isinstance(result, dict) else None
-        _log_usage(user.get("uid"), req.question, _lang,
+        _log_usage(user.get("uid"), question, _lang,
                    int((_time.monotonic() - _t0) * 1000))
         return result
     except ValueError as e:
@@ -731,10 +735,12 @@ async def chat_stream(request: Request, req: ChatRequest,
       data: {"done": true}\n\n          → fine stream
     """
     try:
-        history = [m.model_dump() for m in req.history] if req.history else None
-        generator, sources = await answer(req.question, stream=True, history=history,
+        # Dati personali riconoscibili mascherati prima del modello e dei log
+        question = redact(req.question)
+        history = redact_history([m.model_dump() for m in req.history]) if req.history else None
+        generator, sources = await answer(question, stream=True, history=history,
                                           uid=user.get("uid"))
-        _log_usage(user.get("uid"), req.question)
+        _log_usage(user.get("uid"), question)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
