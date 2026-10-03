@@ -131,7 +131,10 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
 # Claude API (richiede DPA con Anthropic per uso in PA)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5")
+# Sforzo di ragionamento per i modelli che ragionano per default (Sonnet 5.x e
+# successivi): "low" tiene bassi tempi e costi, come serve a un assistente informativo.
+LLM_EFFORT = os.getenv("LLM_EFFORT", "low")
 
 # Riscrittura della domanda per il retrieval nei turni successivi al primo:
 # il retrieval usa solo il testo della domanda corrente, quindi un follow-up
@@ -149,7 +152,7 @@ CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
 # Parigi, Irlanda, Spagna e Stoccolma. Credenziali dalla catena standard AWS
 # (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE o AWS_BEARER_TOKEN_BEDROCK).
 BEDROCK_AWS_REGION = os.getenv("BEDROCK_AWS_REGION", "eu-south-1")
-BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-6")
+BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-5-5")
 BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
 
 # --- Dati personali nelle domande (vedi api/pii.py) ---
