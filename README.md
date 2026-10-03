@@ -247,7 +247,8 @@ OLLAMA_EMBED_MODEL=mxbai-embed-large
 
 # Claude API (see "Using Claude in a public administration" below)
 ANTHROPIC_API_KEY=
-CLAUDE_MODEL=claude-sonnet-4-6
+CLAUDE_MODEL=claude-sonnet-5-5
+LLM_EFFORT=low
 # Rewrites follow-up questions into standalone queries before retrieval
 QUERY_REWRITE=true
 
@@ -255,7 +256,7 @@ QUERY_REWRITE=true
 # profile keeps processing inside EU regions. AWS credentials come from the
 # standard chain (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, ...).
 BEDROCK_AWS_REGION=eu-south-1
-BEDROCK_MODEL=eu.anthropic.claude-sonnet-4-6
+BEDROCK_MODEL=eu.anthropic.claude-sonnet-5-5
 
 # Personal data in questions: masked before the LLM and the logs
 PII_REDACTION=true
@@ -299,10 +300,11 @@ ADMIN_API_KEY=your-secret-key-here
 | `RETRIEVAL_TOP_K`      | `5`                            | Chunks to retrieve per query                         |
 | `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
 | `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
-| `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Claude API model                                     |
+| `CLAUDE_MODEL`         | `claude-sonnet-5-5`            | Claude API model                                     |
+| `LLM_EFFORT`           | `low`                          | Reasoning effort for Sonnet 5.x (`low`/`medium`/`high`) |
 | `CLAUDE_REWRITE_MODEL` | `CLAUDE_MODEL`                 | Model used to rewrite follow-up questions            |
 | `BEDROCK_AWS_REGION`   | `eu-south-1`                   | AWS region for Bedrock (Milan)                       |
-| `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
+| `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-5-5` | Bedrock EU cross-region inference profile          |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
 | `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365`   | Retention of question text, usage, gaps, feedback    |
 

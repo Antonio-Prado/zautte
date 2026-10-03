@@ -25,6 +25,7 @@ from config.settings import (
     BEDROCK_REWRITE_MODEL,
     CLAUDE_MODEL,
     CLAUDE_REWRITE_MODEL,
+    LLM_EFFORT,
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
@@ -46,6 +47,28 @@ _USES_CLAUDE = LLM_PROVIDER in ("claude", "bedrock")
 _ANSWER_MODEL = BEDROCK_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_MODEL
 _REWRITE_MODEL = BEDROCK_REWRITE_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_REWRITE_MODEL
 _claude_client_instance = None
+
+# Modelli che rifiutano temperature (400) e regolano il ragionamento con
+# output_config.effort; il ragionamento conta in max_tokens, quindi serve margine.
+_EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-opus-4-7", "claude-opus-4-8", "claude-fable")
+_THINKING_MARGIN = 3072
+_REFUSAL_TEXT = ("Non posso rispondere a questa richiesta. Per informazioni puoi rivolgerti "
+                 "agli uffici comunali.")
+
+
+def _model_options(model: str, temperature: float, max_tokens: int) -> dict:
+    """Parametri della richiesta che dipendono dal modello. temperature va in
+    extra_body perché anthropic 1.x l'ha tolta dalla firma (funziona anche con 0.x)."""
+    base = model.split("anthropic.", 1)[1] if "anthropic." in model else model
+    if base.startswith(_EFFORT_MODELS):
+        return {"max_tokens": max_tokens + _THINKING_MARGIN,
+                "extra_body": {"output_config": {"effort": LLM_EFFORT}}}
+    return {"max_tokens": max_tokens, "extra_body": {"temperature": temperature}}
+
+
+def _text_of(message) -> str:
+    """Testo della risposta: i blocchi di ragionamento (anche vuoti) possono precedere il testo."""
+    return "".join(b.text for b in message.content if getattr(b, "type", "") == "text").strip()
 
 
 def _claude_client():
@@ -454,12 +477,9 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
     user_messages = [m for m in messages if m["role"] != "system"]
     response = await _claude_client().with_options(timeout=20.0).messages.create(
         model=_REWRITE_MODEL,
-        max_tokens=200,
         system=system_content,
         messages=user_messages,
-        # temperature via extra_body: anthropic 1.x l'ha tolta dalla firma, l'API
-        # la accetta ancora per i modelli 4.6 (funziona anche con 0.x)
-        extra_body={"temperature": 0.0},
+        **_model_options(_REWRITE_MODEL, temperature=0.0, max_tokens=200),
     )
     try:
         if response.usage:
@@ -467,7 +487,7 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
                            _REWRITE_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
         log.debug("Conteggio token non registrato: %s", exc)
-    return "".join(b.text for b in response.content if b.type == "text")
+    return _text_of(response)
 
 
 # ---------------------------------------------------------------------------
@@ -550,10 +570,9 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
 
     response = await _claude_client().messages.create(
         model=_ANSWER_MODEL,
-        max_tokens=1024,
         system=system_content,
         messages=user_messages,
-        extra_body={"temperature": 0.3},  # vedi _rewrite_claude
+        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=1024),
     )
     try:
         if response.usage:
@@ -561,7 +580,11 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
                            _ANSWER_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
         log.debug("Conteggio token non registrato: %s", exc)
-    return response.content[0].text.strip()
+    text = _text_of(response)
+    if response.stop_reason == "refusal":
+        log.warning("Il modello ha rifiutato la richiesta")
+        text = (text + "\n\n" + _REFUSAL_TEXT).strip()
+    return text
 
 
 async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGenerator[str, None]:
@@ -575,15 +598,23 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
 
     async with _claude_client().messages.stream(
         model=_ANSWER_MODEL,
-        max_tokens=1024,
         system=system_content,
         messages=user_messages,
-        extra_body={"temperature": 0.3},  # vedi _rewrite_claude
+        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=1024),
     ) as stream:
+        sent = False
         async for text in stream.text_stream:
+            sent = sent or bool(text)
             yield text
         try:
             final = await stream.get_final_message()
+        except (AttributeError, TypeError, ValueError) as exc:
+            log.debug("Messaggio finale non disponibile: %s", exc)
+            final = None
+        if final and final.stop_reason == "refusal":
+            log.warning("Il modello ha rifiutato la richiesta")
+            yield ("\n\n" if sent else "") + _REFUSAL_TEXT
+        try:
             if final and final.usage:
                 _record_tokens(final.usage.input_tokens, final.usage.output_tokens,
                                _ANSWER_MODEL, uid=uid)
@@ -646,6 +677,7 @@ _TOKEN_HISTORY_MAX = 100
 # Prezzi USD per milione di token (input, output), listino API Anthropic
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-7":   (5.00, 25.00),
+    "claude-sonnet-5":    (2.00, 10.00),   # anche claude-sonnet-5-5
     "claude-sonnet-4-6":  (3.00, 15.00),
     "claude-haiku-4-5":   (1.00,  5.00),
 }
