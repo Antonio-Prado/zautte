@@ -65,7 +65,6 @@ async def require_admin(key: str | None = Security(_api_key_header)):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import asyncio
     import signal
 
     log.info("Avvio chatbot...")
