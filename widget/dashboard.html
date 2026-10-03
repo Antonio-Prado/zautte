@@ -233,6 +233,9 @@
     body.user-view > #chat-area { width: 100%; max-width: 640px; }
     body.user-view .page-head { flex-direction: column; align-items: center; text-align: center; }
     body.user-view #pilot-intro { text-align: justify; hyphens: auto; }
+    /* Riquadro introduttivo: testo diverso prima e dopo l'accesso (classe logged-in dall'evento zautte:auth) */
+    body.logged-in .before-login { display: none !important; }
+    body:not(.logged-in) .after-login { display: none !important; }
     #session-box { font-size: 0.85em; color: #666; white-space: nowrap; }
     .btn-logout {
       margin-left: 8px; background: #fff; border: 1px solid #003366; border-radius: 6px;
@@ -258,8 +261,8 @@
   </p>
 
   <div id="pilot-intro" style="max-width:640px;margin:24px 0;padding:20px 22px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.55;color:#444">
-    <strong style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
-    Accedi con le credenziali che hai ricevuto e fai le tue domande.
+    <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
+    <span class="before-login">Accedi con le credenziali che hai ricevuto e fai</span><span class="after-login">Fai</span> le tue domande.
     Usa 👍 / 👎 per darci un riscontro.<br>
     Se metti 👎, sotto la risposta compare un modulo: scrivi cosa non va e incolla il link
     della pagina dove si trova l'informazione corretta.
@@ -448,7 +451,7 @@
     <div class="cl-entry">
       <div class="cl-date">3 ott 2026</div>
       <div class="cl-text">
-        <span class="cl-tag feat">feat</span>Titolo della pagina su due righe: «Zautte — Assistente virtuale» e «Comune di San Benedetto del Tronto» (nella scheda del browser su una riga). Nel riquadro introduttivo, centrato: «Accesso riservato a utenti autorizzati». Nuovo messaggio di benvenuto della chat. Modulo di accesso: «Accedi» centrato, senza la frase sul progetto pilota.
+        <span class="cl-tag feat">feat</span>Titolo della pagina su due righe: «Zautte — Assistente virtuale» e «Comune di San Benedetto del Tronto» (nella scheda del browser su una riga). Nel riquadro introduttivo, centrato: «Accesso riservato a utenti autorizzati». Nuovo messaggio di benvenuto della chat. Modulo di accesso: «Accedi» centrato, senza la frase sul progetto pilota. Dopo l'accesso il riquadro introduttivo non mostra più «Accesso riservato…» né l'invito ad accedere.
       </div>
     </div>
     <div class="cl-entry">
@@ -1288,6 +1291,7 @@
     }
     document.addEventListener('zautte:auth', function (e) {
       _user = e.detail || { loggedIn: false, name: '' };
+      document.body.classList.toggle('logged-in', !!_user.loggedIn);
       updateSessionBox();
     });
     document.getElementById('logout-btn').addEventListener('click', function () {
