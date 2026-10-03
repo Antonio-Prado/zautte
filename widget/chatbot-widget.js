@@ -16,6 +16,7 @@
  *       logoUrl:       '',                                  // URL logo (opzionale)
  *       contactEmail:  '',                                  // email segnalazione errori (opzionale)
  *       infoUrl:       '',                                  // pagina "Come funziona" (opzionale)
+ *       loginSubtitle: '',                                  // testo sotto "Accedi" nel login (opzionale)
  *       privacyUrl:    '',                                  // informativa privacy (opzionale)
  *       lang:          'it',                                // lingua default ('it' | 'en')
  *       inline:        '#chat-area',                        // pannello dentro la pagina (opzionale)
@@ -48,6 +49,7 @@
       contactEmail: "",
       infoUrl: "",     // pagina "Come funziona" (trasparenza sul sistema di IA)
       privacyUrl: "",  // informativa sul trattamento dei dati personali
+      loginSubtitle: "",  // testo facoltativo sotto "Accedi" nel modulo di accesso
       zIndex: 99999,
       suggestions: [],
       requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
@@ -102,9 +104,6 @@
     infoLink: isItalian ? "Come funziona" : "How it works",
     privacyLink: isItalian ? "Privacy" : "Privacy",
     loginTitle: isItalian ? "Accedi" : "Sign in",
-    loginSubtitle: isItalian
-      ? "Servizio riservato ai partecipanti del progetto pilota."
-      : "Reserved for pilot project participants.",
     loginEmail: isItalian ? "Email" : "Email",
     loginPassword: isItalian ? "Password" : "Password",
     loginSubmit: isItalian ? "Accedi" : "Sign in",
@@ -722,8 +721,8 @@
   loginEl.style.cssText =
     "display:none;flex:1;flex-direction:column;gap:12px;padding:24px;justify-content:center;box-sizing:border-box;";
   loginEl.innerHTML = `
-    <div style="font-weight:600;font-size:16px;color:${p};">${T.loginTitle}</div>
-    <div style="font-size:13px;opacity:.75;line-height:1.4;">${T.loginSubtitle}</div>
+    <div style="font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle}</div>
+    ${cfg.loginSubtitle ? `<div style="font-size:13px;opacity:.75;line-height:1.4;text-align:center;">${escapeHtml(cfg.loginSubtitle)}</div>` : ""}
     <input type="email" id="${WIDGET_ID}-login-email" autocomplete="username"
       placeholder="${T.loginEmail}" required
       style="padding:11px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
