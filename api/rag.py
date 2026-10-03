@@ -93,7 +93,7 @@ MIN_SIMILARITY = 0.38
 RETRIEVAL_CONFIDENCE = 0.55
 
 # Mappa keyword → ufficio competente — caricata da config/offices.json
-def _load_office_map() -> list[tuple[set, str, str]]:
+def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "offices.json"
     if not f.exists():
@@ -103,7 +103,10 @@ def _load_office_map() -> list[tuple[set, str, str]]:
         result = []
         for e in entries:
             url = SITE_URL.rstrip("/") + e["path"] if e.get("path") else e.get("url", "")
-            result.append((set(e["keywords"]), e["name"], url))
+            # Parole intere, come per i fatti noti: prima "cie" scattava dentro
+            # "società" o "specie" e "imposta" dentro "impostazioni".
+            pattern = re.compile(r"\b(?:" + "|".join(re.escape(k.lower()) for k in e["keywords"]) + r")\b")
+            result.append((pattern, e["name"], url))
         return result
     except (OSError, ValueError, KeyError, TypeError) as exc:
         log.warning(f"Impossibile caricare offices.json: {exc}")
@@ -115,8 +118,8 @@ _OFFICE_MAP = _load_office_map()
 def suggest_office(query: str) -> str | None:
     """Suggerisce l'ufficio competente in base alle parole chiave della query."""
     query_lower = query.lower()
-    for keywords, office_name, office_url in _OFFICE_MAP:
-        if any(kw in query_lower for kw in keywords):
+    for pattern, office_name, office_url in _OFFICE_MAP:
+        if pattern.search(query_lower):
             return f"Per questo argomento puoi contattare: **{office_name}** — {office_url}"
     return None
 

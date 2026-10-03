@@ -1,6 +1,6 @@
 [
   {
-    "keywords": ["residenza", "anagrafe", "nascita", "morte", "matrimonio", "stato civile", "carta identità", "cie", "certificato"],
+    "keywords": ["residenza", "anagrafe", "nascita", "morte", "matrimonio", "stato civile", "carta identità", "carta di identità", "carta d'identità", "carta d’identità", "cie", "certificato"],
     "name": "Ufficio Anagrafe e Stato Civile",
     "path": "/it/unita_organizzative/servizi-demografici-e-statistica"
   },
@@ -15,7 +15,12 @@
     "path": "/it/unita_organizzative/sue-e-edilizia-privata"
   },
   {
-    "keywords": ["suap", "attività commerciale", "apertura negozio", "licenza", "autorizzazione"],
+    "keywords": ["albero", "alberi", "alberature", "pino", "pini", "palma", "palme", "siepe", "siepi", "potatura", "aree verdi", "verde pubblico", "giardini pubblici", "parco giochi", "cimitero", "loculo", "loculi", "tumulazione", "cremazione", "lampada votiva", "canile", "randagismo", "colonia felina", "colonie feline"],
+    "name": "Servizio Aree verdi e cimitero",
+    "path": "/it/unita_organizzative/aree-verdi-e-cimitero"
+  },
+  {
+    "keywords": ["suap", "attività commerciale", "apertura negozio", "licenza", "commercio", "mercatino", "mercatini", "ambulante", "ambulanti", "somministrazione"],
     "name": "Sportello Unico Attività Produttive (SUAP)",
     "path": "/it/unita_organizzative/suap-e-mercato-ittico"
   },
