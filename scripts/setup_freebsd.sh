@@ -8,13 +8,20 @@ echo "=== Setup Chatbot Comune SBT su FreeBSD ==="
 
 # --- Pacchetti di sistema ---
 echo "[1/5] Installazione pacchetti di sistema..."
+# Su FreeBSD PyPI non ha wheel precompilate: pip compila numpy, lxml, pydantic-core,
+# jiter ecc. Servono Rust, ninja (senza, pip compila anche ninja e CMake: lentissimo),
+# pkgconf e le librerie XML per lxml.
+# (pip arriva con il venv: python3.11 -m venv include ensurepip)
 pkg install -y \
     python311 \
-    py311-pip \
-    py311-virtualenv \
     git \
     curl \
-    wget
+    wget \
+    rust \
+    ninja \
+    pkgconf \
+    libxml2 \
+    libxslt
 
 # --- Ollama (LLM locale) ---
 echo "[2/5] Installazione Ollama..."
@@ -35,29 +42,24 @@ cd "$CHATBOT_DIR"
 python3.11 -m venv venv
 . venv/bin/activate
 
-pip install --upgrade pip
+pip install --upgrade pip setuptools wheel
 
-pip install \
-    fastapi \
-    "uvicorn[standard]" \
-    chromadb \
-    sentence-transformers \
-    pymupdf \
-    httpx \
-    beautifulsoup4 \
-    lxml \
-    langchain-text-splitters \
-    anthropic \
-    python-dotenv \
-    pydantic-settings
+# orjson 3.12+ richiede Rust 1.95: con un Rust più vecchio si resta alla serie 3.11
+if rustc --version 2>/dev/null | awk '{split($2, v, "."); exit !(v[1] == 1 && v[2] < 95)}'; then
+    echo "orjson<3.12" > /tmp/zautte-constraints.txt
+    pip install -r requirements.txt -c /tmp/zautte-constraints.txt
+else
+    pip install -r requirements.txt
+fi
 
 echo "[4/5] Creazione directory dati..."
-mkdir -p data/vectordb data/documents data/crawl_cache
+mkdir -p data/vectorstore data/documents data/crawl_cache data/inbox
 
-echo "[5/5] Scaricamento modello LLM (se Ollama disponibile)..."
+echo "[5/5] Scaricamento modelli Ollama (se disponibile)..."
 if command -v ollama > /dev/null 2>&1; then
-    ollama pull llama3.1:8b
-    echo "Modello llama3.1:8b scaricato."
+    ollama pull mxbai-embed-large   # embedding: serve sempre, anche con Claude
+    ollama pull llama3.1:8b         # LLM locale (LLM_PROVIDER=ollama)
+    echo "Modelli scaricati."
 else
     echo "SKIP: Ollama non trovato. Scaricare il modello manualmente dopo l'installazione."
 fi
