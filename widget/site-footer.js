@@ -12,6 +12,16 @@
 
   var REPO = "Antonio-Prado/zautte";
 
+  // Data e ora del commit come YYYYMMDDhhmmss, nel fuso italiano
+  function stamp(d) {
+    var parts = {};
+    new Intl.DateTimeFormat("it-IT", {
+      timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    }).formatToParts(d).forEach(function (p) { parts[p.type] = p.value; });
+    return parts.year + parts.month + parts.day + parts.hour + parts.minute + parts.second;
+  }
+
   function build() {
     if (document.getElementById("zautte-site-footer")) return;
     var footer = document.createElement("footer");
@@ -35,12 +45,9 @@
         var sha = String(c.sha || "");
         if (!/^[0-9a-f]{40}$/.test(sha)) return;
         var date = c.commit && c.commit.committer && c.commit.committer.date;
-        var when = date
-          ? new Date(date).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" })
-          : "";
         var box = document.getElementById("zautte-last-commit");
         var link = box.querySelector("a");
-        link.textContent = "Ultimo commit " + sha.slice(0, 7) + (when ? " (" + when + ")" : "");
+        link.textContent = "Ultimo commit " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
         box.hidden = false;
       })
       .catch(function () { /* GitHub non raggiungibile o limite di richieste */ });
