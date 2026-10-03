@@ -36,7 +36,12 @@ _IBAN_RE = re.compile(
 # Carta di pagamento: 13-19 cifre, eventualmente separate da spazi o trattini.
 _CARD_RE = re.compile(r"(?<![\d.,/])\d(?:[ -]?\d){12,18}(?![\d.,/])")
 
-_EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
+# Ripetizioni limitate alle lunghezze massime di un indirizzo (64 caratteri prima
+# della @, 63 per etichetta del dominio): nessun backtracking costoso su testi
+# costruiti apposta (es. lunghe sequenze di "+").
+_EMAIL_RE = re.compile(
+    r"(?<![\w.+-])[\w.+-]{1,64}@([A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24})"
+)
 
 # Telefono italiano: prefisso internazionale facoltativo, poi cellulare (3xx) o
 # fisso (0x), con spazi/punti/trattini/barre tra le cifre. La lunghezza viene
