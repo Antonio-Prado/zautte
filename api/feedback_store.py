@@ -87,6 +87,7 @@ def iter_entries() -> list[dict]:
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
+                # riga troncata o corrotta (es. scrittura interrotta): si salta
                 pass
     return out
 

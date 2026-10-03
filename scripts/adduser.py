@@ -84,6 +84,9 @@ def main() -> None:
         ap.error("--email e --name sono obbligatori (oppure usa --list / --remove)")
 
     email = args.email.strip().lower()
+    if args.send_email and not smtp_configured():
+        print("SMTP non configurato: le credenziali non si possono recapitare. Nessuna modifica.")
+        sys.exit(1)
     # Password: esplicita, oppure generata (se --send-email), oppure interattiva
     if args.password:
         password = args.password
@@ -114,15 +117,16 @@ def main() -> None:
     _save(users)
 
     if args.send_email:
+        # La password non si stampa mai: se l'invio fallisce si rilancia il comando
+        # (senza --password ne genera una nuova).
         url = args.login_url or PILOT_LOGIN_URL
-        if not smtp_configured():
-            print(f"  ATTENZIONE: SMTP non configurato — email NON inviata. Password: {password}")
-        else:
-            try:
-                send_credentials(email, args.name, password, url)
-                print(f"  Email con le credenziali inviata a {email}")
-            except Exception as e:  # noqa: BLE001
-                print(f"  Invio email FALLITO ({e}). Password: {password}")
+        try:
+            send_credentials(email, args.name, password, url)
+            print(f"  Email con le credenziali inviata a {email}")
+        except Exception as e:  # noqa: BLE001
+            print(f"  Invio email FALLITO ({e}): credenziali non recapitate. "
+                  "Rilancia lo stesso comando per riprovare.")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

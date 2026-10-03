@@ -12,6 +12,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).parent.parent / ".env")
 except ImportError:
+    # python-dotenv è facoltativo: senza, valgono solo le variabili d'ambiente
     pass
 
 
