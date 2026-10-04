@@ -15,10 +15,10 @@
       background: #f5f5f5;
       color: #333;
     }
-    h1 { color: #003366; margin-bottom: 4px; }
+    h1 { color: #003366; margin: 0 0 4px; font-size: 1.5em; line-height: 1.25; }
     /* Logo Zautte in testa al titolo */
-    .brand-logo { display: block; height: 44px; width: auto; margin: 0 0 12px; }
-    body.user-view .brand-logo { margin: 0 auto 12px; }
+    .brand-logo { display: block; height: 36px; width: auto; margin: 0 0 8px; }
+    body.user-view .brand-logo { margin: 0 auto 8px; }
     h2 { color: #003366; font-size: 0.95em; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; }
     .subtitle { color: #666; margin-top: 0; margin-bottom: 24px; font-size: 0.9em; }
     .grid {
@@ -219,9 +219,12 @@
     .btn-resolve:disabled { opacity: 0.5; cursor: default; }
 
     /* Vista collega: titolo, descrizione e chat che riempie il resto della finestra */
-    body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-bottom: 24px; }
+    /* (pagina compatta: il footer deve restare visibile anche su schermi bassi, 1366×768) */
+    body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: 20px; padding-bottom: 16px; }
     #chat-area { max-width: 640px; }
-    body.user-view #chat-area { flex: 1; min-height: 420px; }
+    body.user-view #chat-area { flex: 1; }
+    /* Prima dell'accesso conta solo l'altezza del modulo; dopo, la chat non scende sotto i 300 px */
+    body.user-view.logged-in #chat-area { min-height: 300px; }
     body.admin-view #chat-area { height: 640px; margin: 24px 0; }
 
     /* Intestazione con utente collegato e pulsante "Esci" */
@@ -247,14 +250,22 @@
       color: #003366; font-size: 0.95em; padding: 4px 12px; cursor: pointer;
     }
     .btn-logout:hover { background: #003366; color: #fff; }
+    /* Schermi larghi: nome ed "Esci" in alto a destra, all'altezza del logo, senza una riga in più */
+    @media (min-width: 760px) {
+      body.user-view .page-head { position: relative; }
+      body.user-view #session-box { position: absolute; top: 6px; right: 0; }
+    }
     @media (max-width: 480px) {
       body { padding: 20px 16px 40px; }
+      body.user-view h1 { font-size: 1.25em; }
+      body.user-view #pilot-intro { font-size: 0.92em; }
+      body.user-view.logged-in #chat-area { min-height: 260px; }
     }
   </style>
 </head>
 <body class="user-view">
   <div class="page-head">
-    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="195" height="44">Assistente virtuale<br>Comune di San Benedetto del Tronto</h1>
+    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="160" height="36">Assistente virtuale<br>Comune di San Benedetto del Tronto</h1>
     <div id="session-box" style="display:none">
       <span id="session-name"></span>
       <button type="button" class="btn-logout" id="logout-btn">Esci</button>
@@ -265,7 +276,7 @@
     &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
   </p>
 
-  <div id="pilot-intro" style="max-width:640px;margin:24px 0;padding:20px 22px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.55;color:#444">
+  <div id="pilot-intro" style="max-width:640px;margin:14px 0;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.5;color:#444">
     <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
     <span class="before-login">Accedi con le credenziali che hai ricevuto e fai</span><span class="after-login" id="intro-greeting">Fai</span> le tue domande.
     Usa 👍 / 👎 per darci un riscontro.<br>
@@ -453,6 +464,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">4 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Dashboard più compatta</strong>: la pagina dei colleghi sta tutta in una schermata, footer compreso, anche su un portatile 1366×768 e su un telefono di dimensioni normali; prima serviva scorrere di 70–230 px. Logo e titolo più piccoli, margini ridotti, nome ed «Esci» in alto a destra sugli schermi larghi; prima dell'accesso il riquadro della chat è alto quanto il modulo, dopo non scende sotto i 300 px. Nel modulo di accesso il titolo è «Accedi a Zautte» e il pulsante «Entra», al posto di due «Accedi».
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">4 ott 2026</div>
       <div class="cl-text">
@@ -1368,7 +1385,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261003b" defer></script>
+  <script src="./chatbot-widget.js?v=20261004a" defer></script>
   <script src="./site-footer.js?v=20261004b" defer></script>
 </body>
 </html>
