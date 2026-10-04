@@ -14,6 +14,9 @@
       color: #333;
     }
     h1 { color: #003366; margin-bottom: 4px; }
+    /* Logo Zautte in testa al titolo */
+    .brand-logo { display: block; height: 44px; width: auto; margin: 0 0 12px; }
+    body.user-view .brand-logo { margin: 0 auto 12px; }
     h2 { color: #003366; font-size: 0.95em; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; }
     .subtitle { color: #666; margin-top: 0; margin-bottom: 24px; font-size: 0.9em; }
     .grid {
@@ -249,7 +252,7 @@
 </head>
 <body class="user-view">
   <div class="page-head">
-    <h1>Zautte — Assistente virtuale<br>Comune di San Benedetto del Tronto</h1>
+    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="195" height="44">Assistente virtuale<br>Comune di San Benedetto del Tronto</h1>
     <div id="session-box" style="display:none">
       <span id="session-name"></span>
       <button type="button" class="btn-logout" id="logout-btn">Esci</button>
@@ -448,6 +451,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">4 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Logo di Zautte</strong>: il logo compare in testa alla dashboard (vista colleghi e amministratore), alla pagina «Come funziona Zautte» e alla pagina del pilota, al posto della scritta «Zautte —» nel titolo. È un'immagine vettoriale (SVG di 6 KB) ricavata dal disegno originale, nel blu del Comune: resta nitida su ogni schermo.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">3 ott 2026</div>
       <div class="cl-text">
