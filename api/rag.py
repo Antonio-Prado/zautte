@@ -82,15 +82,25 @@ def _claude_client():
             _claude_client_instance = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
     return _claude_client_instance
 
+# Soglie e pesi dipendono dal modello di embedding: tarati per bge-m3 il 04/10/2026
+# su 100 domande con pagina giusta e 12 fuori tema (con mxbai-embed-large erano
+# 0,38 / 0,55 / pesi 0,4-0,6, ma mxbai dava ~0,70 anche alle domande fuori tema).
+# Coseno bge-m3 del brano migliore: domande in tema 0,56-0,70, fuori tema 0,38-0,50,
+# brani a caso ~0,35.
+
 # Soglia minima di similarità per includere un chunk nel contesto
-MIN_SIMILARITY = 0.38
+MIN_SIMILARITY = 0.45
 
 # Soglia di "confidenza" del retrieval: se anche il chunk migliore resta sotto
 # questo valore di similarità coseno, la risposta è probabilmente costruita su
 # documenti solo tematicamente vicini (es. bilanci per una domanda di servizio)
 # e non realmente pertinenti. Serve a loggare questi casi in gaps.jsonl per la
-# revisione — non altera la risposta. Da calibrare sui dati reali di produzione.
-RETRIEVAL_CONFIDENCE = 0.55
+# revisione — non altera la risposta.
+RETRIEVAL_CONFIDENCE = 0.52
+
+# Pesi della fusione RRF tra ricerca vettoriale e BM25 (somma 1)
+VECTOR_WEIGHT = 0.6
+BM25_WEIGHT = 0.4
 
 # Mappa keyword → ufficio competente — caricata da config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
@@ -277,7 +287,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         chunks = [c for c in chunks if c["score"] >= 0.005]
     else:
         chunks = hybrid_search(query_vec, expanded_query, top_k=top_k * 3,
-                               vector_weight=0.4, bm25_weight=0.6)
+                               vector_weight=VECTOR_WEIGHT, bm25_weight=BM25_WEIGHT)
         chunks = _dedup_chunks(chunks)
         chunks = [c for c in chunks if c["score"] >= MIN_SIMILARITY]
     chunks = rerank(chunks, query)
