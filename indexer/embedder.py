@@ -1,6 +1,7 @@
 """
 Generazione embedding tramite Ollama (modello OLLAMA_EMBED_MODEL, in
-produzione mxbai-embed-large: contesto massimo 512 token).
+produzione bge-m3 dal 04/10/2026: contesto 8192 token, i brani non lo
+superano mai; prima mxbai-embed-large, contesto 512 token).
 
 Strategia: tenta prima il batch endpoint /api/embed (veloce quando funziona).
 Se restituisce 400, cade back su chiamate singole su /api/embed. Su errore 500
@@ -13,7 +14,8 @@ stesso motivo. Ne restavano 5.861 chunk a vettore zero al 16/09/2026 (testi
 di 500-1500 caratteri ma densi di token: tabelle numeriche, PDF illeggibili).
 Il troncamento va quindi fatto lato client: su 400 "context length" il testo
 viene ritagliato a _CUT_STEPS caratteri in sequenza finché Ollama lo accetta
-(verificato sul server: 800 caratteri passano su tutti i campioni).
+(verificato sul server: 800 caratteri passano su tutti i campioni). Con bge-m3
+non serve, ma resta per i modelli a contesto corto.
 """
 
 import logging
@@ -40,6 +42,19 @@ _CTX_ERROR  = "context length"
 MAX_RETRIES = 3          # tentativi totali prima di arrendersi con vettore zero
 BATCH_GIVE_UP = 3        # batch 400 consecutivi dopo i quali si usano solo singoli
 RETRY_BASE_DELAY = 1.0   # backoff: 1s, 2s, 4s (+ jitter)
+# Opzioni di Ollama aggiunte a ogni richiesta, es. {"num_thread": 12}. Con tutti i
+# core un calcolo lungo rallenta di decine di volte appena un altro processo ne usa
+# uno (un batch da 3 s superava i 120 s): scripts/reembed.py --threads lascia CPU
+# libera all'API. Vuoto = impostazioni di Ollama.
+OLLAMA_OPTIONS: dict = {}
+
+
+def _body(**fields) -> dict:
+    """Corpo di una richiesta a Ollama: modello, campi dati e OLLAMA_OPTIONS."""
+    body = {"model": OLLAMA_EMBED_MODEL, **fields}
+    if OLLAMA_OPTIONS:
+        body["options"] = OLLAMA_OPTIONS
+    return body
 
 
 def _zero() -> list[float]:
@@ -106,7 +121,7 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
         try:
             resp = client.post(
                 f"{OLLAMA_BASE_URL}/api/embed",
-                json={"model": OLLAMA_EMBED_MODEL, "input": [_clean(t) for t in texts]},
+                json=_body(input=[_clean(t) for t in texts]),
             )
             if resp.status_code == 200:
                 return resp.json()["embeddings"]
@@ -169,7 +184,7 @@ def _embed_request(client: httpx.Client, text: str,
     """Una richiesta a /api/embed con retry su 500. Ritorna (vettore, False) su
     successo, (None, True) se il testo supera il contesto del modello, (vettore
     legacy o zero, False) per gli altri 400, (None, False) se tutto fallisce."""
-    payload = {"model": OLLAMA_EMBED_MODEL, "input": [text], "truncate": True}
+    payload = _body(input=[text], truncate=True)
     for attempt in range(MAX_RETRIES + 1):
         status = "errore"
         try:
@@ -205,7 +220,7 @@ def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
     try:
         resp = client.post(
             f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": OLLAMA_EMBED_MODEL, "prompt": _clean(text)},
+            json=_body(prompt=_clean(text)),
         )
         if resp.status_code == 200:
             return resp.json()["embedding"]
@@ -221,7 +236,7 @@ def check_ollama_embed() -> bool:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(
                 f"{OLLAMA_BASE_URL}/api/embed",
-                json={"model": OLLAMA_EMBED_MODEL, "input": ["test"]},
+                json=_body(input=["test"]),
             )
             return resp.status_code == 200
     except httpx.HTTPError:

@@ -68,7 +68,7 @@ The system is **stateless**: conversations are not stored on the server. Turn hi
 | Python            | 3.11+                                                |
 | Web scraping      | httpx + BeautifulSoup4/lxml                          |
 | PDF parsing       | pypdf (pure Python, no compilation)                  |
-| Embedding         | Ollama (`mxbai-embed-large`, 1024 dim)               |
+| Embedding         | Ollama (`bge-m3`, 1024 dim, multilingual)            |
 | Vector store      | numpy (custom, pure Python)                          |
 | Keyword search    | rank-bm25 (BM25Okapi)                                |
 | LLM               | Local Ollama (`qwen2.5:7b`) or Claude API            |
@@ -173,7 +173,7 @@ chatbot/
 - Ollama models downloaded:
 
 ```sh
-ollama pull mxbai-embed-large   # embedding (1024 dim)
+ollama pull bge-m3              # embedding (1024 dim, multilingual)
 ollama pull qwen2.5:7b          # LLM (or qwen2.5:3b for lower RAM)
 ```
 
@@ -248,7 +248,7 @@ LLM_PROVIDER=ollama
 # Ollama
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b
-OLLAMA_EMBED_MODEL=mxbai-embed-large
+OLLAMA_EMBED_MODEL=bge-m3
 
 # Claude API (see "Using Claude in a public administration" below)
 ANTHROPIC_API_KEY=
@@ -300,7 +300,7 @@ ADMIN_API_KEY=your-secret-key-here
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.)          |
 | `CHUNK_SIZE`           | `800`                          | Target chunk size (characters)                       |
 | `CHUNK_OVERLAP`        | `100`                          | Overlap between chunks (minimum — effective is 150)  |
-| `OLLAMA_EMBED_MODEL`   | `mxbai-embed-large`            | Embedding model (1024 dim)                           |
+| `OLLAMA_EMBED_MODEL`   | `bge-m3`                       | Embedding model (1024 dim)                           |
 | `EMBEDDING_DIMENSION`  | `1024`                         | Embedding vector dimension                           |
 | `RETRIEVAL_TOP_K`      | `5`                            | Chunks to retrieve per query                         |
 | `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
@@ -326,7 +326,7 @@ User question
 1. expand_query()        — adds domain synonyms (e.g. "TARI" → "waste tax")
      │
      ▼
-2. embed_query()         — vectorizes the expanded query (Ollama mxbai-embed-large)
+2. embed_query()         — vectorizes the expanded query (Ollama bge-m3)
      │
      ▼
 3. hybrid_search()       — cosine similarity (60%) + BM25 (40%) with RRF
@@ -454,9 +454,9 @@ Each chunk's metadata includes: `source` (URL), `title`, `doc_type` (`html`/`pdf
 
 ### Embedding (`indexer/embedder.py`)
 
-Embeddings are generated via Ollama using the `mxbai-embed-large` model (1024 dimensions, good multilingual support).
+Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). Until October 2026 the model was `mxbai-embed-large`: on 100 questions about municipal services, `bge-m3` put the right page among the 7 chunks passed to the LLM 75 times against 62.
 
-- Uses Ollama's `/api/embed` endpoint with **native batches** (32 texts per call)
+- Uses Ollama's `/api/embed` endpoint with **native batches** (16 texts per call)
 - Automatic fallback to `/api/embeddings` endpoint (one at a time) if batch fails
 - `embed_query()` for user queries (single call)
 
@@ -1035,12 +1035,23 @@ service ollama start             # or equivalent command on FreeBSD
 
 ### Changing embedding model
 
-If `OLLAMA_EMBED_MODEL` is changed, the vector store must be cleared and re-indexed (incompatible embedding dimensions):
+Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without downtime and without crawling again:
 
 ```sh
-rm -rf data/vectorstore/
-venv/bin/python -m scripts.sync full
+ollama pull bge-m3
+# 1. compute the new vectors in a cache, while production keeps using the old model
+#    (resumable; identical texts are embedded once)
+nice venv/bin/python -m scripts.reembed build --model bge-m3 --cache /data/chatbot/reembed/bge-m3
+venv/bin/python -m scripts.reembed status --cache /data/chatbot/reembed/bge-m3
+# 2. with no sync running: rewrite embeddings.npy (chunks added after the build are
+#    embedded now), then switch the model in .env and restart the API
+lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.reembed apply \
+    --model bge-m3 --cache /data/chatbot/reembed/bge-m3 --backup /data/chatbot/backups_keep
+sed -i '' 's/^OLLAMA_EMBED_MODEL=.*/OLLAMA_EMBED_MODEL=bge-m3/' .env
+service chatbot restart
 ```
+
+The similarity thresholds in `api/rag.py` (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`) depend on the model and must be calibrated again. On a new installation, simply clear the store and run `scripts.sync full`.
 
 ### Changing chunking configuration
 

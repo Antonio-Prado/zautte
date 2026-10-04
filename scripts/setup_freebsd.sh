@@ -57,7 +57,7 @@ mkdir -p data/vectorstore data/documents data/crawl_cache data/inbox
 
 echo "[5/5] Scaricamento modelli Ollama (se disponibile)..."
 if command -v ollama > /dev/null 2>&1; then
-    ollama pull mxbai-embed-large   # embedding: serve sempre, anche con Claude
+    ollama pull bge-m3              # embedding: serve sempre, anche con Claude
     ollama pull llama3.1:8b         # LLM locale (LLM_PROVIDER=ollama)
     echo "Modelli scaricati."
 else
