@@ -4,8 +4,9 @@
  *
  *   <script src="./site-footer.js" defer></script>
  *
- * Mostra l'ultimo commit su GitHub (letto dall'API pubblica a ogni apertura della
- * pagina; il link porta sempre al repository) e "Powered by" con il logo di SBTAP
+ * Mostra l'ultima release e l'ultimo commit su GitHub (letti dall'API pubblica a ogni
+ * apertura della pagina; la release porta alla sua pagina, il commit sempre al
+ * repository) e "Powered by" con il logo di SBTAP
  * (logo.png accanto a questo script, link a as59715.net).
  */
 (function () {
@@ -35,10 +36,28 @@
       "color:#666", "text-align:center", "flex-shrink:0",
     ].join(";"));
     footer.innerHTML =
+      "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
       "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a>";
     document.body.appendChild(footer);
+
+    // Ultima release pubblicata; se non c'è o GitHub non risponde il riferimento resta nascosto
+    fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {
+      headers: { "Accept": "application/vnd.github+json" },
+    })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function (rel) {
+        var tag = String(rel.tag_name || "");
+        if (!/^v?\d+\.\d+\.\d+$/.test(tag)) return;
+        var box = document.getElementById("zautte-release");
+        var link = box.querySelector("a");
+        var url = String(rel.html_url || "");
+        if (url.indexOf("https://github.com/" + REPO + "/releases/") === 0) link.href = url;
+        link.textContent = "Release " + tag;
+        box.hidden = false;
+      })
+      .catch(function () { /* GitHub non raggiungibile o limite di richieste */ });
 
     // Ultimo commit su main; se GitHub non risponde il riferimento resta nascosto
     fetch("https://api.github.com/repos/" + REPO + "/commits/main", {
