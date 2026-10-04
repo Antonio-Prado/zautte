@@ -5,12 +5,15 @@
  *   <script src="./site-footer.js" defer></script>
  *
  * Mostra l'ultimo commit su GitHub (letto dall'API pubblica a ogni apertura della
- * pagina; il link porta sempre al repository) e "Powered by SBTAP" (link a as59715.net).
+ * pagina; il link porta sempre al repository) e "Powered by" con il logo di SBTAP
+ * (logo.png accanto a questo script, link a as59715.net).
  */
 (function () {
   "use strict";
 
   var REPO = "Antonio-Prado/zautte";
+  // Il logo sta accanto allo script: l'URL non dipende dalla pagina che lo include
+  var SBTAP_LOGO = new URL("logo.png", (document.currentScript && document.currentScript.src) || location.href).href;
 
   // Data e ora del commit come YYYYMMDDhhmmss, nel fuso italiano
   function stamp(d) {
@@ -33,7 +36,8 @@
     ].join(";"));
     footer.innerHTML =
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
-      "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\">SBTAP</a>";
+      "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
+      "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:middle;margin-left:2px;border-radius:3px\"></a>";
     document.body.appendChild(footer);
 
     // Ultimo commit su main; se GitHub non risponde il riferimento resta nascosto
