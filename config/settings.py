@@ -110,9 +110,12 @@ CHUNK_SIZE = 800               # caratteri per chunk
 CHUNK_OVERLAP = 100            # overlap tra chunk consecutivi
 
 # --- Embedding ---
-# Generati da Ollama (stesso servizio del LLM, nessuna dipendenza aggiuntiva)
-# nomic-embed-text: 768 dim, buon supporto multilingue, leggero
-OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "mxbai-embed-large")
+# Generati da Ollama (stesso servizio del LLM, nessuna dipendenza aggiuntiva).
+# bge-m3: 1024 dim, multilingue, contesto 8192 token. Nella prova del 03/10/2026
+# su 100 domande la pagina giusta finiva tra i 7 brani passati al modello 75 volte
+# contro 62 di mxbai-embed-large (il modello precedente, addestrato sull'inglese).
+# Cambiare modello richiede di ricalcolare tutti i vettori: scripts/reembed.py.
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 EMBEDDING_DIMENSION = 1024
 
 # --- Vector Store ---
