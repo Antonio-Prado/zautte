@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/zautte-logo-dark.svg">
+    <img src="widget/zautte-logo.svg" alt="Zautte" width="320">
+  </picture>
+</p>
+
 # Zautte — Technical Documentation
 
 Zautte is a RAG (Retrieval-Augmented Generation) virtual assistant for any website. It answers user questions based exclusively on the indexed site's content, with multilingual support (Italian/English) and full privacy compliance (GDPR-ready).
