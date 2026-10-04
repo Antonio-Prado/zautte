@@ -16,7 +16,7 @@
  *       logoUrl:       '',                                  // URL logo (opzionale)
  *       contactEmail:  '',                                  // email segnalazione errori (opzionale)
  *       infoUrl:       '',                                  // pagina "Come funziona" (opzionale)
- *       loginSubtitle: '',                                  // testo sotto "Accedi" nel login (opzionale)
+ *       loginSubtitle: '',                                  // testo sotto il titolo del login (opzionale)
  *       privacyUrl:    '',                                  // informativa privacy (opzionale)
  *       lang:          'it',                                // lingua default ('it' | 'en')
  *       inline:        '#chat-area',                        // pannello dentro la pagina (opzionale)
@@ -49,7 +49,7 @@
       contactEmail: "",
       infoUrl: "",     // pagina "Come funziona" (trasparenza sul sistema di IA)
       privacyUrl: "",  // informativa sul trattamento dei dati personali
-      loginSubtitle: "",  // testo facoltativo sotto "Accedi" nel modulo di accesso
+      loginSubtitle: "",  // testo facoltativo sotto il titolo del modulo di accesso
       zIndex: 99999,
       suggestions: [],
       requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
@@ -103,10 +103,10 @@
     aiFooter: isItalian ? "🤖 Risposte generate dall'IA" : "🤖 AI-generated answers",
     infoLink: isItalian ? "Come funziona" : "How it works",
     privacyLink: isItalian ? "Privacy" : "Privacy",
-    loginTitle: isItalian ? "Accedi" : "Sign in",
+    loginTitle: isItalian ? "Accedi a" : "Sign in to",  // seguito dal titolo del widget
     loginEmail: isItalian ? "Email" : "Email",
     loginPassword: isItalian ? "Password" : "Password",
-    loginSubmit: isItalian ? "Accedi" : "Sign in",
+    loginSubmit: isItalian ? "Entra" : "Sign in",
     loginLoading: isItalian ? "Accesso…" : "Signing in…",
     loginInvalid: isItalian ? "Email o password non validi." : "Invalid email or password.",
     loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
@@ -721,7 +721,7 @@
   loginEl.style.cssText =
     "display:none;flex:1;flex-direction:column;gap:12px;padding:24px;justify-content:center;box-sizing:border-box;";
   loginEl.innerHTML = `
-    <div style="font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle}</div>
+    <div style="font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle} ${cfg.title}</div>
     ${cfg.loginSubtitle ? `<div style="font-size:13px;opacity:.75;line-height:1.4;text-align:center;">${escapeHtml(cfg.loginSubtitle)}</div>` : ""}
     <input type="email" id="${WIDGET_ID}-login-email" autocomplete="username"
       placeholder="${T.loginEmail}" required
