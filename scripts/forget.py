@@ -5,7 +5,7 @@ file di dati e dalla memoria dell'API in esecuzione, senza riavviarla.
 Uso (sul server, dalla directory del progetto; serve ADMIN_API_KEY nel .env):
     venv/bin/python -m scripts.forget --user antonio.prado@comunesbt.it --last 1
     venv/bin/python -m scripts.forget --user <email o id> --last 5
-    venv/bin/python -m scripts.forget --user <email o id> --all
+    venv/bin/python -m scripts.forget --user <email o id> --all   (anche id di utenti rimossi)
     venv/bin/python -m scripts.forget --rid 3f9a0c1d2e4b [--rid ...]
       --dry-run   mostra cosa verrebbe cancellato e si ferma
       --yes       non chiede conferma
@@ -45,7 +45,11 @@ def _find_user(user: str) -> tuple[str, str]:
     for u in users if isinstance(users, list) else []:
         if key in ((u.get("email") or "").strip().lower(), u.get("id")):
             return u["id"], u.get("name", "")
-    sys.exit(f"Utente non trovato in {USERS_FILE}: {user}")
+    if "@" in key:
+        sys.exit(f"Utente non trovato in {USERS_FILE}: {user}")
+    # Id di un utente già rimosso (adduser --remove): le sue domande restano in usage.jsonl
+    print(f"Id {user} non presente in {USERS_FILE}: lo uso così com'è")
+    return user.strip(), ""
 
 
 def _alive(client: httpx.Client, base: str) -> bool:
