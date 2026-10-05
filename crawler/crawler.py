@@ -30,6 +30,7 @@ from config.settings import (
     CRAWL_EXTRA_START_URLS,
     CRAWL_MAX_PAGES,
     CRAWL_MAX_PATH_DEPTH,
+    CRAWL_URL_ALIASES,
     DOCUMENTS_DIR,
     SITE_URL,
 )
@@ -123,6 +124,20 @@ def should_skip(url: str) -> bool:
     return len(non_numeric) != len(set(non_numeric))
 
 
+def canonical_url(url: str) -> str:
+    """Riscrive sull'host canonico gli URL di host alias (CRAWL_URL_ALIASES): lo stesso
+    allegato servito da comune…, www.comune…, municipiumapp.it e dal bucket S3 diventa un
+    solo URL, quindi si scarica e si indicizza una volta sola."""
+    if not CRAWL_URL_ALIASES:
+        return url
+    parsed = urlparse(url)
+    for alias in CRAWL_URL_ALIASES:
+        if (parsed.netloc in alias.get("hosts", [])
+                and parsed.path.startswith(alias.get("path_prefix", "/"))):
+            return parsed._replace(scheme="https", netloc=alias["canonical_host"]).geturl()
+    return url
+
+
 def extract_links(html: str, base_url: str) -> list[str]:
     soup = BeautifulSoup(html, "lxml")
     links = []
@@ -132,6 +147,7 @@ def extract_links(html: str, base_url: str) -> list[str]:
             continue
         absolute = urljoin(base_url, href)
         absolute, _ = urldefrag(absolute)
+        absolute = canonical_url(absolute)
         if not should_skip(absolute):
             links.append(absolute)
     return links
@@ -145,7 +161,7 @@ def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
     for tag in soup.find_all("a", href=True):
         href = tag["href"].strip()
         if href.lower().endswith(".pdf"):
-            absolute = urljoin(base_url, href)
+            absolute = canonical_url(urljoin(base_url, href))
             if any(d in urlparse(absolute).netloc for d in CRAWL_ALLOWED_DOMAINS):
                 text = tag.get_text(" ", strip=True) or (tag.get("title") or "").strip()
                 pdfs.append((absolute, text))
@@ -509,6 +525,10 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
         # --- Rimuovi pagine scomparse dal sito ---
+        # I PDF già noti e ancora linkati non si riscaricano in modalità incrementale,
+        # ma sono ancora sul sito: senza questa riga venivano dati per rimossi e la
+        # settimana dopo riscaricati come nuovi (109 «RIMOSSO» e 142 «nuovi» il 05/10/2026).
+        visited |= pdf_urls & known_pdf_urls
         removed = state.get_removed_urls(visited)
         if removed:
             log.info(f"\n{len(removed)} URL non più trovati nel sito:")
