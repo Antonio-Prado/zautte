@@ -150,7 +150,7 @@ zautte/                       # deployed as /opt/chatbot
 ├── scripts/
 │   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
-│   ├── reembed.py            # Re-embeds the whole store with another model, without downtime
+│   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── eval.py               # RAG quality evaluation
 │   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
 │   ├── adduser.py            # Creates/updates/removes pilot users
@@ -1232,7 +1232,7 @@ service ollama start             # or equivalent command on FreeBSD
 
 ### Changing embedding model
 
-Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without downtime and without crawling again. Example with `bge-m3`, the current default (it replaced `mxbai-embed-large` in October 2026):
+Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without crawling again: the API keeps answering with the old model while the new vectors are computed, and the switch needs only an API restart (about 15 seconds). Example with `bge-m3`, the current default (it replaced `mxbai-embed-large` in October 2026):
 
 ```sh
 ollama pull bge-m3
@@ -1249,7 +1249,7 @@ sed -i '' 's/^OLLAMA_EMBED_MODEL=.*/OLLAMA_EMBED_MODEL=bge-m3/' .env
 service chatbot restart
 ```
 
-The similarity thresholds and fusion weights in `api/rag.py` (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`) depend on the model and must be calibrated again. A model with a different vector size also needs `EMBEDDING_DIMENSION` changed in `config/settings.py` before `apply`. On a new installation, simply clear the store and run `scripts.sync full`.
+The similarity thresholds and fusion weights in `api/rag.py` (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`) depend on the model and must be calibrated again. A model with a different vector size also needs `EMBEDDING_DIMENSION` changed in `config/settings.py` before `apply`. The old vectors saved by `apply --backup` allow going back only until the next sync adds or removes chunks; after that, going back means re-embedding with the old model. On a new installation, simply clear the store and run `scripts.sync full`.
 
 ### Changing chunking configuration
 
