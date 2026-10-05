@@ -23,6 +23,17 @@
     "turismo.comunesbt.it": 4,
     "sanbenedettodeltronto.nuvolapalitalsoft.it": 4
   },
+  "url_aliases": [
+    {
+      "path_prefix": "/s3/6115/",
+      "hosts": [
+        "www.comune.sanbenedettodeltronto.ap.it",
+        "san-benedetto-del-tronto-api.municipiumapp.it",
+        "municipium-images-production.s3-eu-west-1.amazonaws.com"
+      ],
+      "canonical_host": "comune.sanbenedettodeltronto.ap.it"
+    }
+  ],
   "extra_start_urls": [
     "https://turismo.comunesbt.it/",
     "https://sanbenedettodeltronto.nuvolapalitalsoft.it/?page_id=36046"

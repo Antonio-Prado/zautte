@@ -80,7 +80,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── known_facts.json      # Curated facts injected for specific topics
 │   ├── synonyms.json         # Query expansion synonyms
 │   ├── offices.json          # Office suggested when the question matches its keywords
-│   └── crawl_extra.json      # Site-specific crawl overrides: extra seed URLs, exclude patterns, per-domain path depth
+│   └── crawl_extra.json      # Site-specific crawl overrides: extra seed URLs, exclude patterns, per-domain path depth, URL aliases
 │
 ├── crawler/
 │   ├── crawler.py            # Async httpx crawler

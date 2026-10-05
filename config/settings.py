@@ -60,6 +60,10 @@ CRAWL_MAX_PATH_DEPTH = 10
 # Utile quando un CMS genera URL molto profondi con contenuto duplicato.
 CRAWL_DOMAIN_MAX_PATH_DEPTH: dict[str, int] = {}
 CRAWL_EXTRA_START_URLS: list[str] = []
+# Host diversi che servono gli stessi file (es. allegati del CMS anche su CDN/bucket):
+# [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. Il crawler
+# riscrive questi URL sull'host canonico, così un file si scarica e si indicizza una volta.
+CRAWL_URL_ALIASES: list[dict] = []
 
 # Override specifici per il sito — caricati da config/crawl_extra.json se presente.
 # Permette di aggiungere pattern di esclusione e depth limit senza modificare il codice.
@@ -71,6 +75,7 @@ try:
         CRAWL_EXCLUDE_PATTERNS += _crawl_extra.get("exclude_patterns", [])
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
+        CRAWL_URL_ALIASES += _crawl_extra.get("url_aliases", [])
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
