@@ -72,7 +72,7 @@ The script (run it as root: `crontab -u` requires it) adds to the crontab of the
 
 Since the sync wrappers need root (see above), prefer `/etc/crontab` for them.
 
-Logs: the API writes to `/var/log/chatbot.log`; sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the cron jobs above write to `/var/log/chatbot/` (`sync_inbox.log`, `purge_logs.log`, `sync_full.log`).
+Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Domanda a1b2c3d4e5f6 | 36 caratteri | …`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the cron jobs above write to `/var/log/chatbot/` (`sync_inbox.log`, `purge_logs.log`, `sync_full.log`).
 
 ### Vector Store Backup
 
@@ -189,6 +189,21 @@ venv/bin/python -m scripts.feedback_open --details   # only reports with a comme
 ```
 
 The same reports are in the admin view of the dashboard, with a "Resolve" button (`POST /feedback/resolve`).
+
+### Deleting questions on request
+
+When someone asks for their questions to be deleted, `scripts/forget.py` removes them from `usage.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the "resolved" marks, and from the memory of every running API process (most-frequent-questions counter saved in `stats.json`, response cache), with no restart:
+
+```sh
+cd /opt/chatbot
+venv/bin/python -m scripts.forget --user name@example.org --last 1     # their last question
+venv/bin/python -m scripts.forget --user name@example.org --all        # everything, feedback included
+venv/bin/python -m scripts.forget --rid a1b2c3d4e5f6                    # one question, by id
+```
+
+It first lists the questions it found and asks for confirmation (`--dry-run` stops there, `--yes` skips the question). It calls `POST /usage/forget` on `http://127.0.0.1:8000` and `http://[::1]:8000` (the two production processes; `--api` to change them) and needs `ADMIN_API_KEY` from `.env`. The id of an anonymous visitor's question can be read in `/var/log/chatbot.log` next to the time it was asked.
+
+Not covered: notification emails already sent for a report, and copies kept by the model provider for questions that reached it (see [Privacy and Security](privacy-and-security.md)).
 
 ### Automated Evaluation Script
 
