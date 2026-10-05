@@ -162,6 +162,8 @@ For each chunk:
 
 Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf`, or `document` for inbox TXT/DOCX), `chunk_index`, `chunk_total`; HTML chunks add `category`, `section`, `date`, `service_status`; crawled PDF chunks add `pdf_pages`; inbox chunks add `category`, `filename` and `origin: "inbox"`.
 
+The `title` of a crawled PDF is its internal `/Title`, or the cached file name (URL path plus a hash, such as `Engine_RAServeFile.php_f__Allegato_B_2022.pdf_bca21d565d62`) when there is none. Many `/Title` values say nothing (the organization's name, "Layout 1", "Microsoft Word - …"), so search results also carry a `display_title`, chosen at query time by `indexer/titles.py`: the `/Title` when it is informative and not shared by 5 or more PDFs, otherwise the file name taken from the URL and cleaned up ("Allegato B 2022", "Rendiconto consolidato 2020"), cut at 90 characters. The sources and the LLM context use `display_title`; the stored title and the ranking do not change.
+
 ### Embedding (`indexer/embedder.py`)
 
 Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). Until October 2026 the model was `mxbai-embed-large`: on 100 questions about municipal services, over the full index (222,480 chunks), `bge-m3` put the right page among the 7 chunks passed to the LLM 80 times against 58. To switch model see [Changing embedding model](operations.md#changing-embedding-model).
