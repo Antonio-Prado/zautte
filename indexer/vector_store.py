@@ -18,6 +18,7 @@ import logging
 import re
 import sys
 import time
+from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -25,6 +26,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import RETRIEVAL_TOP_K, VECTOR_STORE_DIR
+from indexer.titles import display_title
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +43,7 @@ _ids: list[str] = []
 _id_to_idx: dict[str, int] = {}
 _bm25 = None          # indice BM25, ricostruito (lazy) quando il corpus cambia
 _bm25_dirty = False   # True se il corpus è cambiato dopo l'ultima costruzione
+_pdf_title_count: Counter | None = None  # /Title → n. di PDF che lo usano (lazy)
 
 # Salvataggio differito (vedi deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -73,13 +76,14 @@ def _ensure_loaded():
 
 
 def _reset_state():
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count
     _embeddings = None  # dimensione determinata dal primo batch
     _metadata = []
     _ids = []
     _id_to_idx = {}
     _bm25 = None
     _bm25_dirty = False
+    _pdf_title_count = None
 
 
 def _tokenize(text: str) -> list[str]:
@@ -194,7 +198,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memoria (evita di richiamare Ollama per contenuti invariati).
     Ritorna il numero di chunk inseriti o aggiornati con un nuovo vettore.
     """
-    global _embeddings, _bm25_dirty
+    global _embeddings, _bm25_dirty, _pdf_title_count
 
     if not chunks:
         return 0
@@ -272,6 +276,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
 
     if inserted or updated or refreshed:
         _bm25_dirty = True
+        _pdf_title_count = None
         _save()
     return inserted + updated
 
@@ -315,6 +320,27 @@ def inbox_sources() -> set[str]:
     return {m.get("source", "") for m in _metadata if _is_inbox(m) and m.get("source")}
 
 
+# Un /Title usato da almeno tanti PDF diversi è un'intestazione, non un titolo
+_REPEATED_TITLE_MIN = 5
+
+
+def _title(meta: dict) -> str:
+    """Titolo da mostrare: per i PDF del crawl uno leggibile (vedi indexer/titles.py).
+    Il riordino in api/rag.py usa ancora `title`, così la ricerca non cambia."""
+    global _pdf_title_count
+    title = meta.get("title", "")
+    if meta.get("doc_type") != "pdf" or _is_inbox(meta):
+        return title
+    if _pdf_title_count is None:
+        first = {}
+        for m in _metadata:
+            if m.get("doc_type") == "pdf" and not _is_inbox(m):
+                first.setdefault(m.get("source", ""), m.get("title", ""))
+        _pdf_title_count = Counter(first.values())
+    return display_title(title, meta.get("source", ""),
+                         repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN)
+
+
 def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Cerca i chunk più simili tramite cosine similarity.
@@ -345,6 +371,7 @@ def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[d
             "text":     meta.get("text", ""),
             "source":   meta.get("source", ""),
             "title":    meta.get("title", ""),
+            "display_title": _title(meta),
             "doc_type": meta.get("doc_type", ""),
             "score":    float(scores[idx]),
         })
@@ -419,6 +446,7 @@ def hybrid_search(
             "text":     meta.get("text", ""),
             "source":   meta.get("source", ""),
             "title":    meta.get("title", ""),
+            "display_title": _title(meta),
             "doc_type": meta.get("doc_type", ""),
             "category": meta.get("category", ""),
             "score":    float(vec_scores[idx]),  # score semantico per il filtro MIN_SIMILARITY
@@ -448,12 +476,11 @@ def get_top_doc() -> dict | None:
     """Ritorna il documento con più chunk indicizzati."""
     if not _metadata:
         return None
-    from collections import Counter
     counts = Counter(m.get("source", "") for m in _metadata if m.get("source"))
     if not counts:
         return None
     top_source, count = counts.most_common(1)[0]
-    title = next((m.get("title", "") for m in _metadata if m.get("source") == top_source), "")
+    title = next((_title(m) for m in _metadata if m.get("source") == top_source), "")
     return {"source": top_source, "title": title, "chunks": count}
 
 
@@ -476,12 +503,13 @@ def get_stats() -> dict:
 
 def _apply_keep(keep: list[int]):
     """Riduce lo store alle righe in `keep` (indici ordinati) e riallinea gli indici."""
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count
     _embeddings = _embeddings[keep]
     _metadata   = [_metadata[i] for i in keep]
     _ids        = [_ids[i] for i in keep]
     _id_to_idx  = {id_: i for i, id_ in enumerate(_ids)}
     _bm25_dirty = True
+    _pdf_title_count = None
 
 
 def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
