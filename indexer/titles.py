@@ -6,7 +6,9 @@ del file in cache (percorso dell'URL + hash: «Engine_RAServeFile.php_f__Allegat
 Molti /Title non dicono nulla («COMUNE DI SAN BENEDETTO DEL TRONTO» su 182 file,
 «Layout 1», «Microsoft Word - …», «INDICE»). Il titolo da mostrare (fonti del widget,
 contesto del modello) si sceglie al volo: il /Title se è informativo, altrimenti il
-nome del file preso dall'URL, ripulito. L'indice salvato non cambia.
+nome del file preso dall'URL, ripulito; se anche quello è generico, il titolo ricavato
+dall'inizio del documento (riga «Oggetto:» o prima riga dopo l'intestazione).
+L'indice salvato non cambia.
 """
 
 import re
@@ -103,3 +105,119 @@ def _shorten(title: str) -> str:
     if len(title) <= _MAX_LEN:
         return title
     return title[:_MAX_LEN].rsplit(" ", 1)[0].rstrip(" ,.;:-") + "…"
+
+
+# --- Titolo dal testo del PDF --------------------------------------------------------
+# Quando anche il nome del file è generico («Allegato B 2022», «DD 665-25», «Determina
+# (Bandi ed Esiti)») il titolo si cerca nell'inizio del documento (primo chunk): la riga
+# «Oggetto:» di determine e delibere, altrimenti la prima riga che non è intestazione.
+
+# Parole che da sole non identificano un documento
+_WEAK_WORDS = {
+    "allegato", "determina", "determinazione", "modulo", "avviso", "documento", "delibera",
+    "deliberazione", "decreto", "modello", "domanda", "schema", "scheda", "file", "prot",
+    "protocollo", "originale", "copia", "bozza", "verbale", "elenco", "tabella", "annuale",
+}
+_OGGETTO = re.compile(r"^\s*oggetto\s*[:.]\s*(.*)$", re.IGNORECASE)
+_OGGETTO_STOP = re.compile(
+    r"^\s*(?:l[’']anno|file con impronta|firmato digitalmente|n\.\s*\d|data\b|classifica\b|"
+    r"il dirigente|il responsabile|il sindaco|la giunta|il consiglio|il commissario|"
+    r"premess[oa]|vist[oaie]\b|considerato|\[pagina)",
+    re.IGNORECASE,
+)
+_BOILERPLATE = re.compile(
+    r"(?:\bcomune di\b|\bcitt[aà][’']? di\b|\bprovincia di\b|\bregione\b|p\.\s*iva|cod\.?\s*fisc|"
+    r"\bc\.\s*f\.|\btel\.?\b|\bfax\b|\bpec\b|@|www\.|https?:|^\s*(?:viale|via|piazza|corso)\b|\b63074\b|"
+    r"^\s*(?:settore|servizio|ufficio|area|dipartimento)\b|c\.d\.g\b|\bmod\.\s*\d|^\s*classifica\b|"
+    r"^\s*prot|^\s*data\b|^\s*n\.\s*\d|^\s*(?:originale|copia) di\b|^\s*(?:spett|al |alla |all[’'])|"
+    r"il sottoscritto|^\s*indice\s*$|^\s*pag(?:ina|\.)?\s*\d|_{3,}|\.{4,})",
+    re.IGNORECASE,
+)
+_SPACED = re.compile(r"^(?:\S ){4,}")  # intestazioni con le lettere spaziate: «S E T T O R E»
+_KEEP_UPPER_SMALL = re.compile(r"^\(?[A-Z]{2,4}\)?[:,.]?$")
+_TEXT_MAX_LINES = 30
+
+
+def is_weak(title: str) -> bool:
+    """Vero se il titolo non contiene parole che identificano il documento:
+    «Allegato B 2022», «DD 665-25», «Determina (Bandi ed Esiti)»."""
+    t = re.sub(r"\([^)]*\)", " ", title or "").lower()
+    words = [w for w in re.findall(r"[^\W\d_]+", t) if len(w) >= 4 and w not in _WEAK_WORDS]
+    return not words
+
+
+def _tame_caps(s: str) -> str:
+    """Testo quasi tutto maiuscolo → minuscolo con l'iniziale maiuscola; restano maiuscole
+    le sigle brevi tra parentesi o seguite da «:» (PIAO, CIG) e i codici con cifre o punti."""
+    letters = [c for c in s if c.isalpha()]
+    if not letters or sum(c.isupper() for c in letters) / len(letters) < 0.7:
+        return s
+    out = []
+    for w in s.split():
+        keep = (any(c.isdigit() for c in w) or "." in w.strip(".,;:")
+                or (_KEEP_UPPER_SMALL.match(w) and (w.startswith("(") or w.endswith(":"))))
+        out.append(w if keep else w.lower())
+    t = " ".join(out)
+    if SITE_NAME:  # «san benedetto del tronto» → «San Benedetto del Tronto»
+        place = re.sub(r"^(?:comune|citt[aà]) di\s+", "", SITE_NAME, flags=re.IGNORECASE)
+        for name in {SITE_NAME, place}:
+            t = re.sub(re.escape(name), name, t, flags=re.IGNORECASE)
+    return t[:1].upper() + t[1:]
+
+
+def _tidy(s: str) -> str:
+    s = re.sub(r"\s+", " ", s).strip(" .;:-–")
+    return _tame_caps(s)
+
+
+def title_from_text(text: str, stored_title: str = "") -> str:
+    """Titolo ricavato dall'inizio del PDF (testo del primo chunk), o "" se non si trova."""
+    if stored_title and text.startswith(stored_title + "\n\n"):
+        text = text[len(stored_title) + 2:]  # il chunker antepone il titolo salvato
+    lines = [ln.strip() for ln in text.split("\n")[:_TEXT_MAX_LINES]]
+    lines = [ln for ln in lines if ln]
+    page = re.compile(r"^\[pagina \d+\]$", re.IGNORECASE)
+
+    # 1. «Oggetto: …» (determine, delibere, decreti), anche su più righe
+    for i, ln in enumerate(lines):
+        m = _OGGETTO.match(ln)
+        if not m:
+            continue
+        parts = [m.group(1)] if m.group(1) else []
+        for nxt in lines[i + 1:i + 8]:
+            if _OGGETTO_STOP.match(nxt) or sum(len(p) for p in parts) > 220:
+                break
+            parts.append(nxt)
+        subject = _tidy(" ".join(parts))
+        if _informative(subject):
+            return subject
+        break
+
+    # 2. Prima riga che non è intestazione, unita alle righe brevi che la continuano
+    #    («Piano Dettagliato» / «degli» / «Obiettivi» / «2020»)
+    for i, ln in enumerate(lines):
+        if (page.match(ln) or _BOILERPLATE.search(ln) or _SPACED.match(ln) or ln.startswith("(")
+                or sum(c.isalpha() for c in ln) < 4 or (is_weak(ln) and len(ln) < 25)):
+            continue
+        parts = [ln]
+        for nxt in lines[i + 1:i + 6]:
+            if (len(" ".join(parts)) >= 60 or page.match(nxt) or _BOILERPLATE.search(nxt)
+                    or nxt.startswith("(") or _SPACED.match(nxt) or len(nxt) > 70):
+                break
+            parts.append(nxt)
+        candidate = _tidy(" ".join(parts))
+        return candidate if _informative(candidate) and not is_weak(candidate) else ""
+    return ""
+
+
+def with_text_title(base: str, text_title: str) -> str:
+    """«Piano Dettagliato degli Obiettivi 2020 (Allegato B)»: il titolo dal testo (al più
+    _MAX_LEN caratteri), con il nome del file tra parentesi quando è breve: aiuta a
+    riconoscere l'atto sul sito («… (DD 665-25)»)."""
+    if not text_title:
+        return base
+    head = _shorten(text_title)
+    ref = re.sub(r"\s*\([^)]*\)$", "", base).strip()
+    if not ref or len(ref) > 35 or ref.casefold() in text_title.casefold():
+        return head
+    return f"{head} ({ref})"
