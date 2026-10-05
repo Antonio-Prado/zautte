@@ -895,6 +895,9 @@
       // il modello li usa e prima comparivano come simboli
       .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '<hr style="border:none;border-top:1px solid #ddd;margin:6px 0">')
       .replace(/^[ \t]*#{1,6}[ \t]+(.+?)[ \t#]*$/gm, "<strong>$1</strong>")
+      // Citazioni (> testo): riga con bordo a sinistra
+      .replace(/^[ \t]*&gt;[ \t]?(.*)$/gm,
+               '<span data-q style="display:block;border-left:3px solid #c5cbe0;padding-left:8px">$1</span>')
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       // Markdown link: [testo](url)
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
@@ -910,7 +913,9 @@
                '<a href="mailto:$1" style="color:inherit">$1</a>')
       .replace(/\n/g, "<br>")
       // la linea fa già da separatore: niente righe vuote attorno
-      .replace(/(?:<br>)*(<hr[^>]*>)(?:<br>)*/g, "$1");
+      .replace(/(?:<br>)*(<hr[^>]*>)(?:<br>)*/g, "$1")
+      // la citazione va già a capo da sola
+      .replace(/(<span data-q[^>]*>.*?<\/span>)<br>/g, "$1");
   }
 
   // Rende una fonte: link cliccabile se ha URL, altrimenti solo il titolo come
