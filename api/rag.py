@@ -18,6 +18,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api import smalltalk
 from config.settings import (
     ANTHROPIC_API_KEY,
     BEDROCK_AWS_REGION,
@@ -657,12 +658,13 @@ from pathlib import Path as _Path
 _GAPS_LOG = _Path(__file__).parent.parent / "data" / "gaps.jsonl"
 
 
-def _log_gap(query: str, chunks_found: int, weak: bool = False):
+def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None = None):
     """Registra query con 0 chunk o recupero debole (senza dati personali).
 
     weak=True indica chunk trovati ma con bassa pertinenza (sotto
     RETRIEVAL_CONFIDENCE): casi che sfuggono al log a 0 chunk ma che spesso
-    producono risposte scadenti.
+    producono risposte scadenti. rid: identificativo della domanda (vedi
+    api/datalog.py), serve a cancellarla su richiesta.
     """
     try:
         _GAPS_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -672,6 +674,8 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False):
             "chunks": chunks_found,
             "weak": weak,
         }
+        if rid:
+            entry["rid"] = rid
         with open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as exc:
@@ -811,6 +815,32 @@ def _cache_key(query: str) -> str:
     return _hashlib.md5(query.lower().strip().encode()).hexdigest()
 
 
+def _freq_key(query: str) -> str:
+    """Forma della domanda nel contatore delle più frequenti (stats.json)."""
+    return re.sub(r"\s+", " ", query.strip().lower().strip("?! "))
+
+
+def forget_queries(queries: list[str]) -> int:
+    """Toglie dalla memoria del processo le domande cancellate su richiesta
+    (POST /usage/forget): contatore delle domande più frequenti, che finisce in
+    stats.json, e cache delle risposte. Ritorna quante voci del contatore sono
+    state toccate."""
+    touched = 0
+    for q in queries:
+        if not (q or "").strip():
+            continue
+        key = _freq_key(q)
+        if _query_freq.get(key, 0) > 0:
+            _query_freq[key] -= 1
+            if _query_freq[key] <= 0:
+                del _query_freq[key]
+            touched += 1
+        _response_cache.pop(_cache_key(q.strip()), None)
+    if touched:
+        _save_stats()
+    return touched
+
+
 def _cache_get(query: str):
     key = _cache_key(query)
     if key in _response_cache:
@@ -836,6 +866,7 @@ async def answer(
     stream: bool = False,
     history: list[dict] | None = None,
     uid: str | None = None,
+    rid: str | None = None,
 ):
     """
     Risponde a una domanda usando RAG.
@@ -847,6 +878,8 @@ async def answer(
              per mantenere il contesto conversazionale (max 3 turni).
     uid:     id opaco dell'utente autenticato, registrato nello storico
              token/costi (dashboard admin).
+    rid:     identificativo della domanda (vedi api/datalog.py). Il log
+             dell'API riporta solo questo, mai il testo della domanda.
     """
     global _query_count
     query = query.strip()
@@ -854,15 +887,30 @@ async def answer(
         raise ValueError("Query vuota")
     _query_count += 1
     _hour_counts[now_local().hour] += 1
-    _norm = re.sub(r"\s+", " ", query.lower().strip("?! "))
-    _query_freq[_norm] += 1
+    log_rid = rid or "-"
+
+    # Saluti, ringraziamenti, complimenti e insulti: risposta fissa, senza
+    # ricerca né modello, fuori dalle lacune e dalle domande più frequenti.
+    small = smalltalk.classify(query)
+    if small:
+        kind, language = small
+        log.info("Domanda %s: messaggio senza domanda (%s), risposta fissa", log_rid, kind)
+        text = smalltalk.reply(kind, language)
+        _save_stats()
+        if stream:
+            async def _fixed_gen():
+                yield text
+            return _fixed_gen(), []
+        return {"answer": text, "sources": [], "language": language}
+
+    _query_freq[_freq_key(query)] += 1
 
     # Cache solo per query senza history (conversazioni stateless)
     use_cache = not history and not stream
     if use_cache:
         cached = _cache_get(query)
         if cached:
-            log.info("Cache hit: '%s'", query[:60].replace('\n', ' ').replace('\r', ' '))
+            log.info("Domanda %s: risposta dalla cache", log_rid)
             return cached
 
     language = detect_language(query)
@@ -870,8 +918,8 @@ async def answer(
     # (l'argomento del dialogo), non il solo testo del follow-up.
     retrieval_query = await contextualize_query(query, history, uid=uid)
     if retrieval_query != query:
-        log.info("Domanda contestualizzata: '%s' -> '%s'",
-                 query[:80].replace('\n', ' '), retrieval_query[:120].replace('\n', ' '))
+        log.info("Domanda %s riscritta per la ricerca (%d -> %d caratteri)",
+                 log_rid, len(query), len(retrieval_query))
     chunks = retrieve_context(retrieval_query)
     context = build_context_block(chunks)
     messages = build_prompt(query, context, language, history=history,
@@ -899,19 +947,20 @@ async def answer(
             seen.add(key)
             unique_sources.append(s)
 
-    _safe_q = query[:60].replace('\n', ' ').replace('\r', ' ')
-    log.info("Query: '%s...' | lang=%s | chunks=%d | provider=%s",
-             _safe_q, language, len(chunks), LLM_PROVIDER)
+    # Solo l'identificativo: il testo resta nei file di data/, che hanno una
+    # scadenza e si possono ripulire su richiesta (il log dell'API no).
+    log.info("Domanda %s | %d caratteri | lang=%s | chunks=%d | provider=%s",
+             log_rid, len(query), language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
-        _log_gap(retrieval_query, 0)
+        _log_gap(retrieval_query, 0, rid=rid)
     else:
         # Recupero "debole": chunk trovati ma anche il migliore è sotto la
         # soglia di confidenza (spesso documenti solo tematicamente vicini).
         # Tracciali per far emergere i gap di contenuto altrimenti invisibili.
         top_score = max(c.get("score", 0.0) for c in chunks)
         if top_score < RETRIEVAL_CONFIDENCE:
-            _log_gap(retrieval_query, len(chunks), weak=True)
+            _log_gap(retrieval_query, len(chunks), weak=True, rid=rid)
 
     if stream:
         if not chunks:

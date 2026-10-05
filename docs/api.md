@@ -66,11 +66,14 @@ Complete response (non-streaming). Waits for the full response before replying.
   "sources": [
     {"title": "Electronic Identity Card", "url": "https://...", "score": 0.87}
   ],
-  "language": "en"
+  "language": "en",
+  "rid": "a1b2c3d4e5f6"
 }
 ```
 
-In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only).
+In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
+
+Messages with no question in them (greetings, thanks, compliments, goodbyes, insults: "ciao", "grazie", "bravo", "sei inutile") get a fixed reply with no retrieval and no model call, and are not logged as content gaps (`api/smalltalk.py`). A message counts as such only if it is short and made only of those words plus a few fillers: a single content word ("grazie, e per la TARI?") sends it down the normal path.
 
 ---
 
@@ -86,7 +89,7 @@ data: {"token": "An "}
 data: {"token": "identity "}
 data: {"token": "card "}
 ...
-data: {"sources": [{"title": "...", "url": "...", "score": 0.87}]}
+data: {"sources": [{"title": "...", "url": "...", "score": 0.87}], "rid": "a1b2c3d4e5f6"}
 data: {"done": true}
 ```
 
@@ -113,12 +116,14 @@ Saves a 👍/👎 rating. With `AUTH_ENABLED=true` it requires `Authorization: B
   "answer": "An identity card can be requested...",
   "rating": -1,
   "comment": "The opening hours are out of date",
-  "urls": ["https://www.example.org/registry-office"]
+  "urls": ["https://www.example.org/registry-office"],
+  "rid": "a1b2c3d4e5f6"
 }
 ```
 
 - `rating`: `1` (positive) or `-1` (negative)
 - `comment` (optional, max 2000 characters) and `urls` (optional; http/https only, max 5 kept) can also be added later with `POST /feedback/detail`
+- `rid` (optional): the question's id from `/chat` or `/chat/stream`; stored only if it is 12 hex characters
 
 **Response:** `{"ok": true, "id": "3f9c2a1b7d4e"}`
 
@@ -147,7 +152,7 @@ Latest questions with no retrieved content (`chunks: 0`) or only weakly relevant
 ```json
 {
   "gaps": [
-    {"ts": "2026-04-08T10:23:00+02:00", "query": "library hours", "chunks": 0, "weak": false}
+    {"ts": "2026-04-08T10:23:00+02:00", "query": "library hours", "chunks": 0, "weak": false, "rid": "a1b2c3d4e5f6"}
   ],
   "total": 42
 }
@@ -197,6 +202,25 @@ Full list of received feedback (all ratings) with positive/negative count.
 
 ---
 
+### `POST /usage/forget` *(admin)*
+
+Deletes questions on request, without restarting the API: removes them from `usage.jsonl`, `gaps.jsonl` and `feedback.jsonl` (with the "resolved" marks of the deleted feedback), then from this process's memory (the most-frequent-questions counter saved in `stats.json`, and the response cache). The API log only contains the question id, never its text.
+
+```json
+{"uid": "eb3903878af10b34", "last": 1, "dry_run": true}
+```
+
+- Selection: `rids` (list of question ids), or `uid` with `last` (the user's last N questions), `all` (all their questions and feedback) or `ts` (exact `usage.jsonl` timestamps)
+- `dry_run`: only returns what would be deleted
+- `memory_only`: cleans this process's memory and leaves the files alone. Production runs two processes (IPv4 and IPv6) with separate memory: `scripts/forget.py` calls the others with `memory_only` first, then one without it
+- Entries written before 5 October 2026 have no `rid`: they are matched by user, text and time (gap within 5 minutes, feedback after the question). Questions from anonymous visitors are only in `gaps.jsonl` and can only be found by `rid`
+
+**Response:** the questions found (`ts`, `rid`, `q`), how many entries were (or would be) removed from each file (`usage`, `gaps`, `feedback`, `resolved`), how many were removed from memory (`memory`) and `files_changed`.
+
+Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-questions-on-request)).
+
+---
+
 ### Other endpoints
 
 | Endpoint | Access | Description |
@@ -215,7 +239,7 @@ Full list of received feedback (all ratings) with positive/negative count.
 
 ## Admin Authentication
 
-Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/crawl-history`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
+Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
 
 If `ADMIN_API_KEY` is empty, admin authentication is disabled (development only): all admin endpoints and the detailed `/health` are open to anyone.
 

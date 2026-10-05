@@ -88,7 +88,7 @@ trattamento (art. 28 GDPR):
 | Domande senza risposta adeguata (senza indicazione dell'utente) | 180 giorni |
 | Valutazioni e commenti | 12 mesi |
 | Account degli utenti abilitati | Fino alla fine della sperimentazione o alla revoca dell'abilitazione |
-| Log tecnici del server | [14 rotazioni del file di log, secondo la configurazione newsyslog] |
+| Log tecnici del server (indirizzo IP, data e ora delle richieste; non il testo delle domande) | [14 rotazioni del file di log, secondo la configurazione newsyslog] |
 | Dati presso il fornitore del modello | OPZIONE A: fino a 30 giorni; OPZIONE B: nessuna conservazione |
 
 La cancellazione è automatica. [Periodi da confermare con il DPO.]

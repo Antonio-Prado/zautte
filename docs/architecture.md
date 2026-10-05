@@ -37,7 +37,7 @@ How the pieces fit together, the technology stack and the repository layout.
                       Ollama)
 ```
 
-The API keeps no conversation state: turn history is managed client-side by the widget and sent with every request (max 3 turns = 6 messages), and login tokens are stateless. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, subject to the `RETENTION_*` periods; `data/stats.json` also keeps the 100 most frequent questions and the API log the first 60–120 characters of each, outside those periods (see [Privacy and Security](privacy-and-security.md)).
+The API keeps no conversation state: turn history is managed client-side by the widget and sent with every request (max 3 turns = 6 messages), and login tokens are stateless. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, subject to the `RETENTION_*` periods and with an id (`rid`) that lets `scripts/forget.py` delete them on request; `data/stats.json` also keeps the 100 most frequent questions, outside those periods. The API log records only the question id (see [Privacy and Security](privacy-and-security.md)).
 
 ---
 
@@ -99,6 +99,8 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── rag.py                # RAG pipeline: rewrite → retrieve → rerank → LLM
 │   ├── auth.py               # User login (pilot), stateless HMAC tokens
 │   ├── pii.py                # Masks personal data in questions before LLM and logs
+│   ├── smalltalk.py          # Greetings, thanks, insults: fixed reply, no retrieval or LLM
+│   ├── datalog.py            # Rewrites the user logs: retention and deletion on request
 │   ├── feedback_store.py     # Feedback archive (votes, comments, links)
 │   ├── mailer.py             # Email notifications (credentials, reports)
 │   └── limiter.py            # Rate limiting (slowapi)
@@ -129,6 +131,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── eval.py               # RAG quality evaluation
 │   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
+│   ├── forget.py             # Deletes questions on request from logs and API memory
 │   ├── adduser.py            # Creates/updates/removes pilot users
 │   ├── feedback_open.py      # Lists open negative feedback
 │   ├── cleanup_index.py      # Purges crawl-cache entries now excluded by the crawler filters

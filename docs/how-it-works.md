@@ -13,6 +13,9 @@ User question
      │
      ▼
 1. redact()               — masks tax codes, IBANs, cards, emails, phones in the question and in the user turns of the history (api/pii.py)
+     │                      and gives the question its id (rid)
+     ▼
+   smalltalk.classify()   — greetings, thanks, compliments, insults: fixed reply, stop here (api/smalltalk.py)
      │
      ▼
 2. cache lookup           — /chat (non-streaming) without history only
@@ -51,6 +54,10 @@ Answer + sources (deduplicated; no URL for MIGRATED_DOMAINS)
 
 When streaming finds no chunk at all, the LLM is not called: the answer is a fixed "not found" message followed by the suggested office.
 
+### Messages With No Question
+
+"grazie", "bravo", "ciao", "a presto" or an insult ask nothing of the site. `api/smalltalk.py` recognizes them when the message is short (up to 8 words) and made only of greeting, thanks, compliment, goodbye or insult words plus a few fillers ("sei", "molto", "mille", "per", "la"…): they get a fixed reply in Italian or English, with no retrieval and no model call, and stay out of the gap log and of the most frequent questions. A single content word ("grazie, e per la TARI?", "non è chiaro", "sì grazie") sends the message down the normal path. An insult is answered with an apology and an invitation to rephrase or to report the answer with 👎.
+
 ### Follow-up Questions
 
 With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRITE_MODEL`, `BEDROCK_REWRITE_MODEL` or `OLLAMA_MODEL`) to rewrite the question as a standalone one, so that "and what are the requirements?" is searched together with its topic. The rewritten question drives retrieval, the office suggestion and the gap log; the LLM still receives the original question and the history. If the rewrite fails, is too long, or `QUERY_REWRITE=false`, the previous user question is appended instead.
@@ -87,7 +94,7 @@ Complete answers from `/chat` (non-streaming) to questions without history are c
 
 ### Gap Log
 
-Questions with 0 chunks, and *weak* retrievals where even the best chunk is below `RETRIEVAL_CONFIDENCE` (0.52), are appended to `data/gaps.jsonl` as `{ts, query, chunks, weak}`. `query` is the rewritten question after personal-data masking, truncated to 200 characters, with no user. Admin endpoint: `GET /gaps`. Entries expire after `RETENTION_GAPS_DAYS`.
+Questions with 0 chunks, and *weak* retrievals where even the best chunk is below `RETRIEVAL_CONFIDENCE` (0.52), are appended to `data/gaps.jsonl` as `{ts, query, chunks, weak, rid}`. `query` is the rewritten question after personal-data masking, truncated to 200 characters, with no user. Admin endpoint: `GET /gaps`. Entries expire after `RETENTION_GAPS_DAYS`.
 
 ---
 

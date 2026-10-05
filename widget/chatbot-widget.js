@@ -1056,7 +1056,7 @@
     showSuggestions();
   }
 
-  function addFeedback(wrap, question, answerText) {
+  function addFeedback(wrap, question, answerText, rid) {
     const fb = document.createElement("div");
     fb.className = `${WIDGET_ID}-feedback`;
     ["👍", "👎"].forEach((icon, i) => {
@@ -1071,7 +1071,8 @@
         fetch(`${cfg.apiUrl}/feedback`, {
           method: "POST",
           headers: authHeaders({ "Content-Type": "application/json" }),
-          body: JSON.stringify({ question, answer: answerText, rating }),
+          // rid: identificativo della domanda, per poterla cancellare ovunque su richiesta
+          body: JSON.stringify({ question, answer: answerText, rating, rid: rid || undefined }),
         })
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
@@ -1257,6 +1258,7 @@
 
       let fullText = "";
       let receivedSources = [];
+      let receivedRid = "";
       let firstToken = true;
 
       const reader = resp.body.getReader();
@@ -1290,6 +1292,7 @@
               scrollToBottom();
             } else if (payload.sources) {
               receivedSources = payload.sources;
+              receivedRid = payload.rid || "";
             } else if (payload.error) {
               // Errore server: mostra messaggio e segna sentinel
               if (!fullText) {
@@ -1336,7 +1339,7 @@
           conversationHistory = conversationHistory.slice(-6);
         }
         // Aggiungi pulsanti feedback
-        addFeedback(wrap, question, fullText);
+        addFeedback(wrap, question, fullText, receivedRid);
       }
 
     } catch (err) {
