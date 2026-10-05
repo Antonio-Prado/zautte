@@ -15,7 +15,7 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 /opt/chatbot/venv/bin/python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000 &
 ```
 
-`api/serve.py` opens one socket per address and hands both to a single uvicorn server: the uvicorn command line takes only one address, and on FreeBSD `::` does not accept IPv4 connections. Until 5 October 2026 production ran two processes (IPv4 and IPv6), each with its own vector store in memory, response cache and counters, and both rewrote `data/stats.json` in turn.
+`api/serve.py` opens one socket per address and hands both to a single uvicorn server: the uvicorn command line takes only one address, and on FreeBSD `::` does not accept IPv4 connections. Without `--host` it listens only on `127.0.0.1` and `::1`: opening it to the network is an explicit choice of whoever starts it. Until 5 October 2026 production ran two processes (IPv4 and IPv6), each with its own vector store in memory, response cache and counters, and both rewrote `data/stats.json` in turn.
 
 ## Endpoints
 
