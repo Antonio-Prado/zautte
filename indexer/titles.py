@@ -134,6 +134,7 @@ _BOILERPLATE = re.compile(
     re.IGNORECASE,
 )
 _SPACED = re.compile(r"^(?:\S ){4,}")  # intestazioni con le lettere spaziate: «S E T T O R E»
+_CONNECTIVE_END = re.compile(r"\b(?:di|del|della|delle|dei|degli|e|ed|per|a|al|alla|in|con)\s*$", re.IGNORECASE)
 _KEEP_UPPER_SMALL = re.compile(r"^\(?[A-Z]{2,4}\)?[:,.]?$")
 _TEXT_MAX_LINES = 30
 
@@ -195,8 +196,12 @@ def title_from_text(text: str, stored_title: str = "") -> str:
 
     # 2. Prima riga che non è intestazione, unita alle righe brevi che la continuano
     #    («Piano Dettagliato» / «degli» / «Obiettivi» / «2020»)
+    prev = ""
     for i, ln in enumerate(lines):
-        if (page.match(ln) or _BOILERPLATE.search(ln) or _SPACED.match(ln) or ln.startswith("(")
+        # coda di un'intestazione andata a capo: «… CONTROLLO DI» / «GESTIONE»
+        tail = _BOILERPLATE.search(prev) and _CONNECTIVE_END.search(prev)
+        prev = ln
+        if (tail or page.match(ln) or _BOILERPLATE.search(ln) or _SPACED.match(ln) or ln.startswith("(")
                 or sum(c.isalpha() for c in ln) < 4 or (is_weak(ln) and len(ln) < 25)):
             continue
         parts = [ln]
