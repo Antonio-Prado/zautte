@@ -109,6 +109,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 6. Removes from state and index every known URL not reached in this run
 7. Updates state in `data/crawl_cache/crawl_state.json`
 8. Saves the index in `data/crawl_cache/index.json`
+9. Saves in `data/crawl_cache/pdf_link_texts.json` the text of the links to each PDF seen in this run (the most descriptive one, without "Download", "PDF" or file sizes); PDFs not linked in this run keep their previous text. Links on unchanged pages count too
 
 ### Incremental Mode
 
@@ -162,7 +163,7 @@ For each chunk:
 
 Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf`, or `document` for inbox TXT/DOCX), `chunk_index`, `chunk_total`; HTML chunks add `category`, `section`, `date`, `service_status`; crawled PDF chunks add `pdf_pages`; inbox chunks add `category`, `filename` and `origin: "inbox"`.
 
-The `title` of a crawled PDF is its internal `/Title`, or the cached file name (URL path plus a hash, such as `Engine_RAServeFile.php_f__Allegato_B_2022.pdf_bca21d565d62`) when there is none. Many `/Title` values say nothing (the organization's name, "Layout 1", "Microsoft Word - …"), so search results also carry a `display_title`, chosen at query time by `indexer/titles.py`: the `/Title` when it is informative and not shared by 5 or more PDFs, otherwise the file name taken from the URL and cleaned up ("Rendiconto consolidato 2020"), cut at 90 characters. When the file name is generic too ("Allegato B 2022", "DD 665-25"), the title comes from the start of the document (the first chunk): the "Oggetto:" line of resolutions and decrees, or the first line after the letterhead, followed by the file name in brackets ("Piano Dettagliato degli Obiettivi P.D.O. 2022 (Allegato B 2022)"). The sources and the LLM context use `display_title`; the stored title and the ranking do not change.
+The `title` of a crawled PDF is its internal `/Title`, or the cached file name (URL path plus a hash, such as `Engine_RAServeFile.php_f__Allegato_B_2022.pdf_bca21d565d62`) when there is none. Many `/Title` values say nothing (the organization's name, "Layout 1", "Microsoft Word - …"), so search results also carry a `display_title`, chosen at query time by `indexer/titles.py`: the `/Title` when it is informative and not shared by 5 or more PDFs, otherwise the file name taken from the URL and cleaned up ("Rendiconto consolidato 2020"), cut at 90 characters. When the file name is generic too ("Allegato B 2022", "DD 665-25"), the title comes from the start of the document (the first chunk): the "Oggetto:" line of resolutions and decrees, or the first line after the letterhead, followed by the file name in brackets ("Piano Dettagliato degli Obiettivi P.D.O. 2022 (Allegato B 2022)"). The text of the link that points to the PDF on the site (`data/crawl_cache/pdf_link_texts.json`, written by the crawler) comes first when it has at least three words or is not shorter than the other candidates: it is the label the site's editors chose ("Delibera di Giunta n. 75 del 12/05/2016 …"). PDFs linked only from pages that are no longer crawled, such as those on `MIGRATED_DOMAINS`, have no link text. The sources and the LLM context use `display_title`; the stored title and the ranking do not change.
 
 ### Embedding (`indexer/embedder.py`)
 
