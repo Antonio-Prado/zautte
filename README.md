@@ -59,7 +59,7 @@ flowchart TB
     end
     subgraph ANS["Answering · each question"]
         direction LR
-        q(["Question"]) --> prep["Mask personal data,<br/>rewrite follow-ups"] --> search["Hybrid search<br/>semantic + BM25"] --> llm["LLM<br/>Claude or Ollama"] --> a(["Answer +<br/>sources"])
+        prep["Question: mask personal<br/>data, rewrite follow-ups"] --> search["Hybrid search<br/>semantic + BM25"] --> llm["LLM: answer<br/>with sources"]
     end
     IDX -- "searched at every question" --> ANS
 ```
