@@ -267,7 +267,7 @@ The BM25 index (`BM25Okapi`, lowercase letter-only tokens: numbers are not index
 
 ### Operational Note
 
-The vector store is loaded into memory once per API process (at startup, or at the first query if Ollama was unreachable); `start.sh` runs two uvicorn processes (IPv4 and IPv6), each with its own copy. Chunks added by a standalone `indexer.indexer` or `inbox_indexer` run are not visible until the API restarts; `scripts.sync` restarts it at the end of every mode.
+The vector store is loaded into memory once by the API process (at startup, or at the first query if Ollama was unreachable); `start.sh` runs a single process for IPv4 and IPv6 (`api/serve.py`). Chunks added by a standalone `indexer.indexer` or `inbox_indexer` run are not visible until the API restarts; `scripts.sync` restarts it at the end of every mode.
 
 ---
 

@@ -135,7 +135,7 @@ service chatbot status   # status
 The `scripts/chatbot_rcd` script (runs as root):
 - does not export `/opt/chatbot/.env`: `config/settings.py` loads it with `python-dotenv` when each process starts, so a `.env` change takes effect at the next API start (`service chatbot restart`, or the watchdog restart after a sync)
 - starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`
-- `start.sh` runs two uvicorn processes (one worker each) on port 8000, IPv4 `0.0.0.0` and IPv6 `::`; if one exits, the other is stopped
+- `start.sh` runs one uvicorn process (`python -m api.serve api.main:app`, one worker) listening on port 8000 on both IPv4 `0.0.0.0` and IPv6 `::`; scripts that look for the API process (`scripts/sync.py`, `scripts/watchdog.sh`, this rc.d script) match `api.main:app`
 - `daemon` runs without `-r`: after a crash, or after a sync kills uvicorn, the watchdog restarts the service within a minute
 - `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `kill -0`
 
@@ -192,7 +192,7 @@ The same reports are in the admin view of the dashboard, with a "Resolve" button
 
 ### Deleting questions on request
 
-When someone asks for their questions to be deleted, `scripts/forget.py` removes them from `usage.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the "resolved" marks, and from the memory of every running API process (most-frequent-questions counter saved in `stats.json`, response cache), with no restart:
+When someone asks for their questions to be deleted, `scripts/forget.py` removes them from `usage.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the "resolved" marks, and from the memory of the running API (most-frequent-questions counter saved in `stats.json`, response cache), with no restart:
 
 ```sh
 cd /opt/chatbot
@@ -201,7 +201,7 @@ venv/bin/python -m scripts.forget --user name@example.org --all        # everyth
 venv/bin/python -m scripts.forget --rid a1b2c3d4e5f6                    # one question, by id
 ```
 
-It first lists the questions it found and asks for confirmation (`--dry-run` stops there, `--yes` skips the question). It calls `POST /usage/forget` on `http://127.0.0.1:8000` and `http://[::1]:8000` (the two production processes; `--api` to change them) and needs `ADMIN_API_KEY` from `.env`. The id of an anonymous visitor's question can be read in `/var/log/chatbot.log` next to the time it was asked.
+It first lists the questions it found and asks for confirmation (`--dry-run` stops there, `--yes` skips the question). It calls `POST /usage/forget` on `http://127.0.0.1:8000` (`--api` to change it) and needs `ADMIN_API_KEY` from `.env`, so it must run as the owner of `.env` or as root. The id of an anonymous visitor's question can be read in `/var/log/chatbot.log` next to the time it was asked.
 
 Not covered: notification emails already sent for a report, and copies kept by the model provider for questions that reached it (see [Privacy and Security](privacy-and-security.md)).
 
@@ -298,10 +298,10 @@ It does not crawl: it uses `data/crawl_cache/index.json`. It clears the store fi
 ```sh
 # Restarts only the API; a running `python -m scripts.sync` is not affected
 service chatbot restart
-# Alternative: kill the uvicorn processes (IPv4 and IPv6) with SIGKILL (they ignore
-# SIGTERM, see "Shutdown"); start.sh and daemon exit, and the watchdog restarts the
-# service within a minute
-pkill -9 -f "uvicorn api.main:app"
+# Alternative: kill the API process with SIGKILL (it ignores SIGTERM, see
+# "Shutdown"); start.sh and daemon exit, and the watchdog restarts the service
+# within a minute
+pkill -9 -f "api.main:app"
 ```
 
 ### Cron email with "Permission denied"

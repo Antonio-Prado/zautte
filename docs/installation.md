@@ -49,6 +49,7 @@ pip install -r requirements.txt   # includes rank-bm25 for BM25 hybrid search
 
 # Configure the environment
 cp .env.example .env
+chmod 600 .env   # API keys and secrets: readable only by its owner (and root)
 # Edit .env with your values
 
 # Create data directories

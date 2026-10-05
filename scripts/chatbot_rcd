@@ -49,9 +49,9 @@ chatbot_stop()
 
     if [ ! -f "${pidfile}" ]; then
         echo "${name} pidfile not found, trying pkill..."
-        pkill -TERM -f "uvicorn api.main:app" 2>/dev/null
+        pkill -TERM -f "api.main:app" 2>/dev/null
         sleep 2
-        pkill -KILL -f "uvicorn api.main:app" 2>/dev/null
+        pkill -KILL -f "api.main:app" 2>/dev/null
         return 0
     fi
 
@@ -70,9 +70,9 @@ chatbot_stop()
         sleep 1
     done
 
-    pkill -TERM -f "uvicorn api.main:app" 2>/dev/null
+    pkill -TERM -f "api.main:app" 2>/dev/null
     sleep 1
-    pkill -KILL -f "uvicorn api.main:app" 2>/dev/null
+    pkill -KILL -f "api.main:app" 2>/dev/null
 
     rm -f "${pidfile}"
     echo "${name} stopped."

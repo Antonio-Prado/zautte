@@ -184,10 +184,10 @@ async def run_sync(mode: str):
 
 
 def _restart_api():
-    """Invia SIGKILL ai processi uvicorn: il daemon li rilancerà e caricherà il VS aggiornato."""
+    """Invia SIGKILL al processo dell'API: il watchdog lo rilancerà e caricherà il VS aggiornato."""
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "uvicorn api.main:app"],
+            ["pgrep", "-f", "api.main:app"],
             capture_output=True, text=True, check=False
         )
         pids = [int(p) for p in result.stdout.split() if p.strip()]
