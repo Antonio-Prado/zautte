@@ -6,15 +6,29 @@
  *
  * Mostra l'ultima release e l'ultimo commit su GitHub (letti dall'API pubblica a ogni
  * apertura della pagina; la release porta alla sua pagina, il commit sempre al
- * repository) e "Powered by" con il logo di SBTAP
+ * repository), il link all'accessibilità e "Powered by" con il logo di SBTAP
  * (logo.png accanto a questo script, link a as59715.net).
+ *
+ * Accessibilità: le linee guida AgID chiedono il link alla dichiarazione di
+ * accessibilità nel footer. Quando l'amministrazione l'ha pubblicata, il suo
+ * indirizzo va nell'attributo data-accessibility del tag script e il link diventa
+ * "Dichiarazione di accessibilità"; fino ad allora "Accessibilità" porta alla
+ * sezione di come-funziona.html.
+ *
+ *   <script src="./site-footer.js" data-accessibility="https://form.agid.gov.it/view/…" defer></script>
  */
 (function () {
   "use strict";
 
   var REPO = "Antonio-Prado/zautte";
   // Il logo sta accanto allo script: l'URL non dipende dalla pagina che lo include
-  var SBTAP_LOGO = new URL("logo.png", (document.currentScript && document.currentScript.src) || location.href).href;
+  var SCRIPT = document.currentScript;
+  var BASE = (SCRIPT && SCRIPT.src) || location.href;
+  var SBTAP_LOGO = new URL("logo.png", BASE).href;
+  var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
+  var A11Y_LINK = /^https:\/\//.test(STATEMENT)
+    ? { href: STATEMENT, text: "Dichiarazione di accessibilità" }
+    : { href: new URL("come-funziona.html#accessibilita", BASE).href, text: "Accessibilità" };
 
   // Data e ora del commit come YYYYMMDDhhmmss, nel fuso italiano
   function stamp(d) {
@@ -38,9 +52,13 @@
     footer.innerHTML =
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
+      "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a> &nbsp;·&nbsp; " +
       "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
       "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a>";
     document.body.appendChild(footer);
+    var a11y = document.getElementById("zautte-a11y-link");
+    a11y.href = A11Y_LINK.href;
+    a11y.textContent = A11Y_LINK.text;
 
     // Ultima release pubblicata; se non c'è o GitHub non risponde il riferimento resta nascosto
     fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {

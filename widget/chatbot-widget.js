@@ -971,10 +971,15 @@
 
   /** Annuncia un testo agli screen reader (regione di stato nascosta). Svuotarla
    *  prima fa ripetere anche un annuncio uguale al precedente. `lang` vale solo
-   *  per `text`; `suffix` (es. «Fonti: 2») resta nella lingua dell'interfaccia. */
+   *  per `text`; `suffix` (es. «Fonti: 2») resta nella lingua dell'interfaccia.
+   *  Dopo qualche secondo la regione si svuota: lo screen reader ha già preso il
+   *  testo, e chi esplora la chat non incontra una seconda copia della risposta
+   *  (verificato con VoiceOver). */
   let announceTimer = null;
+  let announceClear = null;
   function announce(text, lang, suffix) {
     clearTimeout(announceTimer);
+    clearTimeout(announceClear);
     statusEl.textContent = "";
     announceTimer = setTimeout(() => {
       const main = document.createElement("span");
@@ -982,6 +987,7 @@
       main.textContent = text;
       statusEl.appendChild(main);
       if (suffix) statusEl.appendChild(document.createTextNode("\n" + suffix));
+      announceClear = setTimeout(() => { statusEl.textContent = ""; }, 5000);
     }, 100);
   }
 

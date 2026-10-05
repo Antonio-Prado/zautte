@@ -2,7 +2,7 @@
 
 Zautte answers citizens on behalf of a public administration, so everyone must be able to use it: with a keyboard only, a screen reader, a magnifier, voice control, large text or a small screen. This page states the target, where the project stands today, what is known not to work yet, and how to report a problem.
 
-*Last review: 5 October 2026 (first audit, fixes and automated checks in CI).*
+*Last review: 5 October 2026 (first audit, fixes, automated checks in CI, first VoiceOver session).*
 
 ## Target
 
@@ -14,11 +14,17 @@ Zautte answers citizens on behalf of a public administration, so everyone must b
 
 ## Current status
 
-**Partially conformant** with WCAG 2.1 AA: every barrier found so far by automated checks, keyboard tests and code review has been fixed, and no known issue is open, but the widget has not yet been tried with real screen readers or by people with disabilities.
+**Partially conformant** with WCAG 2.1 AA: every barrier found so far by automated checks, keyboard tests, code review and a first screen reader session (VoiceOver on macOS) has been fixed, and no known issue is open, but the other screen readers and tests with people with disabilities are still to come.
 
 The first audit (5 October 2026) combined automated checks with axe-core 4.10.2 in Chrome on 13 states of the widget and its pages (closed and open, login and login error, conversation with sources and 👍/👎, report form, error, 320 px width, admin view), keyboard-only walkthroughs, checks at 320 px, 200% zoom and reduced motion, contrast ratios computed from the CSS, and a review of the widget code. The API was simulated, so no data was sent anywhere. It found 19 issues, three of them high severity; all were fixed the same day, together with two more found afterwards (see below). A second run found **no axe violations in any of the 13 states**, also on the deployed pages.
 
 Since then, **every change is checked in CI** (`tests/a11y/check.py`): axe-core on all those states plus the behaviour axe cannot see, such as focus, announcements and the structure of answers. See [Accessibility Testing](docs/accessibility-testing.md).
+
+### Screen reader tests
+
+| Date | Setup | Result |
+|---|---|---|
+| 5 October 2026 | VoiceOver, macOS 26.7, Chrome; the real widget with a simulated API streaming the answer over about four seconds; speech log recorded through VoiceOver's AppleScript interface, plus listening | Tasks 1–3 and 5–7 of the [test protocol](docs/accessibility-testing.md#tasks-and-expected-results) as expected: dialog and fields announced with their labels, login error announced, "Sto elaborando la risposta..." and then the answer read **once, in full** (heard to the end) with "Fonti: 2", never in fragments; the English answer read with an English voice; report form label, error and thanks announced; Esc back to "Apri assistente, collapsed button" and Tab no longer entering the closed chat. Task 4 in part: moving back from the text box, VoiceOver read the "Valuta la risposta" group with its toggle buttons, the sources as links and the list items ("2 of 2"), but the session stopped before the headings. Tasks 8 (phone) and 9 (dashboard) not done. **Found and fixed:** exploring the chat after an answer, VoiceOver met a second copy of it in the hidden announcement area, which now empties a few seconds after each announcement |
 
 ### Known issues
 
@@ -30,7 +36,7 @@ None open. Report new ones as described [below](#reporting-a-problem).
 - **Screen readers.** The conversation is no longer a live region rewritten at every streamed fragment: a hidden status region announces "Sto elaborando la risposta...", the long-wait notice, the finished answer once (without markdown symbols, with "(link)" in place of addresses) followed by the number of sources, and errors. The panel declares the interface language and each answer its own (`lang="en"` for English answers, sent by the API). 👍/👎 have names ("Risposta utile", "Risposta non utile") and `aria-pressed`, inside a "Valuta la risposta" group. Login fields, the report comment and the link fields have visible labels; the login title is a heading and "Password dimenticata?" a button; the report form's error is an alert; every interface text follows the configured language.
 - **Visual.** Borders of the text box, form fields and 👍/👎 at 3.3:1 or more; placeholder at 5.1:1; waiting notice, `pilot.html` hint, and the grey texts and orange tags of the dashboard admin view at 4.5:1 or more; the selected 👍/👎 is also marked by a thicker border, not only by color; source links in 24 px rows; animations and transitions stop with the system "reduce motion" setting.
 - **Content.** `come-funziona.html` no longer states that the chat simply works with keyboard and screen readers: it gives the target, says that checks are ongoing, links this page and explains how to report a difficulty.
-- **Found afterwards and fixed.** Headings, lists, quotes and separators written by the model in an answer are now real HTML headings (`h3`, `h4`), lists (`ul`, `ol`, nested too), `blockquote` and `hr`, so screen readers convey their structure (1.3.1); a markdown link `[text](address)` no longer produces a broken link nested inside another. The chat text box has a visible label ("La tua domanda"), the placeholder became an instruction ("Scrivi qui e premi Invio") and screen readers also hear how to send and how to start a new line (3.3.2).
+- **Found afterwards and fixed.** The hidden announcement area empties five seconds after each announcement, so that whoever explores the chat with a screen reader does not meet a second copy of the answer (found with VoiceOver). Headings, lists, quotes and separators written by the model in an answer are now real HTML headings (`h3`, `h4`), lists (`ul`, `ol`, nested too), `blockquote` and `hr`, so screen readers convey their structure (1.3.1); a markdown link `[text](address)` no longer produces a broken link nested inside another. The chat text box has a visible label ("La tua domanda"), the placeholder became an instruction ("Scrivi qui e premi Invio") and screen readers also hear how to send and how to start a new line (3.3.2).
 
 ### What already worked
 
@@ -43,13 +49,13 @@ None open. Report new ones as described [below](#reporting-a-problem).
 
 ### Not tested yet
 
-- Real screen readers: NVDA and JAWS on Windows, VoiceOver on macOS and iOS, TalkBack on Android. The status-region announcements, the non-modal panel and the language changes are the first things to verify.
+- Screen readers other than VoiceOver with Chrome on macOS: NVDA and JAWS on Windows, VoiceOver with Safari and on iOS, TalkBack on Android.
 - Real mobile devices and browser zoom (only emulated), forced colors / Windows high contrast, text spacing (1.4.12).
 - Testing with people with disabilities.
 
 ## Roadmap
 
-1. Test with screen readers on desktop and mobile, following the [test protocol](docs/accessibility-testing.md#screen-reader-tests).
+1. Test with the other screen readers (NVDA first, then VoiceOver on iPhone and TalkBack), following the [test protocol](docs/accessibility-testing.md#screen-reader-tests).
 2. Test with people with disabilities, with the help of the administration ([how](docs/accessibility-testing.md#tests-with-people-with-disabilities)).
 3. Keep the CI check green and extend it whenever the widget changes.
 
@@ -59,7 +65,7 @@ Progress is tracked in issues with the [`accessibility`](https://github.com/Anto
 
 - **Your pages:** the widget lives inside your website. The page around it (structure, headings, skip links, contrast, focus order) is your responsibility, and so is the place where the floating button sits: make sure it does not cover content or controls.
 - **Colors:** `primaryColor` is the background of white text (header, the user's messages, buttons) and the color of links and titles on white. If you change it, check a contrast ratio of at least 4.5:1 against white; the default `#003366` gives 12.6:1.
-- **Accessibility statement:** Italian public administrations publish their statement (*dichiarazione di accessibilità*) through AgID's form by 23 September every year, with a feedback mechanism for users. Cover the pages that host the chat, report the known issues above that still apply to your version, and link the statement from the page given as `infoUrl` (`come-funziona.html` in the pages shipped with Zautte).
+- **Accessibility statement:** Italian public administrations publish their statement (*dichiarazione di accessibilità*) through AgID's form by 23 September every year, with a feedback mechanism for users, and link it from the footer. Cover the pages that host the chat and report the known issues that still apply to your version. In the pages shipped with Zautte, the footer (`site-footer.js`) links the "Accessibilità" section of `come-funziona.html` until the statement's address is set in `data-accessibility` on its script tag; then the link becomes "Dichiarazione di accessibilità".
 - **Language:** set `lang` in the widget configuration to the language of the host page.
 
 ## Reporting a problem

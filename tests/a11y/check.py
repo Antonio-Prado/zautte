@@ -195,6 +195,11 @@ def main() -> int:
               and bool(page.text_content(".zautte-chatbot-fbform-msg")), "errore del modulo annunciato (role=alert)")
         page.click(".zautte-chatbot-fbform-actions button:not(.primary)")
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo «Non ora»")
+        # Con VoiceOver la regione piena faceva incontrare una seconda copia della
+        # risposta esplorando la chat: dopo l'annuncio deve svuotarsi
+        page.wait_for_timeout(5500)
+        check(not (page.text_content(f"{W}-status") or "").strip(),
+              "dopo qualche secondo la regione degli annunci si svuota")
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-btn"
@@ -265,6 +270,10 @@ def main() -> int:
         mock_api(page, base)
         page.goto(base + "/widget/come-funziona.html")
         axe(page, "come-funziona.html")
+        page.wait_for_selector("#zautte-a11y-link")
+        check(page.get_attribute("#zautte-a11y-link", "href").endswith("/widget/come-funziona.html#accessibilita")
+              and page.locator("#accessibilita").count() == 1,
+              "footer: link «Accessibilità» alla sezione di come-funziona.html")
         browser.close()
 
     if failures:
