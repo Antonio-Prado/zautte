@@ -38,3 +38,4 @@ htmlcov/
 
 # Claude Code project settings (contengono comandi specifici del server)
 .claude/
+node_modules/
