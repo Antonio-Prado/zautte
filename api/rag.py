@@ -892,7 +892,9 @@ async def answer(
     for s in sources:
         # Dedup per URL quando presente; per titolo quando il link è nascosto —
         # i documenti "solo titolo" hanno url vuoto e non vanno collassati in uno solo.
-        key = s["url"] or f"title::{s['title']}"
+        # Lo stesso file con e senza www. (o http/https) conta una volta sola.
+        key = (re.sub(r"^https?://(?:www\.)?", "", s["url"]).rstrip("/")
+               if s["url"] else f"title::{s['title']}")
         if key not in seen:
             seen.add(key)
             unique_sources.append(s)
