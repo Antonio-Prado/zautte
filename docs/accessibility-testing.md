@@ -9,7 +9,7 @@ How to check that Zautte works with assistive technologies. The target and the c
 `tests/a11y/check.py` runs on every push (job *Accessibility (axe-core)*). It serves `widget/` locally, simulates the API and checks, in Chromium:
 
 - axe-core 4.10.2 with the WCAG 2.0, 2.1 and 2.2 A and AA rules, on every state: floating chat closed and open, login and login error, answer with sources and 👍/👎, report form, 320 px width, the dashboard's colleague and admin views, `come-funziona.html`;
-- what axe cannot see: the closed chat stays out of the Tab order, the panel is not modal, focus is not lost (after an answer, a failed login, a 👎, "Non ora", Esc), the conversation is not a live region, the finished answer is announced once without markdown or addresses and with the number of sources, headings, lists and links in answers are real HTML, English answers carry `lang="en"`, 👍/👎 have names and `aria-pressed`, form fields have visible labels, no transitions with reduced motion, no horizontal scrolling at 320 px.
+- what axe cannot see: the closed chat stays out of the Tab order, the panel is not modal, focus is not lost (after an answer, a failed login, a 👎, "Non ora", Esc), the conversation is not a live region, the finished answer is announced once without markdown or addresses and with the number of sources, the announcement area empties afterwards, headings, lists and links in answers are real HTML, English answers carry `lang="en"`, 👍/👎 have names and `aria-pressed`, form fields have visible labels, no transitions with reduced motion, no horizontal scrolling at 320 px.
 
 Run it locally:
 
@@ -48,6 +48,8 @@ Test both pages: `https://<server>/widget/pilot.html` (floating chat) and `https
 | 7 | Close the chat with Esc, then with × | Focus returns to the open button; the chat's content can no longer be reached by Tab or by the screen reader's reading keys |
 | 8 | Phone (VoiceOver, TalkBack) | Swiping goes through header, conversation, field and send button in order; the open button behind the full-screen chat is not reached; × closes it |
 | 9 | Dashboard | Login and chat behave as above, without the open and close buttons; the chat is a region of the page |
+
+A session with VoiceOver can also be scripted on macOS, once "Allow VoiceOver to be controlled with AppleScript" is enabled in VoiceOver Utility: a browser driven by Playwright runs the tasks while a small JXA loop records `content of last phrase` with a timestamp, which gives a log of what VoiceOver said at each step. It does not replace listening: whether a long announcement is read to the end, and in which voice, has to be heard. Results so far are in [ACCESSIBILITY.md](../ACCESSIBILITY.md#screen-reader-tests).
 
 Record each result (task, screen reader and browser, ok or not, what was heard) and open an issue with the [Accessibility problem](https://github.com/Antonio-Prado/zautte/issues/new?template=accessibility.md) template for anything that does not match.
 
