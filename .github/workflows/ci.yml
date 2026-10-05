@@ -33,3 +33,24 @@ jobs:
         run: |
           find . -name "*.py" -not -path "./venv/*" -not -path "./.git/*" \
             | xargs python -m py_compile
+
+  a11y:
+    name: Accessibility (axe-core)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install Playwright (Chromium) and axe-core
+        run: |
+          pip install playwright==1.63.0
+          python -m playwright install --with-deps chromium
+          npm install --no-save axe-core@4.10.2
+
+      - name: Widget and pages — axe-core, keyboard, announcements, answer structure
+        run: python tests/a11y/check.py
