@@ -25,8 +25,8 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import RETRIEVAL_TOP_K, VECTOR_STORE_DIR
-from indexer.titles import display_title, is_weak, title_from_text, with_text_title
+from config.settings import CRAWL_CACHE_DIR, RETRIEVAL_TOP_K, VECTOR_STORE_DIR
+from indexer.titles import LINK_TEXTS_FILE, display_title, is_weak, title_from_text, with_text_title
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ _bm25_dirty = False   # True se il corpus è cambiato dopo l'ultima costruzione
 _pdf_title_count: Counter | None = None  # /Title → n. di PDF che lo usano (lazy)
 _pdf_first_text: dict[str, str] = {}      # sorgente PDF → testo del primo chunk
 _pdf_display: dict[str, str] = {}         # sorgente PDF → titolo da mostrare (cache)
+_pdf_link_texts: dict[str, str] = {}      # sorgente PDF → testo del link (dal crawler)
 
 # Salvataggio differito (vedi deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -326,10 +327,20 @@ def inbox_sources() -> set[str]:
 _REPEATED_TITLE_MIN = 5
 
 
+def _load_link_texts() -> dict[str, str]:
+    """Testi dei link ai PDF salvati dal crawler (vedi crawler.save_link_texts)."""
+    path = CRAWL_CACHE_DIR / LINK_TEXTS_FILE
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        log.warning(f"{path} illeggibile: titoli dei PDF senza i testi dei link")
+        return {}
+
+
 def _title(meta: dict) -> str:
     """Titolo da mostrare: per i PDF del crawl uno leggibile (vedi indexer/titles.py).
     Il riordino in api/rag.py usa ancora `title`, così la ricerca non cambia."""
-    global _pdf_title_count, _pdf_first_text, _pdf_display
+    global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts
     title = meta.get("title", "")
     if meta.get("doc_type") != "pdf" or _is_inbox(meta):
         return title
@@ -343,10 +354,12 @@ def _title(meta: dict) -> str:
                     first_text[src] = m.get("text", "")
         _pdf_title_count = Counter(titles.values())
         _pdf_first_text, _pdf_display = first_text, {}
+        _pdf_link_texts = _load_link_texts()
     source = meta.get("source", "")
     if source not in _pdf_display:
         shown = display_title(title, source,
-                              repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN)
+                              repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN,
+                              link_text=_pdf_link_texts.get(source, ""))
         if is_weak(shown):  # «Allegato B 2022», «DD 665-25»: si cerca nel testo
             shown = with_text_title(shown, title_from_text(_pdf_first_text.get(source, ""), title))
         _pdf_display[source] = shown

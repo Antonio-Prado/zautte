@@ -34,6 +34,7 @@ from config.settings import (
     SITE_URL,
 )
 from crawler.state import CrawlState, content_hash
+from indexer.titles import LINK_TEXTS_FILE, best_link_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -136,7 +137,9 @@ def extract_links(html: str, base_url: str) -> list[str]:
     return links
 
 
-def extract_pdf_links(html: str, base_url: str) -> list[str]:
+def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
+    """Link ai PDF dei domini ammessi: (URL, testo del link). Il testo serve a dare al
+    PDF un titolo leggibile; senza testo (link-immagine) si prova l'attributo title."""
     soup = BeautifulSoup(html, "lxml")
     pdfs = []
     for tag in soup.find_all("a", href=True):
@@ -144,8 +147,28 @@ def extract_pdf_links(html: str, base_url: str) -> list[str]:
         if href.lower().endswith(".pdf"):
             absolute = urljoin(base_url, href)
             if any(d in urlparse(absolute).netloc for d in CRAWL_ALLOWED_DOMAINS):
-                pdfs.append(absolute)
+                text = tag.get_text(" ", strip=True) or (tag.get("title") or "").strip()
+                pdfs.append((absolute, text))
     return pdfs
+
+
+def save_link_texts(observed: dict[str, list[str]]) -> int:
+    """Aggiorna data/crawl_cache/pdf_link_texts.json (URL del PDF → testo del link più
+    descrittivo). I PDF non visti in questo crawl conservano il testo precedente."""
+    path = CRAWL_CACHE_DIR / LINK_TEXTS_FILE
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        log.warning(f"{path} illeggibile: lo riscrivo da zero")
+        saved = {}
+    updated = 0
+    for url, texts in observed.items():
+        best = best_link_text(texts)
+        if best and saved.get(url) != best:
+            saved[url] = best
+            updated += 1
+    path.write_text(json.dumps(saved, ensure_ascii=False, indent=1), encoding="utf-8")
+    return updated
 
 
 _NOISE_LINES = re.compile(
@@ -307,6 +330,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     visited: set[str] = set()
     to_visit: list[str] = [start_url] + CRAWL_EXTRA_START_URLS
     pdf_urls: set[str] = set()
+    pdf_link_texts: dict[str, list[str]] = {}  # URL del PDF → testi dei link che lo citano
     results_pages = []
     results_pdfs = []
 
@@ -377,8 +401,10 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                     for link in new_links:
                         if link not in visited and link not in to_visit:
                             to_visit.append(link)
-                    for pdf_url in extract_pdf_links(raw_html, url):
+                    for pdf_url, link_text in extract_pdf_links(raw_html, url):
                         pdf_urls.add(pdf_url)
+                        if link_text:
+                            pdf_link_texts.setdefault(pdf_url, []).append(link_text)
 
                     # Salta se contenuto invariato (solo in modalità incrementale)
                     if incremental and not state.is_changed(url, page_hash):
@@ -494,6 +520,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
     # Salva stato e indice
     state.save()
+    updated = save_link_texts(pdf_link_texts)
+    log.info(f"Testi dei link ai PDF: {len(pdf_link_texts)} PDF citati, {updated} titoli nuovi o cambiati")
     index = {"pages": results_pages, "pdfs": results_pdfs}
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 

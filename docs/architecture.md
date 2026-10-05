@@ -142,7 +142,7 @@ zautte/                       # deployed as /opt/chatbot
 │   └── newsyslog-chatbot.conf # Log rotation configuration
 │
 └── data/                     # Auto-generated (do not commit)
-    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json
+    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json
     ├── documents/            # Downloaded PDFs
     ├── vectorstore/          # Embeddings + metadata (numpy)
     ├── inbox/                # Documents to index manually (processed/, errors/)

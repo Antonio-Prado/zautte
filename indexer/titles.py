@@ -78,12 +78,14 @@ def title_from_url(url: str) -> str:
     return name
 
 
-def display_title(title: str, url: str, repeated: bool = False) -> str:
+def display_title(title: str, url: str, repeated: bool = False, link_text: str = "") -> str:
     """Titolo da mostrare per un PDF.
 
     `repeated`: lo stesso /Title compare su molti PDF diversi (intestazioni come
     «Originale di Deliberazione della Giunta Comunale»): allora il nome del file,
     se informativo, distingue meglio un documento dall'altro.
+    `link_text`: testo del link al PDF nelle pagine del sito (già scelto dal crawler);
+    vince sugli altri candidati se ha almeno tre parole o non è più corto di loro.
     """
     t = (title or "").strip()
     if _CACHE_STEM.search(t):
@@ -94,10 +96,15 @@ def display_title(title: str, url: str, repeated: bool = False) -> str:
     t = re.sub(r"\s+", " ", t)
     from_url = title_from_url(url)
     if t and _informative(t) and not (repeated and _informative(from_url)):
-        return _shorten(t)
-    if _informative(from_url):
-        return _shorten(from_url)
-    return _shorten(t or from_url) or (title or "")
+        base = _shorten(t)
+    elif _informative(from_url):
+        base = _shorten(from_url)
+    else:
+        base = _shorten(t or from_url) or (title or "")
+    link = clean_link_text(link_text)
+    if link and (len(link.split()) >= 3 or len(link) >= len(base) or is_weak(base)):
+        return _shorten(link)
+    return base
 
 
 def _shorten(title: str) -> str:
@@ -268,3 +275,53 @@ def with_text_title(base: str, text_title: str) -> str:
     if not ref or len(ref) > 35 or ref.casefold() in text_title.casefold():
         return head
     return f"{head} ({ref})"
+
+
+# --- Testo del link che punta al PDF ---------------------------------------------------
+# Il crawler salva, per ogni PDF, il testo del link nelle pagine del sito
+# (data/crawl_cache/pdf_link_texts.json): è l'etichetta scelta dalla redazione per i
+# cittadini («Delibera di Giunta n. 75 del 12/05/2016 "Atto di indirizzo…"»), quindi è il
+# primo candidato per il titolo. Esclusi «PDF Scarica», «Leggi», le dimensioni del file.
+
+LINK_TEXTS_FILE = "pdf_link_texts.json"
+_LINK_NOISE = re.compile(
+    r"\(?\b(?:formato\s+)?pdf\b[\s,:–-]*(?:\d+(?:[.,]\d+)?\s*(?:[kmg]i?b|bytes?)\b)?\)?"
+    r"|\b\d+(?:[.,]\d+)?\s*(?:[kmg]i?b)\b|\[\s*\]|\(\s*\)",
+    re.IGNORECASE,
+)
+_LINK_VERB = re.compile(
+    r"^(?:scarica(?:re)?|download|apri|visualizza|leggi|consulta|vedi)\b\s*(?:il|la|lo|l['’]|i|gli|le)?\s*",
+    re.IGNORECASE,
+)
+_LINK_JUNK = {
+    "scarica", "download", "clicca qui", "qui", "leggi", "leggi tutto", "apri", "visualizza",
+    "link", "vai", "dettagli", "allegati", "allegato", "documento", "file",
+}
+
+
+def clean_link_text(text: str) -> str:
+    """«PDF Scarica» → "", «richiesta patrocinio (pdf, 120 KB)» → «Richiesta patrocinio»."""
+    t = re.sub(r"\s+", " ", text or "").strip()
+    if t.lower().startswith(("http://", "https://")):
+        return ""
+    t = _LINK_NOISE.sub(" ", t)
+    t = _LINK_VERB.sub("", t.strip())
+    t = re.sub(r"\s+", " ", t).strip(" .,;:-–|")
+    if _EXT.search(t) or ("_" in t and " " not in t):
+        t = _clean_filename(t)
+    if t.casefold() in _LINK_JUNK or not _informative(t) or is_weak(t):
+        return ""
+    return t[:1].upper() + t[1:]
+
+
+def best_link_text(texts) -> str:
+    """Tra i testi dei link allo stesso PDF sceglie il più descrittivo (il più lungo
+    dopo la pulizia; a parità, il più frequente)."""
+    counts: dict[str, int] = {}
+    for raw in texts:
+        t = clean_link_text(raw)
+        if t:
+            counts[t] = counts.get(t, 0) + 1
+    if not counts:
+        return ""
+    return max(counts, key=lambda t: (min(len(t), _MAX_LEN), counts[t]))
