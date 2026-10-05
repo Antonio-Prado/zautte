@@ -28,7 +28,7 @@ if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
     # Processo vivo ma non risponde — killalo
     echo "$(date '+%Y-%m-%d %H:%M:%S') — Chatbot non risponde, riavvio..." >> $LOG
     kill -9 $(cat "$PIDFILE") 2>/dev/null
-    pkill -9 -f "uvicorn api.main" 2>/dev/null
+    pkill -9 -f "api.main:app" 2>/dev/null
     sleep 2
 fi
 
