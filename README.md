@@ -29,33 +29,39 @@ It runs in production as a pilot for the **Comune di San Benedetto del Tronto** 
 
 ## Features
 
-|  |  |
-|---|---|
-| 🔎 **Answers grounded in the site**<br>Hybrid search (semantic + BM25) over pages, PDFs and uploaded documents; every answer lists its sources. | 💬 **Follow-up questions**<br>"And what does it cost?" is rewritten with its topic before searching, so conversations keep their context. |
-| 🛡️ **Privacy by design**<br>Tax codes, IBANs, cards, emails and phone numbers are masked; embeddings are always computed locally; retention periods for logs. | 🔌 **Drop-in widget**<br>One `<script>` tag, vanilla JS with no dependencies, streaming answers, floating or inline, mobile-friendly, Italian and English. |
-| 👍 **Feedback loop**<br>Users rate answers and can point to the right page; admins resolve reports and the user is notified by email. | 🔄 **Self-updating index**<br>Weekly incremental and monthly full crawl; only new or changed chunks are re-embedded; nightly backups and a watchdog. |
-| 🧠 **Your choice of LLM**<br>Claude through the Anthropic API or AWS Bedrock (EU, Milan region), or a fully local model with Ollama. | 📊 **Admin dashboard**<br>Service status, indexed content, activity, feedback, users, token costs, crawl history and changelog. |
+<table>
+<tr>
+<td width="50%">🔎 <b>Answers grounded in the site</b><br>Hybrid search (semantic + BM25) over pages, PDFs and uploaded documents; every answer lists its sources.</td>
+<td width="50%">💬 <b>Follow-up questions</b><br>"And what does it cost?" is rewritten with its topic before searching, so conversations keep their context.</td>
+</tr>
+<tr>
+<td width="50%">🛡️ <b>Privacy by design</b><br>Tax codes, IBANs, cards, emails and phone numbers are masked; embeddings are always computed locally; retention periods for logs.</td>
+<td width="50%">🔌 <b>Drop-in widget</b><br>One <code>&lt;script&gt;</code> tag, vanilla JS with no dependencies, streaming answers, floating or inline, mobile-friendly, Italian and English.</td>
+</tr>
+<tr>
+<td width="50%">👍 <b>Feedback loop</b><br>Users rate answers and can point to the right page; admins resolve reports and the user is notified by email.</td>
+<td width="50%">🔄 <b>Self-updating index</b><br>Weekly incremental and monthly full crawl; only new or changed chunks are re-embedded; nightly backups and a watchdog.</td>
+</tr>
+<tr>
+<td width="50%">🧠 <b>Your choice of LLM</b><br>Claude through the Anthropic API or AWS Bedrock (EU, Milan region), or a fully local model with Ollama.</td>
+<td width="50%">📊 <b>Admin dashboard</b><br>Service status, indexed content, activity, feedback, users, token costs, crawl history and changelog.</td>
+</tr>
+</table>
 
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph IDX["Indexing · weekly and monthly"]
-        direction TB
-        site["Website<br/>HTML + PDF"] --> crawler["Crawler"]
-        crawler --> indexer["Chunking +<br/>embeddings (bge-m3)"]
+        direction LR
+        site["Website<br/>HTML + PDF"] --> crawler["Crawler"] --> indexer["Chunking +<br/>embeddings"] --> store[("Vector store<br/>numpy + BM25")]
         inbox["Inbox<br/>PDF · DOCX"] --> indexer
-        indexer --> store[("Vector store<br/>numpy + BM25")]
     end
     subgraph ANS["Answering · each question"]
-        direction TB
-        widget["Chat widget"] --> api["FastAPI"]
-        api --> prep["Mask personal data<br/>rewrite follow-ups"]
-        prep --> search["Hybrid search<br/>semantic + BM25"]
-        search --> llm["LLM<br/>Claude or Ollama"]
-        llm -- "streamed answer + sources" --> widget
+        direction LR
+        q(["Question"]) --> prep["Mask personal data,<br/>rewrite follow-ups"] --> search["Hybrid search<br/>semantic + BM25"] --> llm["LLM<br/>Claude or Ollama"] --> a(["Answer +<br/>sources"])
     end
-    store --> search
+    IDX -- "searched at every question" --> ANS
 ```
 
 Every question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
