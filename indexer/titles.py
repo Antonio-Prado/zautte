@@ -136,6 +136,27 @@ _BOILERPLATE = re.compile(
 _SPACED = re.compile(r"^(?:\S ){4,}")  # intestazioni con le lettere spaziate: «S E T T O R E»
 _CONNECTIVE_END = re.compile(r"\b(?:di|del|della|delle|dei|degli|e|ed|per|a|al|alla|in|con)\s*$", re.IGNORECASE)
 _KEEP_UPPER_SMALL = re.compile(r"^\(?[A-Z]{2,4}\)?[:,.]?$")
+# Sigle che restano maiuscole quando un oggetto tutto maiuscolo passa in minuscolo
+_ACRONYMS = {
+    "PIAO", "PTPC", "PTPCT", "POR", "FESR", "FSE", "PNRR", "PON", "DUP", "PEG", "PDO", "MEPA",
+    "SRL", "SPA", "SAS", "SNC", "CIIP", "ODV", "APS", "UE", "EU", "IMU", "TARI", "TASI", "SUAP",
+    "SUE", "ATS", "ATA", "ISEE", "INPS", "INAIL", "ASL", "AST", "RPCT", "DPO", "PA", "PEC",
+    "SPID", "CIE", "ANPR", "ZTL", "DPI", "FFP2", "LLPP", "DURC", "IVA", "ICT", "GDPR", "CDA",
+    "DGR", "DGC", "DCC", "DPCM", "TUEL", "ERP", "ACR", "RUP", "PAGOPA", "IO",
+}
+# Riferimenti normativi e codici che allungano gli oggetti senza dire cosa si fa
+_LAW = (r"(?:d\.?\s*lgs\.?|d\.?\s*l\.|d\.?\s*p\.?\s*r\.?|l\.|legge|l\.\s*r\.|reg\.?\s*\(?ue\)?)\s*"
+        r"(?:\d{1,2}\s+[a-z]+\s+\d{4}\s*,?\s*)?(?:n\.?\s*)?\d+\s*(?:/\s*\d{2,4})?"
+        r"(?:\s*e\s*(?:ss\.?\s*mm\.?\s*ii|s\.?\s*m\.?\s*i)\.?)?")
+_LEGAL_REF = re.compile(
+    r"[,\s]*\b(?:ai sensi|ex|di cui|secondo quanto previsto)\s+(?:dell['’]\s*|del\s+|dagli?\s+|all['’]\s*)?"
+    r"art(?:icol[oi]|t)?\.?\s*\d+[^;]{0,80}?" + _LAW
+    + r"(?:\s*,?\s*(?:conv\.?|convertit[oa])[^,;]{0,30}?" + _LAW + ")?",
+    re.IGNORECASE,
+)
+_LEGAL_PAREN = re.compile(r"\s*\([^()]*\b(?:art\.|d\.\s*lgs|l\.\s*\d)[^()]*\)", re.IGNORECASE)
+_CODES = re.compile(r"[\s,.;:–-]*\b(?:cig|cup|c\.i\.g\.)\s*[:.]?\s*[A-Z0-9]{8,15}\b\.?", re.IGNORECASE)
+_SPESA = re.compile(r"[\s,.;:–-]*\bimpegno di spesa\b[\s,.;:–-]*", re.IGNORECASE)
 _TEXT_MAX_LINES = 30
 
 
@@ -156,6 +177,7 @@ def _tame_caps(s: str) -> str:
     out = []
     for w in s.split():
         keep = (any(c.isdigit() for c in w) or "." in w.strip(".,;:")
+                or re.sub(r"[^\w]", "", w).upper() in _ACRONYMS
                 or (_KEEP_UPPER_SMALL.match(w) and (w.startswith("(") or w.endswith(":"))))
         out.append(w if keep else w.lower())
     t = " ".join(out)
@@ -166,9 +188,29 @@ def _tame_caps(s: str) -> str:
     return t[:1].upper() + t[1:]
 
 
+def _clean_subject(s: str) -> str:
+    """«Affidamento diretto ai sensi dell'art. 50, comma 1, lett. b del D.LGS. n. 36/2023,
+    acquisto graniglia … impegno di spesa - CIG: B251FD0CF2» → «Affidamento diretto,
+    acquisto graniglia …»."""
+    s = re.sub(r"^\s*oggetto\s*[:.]\s*", "", s, flags=re.IGNORECASE)
+    s = _LEGAL_PAREN.sub("", s)
+    s = _LEGAL_REF.sub("", s)
+    s = _CODES.sub(" ", s)
+    s = _SPESA.sub(" ", s)
+    s = re.sub(r"\s+([,.;:])", r"\1", s)
+    s = re.sub(r"([,.;:])(?:\s*[,.;:–-])+", r"\1", s)
+    s = re.sub(r"\s+-\s*$|^\s*[-–,.;:]\s*", "", s.strip())
+    # participio rimasto senza il suo riferimento: «…, effettuata»
+    s = re.sub(r',?\s*\b(?:effettuat|adottat|approvat|previst|redatt)[aoie]\s*[,.;:"”]*\s*$', "", s,
+               flags=re.IGNORECASE)
+    if s.count('"') == 1:  # virgolette rimaste spaiate dopo i tagli
+        s = s.replace('"', "")
+    return re.sub(r"\s+", " ", s).strip(" ,.;:-–")
+
+
 def _tidy(s: str) -> str:
-    s = re.sub(r"\s+", " ", s).strip(" .;:-–")
-    return _tame_caps(s)
+    s = _tame_caps(re.sub(r"\s+", " ", s).strip(" .;:-–"))
+    return s[:1].upper() + s[1:]
 
 
 def title_from_text(text: str, stored_title: str = "") -> str:
@@ -189,7 +231,7 @@ def title_from_text(text: str, stored_title: str = "") -> str:
             if _OGGETTO_STOP.match(nxt) or sum(len(p) for p in parts) > 220:
                 break
             parts.append(nxt)
-        subject = _tidy(" ".join(parts))
+        subject = _tidy(_clean_subject(" ".join(parts)))
         if _informative(subject):
             return subject
         break
