@@ -872,7 +872,7 @@ async def answer(
     Risponde a una domanda usando RAG.
 
     Se stream=False: ritorna dict con risposta e fonti.
-    Se stream=True: ritorna (AsyncGenerator[str], fonti).
+    Se stream=True: ritorna (AsyncGenerator[str], fonti, lingua della risposta).
 
     history: lista di {"role": "user"|"assistant", "content": str}
              per mantenere il contesto conversazionale (max 3 turni).
@@ -900,7 +900,7 @@ async def answer(
         if stream:
             async def _fixed_gen():
                 yield text
-            return _fixed_gen(), []
+            return _fixed_gen(), [], language
         return {"answer": text, "sources": [], "language": language}
 
     _query_freq[_freq_key(query)] += 1
@@ -977,14 +977,14 @@ async def answer(
                 yield fallback
 
             _save_stats()
-            return _no_context_gen(), unique_sources
+            return _no_context_gen(), unique_sources, language
 
         if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
         _save_stats()
-        return gen, unique_sources
+        return gen, unique_sources, language
 
     else:
         _t0 = _time.monotonic()

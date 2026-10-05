@@ -58,8 +58,8 @@ The `widget/embed-snippet.html` file contains a ready-to-paste snippet with more
 - **Login** (`requireLogin`): email + password form (`/auth/login`), "Forgot password?" (`/auth/forgot`), sign-out button in the header; the token is kept in `localStorage` and sent as `Authorization: Bearer`, checked with `/auth/me` at startup; a `401` returns to the login form
 - **Host-page API**: a `zautte:auth` event on `document` with `detail: {loggedIn, name}`, and `window.ZautteChatbot.logout()`
 - **Inline mode** (`inline`): panel embedded in the page, always open, no floating or close button
-- **Accessibility**: `role="dialog"`, messages in an `aria-live="polite"` region, `aria-hidden`/`aria-expanded`, focus management on open/close; `×` and Esc close the panel and return focus to the open button
-- **Mobile** (≤ 480 px): full-screen panel, `font-size: 16px` on the input (prevents automatic zoom on iOS)
+- **Accessibility** (target WCAG 2.1 AA, see [ACCESSIBILITY.md](../ACCESSIBILITY.md)): non-modal `role="dialog"` (a labelled region in `inline` mode) with `lang` set to the interface language, hidden with `visibility` when closed; `aria-expanded`/`aria-controls` on the open button; the conversation is a labelled region, not a live one, and a hidden `role="status"` region announces "preparing the answer", the long-wait notice, each finished answer once (in its own language, from `language` in the SSE `sources` event) and errors; 👍/👎 with names and `aria-pressed`; visible labels in the login and report forms; focus kept in the text box while an answer is prepared and returned there after it; `×` and Esc (with focus in the chat) close the panel and return focus to the open button; `prefers-reduced-motion` stops animations
+- **Mobile** (≤ 480 px): full-screen panel, open button hidden while the panel covers it, `font-size: 16px` on the input (prevents automatic zoom on iOS)
 
 ## Pages in `widget/`
 
