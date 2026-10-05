@@ -467,6 +467,12 @@
     <div class="cl-entry">
       <div class="cl-date">5 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag perf">perf</span><strong>Un solo processo per il servizio</strong>: giravano due copie di Zautte, una per le connessioni IPv4 e una per IPv6, ognuna con il proprio indice in memoria (circa 6 GB ciascuna) e le proprie statistiche, che si sovrascrivevano a vicenda: i numeri di questa pagina (domande, domande più frequenti, costi) erano parziali. Ora c'è una copia sola: statistiche coerenti e circa 6 GB di memoria liberati. <span class="cl-tag fix">fix</span> Il file con le chiavi del servizio (e le sue copie di backup) è leggibile solo dal suo proprietario.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">5 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag feat">feat</span><strong>Domande cancellabili su richiesta</strong>: se un collega chiede di cancellare una o più domande che ha fatto a Zautte, ora si tolgono da tutti i registri (messaggi, domande senza risposta, segnalazioni) senza fermare il servizio. Ogni domanda ha un codice di 12 caratteri che la lega a quei registri e alla sua eventuale segnalazione 👍/👎. <span class="cl-tag fix">fix</span> Il registro tecnico del server non contiene più il testo delle domande, solo il codice (prima ne teneva l'inizio, senza scadenza). <span class="cl-tag feat">feat</span> Saluti, ringraziamenti, complimenti e insulti («ciao», «grazie», «bravo», «sei inutile») ricevono una risposta breve e fissa: non passano più dal modello e non finiscono tra le domande senza risposta. Basta una parola di contenuto («grazie, e per la TARI?») perché la domanda segua il percorso normale.
       </div>
     </div>

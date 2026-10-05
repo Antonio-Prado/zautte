@@ -209,7 +209,6 @@ class ForgetRequest(BaseModel):
     all: bool = Field(False, description="tutte le domande e i feedback dell'utente")
     ts: list[str] = Field(default_factory=list, max_length=1000,
                           description="timestamp esatti delle voci di usage.jsonl dell'utente")
-    memory_only: bool = Field(False, description="solo la memoria di questo processo, file intatti")
     dry_run: bool = False
 
 
@@ -682,29 +681,23 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
     Toglie le voci da usage.jsonl, gaps.jsonl, feedback.jsonl e le marcature
     «risolto», poi dalla memoria del processo: contatore delle domande più
     frequenti (finisce in stats.json) e cache delle risposte. Il log dell'API
-    contiene solo l'identificativo, non il testo.
-
-    In produzione girano due processi (IPv4 e IPv6) con memoria separata:
-    scripts/forget.py chiama gli altri con `memory_only` e per ultimo uno che
-    cancella anche dai file. Con `dry_run` ritorna solo cosa verrebbe tolto.
+    contiene solo l'identificativo, non il testo. Con `dry_run` ritorna solo
+    cosa verrebbe tolto. Presuppone un solo processo (api/serve.py): con più
+    worker la memoria degli altri resterebbe com'è fino al riavvio.
     """
     if not req.rids and not (req.uid and (req.last or req.all or req.ts)):
         raise HTTPException(status_code=400, detail="Indicare rids oppure uid con last, all o ts")
     # Sincrona di proposito: mentre riscrive i file questo processo non accoda
     # altre righe (le scritture dell'altro processo le recupera rewrite_jsonl).
     result = forget(rids=req.rids, uid=req.uid, last=req.last, every=req.all, ts=req.ts,
-                    dry_run=req.dry_run or req.memory_only)
+                    dry_run=req.dry_run)
     memory = 0
-    if req.memory_only and not req.dry_run:
-        memory = forget_queries([q["q"] for q in result["questions"]])
-        log.info("Cancellazione su richiesta, solo memoria: domande %d, tolte dalla memoria %d",
-                 len(result["questions"]), memory)
-    elif not req.dry_run:
+    if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
         log.info("Cancellazione su richiesta: domande %d, tolte voci d'uso %d, lacune %d, "
                  "feedback %d, dalla memoria %d", len(result["questions"]), result["usage"],
                  result["gaps"], result["feedback"], memory)
-    return {**result, "memory": memory, "files_changed": not (req.dry_run or req.memory_only)}
+    return {**result, "memory": memory, "dry_run": req.dry_run}
 
 
 @app.get("/crawl-history")

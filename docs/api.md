@@ -11,12 +11,11 @@
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Production (FreeBSD): `service chatbot start` runs start.sh under daemon(8);
-# start.sh launches two single-worker uvicorn processes on port 8000:
-/opt/chatbot/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 &   # IPv4
-/opt/chatbot/venv/bin/python -m uvicorn api.main:app --host :: --port 8000 &        # IPv6
+# start.sh launches ONE single-worker process listening on IPv4 and IPv6, port 8000:
+/opt/chatbot/venv/bin/python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000 &
 ```
 
-Each process keeps its own in-memory state (vector store, response cache, rate-limit counters). Login tokens are stateless, so either process validates them.
+`api/serve.py` opens one socket per address and hands both to a single uvicorn server: the uvicorn command line takes only one address, and on FreeBSD `::` does not accept IPv4 connections. Until 5 October 2026 production ran two processes (IPv4 and IPv6), each with its own vector store in memory, response cache and counters, and both rewrote `data/stats.json` in turn.
 
 ## Endpoints
 
@@ -212,10 +211,10 @@ Deletes questions on request, without restarting the API: removes them from `usa
 
 - Selection: `rids` (list of question ids), or `uid` with `last` (the user's last N questions), `all` (all their questions and feedback) or `ts` (exact `usage.jsonl` timestamps)
 - `dry_run`: only returns what would be deleted
-- `memory_only`: cleans this process's memory and leaves the files alone. Production runs two processes (IPv4 and IPv6) with separate memory: `scripts/forget.py` calls the others with `memory_only` first, then one without it
+- The memory part assumes a single API process (`api/serve.py`): with several workers, the others keep their counters and cache until they restart
 - Entries written before 5 October 2026 have no `rid`: they are matched by user, text and time (gap within 5 minutes, feedback after the question). Questions from anonymous visitors are only in `gaps.jsonl` and can only be found by `rid`
 
-**Response:** the questions found (`ts`, `rid`, `q`), how many entries were (or would be) removed from each file (`usage`, `gaps`, `feedback`, `resolved`), how many were removed from memory (`memory`) and `files_changed`.
+**Response:** the questions found (`ts`, `rid`, `q`), how many entries were (or would be) removed from each file (`usage`, `gaps`, `feedback`, `resolved`), how many were removed from memory (`memory`) and `dry_run`.
 
 Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-questions-on-request)).
 
