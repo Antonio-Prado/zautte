@@ -131,7 +131,7 @@ Python 3.11 · FastAPI and uvicorn · Ollama (`bge-m3` embeddings) · numpy · r
 
 ## Contributing and security
 
-Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, follow [SECURITY.md](SECURITY.md).
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). To report a vulnerability, follow [SECURITY.md](SECURITY.md); for accessibility, see [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 Released under the [MIT License](LICENSE) · © 2026 Antonio Prado.
 

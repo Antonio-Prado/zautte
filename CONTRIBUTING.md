@@ -1,6 +1,6 @@
 # Contributing to Zautte
 
-Thank you for your interest in contributing!
+Thank you for your interest in contributing! Everyone taking part in this project is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## How to contribute
 
