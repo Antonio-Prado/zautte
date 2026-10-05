@@ -87,9 +87,12 @@ def _claude_client():
 # 0,38 / 0,55 / pesi 0,4-0,6, ma mxbai dava ~0,70 anche alle domande fuori tema).
 # Coseno bge-m3 del brano migliore: domande in tema 0,56-0,70, fuori tema 0,38-0,50,
 # brani a caso ~0,35.
+# Verifica sull'indice completo (05/10/2026, 222.480 brani): pagina giusta nei 7
+# brani 80/100 (mxbai 58); miglior brano fuori tema p50 0,49 / p90 0,53, quindi
+# 0,45 lasciava 5,5 brani fuori tema su 7 e 0,50 ne lascia 1,9 (80 → 79 in tema).
 
 # Soglia minima di similarità per includere un chunk nel contesto
-MIN_SIMILARITY = 0.45
+MIN_SIMILARITY = 0.50
 
 # Soglia di "confidenza" del retrieval: se anche il chunk migliore resta sotto
 # questo valore di similarità coseno, la risposta è probabilmente costruita su
