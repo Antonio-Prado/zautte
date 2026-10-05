@@ -812,7 +812,7 @@ async def chat_stream(request: Request, req: ChatRequest,
 
     Formato SSE:
       data: {"token": "..."}\n\n        → token di testo
-      data: {"sources": [...], "rid": "..."}\n\n  → fonti e identificativo della domanda
+      data: {"sources": [...], "rid": "...", "language": "it"}\n\n  → fonti, identificativo della domanda, lingua
       data: {"done": true}\n\n          → fine stream
     """
     try:
@@ -820,9 +820,9 @@ async def chat_stream(request: Request, req: ChatRequest,
         question = redact(req.question)
         history = redact_history([m.model_dump() for m in req.history]) if req.history else None
         rid = _new_rid()
-        generator, sources = await answer(question, stream=True, history=history,
-                                          uid=user.get("uid"), rid=rid)
-        _log_usage(user.get("uid"), question, rid=rid)
+        generator, sources, language = await answer(question, stream=True, history=history,
+                                                    uid=user.get("uid"), rid=rid)
+        _log_usage(user.get("uid"), question, language, rid=rid)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
@@ -859,7 +859,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                     sources_data = json.dumps(
                         {"sources": [s.__dict__ if hasattr(s, '__dict__') else s
                                      for s in sources],
-                         "rid": rid},
+                         "rid": rid, "language": language},
                         ensure_ascii=False,
                     )
                     yield f"data: {sources_data}\n\n"
