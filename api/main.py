@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -157,9 +157,20 @@ class FeedbackDetailRequest(BaseModel):
     urls: list[str] = Field(default_factory=list)
 
 
+_HISTORY_MAX_CHARS = 2000
+
+
 class HistoryMessage(BaseModel):
     role: str = Field(..., pattern="^(user|assistant)$")
-    content: str = Field(..., max_length=2000)
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def _truncate(cls, v: str) -> str:
+        # Il widget rimanda per intero le risposte del bot: oltre il limite si tronca
+        # invece di rifiutare (con max_length la domanda successiva a una risposta
+        # lunga falliva con 422).
+        return v[:_HISTORY_MAX_CHARS]
 
 
 class ChatRequest(BaseModel):

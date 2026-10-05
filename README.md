@@ -334,8 +334,6 @@ API_CORS_ORIGINS=https://www.your-site.com
 ADMIN_API_KEY=your-secret-key-here
 ```
 
-> **Known limitation**: the rc.d script (`scripts/chatbot_rcd`) exports `.env` with `export $(grep -v '^#' .env | xargs)`, which splits values on spaces and does not strip comments at the end of a line. Keep every comment on its own line, and avoid spaces in values: with the rc.d service, `SITE_NAME=Comune di Esempio` is seen as `SITE_NAME=Comune` (`python-dotenv` does not override variables that are already set).
-
 ### Key Parameters in `settings.py`
 
 | Parameter              | Default                        | Description                                          |
@@ -369,7 +367,7 @@ Constants in `api/rag.py`, calibrated for `bge-m3`:
 
 | Constant               | Value  | Description                                                    |
 |------------------------|--------|----------------------------------------------------------------|
-| `MIN_SIMILARITY`       | `0.45` | Chunks with a lower cosine similarity are discarded            |
+| `MIN_SIMILARITY`       | `0.50` | Chunks with a lower cosine similarity are discarded            |
 | `RETRIEVAL_CONFIDENCE` | `0.52` | If even the best chunk is below it, the question is logged as a weak answer in `gaps.jsonl` |
 | `VECTOR_WEIGHT` / `BM25_WEIGHT` | `0.6` / `0.4` | Weights of the two rankings in the hybrid search |
 
@@ -400,7 +398,7 @@ User question
      ├─ expand_query()       — appends synonyms from config/synonyms.json
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
      ├─ hybrid_search()      — 21 candidates (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
-     ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.45
+     ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
      ├─ rerank()             — title boost, "servizio" category boost, same-source penalty
      └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
      │
@@ -535,7 +533,7 @@ Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf
 
 ### Embedding (`indexer/embedder.py`)
 
-Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). Until October 2026 the model was `mxbai-embed-large`: on 100 questions about municipal services, `bge-m3` put the right page among the 7 chunks passed to the LLM 75 times against 62. To switch model see [Changing embedding model](#changing-embedding-model).
+Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). Until October 2026 the model was `mxbai-embed-large`: on 100 questions about municipal services, over the full index (222,480 chunks), `bge-m3` put the right page among the 7 chunks passed to the LLM 80 times against 58. To switch model see [Changing embedding model](#changing-embedding-model).
 
 - Uses Ollama's `/api/embed` endpoint with **native batches** (16 texts per call)
 - If a batch is rejected, its texts are sent one at a time; after 3 consecutive rejected batches, the rest of the run goes one text at a time
@@ -687,7 +685,7 @@ Complete response (non-streaming). Waits for the full response before replying.
 ```
 
 - `question`: string 1–1000 characters
-- `history`: optional, max 6 messages (3 turns); each `{role: "user"|"assistant", content: ≤2000 characters}`
+- `history`: optional, max 6 messages (3 turns); each `{role: "user"|"assistant", content}`, with `content` truncated to 2000 characters
 - **Authentication**: with `AUTH_ENABLED=true`, `Authorization: Bearer <token>` (from `POST /auth/login`) is required; otherwise `401`
 - Personal data recognizable in `question` and in the user messages of `history` is masked before reaching the model and the logs (`api/pii.py`); assistant messages are passed unchanged
 
@@ -1072,11 +1070,11 @@ service chatbot status   # status
 ```
 
 The `scripts/chatbot_rcd` script (runs as root):
-- exports the variables in `/opt/chatbot/.env` (`python-dotenv` does not override them, so any `.env` change needs `service chatbot restart`; see the known limitation under [`.env` File](#env-file))
+- does not export `/opt/chatbot/.env`: `config/settings.py` loads it with `python-dotenv` when each process starts, so a `.env` change takes effect at the next API start (`service chatbot restart`, or the watchdog restart after a sync)
 - starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`
 - `start.sh` runs two uvicorn processes (one worker each) on port 8000, IPv4 `0.0.0.0` and IPv6 `::`; if one exits, the other is stopped
 - `daemon` runs without `-r`: after a crash, or after a sync kills uvicorn, the watchdog restarts the service within a minute
-- `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `ps -p`
+- `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `kill -0`
 
 ### Log Rotation
 

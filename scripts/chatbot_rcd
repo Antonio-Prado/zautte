@@ -30,9 +30,8 @@ chatbot_start()
 
     rm -f /var/run/chatbot.maintenance
 
-    if [ -f "${chatbot_dir}/.env" ]; then
-        export $(grep -v '^#' "${chatbot_dir}/.env" | xargs) 2>/dev/null
-    fi
+    # Il .env lo carica python-dotenv (config/settings.py): esportarlo da qui con
+    # xargs spezzava i valori con spazi (SITE_NAME=Comune di … diventava «Comune»).
 
     cd "${chatbot_dir}" || return 1
 

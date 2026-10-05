@@ -465,6 +465,18 @@
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">5 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Domande di seguito dopo una risposta lunga</strong>: se la risposta precedente superava i 2000 caratteri, la domanda successiva finiva in errore; ora la parte oltre il limite viene tagliata e la conversazione prosegue. <strong>Nome completo del Comune</strong>: nelle istruzioni al modello compariva solo «Comune» (es. «contattare direttamente Comune»), ora «Comune di San Benedetto del Tronto». Lo script di avvio del servizio esportava il <code>.env</code> spezzando i valori con spazi; ora il file lo legge solo Python.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">5 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag perf">perf</span><strong>Ricerca nei documenti più precisa</strong>: nuovo modello che trasforma testi e domande in vettori (<code>bge-m3</code> al posto di <code>mxbai-embed-large</code>). Su 100 domande sui servizi del Comune la pagina giusta arriva al modello 80 volte invece di 58, ed è il primo brano trovato 43 volte invece di 12: migliorano per esempio oggetti smarriti, cambio di residenza, TARI, tassa di soggiorno, luce votiva, unioni civili, segnalazioni di buche e lampioni. Alle domande che non riguardano il Comune arrivano al modello meno di 2 brani invece di 7 (soglia minima di somiglianza 0,50). Tutti i 222.480 brani ricalcolati in 12 ore e scambiati nella notte del 5 ottobre con una pausa del servizio di 15 secondi, possibile grazie al nuovo processore della macchina virtuale (calcolo dei vettori circa 15 volte più rapido).
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">4 ott 2026</div>
       <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Dashboard più compatta</strong>: la pagina dei colleghi sta tutta in una schermata, footer compreso, anche su un portatile 1366×768 e su un telefono di dimensioni normali; prima serviva scorrere di 70–230 px. Logo e titolo più piccoli, margini ridotti, nome ed «Esci» in alto a destra sugli schermi larghi; prima dell'accesso il riquadro della chat è alto quanto il modulo, dopo non scende sotto i 300 px. Nel modulo di accesso il titolo è «Accedi a Zautte» e il pulsante «Entra», al posto di due «Accedi».
