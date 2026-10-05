@@ -6,12 +6,15 @@ Endpoints:
   POST /chat/stream   → risposta in streaming (Server-Sent Events)
   GET  /health        → stato del servizio
   GET  /stats         → statistiche vector store
+  POST /usage/forget  → cancellazione di domande su richiesta (admin)
 """
 
 import asyncio
 import datetime
 import json
 import logging
+import re
+import secrets
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -29,9 +32,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import auth
 from api.auth import require_user
+from api.datalog import forget
 from api.limiter import limiter
 from api.pii import redact, redact_history
-from api.rag import answer, get_activity_stats, get_query_count
+from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
     ADMIN_API_KEY,
     API_CORS_ORIGINS,
@@ -149,6 +153,8 @@ class FeedbackRequest(BaseModel):
                                 description="perché la risposta non va bene (facoltativo)")
     urls: list[str] = Field(default_factory=list,
                             description="pagine con l'informazione corretta (facoltative)")
+    rid: str | None = Field(None, max_length=32,
+                            description="identificativo della domanda, dalla risposta di /chat")
 
 
 class FeedbackDetailRequest(BaseModel):
@@ -193,6 +199,27 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[Source]
     language: str
+    rid: str = ""
+
+
+class ForgetRequest(BaseModel):
+    rids: list[str] = Field(default_factory=list, max_length=1000)
+    uid: str | None = Field(None, max_length=64)
+    last: int = Field(0, ge=0, le=100000, description="le ultime N domande dell'utente")
+    all: bool = Field(False, description="tutte le domande e i feedback dell'utente")
+    ts: list[str] = Field(default_factory=list, max_length=1000,
+                          description="timestamp esatti delle voci di usage.jsonl dell'utente")
+    memory_only: bool = Field(False, description="solo la memoria di questo processo, file intatti")
+    dry_run: bool = False
+
+
+_RID_RE = re.compile(r"[0-9a-f]{12}")
+
+
+def _new_rid() -> str:
+    """Identificativo di una domanda: lo stesso in usage.jsonl, gaps.jsonl,
+    feedback.jsonl e nel log dell'API (vedi api/datalog.py)."""
+    return secrets.token_hex(6)
 
 
 # ---------------------------------------------------------------------------
@@ -279,12 +306,12 @@ def _load_user_names() -> dict[str, str]:
 
 
 def _log_usage(uid: str, question: str, lang: str | None = None,
-               response_ms: int | None = None) -> None:
+               response_ms: int | None = None, rid: str | None = None) -> None:
     """Registra un evento d'uso per-utente in data/usage.jsonl.
 
     Include il TESTO della domanda (per la review del pilota), oltre a id utente
-    opaco, timestamp e metriche. Nome/email restano in users.json e vengono
-    risolti a video solo nella dashboard (vista admin).
+    opaco, identificativo della domanda, timestamp e metriche. Nome/email restano
+    in users.json e vengono risolti a video solo nella dashboard (vista admin).
     """
     if not uid or uid == "anon":
         return
@@ -302,6 +329,8 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
             entry["lang"] = lang
         if response_ms is not None:
             entry["response_ms"] = response_ms
+        if rid:
+            entry["rid"] = rid
         with open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as e:
@@ -389,6 +418,8 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         "uid": user.get("uid", ""),
         "user": user.get("name", ""),
     }
+    if req.rid and _RID_RE.fullmatch(req.rid):
+        entry["rid"] = req.rid
     comment = fs.clean_comment(req.comment)
     urls = fs.clean_urls(req.urls[:20])
     if comment:
@@ -642,6 +673,40 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
     return {"messages": recent, "total": total}
 
 
+@app.post("/usage/forget")
+async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
+    """Cancella su richiesta le domande scelte — solo admin.
+
+    Scelta: `rids`, oppure `uid` con `last` (le ultime N), `all` (tutte, con
+    i suoi feedback) o `ts` (timestamp esatti delle voci di usage.jsonl).
+    Toglie le voci da usage.jsonl, gaps.jsonl, feedback.jsonl e le marcature
+    «risolto», poi dalla memoria del processo: contatore delle domande più
+    frequenti (finisce in stats.json) e cache delle risposte. Il log dell'API
+    contiene solo l'identificativo, non il testo.
+
+    In produzione girano due processi (IPv4 e IPv6) con memoria separata:
+    scripts/forget.py chiama gli altri con `memory_only` e per ultimo uno che
+    cancella anche dai file. Con `dry_run` ritorna solo cosa verrebbe tolto.
+    """
+    if not req.rids and not (req.uid and (req.last or req.all or req.ts)):
+        raise HTTPException(status_code=400, detail="Indicare rids oppure uid con last, all o ts")
+    # Sincrona di proposito: mentre riscrive i file questo processo non accoda
+    # altre righe (le scritture dell'altro processo le recupera rewrite_jsonl).
+    result = forget(rids=req.rids, uid=req.uid, last=req.last, every=req.all, ts=req.ts,
+                    dry_run=req.dry_run or req.memory_only)
+    memory = 0
+    if req.memory_only and not req.dry_run:
+        memory = forget_queries([q["q"] for q in result["questions"]])
+        log.info("Cancellazione su richiesta, solo memoria: domande %d, tolte dalla memoria %d",
+                 len(result["questions"]), memory)
+    elif not req.dry_run:
+        memory = forget_queries([q["q"] for q in result["questions"]])
+        log.info("Cancellazione su richiesta: domande %d, tolte voci d'uso %d, lacune %d, "
+                 "feedback %d, dalla memoria %d", len(result["questions"]), result["usage"],
+                 result["gaps"], result["feedback"], memory)
+    return {**result, "memory": memory, "files_changed": not (req.dry_run or req.memory_only)}
+
+
 @app.get("/crawl-history")
 async def crawl_history(_: None = Security(require_admin)):
     """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
@@ -729,13 +794,14 @@ async def chat(request: Request, req: ChatRequest,
         # Dati personali riconoscibili mascherati prima del modello e dei log
         question = redact(req.question)
         history = redact_history([m.model_dump() for m in req.history]) if req.history else None
+        rid = _new_rid()
         _t0 = _time.monotonic()
         result = await answer(question, stream=False, history=history,
-                              uid=user.get("uid"))
+                              uid=user.get("uid"), rid=rid)
         _lang = result.get("language") if isinstance(result, dict) else None
         _log_usage(user.get("uid"), question, _lang,
-                   int((_time.monotonic() - _t0) * 1000))
-        return result
+                   int((_time.monotonic() - _t0) * 1000), rid=rid)
+        return {**result, "rid": rid}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
@@ -753,16 +819,17 @@ async def chat_stream(request: Request, req: ChatRequest,
 
     Formato SSE:
       data: {"token": "..."}\n\n        → token di testo
-      data: {"sources": [...]}\n\n      → fonti (ultimo messaggio)
+      data: {"sources": [...], "rid": "..."}\n\n  → fonti e identificativo della domanda
       data: {"done": true}\n\n          → fine stream
     """
     try:
         # Dati personali riconoscibili mascherati prima del modello e dei log
         question = redact(req.question)
         history = redact_history([m.model_dump() for m in req.history]) if req.history else None
+        rid = _new_rid()
         generator, sources = await answer(question, stream=True, history=history,
-                                          uid=user.get("uid"))
-        _log_usage(user.get("uid"), question)
+                                          uid=user.get("uid"), rid=rid)
+        _log_usage(user.get("uid"), question, rid=rid)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
@@ -798,7 +865,8 @@ async def chat_stream(request: Request, req: ChatRequest,
                 elif kind == "sources":
                     sources_data = json.dumps(
                         {"sources": [s.__dict__ if hasattr(s, '__dict__') else s
-                                     for s in sources]},
+                                     for s in sources],
+                         "rid": rid},
                         ensure_ascii=False,
                     )
                     yield f"data: {sources_data}\n\n"
