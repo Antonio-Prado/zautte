@@ -26,7 +26,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import RETRIEVAL_TOP_K, VECTOR_STORE_DIR
-from indexer.titles import display_title
+from indexer.titles import display_title, is_weak, title_from_text, with_text_title
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,8 @@ _id_to_idx: dict[str, int] = {}
 _bm25 = None          # indice BM25, ricostruito (lazy) quando il corpus cambia
 _bm25_dirty = False   # True se il corpus è cambiato dopo l'ultima costruzione
 _pdf_title_count: Counter | None = None  # /Title → n. di PDF che lo usano (lazy)
+_pdf_first_text: dict[str, str] = {}      # sorgente PDF → testo del primo chunk
+_pdf_display: dict[str, str] = {}         # sorgente PDF → titolo da mostrare (cache)
 
 # Salvataggio differito (vedi deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -327,18 +329,28 @@ _REPEATED_TITLE_MIN = 5
 def _title(meta: dict) -> str:
     """Titolo da mostrare: per i PDF del crawl uno leggibile (vedi indexer/titles.py).
     Il riordino in api/rag.py usa ancora `title`, così la ricerca non cambia."""
-    global _pdf_title_count
+    global _pdf_title_count, _pdf_first_text, _pdf_display
     title = meta.get("title", "")
     if meta.get("doc_type") != "pdf" or _is_inbox(meta):
         return title
     if _pdf_title_count is None:
-        first = {}
+        titles, first_text = {}, {}
         for m in _metadata:
             if m.get("doc_type") == "pdf" and not _is_inbox(m):
-                first.setdefault(m.get("source", ""), m.get("title", ""))
-        _pdf_title_count = Counter(first.values())
-    return display_title(title, meta.get("source", ""),
-                         repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN)
+                src = m.get("source", "")
+                titles.setdefault(src, m.get("title", ""))
+                if m.get("chunk_index") == 0:
+                    first_text[src] = m.get("text", "")
+        _pdf_title_count = Counter(titles.values())
+        _pdf_first_text, _pdf_display = first_text, {}
+    source = meta.get("source", "")
+    if source not in _pdf_display:
+        shown = display_title(title, source,
+                              repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN)
+        if is_weak(shown):  # «Allegato B 2022», «DD 665-25»: si cerca nel testo
+            shown = with_text_title(shown, title_from_text(_pdf_first_text.get(source, ""), title))
+        _pdf_display[source] = shown
+    return _pdf_display[source]
 
 
 def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
