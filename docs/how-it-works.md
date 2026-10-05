@@ -98,7 +98,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 ### How It Works
 
 1. **BFS** (breadth-first) starting from `SITE_URL` and the `extra_start_urls` in `config/crawl_extra.json`
-2. Follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
+2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: the San Benedetto CMS serves the same attachment under `/s3/6115/` on four hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
 3. Skips URLs containing any of the `CRAWL_EXCLUDE_PATTERNS` (plus `exclude_patterns` from `crawl_extra.json`), deeper than `CRAWL_MAX_PATH_DEPTH` (10 segments; per-domain limits in `domain_max_path_depth`), or repeating a non-numeric path segment (CMS breadcrumb loops)
 4. For each HTML page (responses with HTTP status ≥ 400 are skipped):
    - Extracts text with `clean_text()` (removes nav, footer, widgets, noise lines)
@@ -106,7 +106,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
    - Extracts metadata with `extract_metadata()` (category, section, date, service status)
    - Saves a `.json` in `data/crawl_cache/pages/` (pages with less than 100 characters of text are skipped)
 5. Downloads PDFs (links ending in `.pdf` on allowed domains) into `data/documents/`, keeping only HTTP 200 responses that start with `%PDF`; known PDFs whose file is missing or invalid are dropped from the base index so that they are fetched again (in incremental mode a PDF whose hash is unchanged is skipped and stays out of `index.json` until the next full sync)
-6. Removes from state and index every known URL not reached in this run
+6. Removes from state and index every known URL not reached in this run (known PDFs still linked from a page count as reached, even though they are not downloaded again)
 7. Updates state in `data/crawl_cache/crawl_state.json`
 8. Saves the index in `data/crawl_cache/index.json`
 9. Saves in `data/crawl_cache/pdf_link_texts.json` the text of the links to each PDF seen in this run (the most descriptive one, without "Download", "PDF" or file sizes); PDFs not linked in this run keep their previous text. Links on unchanged pages count too
