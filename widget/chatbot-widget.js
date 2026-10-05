@@ -79,7 +79,15 @@
     noInfo: isItalian
       ? "Non ho trovato informazioni specifiche su questo argomento nella base di conoscenza."
       : "I could not find specific information on this topic in the knowledge base.",
-    typing: isItalian ? "Sto elaborando..." : "Processing...",
+    typing: isItalian ? "Sto elaborando la risposta..." : "Preparing the answer...",
+    waitLong: isItalian
+      ? "Sto elaborando... potrebbe richiedere qualche minuto."
+      : "Processing... this may take a moment.",
+    conversation: isItalian ? "Conversazione" : "Conversation",
+    rate: isItalian ? "Valuta la risposta" : "Rate the answer",
+    helpful: isItalian ? "Risposta utile" : "Helpful answer",
+    notHelpful: isItalian ? "Risposta non utile" : "Unhelpful answer",
+    link: isItalian ? "(link)" : "(link)",
     open: isItalian ? "Apri assistente" : "Open assistant",
     close: isItalian ? "Chiudi" : "Close",
     welcome: isItalian ? cfg.welcomeIt : cfg.welcomeEn,
@@ -120,8 +128,9 @@
     fbWhy: isItalian
       ? "Cosa non va nella risposta? Se conosci la pagina con l'informazione corretta, incolla qui il link."
       : "What's wrong with the answer? If you know the page with the correct information, paste its link here.",
-    fbComment: isItalian ? "Scrivi qui il tuo commento (facoltativo)" : "Write your comment here (optional)",
-    fbUrl: isItalian ? "https://… pagina con l'informazione corretta" : "https://… page with the correct information",
+    fbComment: isItalian ? "Commento (facoltativo)" : "Comment (optional)",
+    fbUrlLabel: isItalian ? "Pagine con l'informazione corretta (facoltative)" : "Pages with the correct information (optional)",
+    fbUrl: "https://…",
     fbAddUrl: isItalian ? "+ aggiungi un'altra pagina" : "+ add another page",
     fbSend: isItalian ? "Invia segnalazione" : "Send report",
     fbSkip: isItalian ? "Non ora" : "Not now",
@@ -182,12 +191,28 @@
       opacity: 0;
       transform: translateY(16px) scale(0.97);
       pointer-events: none;
-      transition: opacity 0.22s ease, transform 0.22s ease;
+      /* Chiuso deve essere anche invisibile: con la sola opacità i controlli
+         restavano raggiungibili col tasto Tab (e letti dagli screen reader). */
+      visibility: hidden;
+      transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s;
     }
     #${WIDGET_ID}-panel.open {
       opacity: 1;
       transform: translateY(0) scale(1);
       pointer-events: auto;
+      visibility: visible;
+      transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s;
+    }
+    .${WIDGET_ID}-sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* Header */
@@ -321,7 +346,7 @@
     }
     .${WIDGET_ID}-feedback button {
       background: none;
-      border: 1px solid #ddd;
+      border: 1px solid #8a8a8a;
       border-radius: 12px;
       padding: 2px 8px;
       font-size: 14px;
@@ -329,7 +354,12 @@
       transition: background 0.2s;
     }
     .${WIDGET_ID}-feedback button:hover { background: #f0f0f0; }
-    .${WIDGET_ID}-feedback button.selected { background: #e8f5e9; border-color: #a5d6a7; }
+    /* Selezione indicata anche dal bordo più spesso, non solo dal colore */
+    .${WIDGET_ID}-feedback button[aria-pressed="true"] {
+      background: #e8f5e9;
+      border-color: ${p};
+      box-shadow: inset 0 0 0 1px ${p};
+    }
 
     /* Modulo di segnalazione dopo un 👎 */
     .${WIDGET_ID}-fbform {
@@ -346,7 +376,7 @@
     .${WIDGET_ID}-fbform input {
       width: 100%;
       box-sizing: border-box;
-      border: 1px solid #ccc;
+      border: 1px solid #8a8a8a;
       border-radius: 6px;
       padding: 6px 8px;
       font: inherit;
@@ -357,15 +387,22 @@
     }
     .${WIDGET_ID}-fbform textarea { resize: vertical; min-height: 52px; }
     .${WIDGET_ID}-fbform textarea:focus,
-    .${WIDGET_ID}-fbform input:focus { outline: none; border-color: ${p}; }
+    .${WIDGET_ID}-fbform input:focus { outline: 2px solid ${p}; outline-offset: 1px; border-color: ${p}; }
+    .${WIDGET_ID}-fbform label,
+    .${WIDGET_ID}-fbform .${WIDGET_ID}-fbform-label {
+      display: block;
+      font-weight: 600;
+      margin: 0 0 3px;
+    }
     .${WIDGET_ID}-fbform-add {
       background: none;
       border: none;
       color: ${p};
       cursor: pointer;
       font-size: 12px;
-      padding: 0;
-      margin: 0 0 8px;
+      line-height: 14px;
+      padding: 5px 0;
+      margin: 0 0 4px;
     }
     .${WIDGET_ID}-fbform-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .${WIDGET_ID}-fbform-actions button {
@@ -373,12 +410,12 @@
       padding: 5px 12px;
       font-size: 13px;
       cursor: pointer;
-      border: 1px solid #ccc;
+      border: 1px solid #8a8a8a;
       background: #fff;
       color: #444;
     }
     .${WIDGET_ID}-fbform-actions button.primary { background: ${p}; color: #fff; border-color: ${p}; }
-    .${WIDGET_ID}-fbform-actions button:disabled { opacity: 0.6; cursor: default; }
+    .${WIDGET_ID}-fbform-actions button[aria-disabled="true"] { opacity: 0.6; cursor: default; }
     .${WIDGET_ID}-fbform-msg { font-size: 12px; }
     .${WIDGET_ID}-fbform-msg.err { color: #c62828; }
     .${WIDGET_ID}-fbform-thanks { margin-top: 8px; font-size: 13px; color: #2e7d32; }
@@ -394,11 +431,13 @@
       margin-bottom: 2px;
       color: #555;
     }
+    /* Righe alte 24 px: bersagli abbastanza grandi e distanziati (WCAG 2.5.8) */
     .${WIDGET_ID}-sources a {
       display: block;
       color: ${p};
       text-decoration: none;
-      margin-top: 2px;
+      line-height: 16px;
+      padding: 4px 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -407,7 +446,8 @@
     .${WIDGET_ID}-sources span {
       display: block;
       color: #666;
-      margin-top: 2px;
+      line-height: 16px;
+      padding: 4px 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -425,15 +465,15 @@
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
       width: fit-content;
     }
-    .${WIDGET_ID}-typing span {
+    .${WIDGET_ID}-typing .${WIDGET_ID}-dot {
       width: 7px;
       height: 7px;
-      background: #aaa;
+      background: #8a8a8a;
       border-radius: 50%;
       animation: ${WIDGET_ID}-bounce 1.2s infinite ease-in-out;
     }
-    .${WIDGET_ID}-typing span:nth-child(2) { animation-delay: 0.2s; }
-    .${WIDGET_ID}-typing span:nth-child(3) { animation-delay: 0.4s; }
+    .${WIDGET_ID}-typing .${WIDGET_ID}-dot:nth-child(2) { animation-delay: 0.2s; }
+    .${WIDGET_ID}-typing .${WIDGET_ID}-dot:nth-child(3) { animation-delay: 0.4s; }
     @keyframes ${WIDGET_ID}-bounce {
       0%, 60%, 100% { transform: translateY(0); }
       30% { transform: translateY(-6px); }
@@ -451,7 +491,7 @@
     }
     #${WIDGET_ID}-input {
       flex: 1;
-      border: 1.5px solid #ddd;
+      border: 1.5px solid #8a8a8a;
       border-radius: 10px;
       padding: 9px 12px;
       font-size: 14px;
@@ -466,9 +506,10 @@
     }
     #${WIDGET_ID}-input:focus {
       border-color: ${p};
+      box-shadow: 0 0 0 1px ${p};
       background: #fff;
     }
-    #${WIDGET_ID}-input::placeholder { color: #aaa; }
+    #${WIDGET_ID}-input::placeholder { color: #6b6b6b; }
     #${WIDGET_ID}-send {
       background: ${p};
       color: #fff;
@@ -527,7 +568,7 @@
     /* Indicatore attesa lunga */
     .${WIDGET_ID}-wait-hint {
       font-size: 11px;
-      color: #999;
+      color: #595959;
       text-align: center;
       padding: 4px 12px;
       font-style: italic;
@@ -548,6 +589,7 @@
       opacity: 1;
       transform: none;
       pointer-events: auto;
+      visibility: visible;
       transition: none;
     }
     #${WIDGET_ID}-panel.inline.login { height: auto; max-width: 420px; margin: 0 auto; }
@@ -571,12 +613,25 @@
         width: 50px;
         height: 50px;
       }
+      /* Il pannello copre tutto lo schermo: il pulsante sotto non deve
+         ricevere il focus (si chiude con la X o con Esc) */
+      #${WIDGET_ID}-btn[aria-expanded="true"] { visibility: hidden; }
       .${WIDGET_ID}-bubble {
         font-size: 14px;
       }
       #${WIDGET_ID}-input {
         font-size: 16px; /* evita zoom automatico iOS */
       }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #${WIDGET_ID}-btn, #${WIDGET_ID}-panel, #${WIDGET_ID}-panel.open, #${WIDGET_ID}-input, #${WIDGET_ID}-send,
+      .${WIDGET_ID}-icon-btn, .${WIDGET_ID}-feedback button, .${WIDGET_ID}-suggestion {
+        transition: none;
+      }
+      #${WIDGET_ID}-btn:hover { transform: none; }
+      .${WIDGET_ID}-typing .${WIDGET_ID}-dot,
+      .${WIDGET_ID}-bubble.streaming::after { animation: none; }
     }
   `;
 
@@ -595,11 +650,11 @@
 
   const container = document.createElement("div");
   container.innerHTML = `
-    <button id="${WIDGET_ID}-btn" aria-label="${T.open}" title="${T.open}">
+    <button id="${WIDGET_ID}-btn" aria-label="${T.open}" title="${T.open}" aria-controls="${WIDGET_ID}-panel">
       ${iconChat}
     </button>
 
-    <div id="${WIDGET_ID}-panel" role="dialog" aria-label="${cfg.title}" aria-modal="true">
+    <div id="${WIDGET_ID}-panel" role="dialog" aria-label="${cfg.title}" lang="${isItalian ? "it" : "en"}">
       <div id="${WIDGET_ID}-header">
         <div id="${WIDGET_ID}-header-icon">
           ${cfg.logoUrl
@@ -607,7 +662,7 @@
             : iconChat}
         </div>
         <div id="${WIDGET_ID}-header-text">
-          <div id="${WIDGET_ID}-header-title">${cfg.title}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">IA</span><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">${T.aiBadge}</span></span></div>
+          <div id="${WIDGET_ID}-header-title">${cfg.title}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">IA</span><span class="${WIDGET_ID}-sr">${T.aiBadge}</span></span></div>
           <div id="${WIDGET_ID}-header-subtitle">${cfg.subtitle}</div>
         </div>
         <div id="${WIDGET_ID}-header-actions">
@@ -620,7 +675,10 @@
         </div>
       </div>
 
-      <div id="${WIDGET_ID}-messages" role="log" aria-live="polite" aria-label="Conversazione"></div>
+      <!-- La conversazione non è una regione «live»: durante lo streaming verrebbe
+           riletta a ogni frammento. Gli annunci passano da ${WIDGET_ID}-status. -->
+      <div id="${WIDGET_ID}-messages" role="region" aria-label="${T.conversation}"></div>
+      <div id="${WIDGET_ID}-status" class="${WIDGET_ID}-sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
       <div id="${WIDGET_ID}-input-area">
         <textarea
@@ -658,10 +716,11 @@
   const sendBtn    = document.getElementById(`${WIDGET_ID}-send`);
   const closeBtn   = document.getElementById(`${WIDGET_ID}-close`);
   const newBtn     = document.getElementById(`${WIDGET_ID}-new`);
+  const statusEl   = document.getElementById(`${WIDGET_ID}-status`);
 
   if (inlineHost) {
     panel.classList.add("inline");
-    panel.removeAttribute("aria-modal");
+    panel.setAttribute("role", "region");  // parte della pagina, non una finestra
     btnToggle.style.display = "none";
   }
 
@@ -720,25 +779,30 @@
   loginEl.id = `${WIDGET_ID}-login`;
   loginEl.style.cssText =
     "display:none;flex:1;flex-direction:column;gap:12px;padding:24px;justify-content:center;box-sizing:border-box;";
+  const fieldStyle =
+    "padding:11px 12px;border:1px solid #8a8a8a;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;";
+  const labelStyle = "display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:4px;";
   loginEl.innerHTML = `
-    <div style="font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle} ${cfg.title}</div>
+    <h2 style="margin:0;font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle} ${cfg.title}</h2>
     ${cfg.loginSubtitle ? `<div style="font-size:13px;opacity:.75;line-height:1.4;text-align:center;">${escapeHtml(cfg.loginSubtitle)}</div>` : ""}
-    <input type="email" id="${WIDGET_ID}-login-email" autocomplete="username"
-      placeholder="${T.loginEmail}" required
-      style="padding:11px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
-    <input type="password" id="${WIDGET_ID}-login-pw" autocomplete="current-password"
-      placeholder="${T.loginPassword}" required
-      style="padding:11px 12px;border:1px solid #ccc;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+    <div>
+      <label for="${WIDGET_ID}-login-email" style="${labelStyle}">${T.loginEmail}</label>
+      <input type="email" id="${WIDGET_ID}-login-email" autocomplete="username" required style="${fieldStyle}">
+    </div>
+    <div>
+      <label for="${WIDGET_ID}-login-pw" style="${labelStyle}">${T.loginPassword}</label>
+      <input type="password" id="${WIDGET_ID}-login-pw" autocomplete="current-password" required style="${fieldStyle}">
+    </div>
     <div id="${WIDGET_ID}-login-error" role="alert"
       style="display:none;color:#c0392b;font-size:13px;"></div>
     <button type="submit" id="${WIDGET_ID}-login-submit"
       style="padding:11px 12px;border:none;border-radius:8px;background:${p};color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
       ${T.loginSubmit}
     </button>
-    <a href="#" id="${WIDGET_ID}-forgot"
-      style="font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
+    <button type="button" id="${WIDGET_ID}-forgot"
+      style="background:none;border:none;padding:4px;font:inherit;font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
       ${T.forgot}
-    </a>`;
+    </button>`;
   panel.appendChild(loginEl);
 
   // Pulsante logout (nell'header, visibile solo da autenticati)
@@ -783,9 +847,12 @@
     if (footerEl) footerEl.style.display = "";
   }
 
-  // Gestione submit del login
+  // Gestione submit del login. Il pulsante non viene disabilitato (un pulsante
+  // disabilitato perde il focus): un secondo invio viene semplicemente ignorato.
+  let loggingIn = false;
   loginEl.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (loggingIn) return;
     const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
     const pwInput = document.getElementById(`${WIDGET_ID}-login-pw`);
     const errEl = document.getElementById(`${WIDGET_ID}-login-error`);
@@ -795,7 +862,8 @@
     const email = (emailInput.value || "").trim();
     const password = pwInput.value || "";
     if (!email || !password) return;
-    submitBtn.disabled = true;
+    loggingIn = true;
+    submitBtn.setAttribute("aria-disabled", "true");
     submitBtn.textContent = T.loginLoading;
     try {
       const resp = await fetch(`${cfg.apiUrl}/auth/login`, {
@@ -819,15 +887,18 @@
       errEl.textContent = T.loginErr;
       errEl.style.display = "block";
     } finally {
-      submitBtn.disabled = false;
+      loggingIn = false;
+      submitBtn.removeAttribute("aria-disabled");
       submitBtn.textContent = T.loginSubmit;
     }
   });
 
   // "Password dimenticata?" — invia una richiesta di reset per l'email inserita.
   const _forgotLink = document.getElementById(`${WIDGET_ID}-forgot`);
+  let forgotSending = false;
   if (_forgotLink) _forgotLink.addEventListener("click", async (e) => {
     e.preventDefault();
+    if (forgotSending) return;
     const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
     const errEl = document.getElementById(`${WIDGET_ID}-login-error`);
     const email = ((emailInput && emailInput.value) || "").trim();
@@ -840,8 +911,8 @@
     }
     errEl.style.display = "none";
     const prev = _forgotLink.textContent;
+    forgotSending = true;
     _forgotLink.textContent = T.forgotSending;
-    _forgotLink.style.pointerEvents = "none";
     try {
       await fetch(`${cfg.apiUrl}/auth/forgot`, {
         method: "POST",
@@ -854,7 +925,7 @@
     errEl.textContent = T.forgotSent;
     errEl.style.display = "block";
     _forgotLink.textContent = prev;
-    _forgotLink.style.pointerEvents = "";
+    forgotSending = false;
   });
 
   // ---------------------------------------------------------------------------
@@ -863,6 +934,37 @@
 
   function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  /** Annuncia un testo agli screen reader (regione di stato nascosta). Svuotarla
+   *  prima fa ripetere anche un annuncio uguale al precedente. `lang` vale solo
+   *  per `text`; `suffix` (es. «Fonti: 2») resta nella lingua dell'interfaccia. */
+  let announceTimer = null;
+  function announce(text, lang, suffix) {
+    clearTimeout(announceTimer);
+    statusEl.textContent = "";
+    announceTimer = setTimeout(() => {
+      const main = document.createElement("span");
+      if (lang) main.setAttribute("lang", lang);
+      main.textContent = text;
+      statusEl.appendChild(main);
+      if (suffix) statusEl.appendChild(document.createTextNode("\n" + suffix));
+    }, 100);
+  }
+
+  /** Testo da leggere di una risposta: senza simboli markdown e senza URL
+   *  (lettera per lettera sarebbero illeggibili; i link restano nel messaggio). */
+  function plainText(str) {
+    return str
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+      .replace(/https?:\/\/[^\s)\]]+/g, T.link)
+      .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, "")
+      .replace(/^[ \t]*#{1,6}[ \t]+/gm, "")
+      .replace(/^[ \t]*>[ \t]?/gm, "")
+      .replace(/^[ \t]*[-*•][ \t]+/gm, "")
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
   }
 
   function escapeHtml(str) {
@@ -968,7 +1070,8 @@
     wrap.id = `${WIDGET_ID}-typing`;
     const indicator = document.createElement("div");
     indicator.className = `${WIDGET_ID}-typing`;
-    indicator.innerHTML = "<span></span><span></span><span></span>";
+    const dot = `<span class="${WIDGET_ID}-dot" aria-hidden="true"></span>`;
+    indicator.innerHTML = dot + dot + dot + `<span class="${WIDGET_ID}-sr">${T.typing}</span>`;
     wrap.appendChild(indicator);
     messages.appendChild(wrap);
     scrollToBottom();
@@ -983,7 +1086,9 @@
   function setLoading(val) {
     isLoading = val;
     sendBtn.disabled = val || inputEl.value.trim() === "";
-    inputEl.disabled = val;
+    // readOnly e non disabled: un campo disabilitato perde il focus
+    inputEl.readOnly = val;
+    if (val) inputEl.setAttribute("aria-busy", "true"); else inputEl.removeAttribute("aria-busy");
   }
 
   function autoResizeInput() {
@@ -998,7 +1103,6 @@
   function openPanel() {
     isOpen = true;
     panel.classList.add("open");
-    panel.removeAttribute("aria-hidden");
     btnToggle.setAttribute("aria-label", T.close);
     btnToggle.setAttribute("aria-expanded", "true");
     btnToggle.innerHTML = iconClose;
@@ -1015,7 +1119,6 @@
     if (inlineHost) return;  // in modalità inline il pannello resta sempre aperto
     isOpen = false;
     panel.classList.remove("open");
-    panel.setAttribute("aria-hidden", "true");
     btnToggle.setAttribute("aria-label", T.open);
     btnToggle.setAttribute("aria-expanded", "false");
     btnToggle.innerHTML = iconChat;
@@ -1059,13 +1162,18 @@
   function addFeedback(wrap, question, answerText, rid) {
     const fb = document.createElement("div");
     fb.className = `${WIDGET_ID}-feedback`;
+    fb.setAttribute("role", "group");
+    fb.setAttribute("aria-label", T.rate);
     ["👍", "👎"].forEach((icon, i) => {
       const btn = document.createElement("button");
+      btn.type = "button";
       btn.textContent = icon;
-      btn.title = i === 0 ? "Risposta utile" : "Risposta non utile";
+      btn.title = i === 0 ? T.helpful : T.notHelpful;
+      btn.setAttribute("aria-label", btn.title);
+      btn.setAttribute("aria-pressed", "false");
       btn.addEventListener("click", () => {
-        fb.querySelectorAll("button").forEach(b => b.classList.remove("selected"));
-        btn.classList.add("selected");
+        fb.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
+        btn.setAttribute("aria-pressed", "true");
         removeFeedbackForm(wrap);
         const rating = i === 0 ? 1 : -1;
         fetch(`${cfg.apiUrl}/feedback`, {
@@ -1099,22 +1207,36 @@
    * con l'informazione corretta. Sostituisce l'email all'amministratore:
    * i dettagli finiscono nella dashboard accanto al feedback negativo.
    */
+  let fbFormCount = 0;  // id unici per etichette di moduli diversi
+
   function showFeedbackForm(wrap, feedbackId) {
     removeFeedbackForm(wrap);
     const MAX_URLS = 5;
+    const uid = `${WIDGET_ID}-fb${++fbFormCount}`;
     const form = document.createElement("form");
     form.className = `${WIDGET_ID}-fbform`;
 
     const intro = document.createElement("p");
+    intro.id = `${uid}-intro`;
     intro.textContent = T.fbWhy;
     form.appendChild(intro);
 
+    const commentLabel = document.createElement("label");
+    commentLabel.htmlFor = `${uid}-comment`;
+    commentLabel.textContent = T.fbComment;
+    form.appendChild(commentLabel);
     const comment = document.createElement("textarea");
-    comment.placeholder = T.fbComment;
+    comment.id = `${uid}-comment`;
+    comment.setAttribute("aria-describedby", intro.id);
     comment.maxLength = 2000;
     comment.rows = 2;
     form.appendChild(comment);
 
+    const urlsLabel = document.createElement("div");
+    urlsLabel.id = `${uid}-urls`;
+    urlsLabel.className = `${WIDGET_ID}-fbform-label`;
+    urlsLabel.textContent = T.fbUrlLabel;
+    form.appendChild(urlsLabel);
     const urlsBox = document.createElement("div");
     form.appendChild(urlsBox);
 
@@ -1129,6 +1251,7 @@
       input.type = "text";          // non "url": la validazione la fa il backend
       input.inputMode = "url";
       input.placeholder = T.fbUrl;
+      input.setAttribute("aria-labelledby", urlsLabel.id);
       input.maxLength = 500;
       urlsBox.appendChild(input);
       if (urlsBox.children.length >= MAX_URLS) addBtn.style.display = "none";
@@ -1150,16 +1273,22 @@
     const skipBtn = document.createElement("button");
     skipBtn.type = "button";
     skipBtn.textContent = T.fbSkip;
-    skipBtn.addEventListener("click", () => form.remove());
+    skipBtn.addEventListener("click", () => {
+      form.remove();
+      inputEl.focus();  // il pulsante sparisce con il modulo: il focus non va perso
+    });
     const msg = document.createElement("span");
     msg.className = `${WIDGET_ID}-fbform-msg`;
+    msg.setAttribute("role", "alert");
     actions.appendChild(sendBtn);
     actions.appendChild(skipBtn);
     actions.appendChild(msg);
     form.appendChild(actions);
 
+    let sending = false;
     form.addEventListener("submit", (ev) => {
       ev.preventDefault();
+      if (sending) return;
       const text = comment.value.trim();
       const urls = Array.from(urlsBox.querySelectorAll("input"))
         .map(el => el.value.trim())
@@ -1171,7 +1300,8 @@
       }
       msg.textContent = "";
       msg.classList.remove("err");
-      sendBtn.disabled = true;
+      sending = true;
+      sendBtn.setAttribute("aria-disabled", "true");
       sendBtn.textContent = T.fbSending;
       fetch(`${cfg.apiUrl}/feedback/detail`, {
         method: "POST",
@@ -1187,9 +1317,12 @@
           thanks.textContent = T.fbThanks;
           form.replaceWith(thanks);
           scrollToBottom();
+          announce(T.fbThanks);
+          inputEl.focus();
         })
         .catch(() => {
-          sendBtn.disabled = false;
+          sending = false;
+          sendBtn.removeAttribute("aria-disabled");
           sendBtn.textContent = T.fbSend;
           msg.textContent = T.fbError;
           msg.classList.add("err");
@@ -1215,16 +1348,16 @@
     addMessage("user", question, null);
     const typingEl = addTypingIndicator();
     setLoading(true);
+    announce(T.typing);
 
     // Indicatore di attesa lunga dopo 10 secondi
     let waitHint = null;
     const waitTimer = setTimeout(() => {
       waitHint = document.createElement("div");
       waitHint.className = `${WIDGET_ID}-wait-hint`;
-      waitHint.textContent = isItalian
-        ? "Sto elaborando... potrebbe richiedere qualche minuto."
-        : "Processing... this may take a moment.";
+      waitHint.textContent = T.waitLong;
       messages.appendChild(waitHint);
+      announce(T.waitLong);
       scrollToBottom();
     }, 10000);
 
@@ -1259,6 +1392,7 @@
       let fullText = "";
       let receivedSources = [];
       let receivedRid = "";
+      let receivedLang = "";
       let firstToken = true;
 
       const reader = resp.body.getReader();
@@ -1293,6 +1427,7 @@
             } else if (payload.sources) {
               receivedSources = payload.sources;
               receivedRid = payload.rid || "";
+              receivedLang = payload.language || "";
             } else if (payload.error) {
               // Errore server: mostra messaggio e segna sentinel
               if (!fullText) {
@@ -1302,9 +1437,13 @@
                 bubble.textContent = T.error;
                 messages.appendChild(wrap);
                 scrollToBottom();
+                announce(T.error);
               }
             } else if (payload.done) {
               bubble.classList.remove("streaming");
+              // Risposta in una lingua diversa dall'interfaccia: lo screen reader
+              // deve leggerla con la voce giusta
+              if (receivedLang) wrap.setAttribute("lang", receivedLang);
               // Aggiunge le fonti sotto la bubble
               if (receivedSources.length > 0) {
                 const srcDiv = document.createElement("div");
@@ -1329,9 +1468,13 @@
           bubble.textContent = T.noInfo;
           messages.appendChild(wrap);
           scrollToBottom();
+          announce(T.noInfo);
         }
         // fullText === "\x00" → wrap già in DOM, errore già mostrato
       } else {
+        // La risposta viene annunciata una volta sola, completa
+        const n = receivedSources.length;
+        announce(plainText(fullText), receivedLang, n ? `${T.sources} ${n}` : "");
         // Aggiorna history conversazionale (max 3 turni = 6 messaggi)
         conversationHistory.push({ role: "user", content: question });
         conversationHistory.push({ role: "assistant", content: fullText });
@@ -1345,6 +1488,7 @@
     } catch (err) {
       removeTypingIndicator();
       addMessage("bot", T.error, null);
+      announce(T.error);
       console.error("[Chatbot] Errore:", err);
     } finally {
       removeTypingIndicator(); // rimuovi se non sono arrivati token
@@ -1387,20 +1531,24 @@
     if (q && !isLoading) {
       inputEl.value = "";
       autoResizeInput();
+      inputEl.focus();  // prima di disabilitare il pulsante, che perderebbe il focus
       sendBtn.disabled = true;
       sendQuestion(q);
     }
   });
 
-  // Chiudi con Escape
+  // Chiudi con Escape, solo se il focus è nella chat (la chat non è modale:
+  // Esc premuto altrove nella pagina non la riguarda)
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && isOpen) closePanel();
+    if (e.key === "Escape" && isOpen &&
+        (panel.contains(document.activeElement) || document.activeElement === btnToggle)) {
+      closePanel();
+    }
   });
 
   // ---------------------------------------------------------------------------
   // Avvio
   // ---------------------------------------------------------------------------
-  panel.setAttribute("aria-hidden", "true");
   btnToggle.setAttribute("aria-expanded", "false");
   clearChat();
   updateHeaderUser();

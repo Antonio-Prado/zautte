@@ -47,20 +47,20 @@
     }
     table { border-collapse: collapse; width: 100%; }
     td { padding: 4px 0; vertical-align: top; }
-    td:first-child { width: 52%; color: #777; font-size: 0.85em; }
+    td:first-child { width: 52%; color: #666; font-size: 0.85em; }
     td:last-child { font-weight: 500; font-size: 0.9em; }
 
     .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: #ccc; }
     .dot.ok  { background: #43a047; }
     .dot.err { background: #e53935; }
-    .latency { font-size: 0.8em; color: #aaa; margin-left: 4px; }
-    .refresh-note { font-size: 0.75em; color: #bbb; margin-top: 8px; text-align: right; }
+    .latency { font-size: 0.8em; color: #666; margin-left: 4px; }
+    .refresh-note { font-size: 0.75em; color: #666; margin-top: 8px; text-align: right; }
 
     /* Metriche numeriche grandi */
     .stats-row { display: flex; gap: 20px; flex-wrap: wrap; }
     .stat-item { flex: 1; min-width: 70px; }
     .stat-big { font-size: 1.5em; font-weight: bold; color: #003366; line-height: 1.1; }
-    .stat-label { font-size: 0.78em; color: #999; margin-top: 2px; }
+    .stat-label { font-size: 0.78em; color: #666; margin-top: 2px; }
 
     /* Barra feedback */
     .fb-bar { height: 7px; background: #eee; border-radius: 4px; margin-top: 8px; overflow: hidden; }
@@ -91,7 +91,7 @@
       white-space: nowrap;
       pointer-events: none;
     }
-    .hours-labels { display: flex; justify-content: space-between; font-size: 0.7em; color: #bbb; margin-top: 2px; }
+    .hours-labels { display: flex; justify-content: space-between; font-size: 0.7em; color: #666; margin-top: 2px; }
 
     /* Lista query */
     .query-list { list-style: none; padding: 0; margin: 0; }
@@ -105,7 +105,7 @@
     }
     .query-list li:last-child { border-bottom: none; }
     .query-text { color: #333; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .query-count { color: #999; font-size: 0.9em; white-space: nowrap; }
+    .query-count { color: #666; font-size: 0.9em; white-space: nowrap; }
 
     a.site-link { color: #003366; font-size: 0.85em; }
 
@@ -117,7 +117,7 @@
     .qbar-item { margin-bottom: 6px; }
     .qbar-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.8em; margin-bottom: 2px; }
     .qbar-text { color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-    .qbar-count { color: #999; flex-shrink: 0; }
+    .qbar-count { color: #666; flex-shrink: 0; }
     .qbar-track { height: 6px; background: #eef0ff; border-radius: 3px; overflow: hidden; }
     .qbar-fill { height: 100%; background: #5c7cfa; border-radius: 3px; transition: width .5s; }
 
@@ -126,11 +126,11 @@
     .cost-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
     .cost-bar { width: 100%; background: #2e7d32; border-radius: 2px 2px 0 0; min-height: 2px; position: relative; transition: height .3s; }
     .cost-bar:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 3px); left: 50%; transform: translateX(-50%); background: #333; color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 3px; white-space: nowrap; z-index: 1; pointer-events: none; }
-    .cost-bar-lbl { font-size: 0.62em; color: #bbb; text-align: center; white-space: nowrap; overflow: hidden; width: 100%; text-overflow: ellipsis; }
+    .cost-bar-lbl { font-size: 0.62em; color: #666; text-align: center; white-space: nowrap; overflow: hidden; width: 100%; text-overflow: ellipsis; }
 
     /* Token history table */
     .token-table { width: 100%; border-collapse: collapse; font-size: 0.8em; margin-top: 8px; }
-    .token-table th { color: #999; font-weight: normal; text-align: left; padding: 3px 4px; border-bottom: 1px solid #eee; }
+    .token-table th { color: #666; font-weight: normal; text-align: left; padding: 3px 4px; border-bottom: 1px solid #eee; }
     .token-table td { padding: 3px 4px; border-bottom: 1px solid #f5f5f5; color: #555; }
     .token-table td:nth-child(4), .token-table td:nth-child(5) { text-align: right; color: #333; }
     .token-table td:nth-child(6) { text-align: right; color: #1a6b1a; }
@@ -147,13 +147,13 @@
       font-size: 0.82em;
     }
     .timeline li:last-child { border-bottom: none; }
-    .tl-ts { color: #bbb; white-space: nowrap; flex-shrink: 0; font-size: 0.9em; }
+    .tl-ts { color: #666; white-space: nowrap; flex-shrink: 0; font-size: 0.9em; }
     .tl-label { color: #333; flex: 1; }
     .tl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #c5d0f0; margin-top: 3px; }
     .tl-dot.vs   { background: #43a047; }
     .tl-dot.html { background: #1565c0; }
     .tl-dot.crawl { background: #f57c00; }
-    .crawl-progress { font-size: 0.82em; color: #777; margin-top: 8px; }
+    .crawl-progress { font-size: 0.82em; color: #666; margin-top: 8px; }
     .progress-bar-wrap { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 3px; }
     .progress-bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
     .progress-bar-fill.html { background: #1565c0; }
@@ -173,7 +173,7 @@
       font-size: 0.83em;
     }
     .cl-entry:last-child { border-bottom: none; }
-    .cl-date { color: #bbb; white-space: nowrap; flex-shrink: 0; width: 80px; }
+    .cl-date { color: #666; white-space: nowrap; flex-shrink: 0; width: 80px; }
     .cl-text { color: #444; flex: 1; line-height: 1.5; }
     .cl-tag {
       display: inline-block;
@@ -186,7 +186,7 @@
     }
     .cl-tag.fix    { background: #fce4ec; color: #c62828; }
     .cl-tag.feat   { background: #e8f5e9; color: #2e7d32; }
-    .cl-tag.perf   { background: #fff8e1; color: #f57f17; }
+    .cl-tag.perf   { background: #fff8e1; color: #8d4e00; }
     .cl-tag.data   { background: #e3f2fd; color: #1565c0; }
 
     /* Feedback negativi */
@@ -199,10 +199,10 @@
     .neg-list > li:last-child { border-bottom: none; }
     .neg-list > li.resolving { opacity: 0; pointer-events: none; }
     .neg-q { color: #c62828; flex: 1; min-width: 0; }
-    .neg-ts { color: #bbb; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
+    .neg-ts { color: #666; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
     /* Dettagli segnalati dal collega (commento + link) */
     .neg-main { flex: 1; min-width: 0; }
-    .neg-meta { color: #999; font-size: 0.85em; margin-top: 2px; }
+    .neg-meta { color: #666; font-size: 0.85em; margin-top: 2px; }
     .neg-comment {
       margin: 5px 0 0; padding: 4px 8px; border-left: 3px solid #ffcdd2;
       background: #fff8f8; color: #555; white-space: pre-wrap; word-break: break-word;
@@ -212,7 +212,7 @@
     .neg-urls a { color: #1565c0; word-break: break-all; }
     .btn-resolve {
       flex-shrink: 0; background: none; border: 1px solid #bbb; border-radius: 4px;
-      color: #777; font-size: 0.78em; padding: 2px 7px; cursor: pointer;
+      color: #666; font-size: 0.78em; padding: 2px 7px; cursor: pointer;
       white-space: nowrap; transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
     .btn-resolve:hover { background: #e8f5e9; border-color: #43a047; color: #2e7d32; }
@@ -294,7 +294,7 @@
       <table>
         <tr><td>Backend</td><td><span class="dot" id="dot"></span><span id="backend-status">verifica…</span><span class="latency" id="latency"></span></td></tr>
         <tr><td>Uptime</td><td><span id="uptime">—</span></td></tr>
-        <tr><td>Modello LLM</td><td><span id="model-name">—</span> <span style="color:#ccc;font-size:.8em" id="llm-provider"></span></td></tr>
+        <tr><td>Modello LLM</td><td><span id="model-name">—</span> <span style="color:#666;font-size:.8em" id="llm-provider"></span></td></tr>
         <tr><td>Hybrid search</td><td><span id="hybrid">—</span></td></tr>
         <tr><td>Ultima indicizzazione</td><td><span id="last-indexed">—</span></td></tr>
       </table>
@@ -369,31 +369,31 @@
     <!-- Query più frequenti -->
     <div class="card">
       <h2>Query più frequenti (sessione)</h2>
-      <div id="top-queries"><span style="color:#bbb;font-size:.85em">nessuna ancora</span></div>
+      <div id="top-queries"><span style="color:#666;font-size:.85em">nessuna ancora</span></div>
     </div>
 
     <!-- Feedback negativi -->
     <div class="card wide">
-      <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <ul class="neg-list" id="neg-fb-list">
-        <li><span class="neg-q" style="color:#bbb">caricamento…</span></li>
+        <li><span class="neg-q" style="color:#666">caricamento…</span></li>
       </ul>
     </div>
 
     <!-- Utenti (progetto pilota, login attivo) -->
     <div class="card wide">
-      <h2>Utenti (accessi con login) <span id="usage-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>Utenti (accessi con login) <span id="usage-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="usage-body">
         <button id="usage-load-btn" class="btn-resolve">Mostra utenti (richiede chiave admin)</button>
-        <div style="color:#bbb;font-size:.8em;margin-top:8px">Visibile solo se il backend ha <code>AUTH_ENABLED=true</code>.</div>
+        <div style="color:#666;font-size:.8em;margin-top:8px">Visibile solo se il backend ha <code>AUTH_ENABLED=true</code>.</div>
       </div>
     </div>
 
     <!-- Log messaggi utenti -->
     <div class="card wide">
-      <h2>Log messaggi utenti <span id="msg-status" style="font-size:0.78em;color:#999;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>Log messaggi utenti <span id="msg-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="msg-body" style="max-height:460px;overflow:auto">
-        <span style="color:#bbb;font-size:.85em">caricamento…</span>
+        <span style="color:#666;font-size:.85em">caricamento…</span>
       </div>
     </div>
 
@@ -423,7 +423,7 @@
         </div>
       </div>
       <div id="cost-chart-wrap" style="display:none">
-        <div style="font-size:0.78em;color:#999;margin-top:4px">Costo per sessione (USD)</div>
+        <div style="font-size:0.78em;color:#666;margin-top:4px">Costo per sessione (USD)</div>
         <div class="cost-chart" id="cost-chart"></div>
       </div>
       <table class="token-table">
@@ -438,7 +438,7 @@
           </tr>
         </thead>
         <tbody id="token-history-body">
-          <tr><td colspan="6" style="color:#bbb;text-align:center;padding:8px">nessun dato ancora</td></tr>
+          <tr><td colspan="6" style="color:#666;text-align:center;padding:8px">nessun dato ancora</td></tr>
         </tbody>
       </table>
     </div>
@@ -455,7 +455,7 @@
         <div class="progress-bar-wrap"><div class="progress-bar-fill pdf" id="crawl-pdf-bar" style="width:0%"></div></div>
       </div>
       <ul class="timeline" id="crawl-timeline">
-        <li><span class="tl-label" style="color:#bbb">caricamento…</span></li>
+        <li><span class="tl-label" style="color:#666">caricamento…</span></li>
       </ul>
     </div>
 
@@ -464,6 +464,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">5 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Chat più accessibile</strong>: primo controllo di accessibilità (obiettivo WCAG 2.1 AA, il livello richiesto alla pubblica amministrazione) e correzione dei 19 problemi trovati. Con i lettori di schermo la risposta viene letta una volta sola, intera, invece che a frammenti mentre arriva, e le risposte in inglese con la voce inglese; da tastiera la chat chiusa non «cattura» più il tasto Tab; 👍/👎 hanno un nome leggibile; i moduli di accesso e di segnalazione hanno etichette visibili; bordi e testi grigi (anche di questa pagina) sono più contrastati; le animazioni si fermano se nel sistema è attivo «riduci movimento». Restano da fare le prove con lettori di schermo veri e con persone con disabilità: lo stato aggiornato è in <a href="https://github.com/Antonio-Prado/zautte/blob/main/ACCESSIBILITY.md" target="_blank" rel="noopener">ACCESSIBILITY.md</a>.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">5 ott 2026</div>
       <div class="cl-text">
@@ -963,7 +969,7 @@
             const td = d.top_doc;
             document.getElementById('top-doc').innerHTML =
               '<a href="'+td.source+'" target="_blank" style="color:#003366;font-size:.9em">'+(td.title||td.source.split('/').pop())+'</a>'
-              +' <span style="color:#aaa;font-size:.8em">('+td.chunks+' chunk)</span>';
+              +' <span style="color:#666;font-size:.8em">('+td.chunks+' chunk)</span>';
           }
 
           const q = d.queries_since_restart ?? 0;
@@ -1058,8 +1064,8 @@
             tbody.innerHTML = [...hist].reverse().map(e =>
               '<tr>' +
               '<td>' + (e.ts || '').replace('T',' ').slice(0, 19) + '</td>' +
-              '<td>' + (e.user ? _esc(e.user) : '<span style="color:#bbb">—</span>') + '</td>' +
-              '<td style="color:#888">' + (e.model || '').replace('claude-','') + '</td>' +
+              '<td>' + (e.user ? _esc(e.user) : '<span style="color:#666">—</span>') + '</td>' +
+              '<td style="color:#666">' + (e.model || '').replace('claude-','') + '</td>' +
               '<td>' + fmtNum(e.in) + '</td>' +
               '<td>' + fmtNum(e.out) + '</td>' +
               '<td>$' + (e.cost || 0).toFixed(5) + '</td>' +
@@ -1113,7 +1119,7 @@
                 '</li>';
             }).join('');
           } else {
-            tl.innerHTML = '<li><span class="tl-label" style="color:#bbb">nessun evento trovato nel log</span></li>';
+            tl.innerHTML = '<li><span class="tl-label" style="color:#666">nessun evento trovato nel log</span></li>';
           }
         })
         .catch(() => {
@@ -1188,18 +1194,18 @@
           const msgs = data.messages || [];
           status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
           if (!msgs.length) {
-            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun messaggio registrato finora.</span>';
+            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun messaggio registrato finora.</span>';
             return;
           }
           let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
-            + '<thead><tr style="text-align:left;color:#888;border-bottom:1px solid #eee">'
+            + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
             + '<th style="padding:6px 8px;white-space:nowrap">Quando</th>'
             + '<th style="padding:6px 8px;white-space:nowrap">Utente</th>'
             + '<th style="padding:6px 8px">Domanda</th></tr></thead><tbody>';
           msgs.forEach(m => {
             const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
             html += '<tr style="border-bottom:1px solid #f3f3f3">'
-              + '<td style="padding:6px 8px;color:#888;white-space:nowrap">' + ts + '</td>'
+              + '<td style="padding:6px 8px;color:#666;white-space:nowrap">' + ts + '</td>'
               + '<td style="padding:6px 8px;white-space:nowrap">' + _esc(m.name) + '</td>'
               + '<td style="padding:6px 8px">' + _esc(m.q) + '</td></tr>';
           });
@@ -1207,7 +1213,7 @@
           body.innerHTML = html;
         })
         .catch(() => {
-          body.innerHTML = '<span style="color:#bbb;font-size:.85em">Errore nel caricamento del log.</span>';
+          body.innerHTML = '<span style="color:#666;font-size:.85em">Errore nel caricamento del log.</span>';
         });
     }
 
@@ -1258,7 +1264,7 @@
       const listEl = document.getElementById('neg-fb-list');
       const count = listEl.querySelectorAll(':scope > li').length;
       if (count === 0) {
-        listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo aperto.</span></li>';
+        listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
         statusEl.textContent = '— 0 aperte';
       }
     }
@@ -1273,7 +1279,7 @@
           const total = data.total_negative || 0;
           statusEl.textContent = '— ' + items.length + ' aperte su ' + total + ' totali';
           if (!items.length) {
-            listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Nessun feedback negativo aperto.</span></li>';
+            listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
             return;
           }
           listEl.innerHTML = '';
@@ -1304,7 +1310,7 @@
         })
         .catch(() => {
           statusEl.textContent = '';
-          listEl.innerHTML = '<li><span class="neg-q" style="color:#bbb">Errore caricamento.</span></li>';
+          listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Errore caricamento.</span></li>';
         });
     }
 
@@ -1313,7 +1319,7 @@
       if (!key) return;
       const body = document.getElementById('usage-body');
       const status = document.getElementById('usage-status');
-      body.innerHTML = '<span style="color:#bbb;font-size:.85em">caricamento…</span>';
+      body.innerHTML = '<span style="color:#666;font-size:.85em">caricamento…</span>';
       fetch(apiBase + '/usage/summary', { headers: { 'X-Admin-Key': key } })
         .then(r => {
           if (r.status === 403) { _adminKey = null; throw new Error('key'); }
@@ -1326,23 +1332,23 @@
           const act = (data.total_active != null ? data.total_active : users.length);
           status.textContent = '— ' + reg + ' registrati · ' + act + ' attivi · ' + (data.total_messages || 0) + ' messaggi';
           if (!users.length) {
-            body.innerHTML = '<span style="color:#bbb;font-size:.85em">Nessun utente registrato.</span>';
+            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun utente registrato.</span>';
             return;
           }
           let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
-            + '<thead><tr style="text-align:left;color:#888;border-bottom:1px solid #eee">'
+            + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
             + '<th style="padding:6px 8px">Utente</th>'
             + '<th style="padding:6px 8px;text-align:right">Messaggi</th>'
             + '<th style="padding:6px 8px;text-align:right">Giorni attivi</th>'
             + '<th style="padding:6px 8px">Ultimo accesso</th></tr></thead><tbody>';
           users.forEach(u => {
             const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'mai';
-            const dim = u.messages ? '' : 'color:#bbb;';
+            const dim = u.messages ? '' : 'color:#666;';
             html += '<tr style="border-bottom:1px solid #f3f3f3;' + dim + '">'
               + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
               + '<td style="padding:6px 8px;text-align:right">' + u.messages + '</td>'
               + '<td style="padding:6px 8px;text-align:right">' + u.active_days + '</td>'
-              + '<td style="padding:6px 8px;color:#888">' + last + '</td></tr>';
+              + '<td style="padding:6px 8px;color:#666">' + last + '</td></tr>';
           });
           html += '</tbody></table>';
           body.innerHTML = html;
@@ -1427,7 +1433,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261005a" defer></script>
+  <script src="./chatbot-widget.js?v=20261005b" defer></script>
   <script src="./site-footer.js?v=20261004c" defer></script>
 </body>
 </html>

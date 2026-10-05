@@ -88,7 +88,7 @@ data: {"token": "An "}
 data: {"token": "identity "}
 data: {"token": "card "}
 ...
-data: {"sources": [{"title": "...", "url": "...", "score": 0.87}], "rid": "a1b2c3d4e5f6"}
+data: {"sources": [{"title": "...", "url": "...", "score": 0.87}], "rid": "a1b2c3d4e5f6", "language": "en"}
 data: {"done": true}
 ```
 
