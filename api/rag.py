@@ -308,7 +308,7 @@ def build_context_block(chunks: list[dict]) -> str:
     parts = []
     for i, chunk in enumerate(chunks, 1):
         # Etichetta arricchita con metadati
-        label_parts = [f"Fonte {i}: {chunk['title']}"]
+        label_parts = [f"Fonte {i}: {chunk.get('display_title') or chunk['title']}"]
         if chunk.get("category"):
             label_parts.append(f"tipo={chunk['category']}")
         if chunk.get("service_status"):
@@ -881,7 +881,7 @@ async def answer(
     # la fonte viene mostrata solo per titolo (url vuoto).
     sources = [
         {
-            "title": c["title"],
+            "title": c.get("display_title") or c["title"],
             "url": "" if is_migrated_source(c.get("source", "")) else c.get("source", ""),
             "score": c["score"],
         }

@@ -91,6 +91,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── embedder.py           # Embedding generation via Ollama
 │   ├── indexer.py            # Orchestrator: crawler output → vector store
 │   ├── pdf_extractor.py      # Text extraction from PDF (pypdf)
+│   ├── titles.py             # Readable titles for PDF sources (chosen at query time)
 │   └── vector_store.py       # numpy store: cosine search + BM25 hybrid
 │
 ├── api/
