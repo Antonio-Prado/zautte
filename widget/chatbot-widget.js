@@ -891,6 +891,10 @@
       // Rimuove attributi HTML grezzi che l'LLM può accodare alle URL
       // (es: ...comunali&quot; target=&quot;_blank&quot; rel=...)
       .replace(/&quot;\s+(?:target|rel|style|class)=[^\n<]*/g, "")
+      // Titoli markdown (## Titolo) in grassetto e linee orizzontali (---):
+      // il modello li usa e prima comparivano come simboli
+      .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '<hr style="border:none;border-top:1px solid #ddd;margin:6px 0">')
+      .replace(/^[ \t]*#{1,6}[ \t]+(.+?)[ \t#]*$/gm, "<strong>$1</strong>")
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       // Markdown link: [testo](url)
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
@@ -904,7 +908,9 @@
                '<a href="$1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>')
       .replace(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g,
                '<a href="mailto:$1" style="color:inherit">$1</a>')
-      .replace(/\n/g, "<br>");
+      .replace(/\n/g, "<br>")
+      // la linea fa già da separatore: niente righe vuote attorno
+      .replace(/(?:<br>)*(<hr[^>]*>)(?:<br>)*/g, "$1");
   }
 
   // Rende una fonte: link cliccabile se ha URL, altrimenti solo il titolo come
