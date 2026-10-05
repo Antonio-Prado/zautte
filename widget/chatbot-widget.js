@@ -68,9 +68,11 @@
   const isItalian = browserLang !== "en";
 
   const T = {
-    placeholder: isItalian
-      ? "Scrivi la tua domanda..."
-      : "Type your question...",
+    inputLabel: isItalian ? "La tua domanda" : "Your question",
+    placeholder: isItalian ? "Scrivi qui e premi Invio" : "Type here and press Enter",
+    inputHelp: isItalian
+      ? "Invio per inviare, Maiuscolo più Invio per andare a capo."
+      : "Enter to send, Shift plus Enter for a new line.",
     send: isItalian ? "Invia" : "Send",
     sources: isItalian ? "Fonti:" : "Sources:",
     error: isItalian
@@ -315,6 +317,28 @@
       line-height: 1.5;
       word-break: break-word;
     }
+    .${WIDGET_ID}-bubble p { margin: 0 0 8px; }
+    .${WIDGET_ID}-bubble h3,
+    .${WIDGET_ID}-bubble h4 {
+      font-size: 1em;
+      font-weight: 700;
+      line-height: 1.4;
+      color: inherit;
+      margin: 10px 0 4px;
+    }
+    .${WIDGET_ID}-bubble ul,
+    .${WIDGET_ID}-bubble ol { margin: 4px 0 8px; padding-left: 20px; }
+    .${WIDGET_ID}-bubble li { margin: 2px 0; }
+    .${WIDGET_ID}-bubble li > ul,
+    .${WIDGET_ID}-bubble li > ol { margin: 2px 0; }
+    .${WIDGET_ID}-bubble blockquote {
+      margin: 4px 0 8px;
+      padding-left: 8px;
+      border-left: 3px solid #c5cbe0;
+    }
+    .${WIDGET_ID}-bubble hr { border: none; border-top: 1px solid #ddd; margin: 6px 0; }
+    .${WIDGET_ID}-bubble > :first-child { margin-top: 0; }
+    .${WIDGET_ID}-bubble > :last-child { margin-bottom: 0; }
     .${WIDGET_ID}-msg.user .${WIDGET_ID}-bubble {
       background: ${p};
       color: #fff;
@@ -481,13 +505,20 @@
 
     /* Input area */
     #${WIDGET_ID}-input-area {
-      padding: 10px 12px;
+      padding: 6px 12px 10px;
       border-top: 1px solid #e8e8e8;
       display: flex;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 4px 8px;
       align-items: flex-end;
       background: #fff;
       flex-shrink: 0;
+    }
+    #${WIDGET_ID}-input-label {
+      flex-basis: 100%;
+      font-size: 11px;
+      font-weight: 600;
+      color: #555;
     }
     #${WIDGET_ID}-input {
       flex: 1;
@@ -681,11 +712,13 @@
       <div id="${WIDGET_ID}-status" class="${WIDGET_ID}-sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
       <div id="${WIDGET_ID}-input-area">
+        <label id="${WIDGET_ID}-input-label" for="${WIDGET_ID}-input">${T.inputLabel}</label>
+        <span id="${WIDGET_ID}-input-help" class="${WIDGET_ID}-sr">${T.inputHelp}</span>
         <textarea
           id="${WIDGET_ID}-input"
           placeholder="${T.placeholder}"
           rows="1"
-          aria-label="${T.placeholder}"
+          aria-describedby="${WIDGET_ID}-input-help"
           maxlength="1000"
         ></textarea>
         <button id="${WIDGET_ID}-send" disabled aria-label="${T.send}">
@@ -987,37 +1020,112 @@
     return (lead === undefined ? sep : lead) + links.join(sep);
   }
 
-  /** Formattazione minimale: a capo → <br>, **testo** → <strong>, email → <a> */
+  // Link, URL ed email in un solo passaggio: applicate una dopo l'altra, la regola
+  // degli URL nudi ritrovava l'URL dentro l'href appena creato da un link markdown
+  // [testo](url) e produceva un <a> dentro un altro (link rotto).
+  const INLINE_RE = new RegExp([
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/.source,          // [testo](url)
+    /\[(https?:\/\/[^\]\s]+)\]/.source,                     // [url]
+    // URL nudi: &amp; è ammesso (& codificato nei parametri), ci si ferma
+    // a &quot;/&gt;/&lt; (entità che non appartengono all'URL)
+    /(https?:\/\/(?:[^\s<>"&]|&amp;)+)/.source,
+    /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/.source,
+  ].join("|"), "g");
+
+  function linkHtml(url, text) {
+    return `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${text}</a>`;
+  }
+
+  /** Formattazione di una riga (testo già escapato): link, URL, email, grassetto. */
+  function formatInline(html) {
+    return html
+      .replace(INLINE_RE, (m, mdText, mdUrl, brUrl, url, email) => {
+        if (mdUrl) return linkHtml(mdUrl, mdText);
+        if (brUrl) return linkHtml(brUrl, brUrl);
+        if (url) {
+          const tail = (url.match(/[.,;:!?]+$/) || [""])[0];   // punteggiatura finale fuori dal link
+          const clean = url.slice(0, url.length - tail.length);
+          return linkHtml(clean, clean) + tail;
+        }
+        return `<a href="mailto:${email}" style="color:inherit">${email}</a>`;
+      })
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  }
+
+  /**
+   * Markdown essenziale delle risposte in HTML vero: paragrafi, titoli (# e ## →
+   * h3, ### e oltre → h4), elenchi puntati e numerati (anche annidati), citazioni
+   * e linee di separazione. Gli screen reader ne colgono così la struttura.
+   * Un testo di un solo paragrafo resta in linea, senza <p>.
+   */
   function formatText(str) {
-    return escapeHtml(str)
+    const lines = escapeHtml(str)
       // Rimuove attributi HTML grezzi che l'LLM può accodare alle URL
       // (es: ...comunali&quot; target=&quot;_blank&quot; rel=...)
       .replace(/&quot;\s+(?:target|rel|style|class)=[^\n<]*/g, "")
-      // Titoli markdown (## Titolo) in grassetto e linee orizzontali (---):
-      // il modello li usa e prima comparivano come simboli
-      .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '<hr style="border:none;border-top:1px solid #ddd;margin:6px 0">')
-      .replace(/^[ \t]*#{1,6}[ \t]+(.+?)[ \t#]*$/gm, "<strong>$1</strong>")
-      // Citazioni (> testo): riga con bordo a sinistra
-      .replace(/^[ \t]*&gt;[ \t]?(.*)$/gm,
-               '<span data-q style="display:block;border-left:3px solid #c5cbe0;padding-left:8px">$1</span>')
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      // Markdown link: [testo](url)
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-               '<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>')
-      // URL tra parentesi quadre: [https://...]
-      .replace(/\[(https?:\/\/[^\]\s]+)\]/g,
-               '<a href="$1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>')
-      // URL nude — &amp; è ammesso (encoding corretto di & nei query param),
-      // ma ci si ferma a &quot;/&gt;/&lt; (entità HTML che non appartengono all'URL)
-      .replace(/(https?:\/\/(?:[^\s<>"&]|&amp;)+)/g,
-               '<a href="$1" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">$1</a>')
-      .replace(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/g,
-               '<a href="mailto:$1" style="color:inherit">$1</a>')
-      .replace(/\n/g, "<br>")
-      // la linea fa già da separatore: niente righe vuote attorno
-      .replace(/(?:<br>)*(<hr[^>]*>)(?:<br>)*/g, "$1")
-      // la citazione va già a capo da sola
-      .replace(/(<span data-q[^>]*>.*?<\/span>)<br>/g, "$1");
+      .split("\n");
+    const out = [];
+    let para = [];
+    let quote = [];
+    const lists = [];   // liste aperte, dalla più esterna: {tag, indent}; ognuna ha un <li> aperto
+
+    const flushPara = () => {
+      if (para.length) out.push(`<p>${para.map(formatInline).join("<br>")}</p>`);
+      para = [];
+    };
+    const flushQuote = () => {
+      if (quote.length) out.push(`<blockquote>${quote.map(formatInline).join("<br>")}</blockquote>`);
+      quote = [];
+    };
+    const closeLists = (downTo = 0) => {
+      while (lists.length > downTo) out.push(`</li></${lists.pop().tag}>`);
+    };
+    const closeAll = () => { flushPara(); flushQuote(); closeLists(); };
+
+    for (const line of lines) {
+      const indent = line.match(/^[ \t]*/)[0].replace(/\t/g, "    ").length;
+      let m;
+      if (!line.trim()) {
+        // riga vuota: chiude paragrafo e citazione; un elenco può continuare
+        flushPara();
+        flushQuote();
+      } else if (/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line)) {
+        closeAll();
+        out.push("<hr>");
+      } else if ((m = line.match(/^[ \t]*(#{1,6})[ \t]+(.+?)[ \t#]*$/))) {
+        closeAll();
+        const tag = m[1].length <= 2 ? "h3" : "h4";
+        out.push(`<${tag}>${formatInline(m[2])}</${tag}>`);
+      } else if ((m = line.match(/^[ \t]*&gt;[ \t]?(.*)$/))) {
+        flushPara();
+        closeLists();
+        quote.push(m[1]);
+      } else if ((m = line.match(/^[ \t]*(?:([-*•])|(\d{1,3})[.)])[ \t]+(.*)$/))) {
+        flushPara();
+        flushQuote();
+        const tag = m[1] ? "ul" : "ol";
+        while (lists.length && lists[lists.length - 1].indent > indent) closeLists(lists.length - 1);
+        const top = lists[lists.length - 1];
+        if (top && top.indent === indent && top.tag !== tag) closeLists(lists.length - 1);
+        const cur = lists[lists.length - 1];
+        if (cur && cur.indent === indent) {
+          out.push(`</li><li>${formatInline(m[3])}`);
+        } else {
+          const start = tag === "ol" && m[2] !== "1" ? ` start="${parseInt(m[2], 10)}"` : "";
+          out.push(`<${tag}${start}><li>${formatInline(m[3])}`);
+          lists.push({ tag, indent });
+        }
+      } else if (lists.length && indent >= 2) {
+        out.push(`<br>${formatInline(line.trim())}`);   // seguito della voce di elenco
+      } else {
+        flushQuote();
+        closeLists();
+        para.push(line);
+      }
+    }
+    closeAll();
+    if (out.length === 1 && out[0].startsWith("<p>")) return out[0].slice(3, -4);
+    return out.join("");
   }
 
   // Rende una fonte: link cliccabile se ha URL, altrimenti solo il titolo come

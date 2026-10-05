@@ -467,6 +467,12 @@
     <div class="cl-entry">
       <div class="cl-date">5 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Risposte con titoli ed elenchi veri</strong>: quando una risposta è divisa in sezioni o elenca documenti e passaggi, titoli ed elenchi sono ora titoli ed elenchi a tutti gli effetti (puntati, numerati, anche annidati), non più grassetto e righe con il trattino: si leggono meglio e chi usa un lettore di schermo può saltare da un titolo all'altro. Corretto anche un difetto dei link scritti dal modello nella forma [testo](indirizzo), che uscivano rotti. Il campo in basso ha l'etichetta «La tua domanda». Ogni modifica alla chat viene ora controllata in automatico anche per l'accessibilità.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">5 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Chat più accessibile</strong>: primo controllo di accessibilità (obiettivo WCAG 2.1 AA, il livello richiesto alla pubblica amministrazione) e correzione dei 19 problemi trovati. Con i lettori di schermo la risposta viene letta una volta sola, intera, invece che a frammenti mentre arriva, e le risposte in inglese con la voce inglese; da tastiera la chat chiusa non «cattura» più il tasto Tab; 👍/👎 hanno un nome leggibile; i moduli di accesso e di segnalazione hanno etichette visibili; bordi e testi grigi (anche di questa pagina) sono più contrastati; le animazioni si fermano se nel sistema è attivo «riduci movimento». Restano da fare le prove con lettori di schermo veri e con persone con disabilità: lo stato aggiornato è in <a href="https://github.com/Antonio-Prado/zautte/blob/main/ACCESSIBILITY.md" target="_blank" rel="noopener">ACCESSIBILITY.md</a>.
       </div>
     </div>
@@ -1433,7 +1439,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261005b" defer></script>
+  <script src="./chatbot-widget.js?v=20261005c" defer></script>
   <script src="./site-footer.js?v=20261004c" defer></script>
 </body>
 </html>

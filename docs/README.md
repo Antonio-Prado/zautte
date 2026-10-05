@@ -14,3 +14,4 @@ Technical documentation for Zautte, from installation to day-to-day operation. T
 | 💬 [Frontend Widget](widget.md) | Site integration, options, behaviour, bundled pages (dashboard, pilot, "how it works") |
 | 🛠️ [Operations](operations.md) | Cron jobs and sync, rc.d service, log rotation, monitoring and evaluation, troubleshooting, changing the embedding model |
 | 🛡️ [Privacy and Security](privacy-and-security.md) | GDPR, where data goes, what is stored and for how long, security measures |
+| ♿ [Accessibility Testing](accessibility-testing.md) | Automated checks in CI, screen reader test protocol, tests with people with disabilities |
