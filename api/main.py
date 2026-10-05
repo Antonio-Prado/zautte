@@ -703,8 +703,6 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
 @app.get("/crawl-history")
 async def crawl_history(_: None = Security(require_admin)):
     """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
-    import re
-
     log_path = Path("/var/log/chatbot-sync.log")
     if not log_path.exists():
         return {"events": [], "current_html": None, "current_pdf": None}

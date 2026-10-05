@@ -10,6 +10,9 @@ si passa a un solo server.
 
     python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000
 
+Senza --host ascolta solo in locale (127.0.0.1 e ::1): l'apertura a tutta la
+rete è una scelta esplicita di chi lo avvia (start.sh in produzione).
+
 L'app compare come argomento perché i comandi che cercano il processo dell'API
 (scripts/sync.py, scripts/watchdog.sh, scripts/chatbot_rcd) usano «api.main:app».
 """
@@ -36,11 +39,11 @@ def _listen(host: str, port: int) -> socket.socket:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Avvia l'API su più indirizzi con un solo processo")
     parser.add_argument("app", nargs="?", default="api.main:app")
-    parser.add_argument("--host", action="append", help="ripetibile (default: 0.0.0.0 e ::)")
+    parser.add_argument("--host", action="append", help="ripetibile (default: 127.0.0.1 e ::1)")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
-    hosts = args.host or ["0.0.0.0", "::"]
+    hosts = args.host or ["127.0.0.1", "::1"]
     sockets = [_listen(h, args.port) for h in hosts]
     config = uvicorn.Config(args.app)   # configura anche il logging di uvicorn
     logging.getLogger("uvicorn.error").info("In ascolto sulla porta %d di %s", args.port, ", ".join(hosts))
