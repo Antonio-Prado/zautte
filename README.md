@@ -20,6 +20,8 @@ Zautte is a **RAG** (Retrieval-Augmented Generation) assistant for public-sector
 
 It runs in production as a pilot for the **Comune di San Benedetto del Tronto** (Italy), on a single FreeBSD server with no database and no containers.
 
+**Why "Zautte"?** In the dialect of San Benedetto del Tronto, a *zautte* is a sea laborer, a dockworker. *Li zautte* are young, strong workers who, historically coordinated by a foreman known as *lu sbarzòcche*, unload the fish from the boats just back in port and carry it to the fish market.
+
 <p align="center">
   <img src="docs/images/chat.png" alt="Zautte answering a question about changing residence, desktop view" width="66%">
   &nbsp;
