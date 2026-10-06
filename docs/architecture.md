@@ -103,7 +103,8 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── datalog.py            # Rewrites the user logs: retention and deletion on request
 │   ├── feedback_store.py     # Feedback archive (votes, comments, links)
 │   ├── mailer.py             # Email notifications (credentials, reports)
-│   └── limiter.py            # Rate limiting (slowapi)
+│   ├── limiter.py            # Rate limiting (slowapi)
+│   └── quota.py              # Daily question limit per user
 │
 ├── widget/                   # served by the API under /widget/
 │   ├── chatbot-widget.js     # Chat widget (self-contained JS/CSS)
@@ -116,6 +117,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── zautte-icon.svg       # "ZA" icon in the chat header
 │   ├── zautte-favicon.svg    # Favicon of the pages
 │   ├── zautte-icon-180.png   # apple-touch-icon
+│   ├── freebsd-logo.png      # "Served by" logo in the footer (official FreeBSD logo, scaled down)
 │   └── logo.png              # "Powered by" logo in the footer (not versioned: provide your own)
 │
 ├── docs/                     # This documentation (index: docs/README.md)

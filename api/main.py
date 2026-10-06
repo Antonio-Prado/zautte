@@ -30,7 +30,7 @@ from slowapi.errors import RateLimitExceeded
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import auth
+from api import auth, quota
 from api.auth import require_user
 from api.datalog import forget
 from api.limiter import limiter
@@ -42,6 +42,7 @@ from config.settings import (
     API_DOCS,
     BEDROCK_MODEL,
     CLAUDE_MODEL,
+    DAILY_QUESTION_LIMIT,
     LLM_PROVIDER,
     OLLAMA_MODEL,
     SITE_NAME,
@@ -84,6 +85,7 @@ async def lifespan(app: FastAPI):
             log.warning("Ollama non raggiungibile all'avvio. Assicurarsi che 'ollama serve' sia attivo.")
     except Exception:
         log.exception("Errore durante l'avvio")
+    await asyncio.to_thread(quota.load)
 
     # Graceful shutdown: attende il completamento delle richieste in corso
     shutdown_event = asyncio.Event()
@@ -216,6 +218,22 @@ class ForgetRequest(BaseModel):
 
 
 _RID_RE = re.compile(r"[0-9a-f]{12}")
+
+
+def _take_question(request: Request, user: dict) -> str:
+    """Conta la domanda nel limite giornaliero (api/quota.py) e ne restituisce la
+    chiave, per restituirla se la risposta fallisce; 429 se il limite di oggi è
+    già raggiunto (il widget mostra il messaggio con il numero di domande)."""
+    key = quota.key_for(user, request.client.host if request.client else "")
+    if not quota.take(key):
+        log.info("Limite di %d domande al giorno raggiunto (%s)",
+                 DAILY_QUESTION_LIMIT, key.split(":", 1)[0])
+        raise HTTPException(
+            status_code=429,
+            detail={"error": "daily_limit", "limit": DAILY_QUESTION_LIMIT},
+            headers={"Retry-After": str(quota.seconds_to_midnight())},
+        )
+    return key
 
 
 def _new_rid() -> str:
@@ -786,7 +804,6 @@ async def crawl_history(_: None = Security(require_admin)):
 
 
 @app.post("/chat", response_model=ChatResponse)
-@limiter.limit("20/hour")
 async def chat(request: Request, req: ChatRequest,
                user: dict = Security(require_user)):
     """
@@ -794,6 +811,7 @@ async def chat(request: Request, req: ChatRequest,
     Attende la risposta intera prima di ritornare.
     """
     import time as _time
+    key = _take_question(request, user)
     try:
         # Dati personali riconoscibili mascherati prima del modello e dei log
         question = redact(req.question)
@@ -807,14 +825,15 @@ async def chat(request: Request, req: ChatRequest,
                    int((_time.monotonic() - _t0) * 1000), rid=rid)
         return {**result, "rid": rid}
     except ValueError as e:
+        quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
+        quota.give_back(key)
         log.exception("Errore in /chat")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
 
 @app.post("/chat/stream")
-@limiter.limit("20/hour")
 async def chat_stream(request: Request, req: ChatRequest,
                       user: dict = Security(require_user)):
     """
@@ -826,6 +845,7 @@ async def chat_stream(request: Request, req: ChatRequest,
       data: {"sources": [...], "rid": "...", "language": "it"}\n\n  → fonti, identificativo della domanda, lingua
       data: {"done": true}\n\n          → fine stream
     """
+    key = _take_question(request, user)
     try:
         # Dati personali riconoscibili mascherati prima del modello e dei log
         question = redact(req.question)
@@ -835,8 +855,10 @@ async def chat_stream(request: Request, req: ChatRequest,
                                                     uid=user.get("uid"), rid=rid)
         _log_usage(user.get("uid"), question, language, rid=rid)
     except ValueError as e:
+        quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
+        quota.give_back(key)
         log.exception("Errore in /chat/stream")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
@@ -853,6 +875,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 await queue.put(("done", None))
             except Exception as exc:
                 log.warning("Errore durante lo streaming della risposta", exc_info=True)
+                quota.give_back(key)
                 await queue.put(("error", str(exc)))
 
         task = _asyncio.create_task(_produce())
