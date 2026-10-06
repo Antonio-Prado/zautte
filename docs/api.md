@@ -242,6 +242,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
 | `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first |
 | `GET /crawl-history` | admin | Recent crawl/indexing events read from `/var/log/chatbot-sync.log`, plus the current progress |
+| `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
 | `GET /client-ip` | public | `{"ip"}`: the caller's own IP address, shown in the page footer |
 | `GET /docs` | public, only with `API_DOCS=true` | Swagger UI (schema at `/openapi.json`); off by default, so in production both return `404` |
 

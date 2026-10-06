@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -133,6 +133,13 @@ class _RevalidatedStaticFiles(StaticFiles):
 _widget_dir = Path(__file__).parent.parent / "widget"
 if _widget_dir.exists():
     app.mount("/widget", _RevalidatedStaticFiles(directory=str(_widget_dir)), name="widget")
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+async def root():
+    """Chi apre solo il dominio (https://bot.comunesbt.it/) arriva alla pagina di
+    accesso invece che a un 404. Temporaneo (302): la radice potrà servire altro."""
+    return RedirectResponse("/widget/dashboard.html", status_code=302)
 
 app.add_middleware(
     CORSMiddleware,
