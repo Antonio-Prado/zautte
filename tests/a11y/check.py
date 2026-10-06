@@ -78,6 +78,7 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
         replies = {
             "/auth/login": {"token": "tok", "name": "Prova", "expires_in": 3600},
             "/auth/me": {"uid": "u1", "name": "Prova"},
+            "/client-ip": {"ip": "2001:db8:85a3:8d3:1319:8a2e:370:7348"},
             "/feedback/detail": {"ok": True},
             "/feedback/negative": {"items": [], "total_negative": 0, "total": 0},
             "/feedback": {"ok": True, "id": "fb0000000001"},

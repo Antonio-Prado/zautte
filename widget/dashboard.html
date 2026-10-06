@@ -467,6 +467,12 @@
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Indirizzo IP nel footer</strong>: in fondo a ogni pagina compare «Il tuo IP», l'indirizzo con cui il visitatore è collegato in quel momento, come lo vede il server dopo il bilanciatore. Se il server non risponde la voce non compare.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Log del server conservato un anno</strong>: il log dell'API, che ora contiene l'indirizzo IP di chi usa Zautte, ruotava solo sopra i 50 MB e quindi non era mai stato ruotato (cresceva da aprile). Ora ruota ogni giorno a mezzanotte, i file vengono compressi e quelli più vecchi di 365 giorni si cancellano da soli.
       </div>
     </div>
@@ -1464,6 +1470,6 @@
     };
   </script>
   <script src="./chatbot-widget.js?v=20261005d" defer></script>
-  <script src="./site-footer.js?v=20261005a" defer></script>
+  <script src="./site-footer.js?v=20261006a" defer></script>
 </body>
 </html>

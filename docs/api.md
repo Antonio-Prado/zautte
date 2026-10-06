@@ -36,6 +36,16 @@ With a valid `X-Admin-Key` (or when `ADMIN_API_KEY` is empty) it also returns th
 
 ---
 
+### `GET /client-ip`
+
+Public. Returns the caller's IP address as the API sees it, shown in the page footer (`site-footer.js`); behind the load balancer it is the address forwarded in `X-Forwarded-For` (trusted only from `FORWARDED_ALLOW_IPS`). Sent with `Cache-Control: no-store`.
+
+```json
+{ "ip": "203.0.113.7" }
+```
+
+---
+
 ### `POST /chat`
 
 Complete response (non-streaming). Waits for the full response before replying.

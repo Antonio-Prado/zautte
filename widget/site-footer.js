@@ -6,8 +6,9 @@
  *
  * Mostra l'ultima release e l'ultimo commit su GitHub (letti dall'API pubblica a ogni
  * apertura della pagina; la release porta alla sua pagina, il commit sempre al
- * repository), il link all'accessibilità e "Powered by" con il logo di SBTAP
- * (logo.png accanto a questo script, link a as59715.net).
+ * repository), il link all'accessibilità, l'indirizzo IP del visitatore come lo vede
+ * l'API (GET /client-ip sullo stesso server dello script) e "Powered by" con il logo
+ * di SBTAP (logo.png accanto a questo script, link a as59715.net).
  *
  * Accessibilità: le linee guida AgID chiedono il link alla dichiarazione di
  * accessibilità nel footer. Quando l'amministrazione l'ha pubblicata, il suo
@@ -25,6 +26,8 @@
   var SCRIPT = document.currentScript;
   var BASE = (SCRIPT && SCRIPT.src) || location.href;
   var SBTAP_LOGO = new URL("logo.png", BASE).href;
+  // Le pagine e l'API stanno sullo stesso server (widget/ servita da FastAPI)
+  var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
   var A11Y_LINK = /^https:\/\//.test(STATEMENT)
     ? { href: STATEMENT, text: "Dichiarazione di accessibilità" }
@@ -53,12 +56,25 @@
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a> &nbsp;·&nbsp; " +
+      "<span id=\"zautte-client-ip\" hidden>Il tuo IP: <span style=\"overflow-wrap:anywhere\"></span> &nbsp;·&nbsp; </span>" +
       "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
       "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a>";
     document.body.appendChild(footer);
     var a11y = document.getElementById("zautte-a11y-link");
     a11y.href = A11Y_LINK.href;
     a11y.textContent = A11Y_LINK.text;
+
+    // Indirizzo IP del visitatore; se l'API non risponde resta nascosto
+    fetch(CLIENT_IP_URL, { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then(function (d) {
+        var ip = String((d && d.ip) || "");
+        if (!/^[0-9A-Fa-f.:]{2,45}$/.test(ip)) return;
+        var box = document.getElementById("zautte-client-ip");
+        box.querySelector("span").textContent = ip;
+        box.hidden = false;
+      })
+      .catch(function () { /* API non raggiungibile */ });
 
     // Ultima release pubblicata; se non c'è o GitHub non risponde il riferimento resta nascosto
     fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {
