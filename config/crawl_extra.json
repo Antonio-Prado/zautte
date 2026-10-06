@@ -23,6 +23,9 @@
     "turismo.comunesbt.it": 4,
     "sanbenedettodeltronto.nuvolapalitalsoft.it": 4
   },
+  "pdf_exclude_patterns": [
+    "/s3/6115/allegati/tesi-"
+  ],
   "url_aliases": [
     {
       "path_prefix": "/s3/6115/",

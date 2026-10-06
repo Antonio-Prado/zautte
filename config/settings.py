@@ -64,6 +64,9 @@ CRAWL_EXTRA_START_URLS: list[str] = []
 # [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. Il crawler
 # riscrive questi URL sull'host canonico, così un file si scarica e si indicizza una volta.
 CRAWL_URL_ALIASES: list[dict] = []
+# Pezzi di URL dei PDF da non scaricare (i PDF non passano da CRAWL_EXCLUDE_PATTERNS,
+# che contiene ".pdf" per tenerli fuori dalla navigazione delle pagine)
+CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
 
 # Override specifici per il sito — caricati da config/crawl_extra.json se presente.
 # Permette di aggiungere pattern di esclusione e depth limit senza modificare il codice.
@@ -76,6 +79,7 @@ try:
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
         CRAWL_URL_ALIASES += _crawl_extra.get("url_aliases", [])
+        CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 

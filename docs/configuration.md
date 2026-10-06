@@ -2,7 +2,7 @@
 
 # Configuration
 
-Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`) are constants in `api/rag.py`, calibrated for the embedding model in use.
+Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
 
 ## `.env` File
 
@@ -90,6 +90,7 @@ ADMIN_API_KEY=your-secret-key-here
 | `CRAWL_ALLOWED_DOMAINS`| *(from .env)*                  | Domains allowed during crawl                         |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
+| `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); production excludes two university theses published among the site's attachments (`/s3/6115/allegati/tesi-`) |
 | `CRAWL_URL_ALIASES`    | `url_aliases` in `crawl_extra.json` | Hosts that serve the same files under a path prefix (the CMS attachments on `www.`, the API host and the S3 bucket): their URLs are rewritten to `canonical_host`, so each file is fetched and indexed once and attachments on hosts outside `CRAWL_ALLOWED_DOMAINS` are included |
 | `MIGRATED_DOMAINS`     | San Benedetto del Tronto domains | Domains whose links are hidden from answers and sources |
 | `CHUNK_SIZE`           | `800`                          | Not used: chunks are paragraphs of up to 1200 characters (`MAX_PARAGRAPH_CHARS` in `indexer/chunker.py`) |
@@ -116,6 +117,7 @@ Constants in `api/rag.py`, calibrated for `bge-m3`:
 | `MIN_SIMILARITY`       | `0.50` | Chunks with a lower cosine similarity are discarded            |
 | `RETRIEVAL_CONFIDENCE` | `0.52` | If even the best chunk is below it, the question is logged as a weak answer in `gaps.jsonl` |
 | `VECTOR_WEIGHT` / `BM25_WEIGHT` | `0.6` / `0.4` | Weights of the two rankings in the hybrid search |
+| `PDF_PENALTY`          | `0.04` | Subtracted from PDF chunks when re-ranking, so pages come first at similar relevance |
 
 ---
 
