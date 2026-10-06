@@ -483,6 +483,12 @@
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Test di installazione di Matomo</strong>: il pulsante «Test installation» di Matomo apre il sito con un codice di verifica nell'indirizzo, che andava perso in due punti: il rinvio dalla radice (bot.comunesbt.it/) alla pagina di accesso toglieva tutto ciò che segue il «?», e nel browser con la chiave amministratore le statistiche erano spente. Ora il rinvio conserva l'indirizzo completo e il test conta anche dal browser amministratore (solo la pagina del test; le visite normali da quel browser restano escluse).
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag feat">feat</span><strong>Il significato del nome</strong>: sotto il titolo c'è la riga «Cosa significa Zautte?»; con un clic si apre la spiegazione: nel dialetto sambenedettese «zautte» è il bracciante di mare, lo scaricatore di porto che porta a terra il pesce dalle barche appena rientrate e lo trasporta al mercato ittico. Chiusa occupa una sola riga, e i margini in alto sono un po' più stretti perché la chat non perda spazio. La stessa spiegazione è nella pagina Come funziona, nel paragrafo «Perché si chiama Zautte».
       </div>
     </div>
@@ -1549,6 +1555,6 @@
   </script>
   <script src="./chatbot-widget.js?v=20261006a" defer></script>
   <script src="./site-footer.js?v=20261006d" defer></script>
-  <script src="./matomo.js?v=20261006a" defer></script>
+  <script src="./matomo.js?v=20261006b" defer></script>
 </body>
 </html>

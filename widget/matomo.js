@@ -10,7 +10,9 @@
  * l'anonimizzazione dell'IP si imposta nel server Matomo (Privacy → Anonimizza i dati).
  *
  * Non conta: le pagine fuori da https (prove in locale, test di accessibilità) e
- * il browser in cui è salvata la chiave della vista amministratore.
+ * il browser in cui è salvata la chiave della vista amministratore, salvo il
+ * «Test installation» di Matomo (?tracker_install_check=… nell'indirizzo), che si
+ * lancia proprio da quel browser.
  */
 (function () {
   "use strict";
@@ -19,8 +21,9 @@
   var SITE_ID = "19";
 
   if (location.protocol !== "https:") return;
+  var installCheck = /[?&]tracker_install_check=[a-f0-9]{32}(&|$)/i.test(location.search);
   try {
-    if (localStorage.getItem("zautte_admin_key")) return;   // la chiave admin di dashboard.html
+    if (!installCheck && localStorage.getItem("zautte_admin_key")) return;   // la chiave admin di dashboard.html
   } catch (_) { /* localStorage bloccato: si conta normalmente */ }
 
   var _paq = window._paq = window._paq || [];
