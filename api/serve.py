@@ -13,6 +13,10 @@ si passa a un solo server.
 Senza --host ascolta solo in locale (127.0.0.1 e ::1): l'apertura a tutta la
 rete è una scelta esplicita di chi lo avvia (start.sh in produzione).
 
+Gli indirizzi del proxy di cui fidarsi per X-Forwarded-For (FORWARDED_ALLOW_IPS)
+si leggono da config.settings, cioè anche da .env: uvicorn da solo guarda solo
+l'ambiente del processo e lo farebbe prima che l'app carichi .env.
+
 L'app compare come argomento perché i comandi che cercano il processo dell'API
 (scripts/sync.py, scripts/watchdog.sh, scripts/chatbot_rcd) usano «api.main:app».
 """
@@ -22,6 +26,8 @@ import logging
 import socket
 
 import uvicorn
+
+from config.settings import FORWARDED_ALLOW_IPS
 
 
 def _listen(host: str, port: int) -> socket.socket:
@@ -45,8 +51,11 @@ def main() -> None:
 
     hosts = args.host or ["127.0.0.1", "::1"]
     sockets = [_listen(h, args.port) for h in hosts]
-    config = uvicorn.Config(args.app)   # configura anche il logging di uvicorn
-    logging.getLogger("uvicorn.error").info("In ascolto sulla porta %d di %s", args.port, ", ".join(hosts))
+    # Config configura anche il logging di uvicorn
+    config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS)
+    log = logging.getLogger("uvicorn.error")
+    log.info("In ascolto sulla porta %d di %s", args.port, ", ".join(hosts))
+    log.info("X-Forwarded-For accettato da %s", FORWARDED_ALLOW_IPS)
     uvicorn.Server(config).run(sockets=sockets)
 
 
