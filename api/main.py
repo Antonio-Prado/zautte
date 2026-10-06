@@ -136,10 +136,12 @@ if _widget_dir.exists():
 
 
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
-async def root():
+async def root(request: Request):
     """Chi apre solo il dominio (https://bot.comunesbt.it/) arriva alla pagina di
-    accesso invece che a un 404. Temporaneo (302): la radice potrà servire altro."""
-    return RedirectResponse("/widget/dashboard.html", status_code=302)
+    accesso invece che a un 404. Temporaneo (302): la radice potrà servire altro.
+    La query string passa intatta (es. ?tracker_install_check=… del test di Matomo)."""
+    query = request.url.query
+    return RedirectResponse("/widget/dashboard.html" + ("?" + query if query else ""), status_code=302)
 
 app.add_middleware(
     CORSMiddleware,
