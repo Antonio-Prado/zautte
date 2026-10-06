@@ -66,6 +66,10 @@ FEEDBACK_NOTIFY_EMAIL=
 
 # Backend (bind address and port are set in start.sh; API_HOST/API_PORT are not used)
 API_CORS_ORIGINS=https://www.your-site.com
+# Proxy/load balancer whose X-Forwarded-For is trusted (addresses or networks, comma-separated; never *)
+FORWARDED_ALLOW_IPS=127.0.0.1,::1
+# Interactive API docs at /docs and /openapi.json (development only; default false)
+API_DOCS=false
 
 # Admin key (X-Admin-Key header) for /stats, /gaps, /feedback/{list,negative,resolve},
 # /usage/{summary,messages}, /crawl-history and the detailed /health.
