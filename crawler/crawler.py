@@ -30,6 +30,7 @@ from config.settings import (
     CRAWL_EXTRA_START_URLS,
     CRAWL_MAX_PAGES,
     CRAWL_MAX_PATH_DEPTH,
+    CRAWL_PDF_EXCLUDE_PATTERNS,
     CRAWL_URL_ALIASES,
     DOCUMENTS_DIR,
     SITE_URL,
@@ -154,15 +155,17 @@ def extract_links(html: str, base_url: str) -> list[str]:
 
 
 def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
-    """Link ai PDF dei domini ammessi: (URL, testo del link). Il testo serve a dare al
-    PDF un titolo leggibile; senza testo (link-immagine) si prova l'attributo title."""
+    """Link ai PDF dei domini ammessi, tranne quelli in CRAWL_PDF_EXCLUDE_PATTERNS:
+    (URL, testo del link). Il testo serve a dare al PDF un titolo leggibile; senza
+    testo (link-immagine) si prova l'attributo title."""
     soup = BeautifulSoup(html, "lxml")
     pdfs = []
     for tag in soup.find_all("a", href=True):
         href = tag["href"].strip()
         if href.lower().endswith(".pdf"):
             absolute = canonical_url(urljoin(base_url, href))
-            if any(d in urlparse(absolute).netloc for d in CRAWL_ALLOWED_DOMAINS):
+            if (any(d in urlparse(absolute).netloc for d in CRAWL_ALLOWED_DOMAINS)
+                    and not any(pat in absolute for pat in CRAWL_PDF_EXCLUDE_PATTERNS)):
                 text = tag.get_text(" ", strip=True) or (tag.get("title") or "").strip()
                 pdfs.append((absolute, text))
     return pdfs

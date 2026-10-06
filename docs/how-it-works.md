@@ -33,7 +33,7 @@ User question
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
      ├─ hybrid_search()      — 21 candidates (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
-     ├─ rerank()             — title boost, "servizio" category boost, same-source penalty
+     ├─ rerank()             — title boost, "servizio" category boost, PDF penalty, same-source penalty
      └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
      │
      ▼
@@ -80,6 +80,7 @@ With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRI
 
 - **+0.02 for each query term** present in the chunk's title
 - **+0.01** if the category is `"servizio"` (service pages)
+- **-0.04** (`PDF_PENALTY`) for chunks of PDF files, so that at similar relevance the site's pages, written for citizens, come before PDFs; a PDF that is clearly more relevant (a form, a regulation) still makes the 7. 80% of the chunks come from PDFs. Measured on 6 October 2026 with 259,379 chunks: right page in the 7 chunks 79 → 81/100, MRR@7 0.663 → 0.748, no question lost (removing the site's attachments altogether gave 80 and 0.726). Manually uploaded texts (inbox) have `doc_type` `document` and are not penalized
 - **-0.05 × n** if the same source has already appeared (penalizes duplicates)
 
 Each chunk keeps its cosine score, which the confidence check and the sources list use.
@@ -106,7 +107,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 
 1. **BFS** (breadth-first) starting from `SITE_URL` and the `extra_start_urls` in `config/crawl_extra.json`
 2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: the San Benedetto CMS serves the same attachment under `/s3/6115/` on four hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
-3. Skips URLs containing any of the `CRAWL_EXCLUDE_PATTERNS` (plus `exclude_patterns` from `crawl_extra.json`), deeper than `CRAWL_MAX_PATH_DEPTH` (10 segments; per-domain limits in `domain_max_path_depth`), or repeating a non-numeric path segment (CMS breadcrumb loops)
+3. Skips URLs containing any of the `CRAWL_EXCLUDE_PATTERNS` (plus `exclude_patterns` from `crawl_extra.json`), deeper than `CRAWL_MAX_PATH_DEPTH` (10 segments; per-domain limits in `domain_max_path_depth`), or repeating a non-numeric path segment (CMS breadcrumb loops); PDF links skip instead those containing one of the `pdf_exclude_patterns`
 4. For each HTML page (responses with HTTP status ≥ 400 are skipped):
    - Extracts text with `clean_text()` (removes nav, footer, widgets, noise lines)
    - Extracts the title with `extract_title()`

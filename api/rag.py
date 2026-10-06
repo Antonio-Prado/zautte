@@ -106,6 +106,16 @@ RETRIEVAL_CONFIDENCE = 0.52
 VECTOR_WEIGHT = 0.6
 BM25_WEIGHT = 0.4
 
+# Penalità dei brani di PDF nel riordino: a pertinenza simile passano davanti le
+# pagine del sito, scritte per i cittadini; il PDF resta tra i 7 se è davvero più
+# pertinente (moduli, regolamenti). L'80% dei brani viene da PDF e il sync del
+# 05/10/2026 ne ha aggiunti 49.503 dagli allegati delle schede (/s3/6115/: moduli
+# ma anche tesi, piani, tavole). Misura del 06/10/2026 sull'indice di 259.379 brani:
+# pagina giusta nei 7 79 → 81/100, MRR@7 0,663 → 0,748, nessuna domanda persa;
+# toglierli del tutto dava 80 e 0,726. I testi caricati a mano (inbox) sono
+# "document" e non vengono penalizzati.
+PDF_PENALTY = 0.04
+
 # Mappa keyword → ufficio competente — caricata da config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
     import json as _j
@@ -174,6 +184,7 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
     Re-ranking leggero senza modello aggiuntivo:
     - Boost se termini della query compaiono nel titolo
     - Boost se la categoria è "servizio" (più utile per l'utente)
+    - Penalità per i brani di PDF (PDF_PENALTY)
     - Penalità per chunk duplicati (stesso source + testo simile)
     """
     query_terms = set(re.findall(r"\w+", query.lower()))
@@ -192,6 +203,9 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
         # Boost categoria servizio
         if chunk.get("category") == "servizio":
             score += 0.01
+
+        if chunk.get("doc_type") == "pdf":
+            score -= PDF_PENALTY
 
         # Penalità duplicati stessa fonte
         src = chunk.get("source", "")
