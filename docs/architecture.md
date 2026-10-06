@@ -118,6 +118,8 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── zautte-favicon.svg    # Favicon of the pages
 │   ├── zautte-icon-180.png   # apple-touch-icon
 │   ├── freebsd-logo.png      # "Served by" logo in the footer (official FreeBSD logo, scaled down)
+│   ├── ipv6-logo.svg         # World IPv6 Launch logo (Internet Society, CC BY 3.0) in the footer
+│   ├── vi-logo.svg           # "Made with vi" icon in the footer (our own)
 │   └── logo.png              # "Powered by" logo in the footer (not versioned: provide your own)
 │
 ├── docs/                     # This documentation (index: docs/README.md)
