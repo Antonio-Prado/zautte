@@ -35,6 +35,12 @@ decisioni basate unicamente su un trattamento automatizzato ai sensi dell'art. 2
   l'utente li inserisce, vengono trattati come parte della domanda.
 - **Dati tecnici.** Indirizzo IP, usato solo in memoria per limitare il numero di richieste
   (protezione da abusi) e registrato nei log tecnici del server.
+- **Statistiche di visita.** Le pagine del servizio contano le visite con Matomo, installato
+  su un server del Comune [verificare la dicitura: webstats.as59715.net]: pagina visitata,
+  data e ora, link esterni cliccati, tipo di browser e dispositivo, indirizzo IP
+  anonimizzato [verificare nelle impostazioni di Matomo: almeno 2 byte]. Non vengono usati
+  cookie, i dati non sono incrociati con altre informazioni né condivisi con terzi e il
+  testo delle domande non viene mai inviato.
 - **Solo per gli utenti abilitati alla fase di sperimentazione** (dipendenti del Comune):
   nome, indirizzo email e password (conservata solo in forma cifrata con funzione di hash),
   data e ora di utilizzo, testo delle domande, eventuali valutazioni (👍/👎) e commenti.
@@ -45,6 +51,7 @@ decisioni basate unicamente su un trattamento automatizzato ai sensi dell'art. 2
 |---|---|
 | Fornire informazioni sui servizi e sui contenuti del sito comunale | Esecuzione di un compito di interesse pubblico (art. 6, par. 1, lett. e, GDPR; art. 2-ter D.Lgs. 196/2003) — [atto/delibera che istituisce il servizio] |
 | Migliorare la qualità delle risposte (analisi delle domande senza risposta e delle segnalazioni) | Come sopra |
+| Statistiche aggregate sulle visite alle pagine del servizio | Come sopra |
 | Sicurezza del servizio e prevenzione degli abusi | Come sopra e legittimo interesse alla sicurezza dei sistemi (considerando 49 GDPR) |
 | Sperimentazione con i dipendenti: gestione degli accessi, valutazione dell'utilizzo e della qualità | Come sopra; i dati non sono utilizzati per la valutazione della prestazione lavorativa [verificare con il DPO gli adempimenti ex art. 4 L. 300/1970] |
 
@@ -89,6 +96,7 @@ trattamento (art. 28 GDPR):
 | Valutazioni e commenti | 12 mesi |
 | Account degli utenti abilitati | Fino alla fine della sperimentazione o alla revoca dell'abilitazione |
 | Log tecnici del server (indirizzo IP, data e ora delle richieste; non il testo delle domande) | 12 mesi (un file al giorno; i file più vecchi di un anno vengono cancellati automaticamente) |
+| Statistiche di visita (Matomo, IP anonimizzato) | [periodo impostato in Matomo, «Elimina i vecchi dati grezzi»] |
 | Dati presso il fornitore del modello | OPZIONE A: fino a 30 giorni; OPZIONE B: nessuna conservazione |
 
 La cancellazione è automatica. [Periodi da confermare con il DPO.]
