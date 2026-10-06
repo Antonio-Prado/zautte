@@ -234,7 +234,7 @@ def _take_question(request: Request, user: dict) -> str:
     key = quota.key_for(user, request.client.host if request.client else "")
     if not quota.take(key):
         log.info("Limite di %d domande al giorno raggiunto (%s)",
-                 DAILY_QUESTION_LIMIT, key.split(":", 1)[0])
+                 DAILY_QUESTION_LIMIT, "utente" if key.startswith("uid:") else "IP")
         raise HTTPException(
             status_code=429,
             detail={"error": "daily_limit", "limit": DAILY_QUESTION_LIMIT},
