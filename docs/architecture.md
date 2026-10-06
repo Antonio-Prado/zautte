@@ -111,7 +111,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── dashboard.html        # Login + chat for pilot users; admin panel (#admin)
 │   ├── come-funziona.html    # Public "how it works" page (AI transparency)
 │   ├── pilot.html            # Pilot landing page
-│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, "Powered by")
+│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, client IP, "Powered by")
 │   ├── zautte-logo.svg       # Zautte logo (also used at the top of the README)
 │   ├── zautte-icon.svg       # "ZA" icon in the chat header
 │   ├── zautte-favicon.svg    # Favicon of the pages

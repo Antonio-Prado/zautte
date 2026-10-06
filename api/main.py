@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -382,6 +382,16 @@ async def health(key: str | None = Security(_api_key_header)):
         "top_doc": get_top_doc(),
     })
     return base
+
+
+@app.get("/client-ip")
+async def client_ip(request: Request):
+    """Indirizzo IP del client come lo vede l'API, mostrato nel footer delle
+    pagine. Dietro il bilanciatore è quello inoltrato in X-Forwarded-For (solo
+    dagli indirizzi in FORWARDED_ALLOW_IPS). Pubblico: dice a ciascuno solo il
+    proprio indirizzo."""
+    ip = request.client.host if request.client else ""
+    return JSONResponse({"ip": ip}, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/stats")
