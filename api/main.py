@@ -39,6 +39,7 @@ from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
     ADMIN_API_KEY,
     API_CORS_ORIGINS,
+    API_DOCS,
     BEDROCK_MODEL,
     CLAUDE_MODEL,
     LLM_PROVIDER,
@@ -106,7 +107,9 @@ app = FastAPI(
     description="API di Zautte, assistente virtuale RAG.",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",       # disabilita in produzione se non necessario
+    # /docs e /openapi.json solo con API_DOCS=true (sviluppo)
+    docs_url="/docs" if API_DOCS else None,
+    openapi_url="/openapi.json" if API_DOCS else None,
     redoc_url=None,
 )
 

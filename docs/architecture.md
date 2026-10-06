@@ -142,7 +142,8 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── cron_setup.sh         # Installs the cron jobs (run as root)
 │   ├── backup_vectorstore.sh # Daily vector store backup
 │   ├── watchdog.sh           # Watchdog: restarts the API if it is down or unresponsive
-│   └── newsyslog-chatbot.conf # Log rotation configuration
+│   ├── newsyslog-chatbot.conf # Log rotation configuration
+│   └── pf.conf.example       # Firewall template (pf)
 │
 └── data/                     # Auto-generated (do not commit)
     ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json

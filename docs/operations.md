@@ -160,6 +160,20 @@ The file also lists `/var/log/chatbot-crawler.log` and `/var/log/chatbot-indexer
 
 ---
 
+### Host Hardening
+
+Applied to the production machine on 6 October 2026:
+
+- **Firewall (pf)**: incoming traffic is blocked except SSH and port 8000 from the management networks, port 8000 from the load balancer, ping and the ICMPv6 messages IPv6 needs; outgoing traffic is open. Template in `scripts/pf.conf.example` (the real networks and load balancer address are only in `/etc/pf.conf` on the server). Blocked packets go to `/var/log/pflog` (`pflog_enable=YES`; rotation in `/etc/newsyslog.conf.d/pf.conf`): `tcpdump -n -e -ttt -r /var/log/pflog`. Enabling pf over SSH drops the connections already open, so turn it on from a detached script with a timer that runs `pfctl -d` after a few minutes unless a new SSH connection confirms that access still works. If the load balancer starts connecting from another address, add it to `/etc/pf.conf` (`pfctl -f /etc/pf.conf`) as well as to `FORWARDED_ALLOW_IPS`.
+- **syslogd** without a network socket (`syslogd_flags="-ss"`, UDP 514 closed).
+- **sysctl** (`/etc/sysctl.conf`), as bsdinstall's hardening options: `security.bsd.unprivileged_read_msgbuf=0`, `security.bsd.unprivileged_proc_debug=0`, `security.bsd.hardlink_check_uid=1`, `security.bsd.hardlink_check_gid=1`, `kern.randompid=1` (reading it back returns the random modulus, not 1), `net.inet.tcp.blackhole=2`, `net.inet.udp.blackhole=1`, `net.inet.ip.random_id=1`, `net.inet.icmp.drop_redirect=1`, `net.inet6.icmp6.rediraccept=0`. `security.bsd.see_other_uids` stays at 1 so the API and sync processes can be checked without root.
+- **NTP**: `ntpd_enable=YES`, `ntpd_sync_on_start=YES`.
+- **Single-user mode** asks for the root password (`console … insecure` in `/etc/ttys`).
+- **Permissions**: `data/` and the backup directory `750`, log files with questions and users (`users.json`, `usage.jsonl`, `feedback.jsonl`, …) `640`, every copy of `.env` `600`; old `.env` copies moved out of `/opt/chatbot`.
+- **API**: `/docs` and `/openapi.json` are off (`API_DOCS=false`, the default).
+
+Still open: the API, the syncs and Ollama run as root, and the code and the scripts that root runs belong to the deploy user; SSH accepts passwords (keyboard-interactive through PAM).
+
 ## Monitoring and Evaluation
 
 ### Health Check

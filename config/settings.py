@@ -195,6 +195,10 @@ API_CORS_ORIGINS = os.getenv("API_CORS_ORIGINS", "http://localhost:8000").split(
 # log vedono il client vero e non il proxy. Mai "*": la porta 8000 risponde anche
 # alla rete interna e chiunque potrebbe scriversi l'header da solo.
 FORWARDED_ALLOW_IPS = os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
+# API_DOCS=true pubblica la documentazione interattiva (/docs e /openapi.json):
+# utile in sviluppo, spenta di default perché in produzione mostrerebbe a
+# chiunque l'elenco completo degli endpoint e dei parametri.
+API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes", "on")
 
 # --- Autenticazione endpoint admin ---
 # Impostare in .env per proteggere /gaps e /stats

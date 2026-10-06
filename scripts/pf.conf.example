@@ -1,0 +1,30 @@
+# Esempio di /etc/pf.conf per la macchina di Zautte (FreeBSD).
+# Sostituire le reti di gestione e l'indirizzo del proxy/bilanciatore con quelli
+# veri (gli indirizzi qui sotto sono di documentazione, RFC 5737 e RFC 3849).
+#
+# In entrata tutto chiuso tranne:
+#   SSH (22) e API (8000) dalle reti di gestione
+#   API (8000) dal proxy/bilanciatore che pubblica il servizio
+#   ping e i messaggi ICMPv6 che servono all'IPv6 (neighbor discovery)
+# In uscita tutto aperto: crawler, API del modello, SMTP, DNS, NTP, pkg.
+#
+# Attivazione: sysrc pf_enable=YES pflog_enable=YES && service pf start && service pflog start
+# Pacchetti bloccati: tcpdump -n -e -ttt -r /var/log/pflog
+# Attivare pf da remoto fa cadere le connessioni già aperte: vedi docs/operations.md.
+
+ext_if = "vtnet0"
+mgmt   = "{ 192.0.2.0/24, 198.51.100.0/24 }"
+lb     = "2001:db8::81"
+
+set skip on lo0
+set block-policy drop
+
+block log all
+
+pass out quick on $ext_if all keep state
+
+pass in quick on $ext_if inet  proto icmp  icmp-type echoreq keep state
+pass in quick on $ext_if inet6 proto icmp6 icmp6-type { echoreq, neighbrsol, neighbradv, routeradv, unreach, toobig, timex, paramprob }
+
+pass in quick on $ext_if inet  proto tcp from $mgmt to ($ext_if) port { 22, 8000 }
+pass in quick on $ext_if inet6 proto tcp from $lb   to ($ext_if) port 8000
