@@ -21,6 +21,11 @@ set block-policy drop
 
 block log all
 
+# Rumore della LAN, scartato senza registrarlo: annunci VRRP (protocollo 112)
+# dei server DNS e broadcast NetBIOS dei PC Windows
+block in quick on $ext_if inet proto 112 to 224.0.0.18
+block in quick on $ext_if inet proto udp to port { 137, 138 }
+
 pass out quick on $ext_if all keep state
 
 pass in quick on $ext_if inet  proto icmp  icmp-type echoreq keep state
