@@ -27,8 +27,8 @@ log = logging.getLogger(__name__)
 
 _USAGE_FILE = Path(__file__).parent.parent / "data" / "usage.jsonl"
 
-_day: str | None = None
-_counts: dict[str, int] = {}
+# Contatori del solo giorno corrente: {giorno ISO: {chiave: domande}}
+_by_day: dict[str, dict[str, int]] = {}
 
 
 def _today() -> str:
@@ -52,7 +52,7 @@ def _load_today(day: str) -> dict[str, int]:
                     key = f"uid:{e['uid']}"
                     counts[key] = counts.get(key, 0) + 1
     except FileNotFoundError:
-        pass
+        pass  # nessuna domanda registrata finora: si parte da zero
     except OSError as e:
         log.warning("usage.jsonl non leggibile, contatori giornalieri da zero: %s", e)
     return counts
@@ -61,12 +61,13 @@ def _load_today(day: str) -> dict[str, int]:
 def _current() -> dict[str, int]:
     """Contatori del giorno corrente; al primo uso li legge da usage.jsonl, a
     mezzanotte li azzera."""
-    global _day, _counts
     day = _today()
-    if _day != day:
-        _counts = _load_today(day) if _day is None else {}
-        _day = day
-    return _counts
+    counts = _by_day.get(day)
+    if counts is None:
+        counts = _load_today(day) if not _by_day else {}
+        _by_day.clear()
+        _by_day[day] = counts
+    return counts
 
 
 def load() -> None:
