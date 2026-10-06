@@ -36,7 +36,7 @@ Counters are kept in memory by each uvicorn process and reset on every restart (
 
 ## Protected Admin Endpoints
 
-`/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/summary`, `/usage/messages` and `/crawl-history` require the `X-Admin-Key` header, and `/health` returns its detailed fields only with it. Set `ADMIN_API_KEY` in `.env` in production: if it is empty, admin authentication is disabled. `/docs` and `/openapi.json` are public.
+`/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/summary`, `/usage/messages` and `/crawl-history` require the `X-Admin-Key` header, and `/health` returns its detailed fields only with it. Set `ADMIN_API_KEY` in `.env` in production: if it is empty, admin authentication is disabled. `/docs` and `/openapi.json` are public, and so is `/client-ip`, which tells each caller only their own address (shown in the page footer).
 
 ## CORS
 
