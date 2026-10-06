@@ -467,6 +467,12 @@
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Log del server conservato un anno</strong>: il log dell'API, che ora contiene l'indirizzo IP di chi usa Zautte, ruotava solo sopra i 50 MB e quindi non era mai stato ruotato (cresceva da aprile). Ora ruota ogni giorno a mezzanotte, i file vengono compressi e quelli più vecchi di 365 giorni si cancellano da soli.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Limite di domande per persona</strong>: dietro il bilanciatore di bot.comunesbt.it l'API vedeva tutte le richieste arrivare dallo stesso indirizzo, quello del bilanciatore, quindi il limite di 20 domande l'ora era uno solo per tutti (il 16 giugno aveva fermato 27 domande con «troppe richieste»). Ora l'API accetta l'indirizzo del visitatore che il bilanciatore inoltra, solo se arriva dal bilanciatore, e il limite vale per ciascuno. Serve per aprire Zautte anche da Internet, fuori dalla rete del Comune; il login resta.
       </div>
     </div>
