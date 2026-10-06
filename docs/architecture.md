@@ -133,6 +133,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
+│   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade
 │   ├── eval.py               # RAG quality evaluation
 │   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
 │   ├── forget.py             # Deletes questions on request from logs and API memory

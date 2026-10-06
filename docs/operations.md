@@ -278,6 +278,21 @@ curl http://localhost:11434/api/tags
 service ollama start             # or equivalent command on FreeBSD
 ```
 
+### Upgrading Ollama
+
+The `ollama` package is locked (`pkg lock ollama`), so a general `pkg upgrade` cannot change it: a new Ollama version can compute slightly different vectors, and vectors that no longer match the index degrade search until everything is re-embedded. Upgrade it on its own:
+
+```sh
+cd /opt/chatbot
+venv/bin/python -m scripts.embed_check save /root/embed_before.npz      # with the current version
+pkg unlock -y ollama && pkg upgrade -y ollama
+service ollama stop; while pgrep -q -f /usr/local/bin/ollama; do sleep 1; done; service ollama start
+venv/bin/python -m scripts.embed_check compare /root/embed_before.npz   # exits 2 if the vectors changed
+pkg lock -y ollama
+```
+
+Do not use `service ollama restart`: if the old process has not exited yet, `start` finds it, gives up ("process already running") and leaves Ollama down, and with it every answer. Keep a copy of the old package (`/var/cache/pkg/ollama-<version>.pkg`) to go back with `pkg unlock -y ollama && pkg delete -fy ollama && pkg add <file>`. Since 0.31 the rc.d script defaults to `ollama_user=nobody` with models in `/var/lib/ollama/models`; production sets `ollama_user="root"` in `/etc/rc.conf`, so the models stay in `/root/.ollama`. On 6 October 2026, 0.19.0 → 0.31.1 with `bge-m3`: minimum similarity 0.999906, retrieval evaluation unchanged (hit@7 79/100, MRR@7 0.663), no re-embedding needed.
+
 ### Changing embedding model
 
 Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without crawling again: the API keeps answering with the old model while the new vectors are computed, and the switch needs only an API restart (about 15 seconds). Example with `bge-m3`, the current default (it replaced `mxbai-embed-large` in October 2026):
