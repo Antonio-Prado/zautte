@@ -134,7 +134,7 @@ service chatbot status   # status
 
 The `scripts/chatbot_rcd` script (runs as root):
 - does not export `/opt/chatbot/.env`: `config/settings.py` loads it with `python-dotenv` when each process starts, so a `.env` change takes effect at the next API start (`service chatbot restart`, or the watchdog restart after a sync)
-- starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`
+- starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`, reopened on `SIGHUP` (`-H`) when newsyslog rotates it
 - `start.sh` runs one uvicorn process (`python -m api.serve api.main:app`, one worker) listening on port 8000 on both IPv4 `0.0.0.0` and IPv6 `::`; scripts that look for the API process (`scripts/sync.py`, `scripts/watchdog.sh`, this rc.d script) match `api.main:app`
 - `daemon` runs without `-r`: after a crash, or after a sync kills uvicorn, the watchdog restarts the service within a minute
 - `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `kill -0`
@@ -147,12 +147,14 @@ Copy the newsyslog configuration:
 cp /opt/chatbot/scripts/newsyslog-chatbot.conf /etc/newsyslog.conf.d/chatbot.conf
 ```
 
-Rotation configured (by size only):
+Rotation configured:
 
-| File                        | Rotations | Max size | Compression |
-|-----------------------------|-----------|----------|-------------|
-| `/var/log/chatbot.log`      | 14        | 50 MB    | bzip2 (J)   |
-| `/var/log/chatbot-sync.log` | 14        | 100 MB   | bzip2 (J)   |
+| File                        | When                  | Kept                 | Compression |
+|-----------------------------|-----------------------|----------------------|-------------|
+| `/var/log/chatbot.log`      | every day at midnight | 365 files (one year) | bzip2 (J)   |
+| `/var/log/chatbot-sync.log` | above 100 MB          | 14 files             | bzip2 (J)   |
+
+`/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for one year and then deleted. newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` (since 6 October 2026).
 
 The file also lists `/var/log/chatbot-crawler.log` and `/var/log/chatbot-indexer.log`, which the current code no longer writes.
 
