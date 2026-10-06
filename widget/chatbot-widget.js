@@ -78,6 +78,10 @@
     error: isItalian
       ? "Si è verificato un errore. Riprova tra qualche istante."
       : "An error occurred. Please try again.",
+    // Limite giornaliero di domande (n dal server; 0 se non arriva)
+    dailyLimit: (n) => isItalian
+      ? `Hai raggiunto il limite di ${n > 0 ? n + " domande" : "domande"} al giorno. Potrai farne altre da domani.`
+      : `You have reached the limit of ${n > 0 ? n + " questions" : "questions"} per day. You can ask more tomorrow.`,
     noInfo: isItalian
       ? "Non ho trovato informazioni specifiche su questo argomento nella base di conoscenza."
       : "I could not find specific information on this topic in the knowledge base.",
@@ -1491,6 +1495,20 @@
         if (waitHint) { waitHint.remove(); waitHint = null; }
         setLoading(false);
         showLogin();
+        return;
+      }
+
+      // Limite giornaliero raggiunto: messaggio chiaro al posto dell'errore generico
+      if (resp.status === 429) {
+        let limit = 0;
+        try {
+          const body = await resp.json();
+          limit = Number(body && body.detail && body.detail.limit) || 0;
+        } catch (e) { /* corpo non JSON */ }
+        const text = T.dailyLimit(limit);
+        removeTypingIndicator();
+        addMessage("bot", text, null);
+        announce(text);
         return;
       }
 

@@ -26,13 +26,14 @@
 
 ## Rate Limiting
 
-Implemented with slowapi (`api/limiter.py`), per client IP:
+Questions (`/chat` and `/chat/stream`, one counter for both): **`DAILY_QUESTION_LIMIT` per day per user** (default 20, `0` = no limit), counted on the logged-in user and not on the IP address, so colleagues behind the same office address each have their own. The day is the server's calendar day: counters restart at midnight. They live in memory (one uvicorn process) and on startup are rebuilt from `data/usage.jsonl`, so a restart does not hand out new questions. A question counts when it arrives and is given back if the answer fails. With `AUTH_ENABLED=false` the limit is per client IP and starts from zero after a restart. Over the limit: `429` with `Retry-After` (implemented in `api/quota.py`).
 
-- `/chat` and `/chat/stream`: **20 requests/hour**
+The other limits use slowapi (`api/limiter.py`), per client IP, with counters in memory that reset on every restart:
+
 - `/feedback` and `/feedback/detail`: **60 requests/hour**
 - `/auth/login`: **10/minute**; `/auth/forgot`: **5/hour**
 
-Counters are kept in memory by each uvicorn process and reset on every restart (including the one at the end of each sync). Excess requests get `429`.
+Excess requests get `429`.
 
 ## Protected Admin Endpoints
 
@@ -44,7 +45,7 @@ Configured to accept requests only from origins in `API_CORS_ORIGINS`. In produc
 
 ## Reverse Proxy (recommended)
 
-In production put nginx or caddy with TLS in front of the backend; the backend does not handle HTTPS. `start.sh` listens on all interfaces (`0.0.0.0` and `::`, port 8000), so restrict port 8000 with the firewall (template in `scripts/pf.conf.example`, see [Host Hardening](operations.md#host-hardening)). `/chat/stream` already sends `X-Accel-Buffering: no`, which turns off nginx buffering for SSE: do not override it (or set `proxy_buffering off`). For the per-IP rate limits to see the real client, uvicorn must trust the proxy's `X-Forwarded-For`: set `FORWARDED_ALLOW_IPS` in `.env` to the proxy address (or addresses and networks, comma-separated; default `127.0.0.1,::1`). Never use `*`: port 8000 also answers the internal network, and anyone there could forge the header.
+In production put nginx or caddy with TLS in front of the backend; the backend does not handle HTTPS. `start.sh` listens on all interfaces (`0.0.0.0` and `::`, port 8000), so restrict port 8000 with the firewall (template in `scripts/pf.conf.example`, see [Host Hardening](operations.md#host-hardening)). `/chat/stream` already sends `X-Accel-Buffering: no`, which turns off nginx buffering for SSE: do not override it (or set `proxy_buffering off`). For the per-IP limits to see the real client, uvicorn must trust the proxy's `X-Forwarded-For`: set `FORWARDED_ALLOW_IPS` in `.env` to the proxy address (or addresses and networks, comma-separated; default `127.0.0.1,::1`). Never use `*`: port 8000 also answers the internal network, and anyone there could forge the header.
 
 ---
 

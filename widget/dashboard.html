@@ -467,6 +467,18 @@
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Footer su due righe</strong>: sotto release, ultimo commit, accessibilità e indirizzo IP, una seconda riga con «Powered by» SBTAP, «Served by» FreeBSD con il logo ufficiale (porta a freebsd.org), «IPv6 enabled» e «Made with vi :wq».
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>20 domande al giorno per utente</strong>: il limite non si conta più per indirizzo IP (20 l'ora, condivise da tutti i colleghi che escono su Internet dallo stesso indirizzo) ma per persona: 20 domande al giorno a testa, che ripartono da zero a mezzanotte. Il conteggio sopravvive ai riavvii del server e una domanda la cui risposta fallisce non viene contata. Chi arriva al limite legge «Hai raggiunto il limite di 20 domande al giorno. Potrai farne altre da domani.» invece dell'errore generico.
+      </div>
+    </div>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Sicurezza del server</strong>: firewall attivo (in entrata solo SSH e API dalle reti di gestione e l'API dal bilanciatore di bot.comunesbt.it), la documentazione interattiva dell'API (/docs) non è più pubblica, permessi più stretti sui file con utenti, domande e chiavi, vecchie copie della configurazione spostate in un'area riservata, syslog senza porta di rete, impostazioni di sicurezza del sistema operativo e orologio sincronizzato (NTP). Corretti anche gli indirizzi IPv6 dei server DNS, scritti male.
       </div>
     </div>
@@ -1475,7 +1487,7 @@
       ],
     };
   </script>
-  <script src="./chatbot-widget.js?v=20261005d" defer></script>
-  <script src="./site-footer.js?v=20261006a" defer></script>
+  <script src="./chatbot-widget.js?v=20261006a" defer></script>
+  <script src="./site-footer.js?v=20261006b" defer></script>
 </body>
 </html>

@@ -7,8 +7,11 @@
  * Mostra l'ultima release e l'ultimo commit su GitHub (letti dall'API pubblica a ogni
  * apertura della pagina; la release porta alla sua pagina, il commit sempre al
  * repository), il link all'accessibilità, l'indirizzo IP del visitatore come lo vede
- * l'API (GET /client-ip sullo stesso server dello script) e "Powered by" con il logo
- * di SBTAP (logo.png accanto a questo script, link a as59715.net).
+ * l'API (GET /client-ip sullo stesso server dello script), "Powered by" con il logo
+ * di SBTAP (logo.png accanto a questo script, link a as59715.net) e "Served by" con
+ * il logo di FreeBSD (freebsd-logo.png: logo ufficiale orizzontale dell'archivio
+ * della FreeBSD Foundation, solo ridotto in proporzione; il marchio sul web deve
+ * portare a freebsd.org, vedi le Trademark Usage Terms della Foundation).
  *
  * Accessibilità: le linee guida AgID chiedono il link alla dichiarazione di
  * accessibilità nel footer. Quando l'amministrazione l'ha pubblicata, il suo
@@ -26,6 +29,7 @@
   var SCRIPT = document.currentScript;
   var BASE = (SCRIPT && SCRIPT.src) || location.href;
   var SBTAP_LOGO = new URL("logo.png", BASE).href;
+  var FREEBSD_LOGO = new URL("freebsd-logo.png", BASE).href;
   // Le pagine e l'API stanno sullo stesso server (widget/ servita da FastAPI)
   var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
@@ -52,13 +56,24 @@
       "border-top:1px solid #e0e0e0", "font-size:12px", "line-height:1.6",
       "color:#666", "text-align:center", "flex-shrink:0",
     ].join(";"));
+    // Due righe: sopra le informazioni sul servizio, sotto la parte tecnica; ogni
+    // voce della seconda riga resta intera quando la riga va a capo
+    var NOWRAP = "<span style=\"white-space:nowrap\">";
     footer.innerHTML =
+      "<div>" +
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
-      "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a> &nbsp;·&nbsp; " +
-      "<span id=\"zautte-client-ip\" hidden>Il tuo IP: <span style=\"overflow-wrap:anywhere\"></span> &nbsp;·&nbsp; </span>" +
-      "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
-      "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a>";
+      "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a>" +
+      "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Il tuo IP: <span style=\"overflow-wrap:anywhere\"></span></span>" +
+      "</div><div>" +
+      NOWRAP + "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
+      "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a></span>" +
+      " &nbsp;·&nbsp; " + NOWRAP + "Served by <a href=\"https://www.freebsd.org\" target=\"_blank\" rel=\"noopener\" title=\"FreeBSD\" style=\"color:inherit\">" +
+      "<img src=\"" + FREEBSD_LOGO + "\" alt=\"FreeBSD\" width=\"83\" height=\"24\" style=\"vertical-align:middle;margin-left:2px\"></a></span>" +
+      " &nbsp;·&nbsp; " + NOWRAP + "IPv6 enabled</span>" +
+      // :wq = salva ed esci, in vi
+      " &nbsp;·&nbsp; " + NOWRAP + "Made with vi <code style=\"font-size:inherit;color:inherit\">:wq</code></span>" +
+      "</div>";
     document.body.appendChild(footer);
     var a11y = document.getElementById("zautte-a11y-link");
     a11y.href = A11Y_LINK.href;

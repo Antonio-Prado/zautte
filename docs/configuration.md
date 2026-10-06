@@ -53,6 +53,8 @@ RETENTION_FEEDBACK_DAYS=365
 AUTH_ENABLED=false
 AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=30
+# Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
+DAILY_QUESTION_LIMIT=20
 SMTP_HOST=
 SMTP_PORT=25
 SMTP_FROM=

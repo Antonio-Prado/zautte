@@ -67,7 +67,8 @@ def serve() -> str:
     return f"http://127.0.0.1:{server.server_address[1]}"
 
 
-def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, language: str = "it") -> None:
+def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, language: str = "it",
+             chat_status: int = 200) -> None:
     def handle(route):
         url = route.request.url
         path = urlsplit(url).path
@@ -98,6 +99,8 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
         }
         if path == "/auth/login" and login_status != 200:
             return route.fulfill(status=login_status, json={"detail": "x"})
+        if path == "/chat/stream" and chat_status == 429:
+            return route.fulfill(status=429, json={"detail": {"error": "daily_limit", "limit": 20}})
         if path == "/chat/stream":
             return route.fulfill(status=200, headers={"Content-Type": "text/event-stream"},
                                  body=sse(answer, language))
@@ -230,6 +233,21 @@ def main() -> int:
         ask(page, "How do I renew my identity card?")
         check(page.get_attribute(".zautte-chatbot-msg.bot:last-of-type", "lang") == "en"
               and page.get_attribute(f"{W}-status span", "lang") == "en", "risposta inglese marcata lang=en")
+        page.close()
+
+        page = new_page(browser, viewport={"width": 1280, "height": 800})
+        mock_api(page, base, chat_status=429)
+        page.goto(base + "/widget/pilot.html")
+        open_panel(page)
+        login(page)
+        page.fill(f"{W}-input", "Un'altra domanda")
+        page.press(f"{W}-input", "Enter")
+        page.wait_for_selector(".zautte-chatbot-msg.bot:last-of-type :text('limite di 20 domande')")
+        page.wait_for_timeout(250)
+        check("limite di 20 domande al giorno" in (page.text_content(f"{W}-status") or ""),
+              "limite giornaliero: messaggio con il numero di domande, annunciato")
+        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo il limite")
+        axe(page, "limite giornaliero raggiunto")
         page.close()
 
         page = new_page(browser, viewport={"width": 320, "height": 640}, reduced_motion="reduce")

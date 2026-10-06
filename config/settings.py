@@ -217,6 +217,10 @@ AUTH_SECRET = os.getenv("AUTH_SECRET", "")
 AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "30"))
 # users.json vive in data/ (già in .gitignore): credenziali fuori dal versionamento
 USERS_FILE = DATA_DIR / "users.json"
+# Domande al giorno per utente su /chat e /chat/stream (0 = nessun limite).
+# Giorno di calendario del server: a mezzanotte si riparte da zero. Con
+# AUTH_ENABLED=false si conta per indirizzo IP. Vedi api/quota.py.
+DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
 
 # --- Invio email (SMTP) — per recapitare le credenziali ai partecipanti ---
 # Relay interno del Comune (destinatari @comunesbt.it):
