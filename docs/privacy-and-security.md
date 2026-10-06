@@ -44,7 +44,7 @@ Configured to accept requests only from origins in `API_CORS_ORIGINS`. In produc
 
 ## Reverse Proxy (recommended)
 
-In production put nginx or caddy with TLS in front of the backend; the backend does not handle HTTPS. `start.sh` listens on all interfaces (`0.0.0.0` and `::`, port 8000), so restrict port 8000 with the firewall. `/chat/stream` already sends `X-Accel-Buffering: no`, which turns off nginx buffering for SSE: do not override it (or set `proxy_buffering off`). For the per-IP rate limits to see the real client, uvicorn must trust the proxy's `X-Forwarded-For`: set `FORWARDED_ALLOW_IPS` to the proxy address.
+In production put nginx or caddy with TLS in front of the backend; the backend does not handle HTTPS. `start.sh` listens on all interfaces (`0.0.0.0` and `::`, port 8000), so restrict port 8000 with the firewall. `/chat/stream` already sends `X-Accel-Buffering: no`, which turns off nginx buffering for SSE: do not override it (or set `proxy_buffering off`). For the per-IP rate limits to see the real client, uvicorn must trust the proxy's `X-Forwarded-For`: set `FORWARDED_ALLOW_IPS` in `.env` to the proxy address (or addresses and networks, comma-separated; default `127.0.0.1,::1`). Never use `*`: port 8000 also answers the internal network, and anyone there could forge the header.
 
 ---
 
