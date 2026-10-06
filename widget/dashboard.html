@@ -220,7 +220,7 @@
 
     /* Vista collega: titolo, descrizione e chat che riempie il resto della finestra */
     /* (pagina compatta: il footer deve restare visibile anche su schermi bassi, 1366×768) */
-    body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: 20px; padding-bottom: 16px; }
+    body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: 14px; padding-bottom: 16px; }
     #chat-area { max-width: 640px; }
     body.user-view #chat-area { flex: 1; }
     /* Prima dell'accesso conta solo l'altezza del modulo; dopo, la chat non scende sotto i 300 px */
@@ -244,6 +244,16 @@
     /* Riquadro introduttivo: testo diverso prima e dopo l'accesso (classe logged-in dall'evento zautte:auth) */
     body.logged-in .before-login { display: none !important; }
     body:not(.logged-in) .after-login { display: none !important; }
+    /* «Cosa significa Zautte?»: una riga sotto il titolo, il testo si apre al clic */
+    .zautte-name { color: #444; }
+    .zautte-name > summary { font-size: 0.85em; color: #003366; cursor: pointer; width: fit-content; line-height: 1.2; }
+    body.user-view .zautte-name > summary { margin: 0 auto; }
+    .zautte-name > summary:hover { text-decoration: underline; }
+    .zautte-name > p {
+      margin: 6px 0 0; padding: 10px 16px; font-size: 0.92em; background: #fff; border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06); line-height: 1.5; text-align: justify; hyphens: auto;
+    }
+    body.admin-view .zautte-name { order: 1; flex-basis: 100%; max-width: 640px; }
     #session-box { font-size: 0.85em; color: #666; white-space: nowrap; }
     .btn-logout {
       margin-left: 8px; background: #fff; border: 1px solid #003366; border-radius: 6px;
@@ -266,6 +276,12 @@
 <body class="user-view">
   <div class="page-head">
     <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="160" height="36">Assistente virtuale<br>Comune di San Benedetto del Tronto</h1>
+    <details class="zautte-name">
+      <summary>Cosa significa «Zautte»?</summary>
+      <p>Nel dialetto sambenedettese con la parola «zautte» si indica il bracciante di mare o lo scaricatore di porto.
+      «Li&nbsp;zautte» sono giovani e forti lavoratori che, storicamente coordinati da un capo (detto «lu&nbsp;sbarzòcche»),
+      si occupavano di scaricare a terra il pesce dalle imbarcazioni appena rientrate e di trasportarlo al mercato ittico.</p>
+    </details>
     <div id="session-box" style="display:none">
       <span id="session-name"></span>
       <button type="button" class="btn-logout" id="logout-btn">Esci</button>
@@ -276,7 +292,7 @@
     &nbsp;·&nbsp; <a class="site-link" href="#" target="_blank">Sito indicizzato ↗</a>
   </p>
 
-  <div id="pilot-intro" style="max-width:640px;margin:14px 0;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.5;color:#444">
+  <div id="pilot-intro" style="max-width:640px;margin:10px 0 14px;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.5;color:#444">
     <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
     <span class="before-login">Accedi con le credenziali che hai ricevuto e fai</span><span class="after-login" id="intro-greeting">Fai</span> le tue domande.
     Usa 👍 / 👎 per darci un riscontro.<br>
@@ -464,6 +480,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">6 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Il significato del nome</strong>: sotto il titolo c'è la riga «Cosa significa Zautte?»; con un clic si apre la spiegazione: nel dialetto sambenedettese «zautte» è il bracciante di mare, lo scaricatore di porto che portava a terra il pesce dalle barche appena rientrate e lo trasportava al mercato ittico. Chiusa occupa una sola riga, e i margini in alto sono un po' più stretti perché la chat non perda spazio.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
