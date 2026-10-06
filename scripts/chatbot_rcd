@@ -35,8 +35,11 @@ chatbot_start()
 
     cd "${chatbot_dir}" || return 1
 
+    # -H: al SIGHUP di newsyslog (rotazione) daemon riapre il file di log,
+    # altrimenti continuerebbe a scrivere in quello appena archiviato.
     /usr/sbin/daemon \
         -P "${pidfile}" \
+        -H \
         -o "${chatbot_logfile}" \
         "${chatbot_dir}/start.sh"
 }
