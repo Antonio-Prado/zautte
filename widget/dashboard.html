@@ -1040,7 +1040,7 @@
           if (d.top_doc) {
             const td = d.top_doc;
             document.getElementById('top-doc').innerHTML =
-              '<a href="'+td.source+'" target="_blank" style="color:#003366;font-size:.9em">'+(td.title||td.source.split('/').pop())+'</a>'
+              '<a href="'+_esc(td.source)+'" target="_blank" style="color:#003366;font-size:.9em">'+_esc(td.title||td.source.split('/').pop())+'</a>'
               +' <span style="color:#666;font-size:.8em">('+td.chunks+' chunk)</span>';
           }
 
@@ -1252,9 +1252,11 @@
       setInterval(loadMessages, 30000);
     }
 
+    // Testo dentro HTML, anche come valore di attributo tra virgolette
     function _esc(s) {
       return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function loadMessages() {
@@ -1506,6 +1508,6 @@
     };
   </script>
   <script src="./chatbot-widget.js?v=20261006a" defer></script>
-  <script src="./site-footer.js?v=20261006c" defer></script>
+  <script src="./site-footer.js?v=20261006d" defer></script>
 </body>
 </html>

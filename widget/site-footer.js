@@ -38,9 +38,15 @@
   // Le pagine e l'API stanno sullo stesso server (widget/ servita da FastAPI)
   var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
-  var A11Y_LINK = /^https:\/\//.test(STATEMENT)
-    ? { href: STATEMENT, text: "Dichiarazione di accessibilità" }
-    : { href: new URL("come-funziona.html#accessibilita", BASE).href, text: "Accessibilità" };
+  var A11Y_LINK = { href: new URL("come-funziona.html#accessibilita", BASE).href, text: "Accessibilità" };
+  if (/^https:\/\//.test(STATEMENT)) {
+    try {
+      // Solo indirizzi https://, con i caratteri non ammessi in un URL codificati
+      A11Y_LINK = { href: encodeURI(decodeURI(STATEMENT)), text: "Dichiarazione di accessibilità" };
+    } catch (e) {
+      // sequenza %xx non valida nell'indirizzo: resta il link ad «Accessibilità»
+    }
+  }
 
   // Data e ora del commit come YYYYMMDDhhmmss, nel fuso italiano
   function stamp(d) {
