@@ -11,7 +11,10 @@
  * di SBTAP (logo.png accanto a questo script, link a as59715.net) e "Served by" con
  * il logo di FreeBSD (freebsd-logo.png: logo ufficiale orizzontale dell'archivio
  * della FreeBSD Foundation, solo ridotto in proporzione; il marchio sul web deve
- * portare a freebsd.org, vedi le Trademark Usage Terms della Foundation).
+ * portare a freebsd.org, vedi le Trademark Usage Terms della Foundation), "IPv6
+ * enabled" con il logo World IPv6 Launch (ipv6-logo.svg, Internet Society, CC BY 3.0,
+ * file originale da Wikimedia Commons) e "Made with vi :wq" con vi-logo.svg (icona
+ * nostra: vi non ha un logo ufficiale, quello di Vim è di un altro editor).
  *
  * Accessibilità: le linee guida AgID chiedono il link alla dichiarazione di
  * accessibilità nel footer. Quando l'amministrazione l'ha pubblicata, il suo
@@ -30,6 +33,8 @@
   var BASE = (SCRIPT && SCRIPT.src) || location.href;
   var SBTAP_LOGO = new URL("logo.png", BASE).href;
   var FREEBSD_LOGO = new URL("freebsd-logo.png", BASE).href;
+  var IPV6_LOGO = new URL("ipv6-logo.svg", BASE).href;
+  var VI_LOGO = new URL("vi-logo.svg", BASE).href;
   // Le pagine e l'API stanno sullo stesso server (widget/ servita da FastAPI)
   var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
@@ -56,23 +61,27 @@
       "border-top:1px solid #e0e0e0", "font-size:12px", "line-height:1.6",
       "color:#666", "text-align:center", "flex-shrink:0",
     ].join(";"));
-    // Due righe: sopra le informazioni sul servizio, sotto la parte tecnica; ogni
-    // voce della seconda riga resta intera quando la riga va a capo
-    var NOWRAP = "<span style=\"white-space:nowrap\">";
+    // Due righe: sopra le informazioni sul servizio, sotto la parte tecnica. La
+    // seconda è un flex: testo e logo di ogni voce centrati sullo stesso asse,
+    // ogni voce intera quando la riga va a capo
+    var ITEM = "<span style=\"display:inline-flex;align-items:center;gap:4px;white-space:nowrap\">";
+    var SEP = "<span style=\"padding:0 6px\">·</span>";
     footer.innerHTML =
       "<div>" +
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a>" +
       "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Il tuo IP: <span style=\"overflow-wrap:anywhere\"></span></span>" +
-      "</div><div>" +
-      NOWRAP + "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"color:inherit\">" +
-      "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"vertical-align:baseline;margin-left:2px;border-radius:3px\"></a></span>" +
-      " &nbsp;·&nbsp; " + NOWRAP + "Served by <a href=\"https://www.freebsd.org\" target=\"_blank\" rel=\"noopener\" title=\"FreeBSD\" style=\"color:inherit\">" +
-      "<img src=\"" + FREEBSD_LOGO + "\" alt=\"FreeBSD\" width=\"83\" height=\"24\" style=\"vertical-align:middle;margin-left:2px\"></a></span>" +
-      " &nbsp;·&nbsp; " + NOWRAP + "IPv6 enabled</span>" +
+      "</div>" +
+      "<div style=\"display:flex;flex-wrap:wrap;justify-content:center;align-items:center;row-gap:4px;margin-top:4px\">" +
+      ITEM + "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"display:flex\">" +
+      "<img src=\"" + SBTAP_LOGO + "\" alt=\"SBTAP\" width=\"24\" height=\"24\" style=\"border-radius:3px\"></a></span>" + SEP +
+      ITEM + "Served by <a href=\"https://www.freebsd.org\" target=\"_blank\" rel=\"noopener\" title=\"FreeBSD\" style=\"display:flex\">" +
+      "<img src=\"" + FREEBSD_LOGO + "\" alt=\"FreeBSD\" width=\"83\" height=\"24\"></a></span>" + SEP +
+      // Icone decorative: il testo accanto dice già tutto (crediti in come-funziona.html)
+      ITEM + "<img src=\"" + IPV6_LOGO + "\" alt=\"\" width=\"24\" height=\"24\">IPv6 enabled</span>" + SEP +
       // :wq = salva ed esci, in vi
-      " &nbsp;·&nbsp; " + NOWRAP + "Made with vi <code style=\"font-size:inherit;color:inherit\">:wq</code></span>" +
+      ITEM + "<img src=\"" + VI_LOGO + "\" alt=\"\" width=\"24\" height=\"24\">Made with vi <code style=\"font-size:inherit;color:inherit\">:wq</code></span>" +
       "</div>";
     document.body.appendChild(footer);
     var a11y = document.getElementById("zautte-a11y-link");
