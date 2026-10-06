@@ -10,12 +10,19 @@ on:
 
 jobs:
   analyze:
-    name: Analyze (Python)
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       actions: read
       contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # python: API, indicizzazione, script; javascript-typescript: widget
+        # e script delle pagine HTML; actions: i workflow di questa cartella
+        language: [python, javascript-typescript, actions]
 
     steps:
       - uses: actions/checkout@v7
@@ -23,10 +30,11 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: python
+          languages: ${{ matrix.language }}
+          build-mode: none
           queries: security-and-quality
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:python"
+          category: "/language:${{ matrix.language }}"
