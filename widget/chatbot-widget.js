@@ -1464,7 +1464,7 @@
     if (suggestionsEl) suggestionsEl.remove();
 
     addMessage("user", question, null);
-    const typingEl = addTypingIndicator();
+    addTypingIndicator();
     setLoading(true);
     announce(T.typing);
 
