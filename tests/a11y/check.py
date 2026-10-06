@@ -293,6 +293,9 @@ def main() -> int:
         check(page.get_attribute("#zautte-a11y-link", "href").endswith("/widget/come-funziona.html#accessibilita")
               and page.locator("#accessibilita").count() == 1,
               "footer: link «Accessibilità» alla sezione di come-funziona.html")
+        check(page.get_attribute("nav.back a", "href") == "./dashboard.html"
+              and page.locator("main > p.back-end a[href='./dashboard.html']").count() == 1,
+              "come-funziona.html: link «Torna a Zautte» in cima e in fondo")
         browser.close()
 
     if failures:

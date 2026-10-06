@@ -26,6 +26,8 @@
     }
     h1 { color: #003366; margin-top: 0; font-size: 1.6em; }
     .brand-logo { display: block; height: 40px; width: auto; margin: 4px 0 20px; }
+    .back { margin: 0 0 16px; font-size: 0.95em; }
+    .back-end { margin: 16px 0 0; font-size: 0.95em; }
     h2 { color: #003366; font-size: 1.1em; margin: 28px 0 8px; }
     a { color: #003366; }
     .lead { font-size: 1.05em; }
@@ -34,6 +36,9 @@
 </head>
 <body>
 <main>
+  <nav class="back" aria-label="Torna alla pagina principale">
+    <a href="./dashboard.html"><span aria-hidden="true">←</span> Torna a Zautte</a>
+  </nav>
   <img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="177" height="40">
   <h1>Come funziona Zautte</h1>
   <p class="lead">
@@ -106,6 +111,8 @@
     Riferimenti: Regolamento (UE) 2024/1689 sull'intelligenza artificiale (art. 50),
     Legge 23 settembre 2025, n. 132 (art. 14). Pagina aggiornata a ottobre 2026.
   </p>
+  <!-- anche in fondo: dal footer si arriva a #accessibilita, già vicino alla fine -->
+  <p class="back-end"><a href="./dashboard.html"><span aria-hidden="true">←</span> Torna a Zautte</a></p>
 </main>
 <script src="./site-footer.js?v=20261006d" defer></script>
 </body>
