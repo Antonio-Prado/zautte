@@ -50,7 +50,7 @@ Public. Returns the caller's IP address as the API sees it, shown in the page fo
 
 Complete response (non-streaming). Waits for the full response before replying.
 
-**Rate limit**: 20 requests/hour per client IP.
+**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows "Hai raggiunto il limite di 20 domande al giorno…". See [Rate Limiting](privacy-and-security.md#rate-limiting).
 
 **Request:**
 ```json
@@ -90,7 +90,7 @@ Messages with no question in them (greetings, thanks, compliments, goodbyes, ins
 
 Streaming response via **Server-Sent Events (SSE)**. This is the endpoint the widget uses.
 
-**Rate limit, request and authentication**: same as `/chat`.
+**Daily limit, request and authentication**: same as `/chat` (one counter for both).
 
 **Event stream** (each event is followed by a blank line):
 ```
