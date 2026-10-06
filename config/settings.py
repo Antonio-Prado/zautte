@@ -190,6 +190,11 @@ RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 API_CORS_ORIGINS = os.getenv("API_CORS_ORIGINS", "http://localhost:8000").split(",")
+# Proxy o bilanciatore davanti all'API: indirizzi o reti, separati da virgola, di
+# cui si accettano X-Forwarded-For e X-Forwarded-Proto, così i limiti per IP e il
+# log vedono il client vero e non il proxy. Mai "*": la porta 8000 risponde anche
+# alla rete interna e chiunque potrebbe scriversi l'header da solo.
+FORWARDED_ALLOW_IPS = os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
 
 # --- Autenticazione endpoint admin ---
 # Impostare in .env per proteggere /gaps e /stats
