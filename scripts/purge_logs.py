@@ -3,6 +3,8 @@ Applica i tempi di conservazione ai log con dati degli utenti (data/).
 
   usage.jsonl     → dopo RETENTION_USAGE_TEXT_DAYS toglie il testo della domanda,
                     dopo RETENTION_USAGE_DAYS elimina la voce
+  answers.jsonl   → elimina le risposte più vecchie di RETENTION_USAGE_TEXT_DAYS
+                    (stessa scadenza del testo della domanda)
   gaps.jsonl      → elimina le voci più vecchie di RETENTION_GAPS_DAYS
   feedback.jsonl  → elimina le voci più vecchie di RETENTION_FEEDBACK_DAYS
                     (e le relative marcature "risolto" in resolved_negative.json)
@@ -25,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.datalog import (
+    ANSWERS_FILE,
     FEEDBACK_FILE,
     GAPS_FILE,
     USAGE_FILE,
@@ -67,6 +70,13 @@ def purge_usage(dry_run: bool) -> tuple[int, int]:
     return rewrite_jsonl(USAGE_FILE, transform, dry_run)
 
 
+def purge_answers(dry_run: bool) -> int:
+    cut = _cutoff(RETENTION_USAGE_TEXT_DAYS)
+    removed, _ = rewrite_jsonl(ANSWERS_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e,
+                               dry_run)
+    return removed
+
+
 def purge_gaps(dry_run: bool) -> int:
     cut = _cutoff(RETENTION_GAPS_DAYS)
     removed, _ = rewrite_jsonl(GAPS_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
@@ -88,12 +98,14 @@ def main() -> None:
     args = parser.parse_args()
 
     u_removed, u_stripped = purge_usage(args.dry_run)
+    a_removed = purge_answers(args.dry_run)
     g_removed = purge_gaps(args.dry_run)
     f_removed, r_removed = purge_feedback(args.dry_run)
 
     prefix = "[dry-run] " if args.dry_run else ""
     print(f"{prefix}usage.jsonl: {u_removed} voci eliminate, testo tolto da {u_stripped} "
           f"(scadenze: testo {RETENTION_USAGE_TEXT_DAYS} gg, voce {RETENTION_USAGE_DAYS} gg)")
+    print(f"{prefix}answers.jsonl: {a_removed} risposte eliminate (scadenza {RETENTION_USAGE_TEXT_DAYS} gg)")
     print(f"{prefix}gaps.jsonl: {g_removed} voci eliminate (scadenza {RETENTION_GAPS_DAYS} gg)")
     print(f"{prefix}feedback.jsonl: {f_removed} voci eliminate, {r_removed} marcature 'risolto' tolte "
           f"(scadenza {RETENTION_FEEDBACK_DAYS} gg)")

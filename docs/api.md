@@ -80,7 +80,7 @@ Complete response (non-streaming). Waits for the full response before replying.
 }
 ```
 
-In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
+In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `answers.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
 
 Messages with no question in them (greetings, thanks, compliments, goodbyes, insults: "ciao", "grazie", "bravo", "sei inutile") get a fixed reply with no retrieval and no model call, and are not logged as content gaps (`api/smalltalk.py`). A message counts as such only if it is short and made only of those words plus a few fillers: a single content word ("grazie, e per la TARI?") sends it down the normal path.
 
@@ -213,7 +213,7 @@ Full list of received feedback (all ratings) with positive/negative count.
 
 ### `POST /usage/forget` *(admin)*
 
-Deletes questions on request, without restarting the API: removes them from `usage.jsonl`, `gaps.jsonl` and `feedback.jsonl` (with the "resolved" marks of the deleted feedback), then from this process's memory (the most-frequent-questions counter saved in `stats.json`, and the response cache). The API log only contains the question id, never its text.
+Deletes questions on request, without restarting the API: removes them from `usage.jsonl`, `answers.jsonl`, `gaps.jsonl` and `feedback.jsonl` (with the "resolved" marks of the deleted feedback), then from this process's memory (the most-frequent-questions counter saved in `stats.json`, and the response cache). The API log only contains the question id, never its text.
 
 ```json
 {"uid": "eb3903878af10b34", "last": 1, "dry_run": true}
@@ -224,7 +224,7 @@ Deletes questions on request, without restarting the API: removes them from `usa
 - The memory part assumes a single API process (`api/serve.py`): with several workers, the others keep their counters and cache until they restart
 - Entries written before 5 October 2026 have no `rid`: they are matched by user, text and time (gap within 5 minutes, feedback after the question). Questions from anonymous visitors are only in `gaps.jsonl` and can only be found by `rid`
 
-**Response:** the questions found (`ts`, `rid`, `q`), how many entries were (or would be) removed from each file (`usage`, `gaps`, `feedback`, `resolved`), how many were removed from memory (`memory`) and `dry_run`.
+**Response:** the questions found (`ts`, `rid`, `q`), how many entries were (or would be) removed from each file (`usage`, `answers`, `gaps`, `feedback`, `resolved`), how many were removed from memory (`memory`) and `dry_run`.
 
 Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-questions-on-request)).
 
@@ -240,7 +240,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |
 | `POST /feedback/resolve` | admin | Body `{"ts", "question", "note"?, "notify"?}`: marks a negative feedback as resolved and, unless `notify` is `false`, emails the reporter with the optional note |
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
-| `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first |
+| `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) |
 | `GET /crawl-history` | admin | Recent crawl/indexing events read from `/var/log/chatbot-sync.log`, plus the current progress |
 | `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
 | `GET /client-ip` | public | `{"ip"}`: the caller's own IP address, shown in the page footer |
