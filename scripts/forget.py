@@ -12,7 +12,7 @@ Uso (sul server, dalla directory del progetto; serve ADMIN_API_KEY nel .env):
 
 Passa da POST /usage/forget dell'API in esecuzione: mostra le domande trovate
 e, dopo la conferma, le toglie dai file e dalla memoria del processo. Il rid di una domanda si legge nel log dell'API (/var/log/chatbot.log), che
-non contiene il testo, e in usage.jsonl, gaps.jsonl e feedback.jsonl.
+non contiene il testo, e in usage.jsonl, answers.jsonl, gaps.jsonl e feedback.jsonl.
 
 Restano fuori: l'email di notifica di una segnalazione già inviata e, per le
 domande arrivate al modello, la copia tenuta dal fornitore (Anthropic: 30
@@ -98,8 +98,9 @@ def main() -> None:
         for q in questions:
             text = (q.get("q") or "(testo già scaduto)").replace("\n", " ")
             print(f"  {q.get('ts', '')[:19].replace('T', ' ')}  [{q.get('rid') or 'senza rid'}]  {text[:100]}")
-        print(f"Da togliere: {preview['usage']} voci d'uso, {preview['gaps']} lacune, "
-              f"{preview['feedback']} feedback, {preview['resolved']} marcature «risolto»")
+        print(f"Da togliere: {preview['usage']} voci d'uso, {preview.get('answers', 0)} risposte, "
+              f"{preview['gaps']} lacune, {preview['feedback']} feedback, "
+              f"{preview['resolved']} marcature «risolto»")
         if args.dry_run:
             return
         if not args.yes and input("Cancellare? [s/N] ").strip().lower() not in ("s", "si", "sì", "y", "yes"):
@@ -117,8 +118,9 @@ def main() -> None:
                 fixed.update(uid=selection["uid"], ts=legacy_ts)
 
         r = _forget(client, args.api, fixed)
-        print(f"Tolte {r['usage']} voci d'uso, {r['gaps']} lacune, {r['feedback']} feedback, "
-              f"{r['resolved']} marcature «risolto», {r['memory']} dalla memoria")
+        print(f"Tolte {r['usage']} voci d'uso, {r.get('answers', 0)} risposte, {r['gaps']} lacune, "
+              f"{r['feedback']} feedback, {r['resolved']} marcature «risolto», "
+              f"{r['memory']} dalla memoria")
 
 
 if __name__ == "__main__":

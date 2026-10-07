@@ -181,7 +181,8 @@ PII_KEEP_EMAIL_DOMAINS = [
 # Applicata da scripts/purge_logs.py (cron giornaliero). Valori da concordare con
 # il DPO e riportare nell'informativa privacy.
 #   RETENTION_USAGE_TEXT_DAYS: testo delle domande in usage.jsonl (poi restano
-#                              solo data, utente e metriche)
+#                              solo data, utente e metriche) e risposte in
+#                              answers.jsonl
 #   RETENTION_USAGE_DAYS:      voci di usage.jsonl
 #   RETENTION_GAPS_DAYS:       domande senza risposta in gaps.jsonl
 #   RETENTION_FEEDBACK_DAYS:   feedback (voto, domanda, commento, autore)
