@@ -37,7 +37,7 @@ How the pieces fit together, the technology stack and the repository layout.
                       Ollama)
 ```
 
-The API keeps no conversation state: turn history is managed client-side by the widget and sent with every request (max 3 turns = 6 messages), and login tokens are stateless. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, subject to the `RETENTION_*` periods and with an id (`rid`) that lets `scripts/forget.py` delete them on request; `data/stats.json` also keeps the 100 most frequent questions, outside those periods. The API log records only the question id (see [Privacy and Security](privacy-and-security.md)).
+The API keeps no conversation state: turn history is managed client-side by the widget and sent with every request (max 3 turns = 6 messages), and login tokens are stateless. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, and the answers given in `data/answers.jsonl` (logged-in users only), subject to the `RETENTION_*` periods and with an id (`rid`) that lets `scripts/forget.py` delete them on request; `data/stats.json` also keeps the 100 most frequent questions, outside those periods. The API log records only the question id (see [Privacy and Security](privacy-and-security.md)).
 
 ---
 
@@ -161,6 +161,7 @@ zautte/                       # deployed as /opt/chatbot
     ├── feedback.jsonl        # User feedback (thumbs up/down, comments, links)
     ├── resolved_negative.json # Negative feedback marked as resolved
     ├── usage.jsonl           # Per-user usage (pilot users only)
+    ├── answers.jsonl         # Answers given, by question id (pilot users only)
     ├── stats.json            # Query counters, the 100 most frequent questions, response times, token and cost history
     └── users.json            # Pilot users (password stored as scrypt hash)
 ```

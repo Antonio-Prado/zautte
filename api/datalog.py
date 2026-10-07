@@ -5,8 +5,8 @@ La usano la scadenza automatica (scripts/purge_logs.py) e la cancellazione su
 richiesta (POST /usage/forget, scripts/forget.py).
 
 Ogni domanda ha un identificativo `rid` (12 caratteri esadecimali) scritto in
-usage.jsonl, gaps.jsonl, feedback.jsonl e nel log dell'API: è il modo preciso
-per ritrovarla ovunque. Le voci registrate prima del 05/10/2026 non lo hanno e
+usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl e nel log dell'API: è il
+modo preciso per ritrovarla ovunque. Le voci registrate prima del 05/10/2026 non lo hanno e
 vengono abbinate per utente, testo e ora.
 """
 
@@ -20,6 +20,7 @@ from api.feedback_store import resolved_key
 from config.settings import DATA_DIR
 
 USAGE_FILE = DATA_DIR / "usage.jsonl"
+ANSWERS_FILE = DATA_DIR / "answers.jsonl"
 GAPS_FILE = DATA_DIR / "gaps.jsonl"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
 RESOLVED_FILE = DATA_DIR / "resolved_negative.json"
@@ -135,8 +136,8 @@ def _close_in_time(a: str, b: str) -> bool:
 
 def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
            every: bool = False, ts: Iterable[str] = (), dry_run: bool = False) -> dict:
-    """Cancella le domande scelte da usage.jsonl, gaps.jsonl e feedback.jsonl, con
-    le marcature «risolto» dei feedback tolti.
+    """Cancella le domande scelte da usage.jsonl, answers.jsonl, gaps.jsonl e
+    feedback.jsonl, con le marcature «risolto» dei feedback tolti.
 
     Scelta: per `rids`, oppure per utente `uid` con le ultime `last` domande,
     tutte (`every`, insieme a tutti i suoi feedback) o quelle con i timestamp
@@ -205,6 +206,9 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
         return e
 
     n_usage, _ = rewrite_jsonl(USAGE_FILE, drop_usage, dry_run) if (all_rids or legacy) else (0, 0)
+    # Le risposte (dal 07/10/2026) hanno sempre il rid: niente abbinamento per testo e ora.
+    n_answers, _ = (rewrite_jsonl(ANSWERS_FILE, lambda e: None if e.get("rid") in all_rids else e,
+                                  dry_run) if all_rids else (0, 0))
     n_gaps, _ = rewrite_jsonl(GAPS_FILE, drop_gap, dry_run) if (all_rids or legacy) else (0, 0)
     n_feedback, _ = (rewrite_jsonl(FEEDBACK_FILE, drop_feedback, dry_run)
                      if (all_rids or legacy or (every and uid)) else (0, 0))
@@ -216,5 +220,5 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
                  for e in picked]
     questions += [{"ts": e.get("ts", ""), "rid": e.get("rid", ""), "q": e.get("query", "")}
                   for e in only_gaps]
-    return {"questions": questions, "usage": n_usage, "gaps": n_gaps,
+    return {"questions": questions, "usage": n_usage, "answers": n_answers, "gaps": n_gaps,
             "feedback": n_feedback, "resolved": n_resolved}

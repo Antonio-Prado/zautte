@@ -160,6 +160,12 @@
     .progress-bar-fill.pdf  { background: #6a1b9a; }
 
     /* Changelog */
+    /* Log messaggi: la domanda apre la risposta registrata */
+    .msg-answer summary { cursor: pointer; }
+    .msg-answer summary::marker { color: #003366; }
+    .msg-answer-text { white-space: pre-wrap; margin: 8px 0 4px 16px; padding: 8px 10px; background: #f6f8fb; border-left: 3px solid #003366; color: #333; }
+    .msg-sources { margin: 4px 0 6px 16px; padding-left: 18px; font-size: .92em; color: #555; }
+    .msg-partial { color: #a33; font-size: .9em; }
     .changelog-section {
       max-width: 800px;
       margin-top: 28px;
@@ -480,6 +486,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">7 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag feat">feat</span><strong>Registrazione delle risposte</strong>: finora si registrava solo la domanda, non ciò che Zautte aveva risposto, e per sapere cosa aveva letto un collega bisognava rifare la domanda. Ora ogni risposta viene salvata insieme alla domanda (testo, fonti e, se la risposta si è interrotta, un avviso) e nel log messaggi della vista amministratore la domanda si apre per leggerla. Le risposte seguono le stesse regole delle domande: stessa scadenza del testo e cancellazione su richiesta con la stessa procedura.
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">6 ott 2026</div>
       <div class="cl-text">
@@ -1313,6 +1325,8 @@
         .then(data => {
           const msgs = data.messages || [];
           status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
+          // La tabella si ricostruisce ogni 30 s: le risposte aperte restano aperte.
+          const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.rid));
           if (!msgs.length) {
             body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun messaggio registrato finora.</span>';
             return;
@@ -1321,13 +1335,28 @@
             + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
             + '<th style="padding:6px 8px;white-space:nowrap">Quando</th>'
             + '<th style="padding:6px 8px;white-space:nowrap">Utente</th>'
-            + '<th style="padding:6px 8px">Domanda</th></tr></thead><tbody>';
+            + '<th style="padding:6px 8px">Domanda e risposta</th></tr></thead><tbody>';
           msgs.forEach(m => {
             const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
+            // Dal 07/10/2026 c'è anche la risposta data da Zautte (answers.jsonl):
+            // la domanda apre e chiude la risposta, con le fonti in fondo.
+            let cell = _esc(m.q);
+            if (typeof m.a === 'string') {
+              let src = '';
+              (m.sources || []).forEach(s => {
+                const t = _esc(s.title || s.url || '');
+                src += '<li>' + (s.url ? '<a href="' + _esc(s.url) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</li>';
+              });
+              cell = '<details class="msg-answer" data-rid="' + _esc(m.rid) + '"'
+                + (open.has(m.rid) ? ' open' : '') + '><summary>' + _esc(m.q)
+                + (m.partial ? ' <span class="msg-partial">(risposta interrotta)</span>' : '')
+                + '</summary><div class="msg-answer-text">' + _esc(m.a) + '</div>'
+                + (src ? '<ul class="msg-sources">' + src + '</ul>' : '') + '</details>';
+            }
             html += '<tr style="border-bottom:1px solid #f3f3f3">'
               + '<td style="padding:6px 8px;color:#666;white-space:nowrap">' + ts + '</td>'
               + '<td style="padding:6px 8px;white-space:nowrap">' + _esc(m.name) + '</td>'
-              + '<td style="padding:6px 8px">' + _esc(m.q) + '</td></tr>';
+              + '<td style="padding:6px 8px">' + cell + '</td></tr>';
           });
           html += '</tbody></table>';
           body.innerHTML = html;

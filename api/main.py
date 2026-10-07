@@ -366,6 +366,39 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
         log.warning("Registrazione uso non riuscita: %s", e)
 
 
+def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
+                partial: bool = False) -> None:
+    """Registra la risposta data a una domanda in data/answers.jsonl (dal 07/10/2026).
+
+    Una riga per risposta: ora, id utente opaco, `rid` della domanda (lo stesso di
+    usage.jsonl), testo della risposta così come l'ha vista l'utente e fonti
+    (titolo e link). Solo per gli utenti autenticati, come usage.jsonl. Con
+    `partial` la risposta si è interrotta (errore o utente andato via) e il testo
+    è quello arrivato fino a quel momento. La risposta non viene mascherata: la
+    domanda lo è già prima del modello e il testo viene dai contenuti pubblici
+    del Comune (recapiti degli uffici compresi).
+    """
+    if not uid or uid == "anon" or not rid:
+        return
+    f = _DATA_DIR / "answers.jsonl"
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        entry: dict = {
+            "ts": now_local().isoformat(timespec="seconds"),
+            "uid": uid,
+            "rid": rid,
+            "a": (text or "")[:20000],
+            "sources": [{"title": s.get("title", ""), "url": s.get("url", "")}
+                        for s in (sources or []) if isinstance(s, dict)],
+        }
+        if partial:
+            entry["partial"] = True
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except (OSError, TypeError, ValueError) as e:
+        log.warning("Registrazione risposta non riuscita: %s", e)
+
+
 @app.get("/health")
 async def health(key: str | None = Security(_api_key_header)):
     """Liveness pubblico (minimale). I dettagli operativi (statistiche, query,
@@ -683,28 +716,43 @@ async def usage_summary(_: None = Security(require_admin)):
 
 @app.get("/usage/messages")
 async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
-    """Log dei messaggi digitati dagli utenti (testo + timestamp + utente) — solo admin.
+    """Log dei messaggi digitati dagli utenti (testo + timestamp + utente) con la
+    risposta data da Zautte — solo admin.
 
-    Legge data/usage.jsonl risolvendo i nomi da data/users.json. Le voci più
-    vecchie (registrate prima dell'introduzione del testo) sono ignorate.
+    Legge data/usage.jsonl risolvendo i nomi da data/users.json e abbina per
+    `rid` la risposta e le fonti da data/answers.jsonl (dal 07/10/2026; prima
+    `a` manca). Le voci più vecchie (registrate prima dell'introduzione del
+    testo) sono ignorate.
     """
     usage_file = _DATA_DIR / "usage.jsonl"
+    answers_file = _DATA_DIR / "answers.jsonl"
     names = _load_user_names()
 
     entries = await asyncio.to_thread(_read_jsonl, usage_file) if usage_file.exists() else []
+    answers = (await asyncio.to_thread(_read_jsonl, answers_file)
+               if answers_file.exists() else [])
+    by_rid = {a.get("rid"): a for a in answers if a.get("rid")}
     msgs: list[dict] = []
     for e in entries:
         if "q" not in e:  # voci vecchie senza testo della domanda
             continue
         uid = e.get("uid", "")
-        msgs.append({
+        m = {
             "ts": e.get("ts", ""),
             "uid": uid,
             "name": names.get(uid, uid),
             "q": e.get("q", ""),
             "lang": e.get("lang"),
             "response_ms": e.get("response_ms"),
-        })
+            "rid": e.get("rid", ""),
+        }
+        a = by_rid.get(e.get("rid"))
+        if a:
+            m["a"] = a.get("a", "")
+            m["sources"] = a.get("sources", [])
+            if a.get("partial"):
+                m["partial"] = True
+        msgs.append(m)
 
     total = len(msgs)
     recent = msgs[-limit:]
@@ -718,8 +766,8 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
 
     Scelta: `rids`, oppure `uid` con `last` (le ultime N), `all` (tutte, con
     i suoi feedback) o `ts` (timestamp esatti delle voci di usage.jsonl).
-    Toglie le voci da usage.jsonl, gaps.jsonl, feedback.jsonl e le marcature
-    «risolto», poi dalla memoria del processo: contatore delle domande più
+    Toglie le voci da usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl e
+    le marcature «risolto», poi dalla memoria del processo: contatore delle domande più
     frequenti (finisce in stats.json) e cache delle risposte. Il log dell'API
     contiene solo l'identificativo, non il testo. Con `dry_run` ritorna solo
     cosa verrebbe tolto. Presuppone un solo processo (api/serve.py): con più
@@ -734,9 +782,9 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
     memory = 0
     if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
-        log.info("Cancellazione su richiesta: domande %d, tolte voci d'uso %d, lacune %d, "
-                 "feedback %d, dalla memoria %d", len(result["questions"]), result["usage"],
-                 result["gaps"], result["feedback"], memory)
+        log.info("Cancellazione su richiesta: domande %d, tolte voci d'uso %d, risposte %d, "
+                 "lacune %d, feedback %d, dalla memoria %d", len(result["questions"]),
+                 result["usage"], result["answers"], result["gaps"], result["feedback"], memory)
     return {**result, "memory": memory, "dry_run": req.dry_run}
 
 
@@ -832,6 +880,7 @@ async def chat(request: Request, req: ChatRequest,
         _lang = result.get("language") if isinstance(result, dict) else None
         _log_usage(user.get("uid"), question, _lang,
                    int((_time.monotonic() - _t0) * 1000), rid=rid)
+        _log_answer(user.get("uid"), rid, result.get("answer", ""), result.get("sources"))
         return {**result, "rid": rid}
     except ValueError as e:
         quota.give_back(key)
@@ -876,16 +925,27 @@ async def chat_stream(request: Request, req: ChatRequest,
 
         queue: _asyncio.Queue = _asyncio.Queue()
 
+        parts: list[str] = []   # testo della risposta, per answers.jsonl
+        completed = False
+
         async def _produce():
+            nonlocal completed
             try:
                 async for token in generator:
+                    parts.append(token)
                     await queue.put(("token", token))
+                completed = True
                 await queue.put(("sources", None))
                 await queue.put(("done", None))
             except Exception as exc:
                 log.warning("Errore durante lo streaming della risposta", exc_info=True)
                 quota.give_back(key)
                 await queue.put(("error", str(exc)))
+            finally:
+                # Anche se interrotta (errore, utente andato via): si registra
+                # ciò che è stato generato, segnato come parziale.
+                _log_answer(user.get("uid"), rid, "".join(parts), sources,
+                            partial=not completed)
 
         task = _asyncio.create_task(_produce())
         try:
