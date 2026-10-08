@@ -237,6 +237,9 @@ SMTP_FROM = os.getenv("SMTP_FROM", "")
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").strip().lower() in ("1", "true", "yes", "on")
+# SMTP_SSL=true: TLS implicito fin dalla connessione (porta 465, es. Carbonio);
+# alternativo a SMTP_STARTTLS (porta 587).
+SMTP_SSL = os.getenv("SMTP_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
 # URL della pagina dove i partecipanti fanno il login (inserito nell'email)
 PILOT_LOGIN_URL = os.getenv("PILOT_LOGIN_URL", "")
 

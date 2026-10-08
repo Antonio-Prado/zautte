@@ -5,10 +5,13 @@ Usato per recapitare le credenziali di accesso ai partecipanti del pilota.
 Config via .env / config.settings:
     SMTP_HOST, SMTP_PORT, SMTP_FROM   (obbligatori per inviare)
     SMTP_USER, SMTP_PASSWORD          (opzionali: solo se il relay richiede auth)
-    SMTP_STARTTLS                     (opzionale: true per STARTTLS)
+    SMTP_STARTTLS                     (opzionale: true per STARTTLS, porta 587)
+    SMTP_SSL                          (opzionale: true per TLS implicito, porta 465)
 
 Relay interno del Comune (destinatari @comunesbt.it):
     SMTP_HOST=mail.comunesbt.it  SMTP_PORT=25  (niente auth, niente TLS)
+SMTP autenticato (es. Carbonio):
+    SMTP_HOST=<host> SMTP_PORT=465 SMTP_SSL=true SMTP_USER=... SMTP_PASSWORD=...
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from config.settings import (
     SMTP_HOST,
     SMTP_PASSWORD,
     SMTP_PORT,
+    SMTP_SSL,
     SMTP_STARTTLS,
     SMTP_USER,
 )
@@ -46,9 +50,14 @@ def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
         msg["Reply-To"] = reply_to
     msg.set_content(body)
 
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+    if SMTP_SSL:
+        smtp = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20,
+                                context=ssl.create_default_context())
+    else:
+        smtp = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20)
+    with smtp as s:
         s.ehlo()
-        if SMTP_STARTTLS:
+        if SMTP_STARTTLS and not SMTP_SSL:
             s.starttls(context=ssl.create_default_context())
             s.ehlo()
         if SMTP_USER:
