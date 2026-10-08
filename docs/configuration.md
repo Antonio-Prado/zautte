@@ -60,7 +60,9 @@ SMTP_PORT=25
 SMTP_FROM=
 SMTP_USER=
 SMTP_PASSWORD=
+# STARTTLS on port 587, or implicit TLS (SMTP_SSL) on port 465
 SMTP_STARTTLS=false
+SMTP_SSL=false
 # Login page URL included in the credential emails
 PILOT_LOGIN_URL=
 # Address notified of every report sent from the widget (empty = none)
