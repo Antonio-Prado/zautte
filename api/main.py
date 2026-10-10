@@ -307,15 +307,22 @@ def _read_recent_gaps(n: int) -> list[dict]:
 
 
 def _read_feedback_summary() -> dict:
+    """Contatori del pannello: `negative` conta solo i pollici giù NON ancora
+    risolti dall'amministratore (dal 10/10/2026); i risolti stanno in
+    `resolved`, fuori dal conto e dal totale."""
     f = _DATA_DIR / "feedback.jsonl"
-    pos = neg = 0
+    pos = neg = res = 0
     if f.exists():
+        resolved = _load_resolved_negative()
         for e in _read_jsonl(f):
             if e.get("rating") == 1:
                 pos += 1
             elif e.get("rating") == -1:
-                neg += 1
-    return {"total": pos + neg, "positive": pos, "negative": neg}
+                if _resolved_key(e.get("ts", ""), e.get("question", "")) in resolved:
+                    res += 1
+                else:
+                    neg += 1
+    return {"total": pos + neg, "positive": pos, "negative": neg, "resolved": res}
 
 
 def _load_user_names() -> dict[str, str]:

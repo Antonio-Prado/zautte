@@ -32,7 +32,7 @@ Public liveness check. Without a valid `X-Admin-Key` it returns a minimal view:
 }
 ```
 
-With a valid `X-Admin-Key` (or when `ADMIN_API_KEY` is empty) it also returns the details used by the admin dashboard: `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
+With a valid `X-Admin-Key` (or when `ADMIN_API_KEY` is empty) it also returns the details used by the admin dashboard: `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
 
 ---
 
