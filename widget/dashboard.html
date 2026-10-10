@@ -373,7 +373,8 @@
             </div>
             <div class="stat-item">
               <div class="stat-big" style="color:#e53935" id="fb-neg">—</div>
-              <div class="stat-label">👎 negativi</div>
+              <div class="stat-label">👎 negativi aperti</div>
+              <div class="stat-label" id="fb-res" style="margin-top:2px"></div>
             </div>
           </div>
         </div>
@@ -486,6 +487,12 @@
   <!-- Changelog (solo vista amministratore) -->
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
+    <div class="cl-entry">
+      <div class="cl-date">10 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Contatore dei feedback negativi</strong>: nel riquadro «Feedback utenti» i pollici giù continuavano a essere contati anche dopo che la segnalazione era stata marcata «✓ Risolto», così il numero (e il donut) non scendevano mai. Ora si contano solo le segnalazioni aperte; quelle risolte sono indicate a parte e il riquadro si aggiorna subito dopo ogni «✓ Risolto». <span class="cl-tag feat">feat</span> <strong>Posta in uscita via Carbonio attiva</strong>: completato il passaggio annunciato l'8 ottobre, verificato con una consegna a Gmail (SPF, DKIM e DMARC superati).
+      </div>
+    </div>
     <div class="cl-entry">
       <div class="cl-date">8 ott 2026</div>
       <div class="cl-text">
@@ -1161,6 +1168,7 @@
           document.getElementById('fb-total').textContent = fmtNum(fb.total ?? 0);
           document.getElementById('fb-pos').textContent = fmtNum(fb.positive ?? 0);
           document.getElementById('fb-neg').textContent = fmtNum(fb.negative ?? 0);
+          document.getElementById('fb-res').textContent = fb.resolved ? '✓ ' + fmtNum(fb.resolved) + ' risolti' : '';
           {
             const r = 28, cx = 35, cy = 35, sw = 10;
             const circ = 2 * Math.PI * r;
@@ -1421,7 +1429,7 @@
           if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Chiave admin non valida.'); return; }
           if (!r.ok) throw new Error('HTTP ' + r.status);
           liEl.classList.add('resolving');
-          setTimeout(() => { liEl.remove(); updateNegStatus(); }, 320);
+          setTimeout(() => { liEl.remove(); updateNegStatus(); updateStats(); }, 320);
         })
         .catch(() => { btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Errore durante la risoluzione.'); });
     }
