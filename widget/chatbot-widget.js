@@ -1290,6 +1290,9 @@
       btn.setAttribute("aria-label", btn.title);
       btn.setAttribute("aria-pressed", "false");
       btn.addEventListener("click", () => {
+        // Un clic ripetuto sullo stesso pollice non rimanda il voto (il server
+        // comunque conta un solo voto per utente e risposta).
+        if (btn.getAttribute("aria-pressed") === "true") return;
         fb.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
         btn.setAttribute("aria-pressed", "true");
         removeFeedbackForm(wrap);

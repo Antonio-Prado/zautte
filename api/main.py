@@ -309,12 +309,14 @@ def _read_recent_gaps(n: int) -> list[dict]:
 def _read_feedback_summary() -> dict:
     """Contatori del pannello: `negative` conta solo i pollici giù NON ancora
     risolti dall'amministratore (dal 10/10/2026); i risolti stanno in
-    `resolved`, fuori dal conto e dal totale."""
+    `resolved`, fuori dal conto e dal totale. Un solo voto per utente e
+    risposta (dal 12/10/2026: i clic ripetuti sul pollice non si sommano)."""
+    from api.feedback_store import dedup
     f = _DATA_DIR / "feedback.jsonl"
     pos = neg = res = 0
     if f.exists():
         resolved = _load_resolved_negative()
-        for e in _read_jsonl(f):
+        for e in dedup(_read_jsonl(f)):
             if e.get("rating") == 1:
                 pos += 1
             elif e.get("rating") == -1:
@@ -487,7 +489,9 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
     """Salva il feedback dell'utente (pollice su/giù). Con il login attivo registra
     anche chi lo ha dato (nome del collega), così l'amministratore sa a chi
     chiedere. Commento e URL possono arrivare qui oppure dopo, con
-    POST /feedback/detail. Ritorna l'id del feedback appena salvato."""
+    POST /feedback/detail. Un secondo voto dello stesso utente sulla stessa
+    risposta (stesso rid) sostituisce il primo invece di sommarsi. Ritorna
+    l'id del feedback appena salvato."""
     from api import feedback_store as fs
     entry = {
         "ts": fs.now_iso(),
@@ -632,11 +636,12 @@ def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
 
 @app.get("/feedback/list")
 async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
-    """Lista feedback ricevuti — solo admin."""
+    """Lista feedback ricevuti — solo admin. Un solo voto per utente e risposta."""
+    from api.feedback_store import dedup
     feedback_file = _DATA_DIR / "feedback.jsonl"
     if not feedback_file.exists():
         return {"feedback": [], "total": 0, "positive": 0, "negative": 0}
-    entries = await asyncio.to_thread(_read_jsonl, feedback_file)
+    entries = dedup(await asyncio.to_thread(_read_jsonl, feedback_file))
     positive = sum(1 for e in entries if e.get("rating") == 1)
     negative = sum(1 for e in entries if e.get("rating") == -1)
     return {
