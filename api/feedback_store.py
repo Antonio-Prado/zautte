@@ -66,9 +66,47 @@ def clean_urls(urls) -> list[str]:
     return out
 
 
+def vote_key(entry: dict) -> str | None:
+    """Chiave «un voto per utente per risposta»: uid::rid. None per le voci
+    senza utente o senza rid (anonime o precedenti al 05/10/2026), che
+    restano una per riga."""
+    uid, rid = entry.get("uid"), entry.get("rid")
+    return f"{uid}::{rid}" if uid and rid else None
+
+
+def dedup(entries: list[dict]) -> list[dict]:
+    """Un solo voto per utente e risposta: se la stessa coppia uid::rid compare
+    più volte vale l'ULTIMA (cambio di idea o clic ripetuti sul pollice; fino
+    all'11/10/2026 ogni clic aggiungeva una riga). L'ordine resta quello del file."""
+    last: dict[str, int] = {}
+    for i, e in enumerate(entries):
+        k = vote_key(e)
+        if k:
+            last[k] = i
+    return [e for i, e in enumerate(entries)
+            if (k := vote_key(e)) is None or last[k] == i]
+
+
 def append(entry: dict) -> dict:
-    """Aggiunge un feedback (assegna un id se manca) e lo ritorna."""
+    """Registra un feedback e lo ritorna con il suo id. Se lo stesso utente ha
+    già votato la stessa risposta (uid::rid), il nuovo voto SOSTITUISCE il
+    vecchio nella sua riga, conservandone l'id; altrimenti viene aggiunto in coda."""
     FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    key = vote_key(entry)
+    if key and FEEDBACK_FILE.exists():
+        lines = FEEDBACK_FILE.read_text(encoding="utf-8").splitlines()
+        for i in range(len(lines) - 1, -1, -1):
+            try:
+                old = json.loads(lines[i])
+            except json.JSONDecodeError:
+                continue
+            if vote_key(old) == key:
+                entry = {"id": old.get("id") or new_id(), **entry}
+                lines[i] = json.dumps(entry, ensure_ascii=False)
+                tmp = FEEDBACK_FILE.with_suffix(".tmp")
+                tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                tmp.replace(FEEDBACK_FILE)
+                return entry
     entry = {"id": new_id(), **entry}
     with open(FEEDBACK_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -159,7 +197,7 @@ def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
     items = []
     total = 0
     open_count = 0
-    for e in iter_entries():
+    for e in dedup(iter_entries()):
         total += 1
         if e.get("rating") != -1:
             continue

@@ -136,6 +136,8 @@ Saves a 👍/👎 rating. With `AUTH_ENABLED=true` it requires `Authorization: B
 
 **Response:** `{"ok": true, "id": "3f9c2a1b7d4e"}`
 
+One vote per user per answer: a second rating from the same user with the same `rid` replaces the previous one (same `id`) instead of adding a row, so repeated clicks on 👍 or a change of mind do not inflate the counters. Entries without `uid` or `rid` are kept one per row. The counters in `/health` and `/feedback/list` and the list in `/feedback/negative` apply the same rule when reading, so rows written before 12/10/2026 are counted once as well.
+
 Saved in `data/feedback.jsonl`: the question (personal data masked, first 200 characters), the first 100 characters of the answer and, with login enabled, the user's id and name. A 👎 with a comment or links sends an email to `FEEDBACK_NOTIFY_EMAIL` (if SMTP is configured).
 
 ---
