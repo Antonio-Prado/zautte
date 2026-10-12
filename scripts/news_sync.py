@@ -410,7 +410,10 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
         categories = wp_categories(client, api) if posts else {}
         for post in posts:
             wp_cursor = max(wp_cursor, post["modified"])
-            digest = _digest(post["title"], post["html"], post["date"])
+            # Hash sul testo pulito, non sull'HTML: il contenuto reso da WordPress
+            # cambia a ogni richiesta (articoli correlati, condivisione) e con l'HTML
+            # l'ultimo articolo veniva reindicizzato a ogni corsa (12/10/2026).
+            digest = _digest(post["title"], html_to_text(post["html"]), post["date"])
             if items.get(post["url"], {}).get("hash") == digest:
                 continue
             doc = post_doc(post, categories)
