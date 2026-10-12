@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import sys
+import threading
 import time
 from collections import Counter
 from contextlib import contextmanager
@@ -50,8 +51,26 @@ _pdf_link_texts: dict[str, str] = {}      # sorgente PDF → testo del link (dal
 
 # Salvataggio differito (vedi deferred_saves / checkpoint)
 _deferred_depth = 0
+# Serializza le ricerche con reload(): lo scambio dello store in memoria non deve
+# avvenire a metà di una ricerca.
+_lock = threading.RLock()
 _dirty = False        # modifiche in memoria non ancora scritte su disco
 _last_save_ts = 0.0
+
+
+def _read_from_disk() -> tuple[np.ndarray, list[dict], list[str]] | None:
+    """Legge i tre file dello store. None se mancano; eccezione se illeggibili."""
+    if not (EMBEDDINGS_FILE.exists() and METADATA_FILE.exists() and IDS_FILE.exists()):
+        return None
+    embeddings = np.load(str(EMBEDDINGS_FILE))
+    with open(METADATA_FILE, encoding="utf-8") as f:
+        metadata = json.load(f)
+    with open(IDS_FILE, encoding="utf-8") as f:
+        ids = json.load(f)
+    if not (len(metadata) == len(ids) == embeddings.shape[0]):
+        raise ValueError(f"store incoerente: {embeddings.shape[0]} vettori, "
+                         f"{len(metadata)} metadati, {len(ids)} id")
+    return embeddings, metadata, ids
 
 
 def _ensure_loaded():
@@ -59,23 +78,49 @@ def _ensure_loaded():
     if _embeddings is not None:
         return
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
-    if EMBEDDINGS_FILE.exists() and METADATA_FILE.exists() and IDS_FILE.exists():
-        try:
-            _embeddings = np.load(str(EMBEDDINGS_FILE))
-            with open(METADATA_FILE, encoding="utf-8") as f:
-                _metadata = json.load(f)
-            with open(IDS_FILE, encoding="utf-8") as f:
-                _ids = json.load(f)
-            _id_to_idx = {id_: i for i, id_ in enumerate(_ids)}
-            dim = _embeddings.shape[1] if _embeddings.ndim == 2 else 0
-            log.info(f"Vector store caricato: {len(_ids)} chunk, dim={dim}")
-            _build_bm25()
-        except Exception as e:
-            log.warning(f"Errore caricamento vector store: {e} — parto da zero", exc_info=True)
-            _reset_state()
-    else:
+    try:
+        loaded = _read_from_disk()
+    except Exception as e:
+        log.warning(f"Errore caricamento vector store: {e} — parto da zero", exc_info=True)
+        loaded = None
+    if loaded is None:
         _reset_state()
+    else:
+        _embeddings, _metadata, _ids = loaded
+        _id_to_idx = {id_: i for i, id_ in enumerate(_ids)}
+        dim = _embeddings.shape[1] if _embeddings.ndim == 2 else 0
+        log.info(f"Vector store caricato: {len(_ids)} chunk, dim={dim}")
+        _build_bm25()
     _last_save_ts = time.time()
+
+
+def reload() -> dict:
+    """Ricarica lo store da disco mentre il processo continua a rispondere:
+    serve all'API per vedere i brani scritti da `scripts.sync news` senza il
+    riavvio (20-30 s di 502) che segue i sync settimanali. Il nuovo store e il
+    suo BM25 si costruiscono a parte e si scambiano sotto `_lock`, così nessuna
+    ricerca vede uno stato a metà. Se i file sono illeggibili resta quello
+    vecchio. Ritorna le statistiche con `reloaded` True/False."""
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
+    global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts
+    try:
+        loaded = _read_from_disk()
+    except (OSError, ValueError, EOFError) as e:
+        log.warning(f"Reload vector store fallito, resta quello in memoria: {e}")
+        return {**get_stats(), "reloaded": False}
+    if loaded is None:
+        log.warning("Reload vector store: file assenti, resta quello in memoria")
+        return {**get_stats(), "reloaded": False}
+    embeddings, metadata, ids = loaded
+    bm25 = _make_bm25(metadata)
+    with _lock:
+        _embeddings, _metadata, _ids = embeddings, metadata, ids
+        _id_to_idx = {id_: i for i, id_ in enumerate(_ids)}
+        _bm25, _bm25_dirty = bm25, False
+        _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts = None, {}, {}, {}
+        _last_save_ts = time.time()
+    log.info(f"Vector store ricaricato: {len(_ids)} chunk")
+    return {**get_stats(), "reloaded": True}
 
 
 def _reset_state():
@@ -94,21 +139,24 @@ def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-zàáâäèéêëìíîïòóôöùúûü]+", text.lower())
 
 
+def _make_bm25(metadata: list[dict]):
+    """Indice BM25 del corpus dato (None se vuoto o senza rank_bm25)."""
+    if not metadata:
+        return None
+    try:
+        from rank_bm25 import BM25Okapi
+        return BM25Okapi([_tokenize(m.get("text", "")) for m in metadata])
+    except ImportError:
+        log.warning("rank_bm25 non installato — hybrid search disabilitato. "
+                    "Installa con: pip install rank-bm25")
+        return None
+
+
 def _build_bm25():
     """Costruisce o ricostruisce l'indice BM25 dal corpus corrente."""
     global _bm25, _bm25_dirty
     _bm25_dirty = False
-    if not _metadata:
-        _bm25 = None
-        return
-    try:
-        from rank_bm25 import BM25Okapi
-        corpus = [_tokenize(m.get("text", "")) for m in _metadata]
-        _bm25 = BM25Okapi(corpus)
-    except ImportError:
-        log.warning("rank_bm25 non installato — hybrid search disabilitato. "
-                    "Installa con: pip install rank-bm25")
-        _bm25 = None
+    _bm25 = _make_bm25(_metadata)
 
 
 def _ensure_bm25():
@@ -306,6 +354,15 @@ def _is_inbox(meta: dict) -> bool:
     return meta.get("origin") == "inbox" or meta.get("doc_type") == "document"
 
 
+def _is_protected(meta: dict) -> bool:
+    """Chunk che il crawl non conosce e che i sync non devono togliere come
+    «stale»: documenti inbox e notizie del Bollettino indicizzate da
+    `scripts.news_sync` (origin=news; il loro dominio non è nel crawl). A
+    differenza dell'inbox, i chunk news restano sostituibili dal loro stesso
+    indicizzatore quando il testo cambia (vedi source_chunk_ids)."""
+    return _is_inbox(meta) or meta.get("origin") == "news"
+
+
 def source_chunk_ids(source: str, include_inbox: bool = False) -> set[str]:
     """Ritorna gli id dei chunk attualmente nello store per una sorgente.
     I chunk inbox sono esclusi di default: l'indexer li userebbe come "stale"
@@ -371,6 +428,11 @@ def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[d
     Cerca i chunk più simili tramite cosine similarity.
     Ritorna lista di {"text", "source", "title", "score"}.
     """
+    with _lock:
+        return _search(query_embedding, top_k)
+
+
+def _search(query_embedding: list[float], top_k: int) -> list[dict]:
     _ensure_loaded()
 
     if _embeddings is None or len(_ids) == 0:
@@ -416,6 +478,11 @@ def hybrid_search(
 
     vector_weight + bm25_weight = 1.0 (raccomandato)
     """
+    with _lock:
+        return _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weight)
+
+
+def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weight) -> list[dict]:
     _ensure_loaded()
 
     if _embeddings is None or len(_ids) == 0:
@@ -474,6 +541,7 @@ def hybrid_search(
             "display_title": _title(meta),
             "doc_type": meta.get("doc_type", ""),
             "category": meta.get("category", ""),
+            "date":     meta.get("date", ""),   # mostrata al modello (build_context_block)
             "score":    float(vec_scores[idx]),  # score semantico per il filtro MIN_SIMILARITY
         })
 
@@ -539,15 +607,15 @@ def _apply_keep(keep: list[int]):
 
 def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
     """Rimuove tutti i chunk le cui sorgenti non sono più nel crawl corrente.
-    I chunk inbox restano (keep_inbox): non provengono dal crawl, quindi la
-    loro assenza dal sito non significa che siano superati.
+    I chunk inbox e news restano (keep_inbox): non provengono dal crawl, quindi
+    la loro assenza dal sito non significa che siano superati.
     Ritorna il numero di chunk rimossi."""
     if not stale:
         return 0
     _ensure_loaded()
     keep = [
         i for i, m in enumerate(_metadata)
-        if m.get("source") not in stale or (keep_inbox and _is_inbox(m))
+        if m.get("source") not in stale or (keep_inbox and _is_protected(m))
     ]
     removed = len(_metadata) - len(keep)
     if removed == 0:

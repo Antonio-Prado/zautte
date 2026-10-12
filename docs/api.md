@@ -244,6 +244,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
 | `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) |
 | `GET /crawl-history` | admin | Recent crawl/indexing events read from `/var/log/chatbot-sync.log`, plus the current progress |
+| `POST /admin/reload` | admin | Reloads the vector store from disk without restarting the API (used by `scripts.sync news`); returns the store statistics plus `reloaded` (`false` if the files were unreadable and the previous store stays in memory) |
 | `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
 | `GET /client-ip` | public | `{"ip"}`: the caller's own IP address, shown in the page footer |
 | `GET /docs` | public, only with `API_DOCS=true` | Swagger UI (schema at `/openapi.json`); off by default, so in production both return `404` |
@@ -252,7 +253,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 
 ## Admin Authentication
 
-Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
+Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`, `/admin/reload`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
 
 If `ADMIN_API_KEY` is empty, admin authentication is disabled (development only): all admin endpoints and the detailed `/health` are open to anyone.
 

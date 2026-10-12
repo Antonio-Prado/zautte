@@ -466,6 +466,16 @@ async def client_ip(request: Request):
     return JSONResponse({"ip": ip}, headers={"Cache-Control": "no-store"})
 
 
+@app.post("/admin/reload")
+async def admin_reload(_: None = Security(require_admin)):
+    """Ricarica il vector store da disco senza riavviare l'API: lo usa
+    `scripts.sync news` dopo aver indicizzato le notizie nuove. Risposta: le
+    statistiche dello store e `reloaded` (false se i file erano illeggibili e
+    resta in memoria la versione precedente)."""
+    from indexer.vector_store import reload
+    return {"ok": True, **await asyncio.to_thread(reload)}
+
+
 @app.get("/stats")
 async def stats(_: None = Security(require_admin)):
     """Statistiche sul contenuto indicizzato."""

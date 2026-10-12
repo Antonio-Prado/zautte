@@ -27,9 +27,24 @@ python -m scripts.sync full-index
 
 # Re-embed only the chunks with a zero vector (failed embeddings)
 python -m scripts.sync reembed
+
+# News published since the last run (see "News in near real time" below);
+# --backfill indexes the whole bulletin archive (one-off)
+python -m scripts.sync news [--backfill]
 ```
 
-Every mode ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. The sync log is `/var/log/chatbot-sync.log`.
+Every mode except `news` ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. `news` instead asks the running API to reload the store from disk (`POST /admin/reload`, no restart, no 502). The sync log is `/var/log/chatbot-sync.log`.
+
+### News in near real time (`scripts/news_sync.py`)
+
+The weekly crawl leaves a news item out of the index for up to seven days. `scripts.sync news` runs every 15 minutes from cron and reads two sources, configured in `config/crawl_extra.json` under `news`:
+
+- the municipal bulletin (`wordpress_api`): WordPress REST API `wp/v2/posts`, full article text, date and categories; the state keeps the latest `modified` seen, so a run without news costs two HTTP requests and does not load the vector store;
+- the institutional site's news feed (`rss`): title, link and date.
+
+For every new or modified item it indexes the bulletin article (text prefixed with "Notizia del <date> (<categories>)"), the site pages linked in the article (the twin news page, a service page: same text and metadata the crawler would produce, so the weekly crawl finds the chunks already there) and the PDF, ODT and DOCX attachments linked by the article or by those pages (downloaded to `data/documents/` like the crawler's PDFs; link texts feed the readable PDF titles). All these chunks carry `origin: news`: the incremental and full syncs never remove them as stale (the bulletin and old news pages are not reached by the crawl), but the crawler or a later news run can still replace them when the source changes. The state lives in `data/crawl_cache/news_state.json`; `--backfill` ignores it and indexes the whole archive (San Benedetto: about 2,600 articles since 2021, 1-2 hours), then emails a summary to `FEEDBACK_NOTIFY_EMAIL`.
+
+`scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
 Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`) take the lock `/var/run/chatbot-sync.lock`. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
@@ -49,6 +64,7 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 0        2    *    *     *    root /opt/chatbot/scripts/backup_vectorstore.sh
 30       2    *    *     1    root /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
 0        3    1    *     *    root /opt/chatbot/scripts/full_sync.sh
+*/15     *    *    *     *    root /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
 ```
 
 | Schedule                       | Script                  | Description |
@@ -57,6 +73,7 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
+| every 15 minutes               | `news_sync.sh`          | New bulletin articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
 
 `sync.py` also prints its log to stdout: without `>/dev/null`, cron tries to mail it and, with no local mailer, the job ends with exit 120.
 
