@@ -110,8 +110,10 @@ def _digest(*parts: str) -> str:
 def _get(client: httpx.Client, url: str, **kw) -> httpx.Response | None:
     try:
         resp = client.get(url, **kw)
-    except httpx.HTTPError as e:
-        log.warning(f"  Errore di rete: {url} — {e}")
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
+        # InvalidURL/ValueError (anche IDNAError): link malformati negli articoli,
+        # es. un host più lungo di 253 caratteri (archivio 2025, 12/10/2026)
+        log.warning(f"  Errore di rete: {url[:120]} — {e}")
         return None
     time.sleep(CRAWL_DELAY_SECONDS)
     if resp.status_code >= 400:
@@ -270,7 +272,10 @@ def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
         url = canonical_url(urljoin(base_url, href)).split("#", 1)[0]
-        path = urlparse(url).path.lower()
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc or len(parsed.netloc) > 253:
+            continue   # link malformato (host assente o troppo lungo): httpx lo rifiuterebbe
+        path = parsed.path.lower()
         if path.endswith(ATTACHMENT_EXT):
             if (_host_ok(url, hosts) and url not in [u for u, _ in attachments]
                     and not any(pat in url for pat in CRAWL_PDF_EXCLUDE_PATTERNS)):
@@ -414,7 +419,11 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             log.info(f"  NUOVA [bollettino {post['date']}]: '{post['title']}'")
             add(doc, "posts")
             new_items[post["url"]] = {"hash": digest, "ts": now_local().isoformat(timespec="seconds")}
-            follow(post["html"], post["url"], post["date"], pages=True)
+            try:
+                follow(post["html"], post["url"], post["date"], pages=True)
+            except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
+                # un link o un allegato guasto non deve fermare la corsa (l'articolo è già in coda)
+                log.warning(f"  Link dell'articolo non seguiti: {post['url']} — {e}")
 
     for feed in NEWS_SOURCES.get("rss", []):
         for item in rss_items(client, feed):
@@ -427,7 +436,10 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             add(doc, "pages")
             new_items[item["url"]] = {"hash": _digest(item["title"], item["date"]),
                                       "ts": now_local().isoformat(timespec="seconds")}
-            follow(html, item["url"], item["date"], pages=False)
+            try:
+                follow(html, item["url"], item["date"], pages=False)
+            except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
+                log.warning(f"  Allegati della notizia non seguiti: {item['url']} — {e}")
 
     if link_texts:
         save_link_texts(link_texts)
