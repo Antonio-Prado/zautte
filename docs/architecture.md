@@ -131,7 +131,8 @@ zautte/                       # deployed as /opt/chatbot
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │
 ├── scripts/
-│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed)
+│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news)
+│   ├── news_sync.py          # News in near real time: bulletin (WordPress API) + site feed, linked pages and attachments
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade
@@ -143,6 +144,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── cleanup_index.py      # Purges crawl-cache entries now excluded by the crawler filters
 │   ├── full_sync.sh          # Monthly full sync (zero downtime, sync lock)
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
+│   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
 │   ├── chatbot_rcd           # rc.d script for the service
 │   ├── cron_setup.sh         # Installs the cron jobs (run as root)
@@ -152,7 +154,7 @@ zautte/                       # deployed as /opt/chatbot
 │   └── pf.conf.example       # Firewall template (pf)
 │
 └── data/                     # Auto-generated (do not commit)
-    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json
+    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, news_state.json
     ├── documents/            # Downloaded PDFs
     ├── vectorstore/          # Embeddings + metadata (numpy)
     ├── inbox/                # Documents to index manually (processed/, errors/)
