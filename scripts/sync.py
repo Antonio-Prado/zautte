@@ -7,12 +7,16 @@ Modalità:
   incremental  → crawl incrementale + indicizza solo le modifiche (uso periodico)
   inbox        → processa solo i documenti nella cartella inbox
   full-index   → non fa crawl, reindicizza da zero tutto quello già scaricato
+  news         → notizie nuove dal Bollettino e dai feed, con pagine e allegati
+                 (ogni 15 minuti dal cron; --backfill = tutto l'archivio);
+                 ricarica l'indice nell'API a caldo invece di riavviarla
 
 Uso:
   python -m scripts.sync full
   python -m scripts.sync incremental
   python -m scripts.sync inbox
   python -m scripts.sync full-index
+  python -m scripts.sync news [--backfill]
 """
 
 import argparse
@@ -25,9 +29,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import httpx
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import is_migrated_source, now_local
+from config.settings import ADMIN_API_KEY, API_PORT, is_migrated_source, now_local
 from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index
 from indexer.vector_store import (
@@ -39,6 +45,7 @@ from indexer.vector_store import (
     update_embeddings,
 )
 from scripts.inbox_indexer import process_inbox
+from scripts.news_sync import run_news
 
 LOG_FILE = Path("/var/log/chatbot-sync.log")
 
@@ -78,7 +85,7 @@ def print_separator(title: str = ""):
         log.info(line)
 
 
-async def run_sync(mode: str):
+async def run_sync(mode: str, backfill: bool = False):
     started_at = now_local()
     print_separator(f"SYNC — modalità: {mode.upper()}")
 
@@ -158,6 +165,12 @@ async def run_sync(mode: str):
         print_separator("Fase 1/1: Inbox documenti")
         process_inbox()
 
+    elif mode == "news":
+        print_separator("Fase 1/1: Notizie" + (" (archivio completo)" if backfill else ""))
+        news = run_news(backfill=backfill)
+        if not any(news[k] for k in ("posts", "pages", "attachments", "chunks")):
+            return   # niente di nuovo: niente riepilogo, niente reload
+
     elif mode == "full-index":
         print_separator("Fase 1/2: Reset e reindicizzazione da file esistenti")
         index = load_index()
@@ -180,7 +193,41 @@ async def run_sync(mode: str):
     log.info(f"Chunk totali nel DB:   {stats['total_chunks']}")
     log.info(f"Completato alle:       {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
-    _restart_api()
+    if mode == "news":
+        _reload_api()
+        if backfill:
+            _notify(f"Zautte: archivio notizie indicizzato ({news['posts']} articoli)",
+                    f"Modalità: news --backfill\nArticoli: {news['posts']}\nPagine: {news['pages']}\n"
+                    f"Allegati: {news['attachments']}\nChunk inseriti: {news['chunks']}\n"
+                    f"Chunk totali: {stats['total_chunks']}\nDurata: {elapsed:.0f}s")
+    else:
+        _restart_api()
+
+
+def _reload_api():
+    """Chiede all'API di ricaricare lo store da disco (POST /admin/reload): nessun
+    riavvio, nessun 502. Se l'API è giù non fa nulla: al prossimo avvio caricherà
+    comunque i file aggiornati."""
+    try:
+        resp = httpx.post(f"http://127.0.0.1:{API_PORT}/admin/reload",
+                          headers={"X-Admin-Key": ADMIN_API_KEY}, timeout=600.0)
+        if resp.status_code == 200 and resp.json().get("reloaded"):
+            log.info(f"Reload API: {resp.json().get('total_chunks')} chunk in memoria")
+        else:
+            log.warning(f"Reload API non riuscito: HTTP {resp.status_code} {resp.text[:200]}")
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning(f"Reload API fallito: {e}")
+
+
+def _notify(subject: str, body: str):
+    """Resoconto via email a FEEDBACK_NOTIFY_EMAIL per le corse lunghe lanciate a mano."""
+    try:
+        from api.mailer import send_email, smtp_configured
+        from config.settings import FEEDBACK_NOTIFY_EMAIL
+        if smtp_configured() and FEEDBACK_NOTIFY_EMAIL:
+            send_email(FEEDBACK_NOTIFY_EMAIL, subject, body)
+    except (OSError, ValueError, RuntimeError) as e:
+        log.warning(f"Email di riepilogo non inviata: {e}")
 
 
 def _restart_api():
@@ -208,17 +255,20 @@ def main():
     )
     parser.add_argument(
         "mode",
-        choices=["full", "incremental", "inbox", "full-index", "reembed"],
+        choices=["full", "incremental", "inbox", "full-index", "reembed", "news"],
         help=(
             "full=crawl completo + reindicizza tutto | "
             "incremental=solo modifiche | "
             "inbox=solo nuovi documenti | "
             "full-index=reindicizza senza crawl | "
-            "reembed=ri-embeda chunk con vettore zero"
+            "reembed=ri-embeda chunk con vettore zero | "
+            "news=notizie nuove dal Bollettino e dai feed"
         )
     )
+    parser.add_argument("--backfill", action="store_true",
+                        help="con news: tutto l'archivio del Bollettino, non solo le novità")
     args = parser.parse_args()
-    asyncio.run(run_sync(args.mode))
+    asyncio.run(run_sync(args.mode, backfill=args.backfill))
 
 
 if __name__ == "__main__":

@@ -67,6 +67,10 @@ CRAWL_URL_ALIASES: list[dict] = []
 # Pezzi di URL dei PDF da non scaricare (i PDF non passano da CRAWL_EXCLUDE_PATTERNS,
 # che contiene ".pdf" per tenerli fuori dalla navigazione delle pagine)
 CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
+# Fonti delle notizie quasi in tempo reale (scripts/news_sync.py): chiave "news" di
+# crawl_extra.json → {"wordpress_api": ".../wp-json/wp/v2", "rss": [...],
+# "attachment_hosts": [...], "section": "..."}
+NEWS_SOURCES: dict = {}
 
 # Override specifici per il sito — caricati da config/crawl_extra.json se presente.
 # Permette di aggiungere pattern di esclusione e depth limit senza modificare il codice.
@@ -80,6 +84,7 @@ try:
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
         CRAWL_URL_ALIASES += _crawl_extra.get("url_aliases", [])
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
+        NEWS_SOURCES.update(_crawl_extra.get("news", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 

@@ -40,5 +40,15 @@
   "extra_start_urls": [
     "https://turismo.comunesbt.it/",
     "https://sanbenedettodeltronto.nuvolapalitalsoft.it/?page_id=36046"
-  ]
+  ],
+  "news": {
+    "wordpress_api": "https://bum.comunesbt.it/wp-json/wp/v2",
+    "rss": [
+      "https://www.comune.sanbenedettodeltronto.ap.it/it/news/feed"
+    ],
+    "attachment_hosts": [
+      "bum.comunesbt.it"
+    ],
+    "section": "bollettino"
+  }
 }
