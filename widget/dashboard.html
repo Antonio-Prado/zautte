@@ -488,6 +488,12 @@
   <div class="changelog-section" id="changelog-section" style="display:none">
     <h2>Changelog</h2>
     <div class="cl-entry">
+      <div class="cl-date">12 ott 2026</div>
+      <div class="cl-text">
+        <span class="cl-tag fix">fix</span><strong>Un solo voto per risposta</strong>: ogni clic sul pollice aggiungeva un feedback (un collega ne ha registrati sei in quaranta secondi sulla stessa risposta), gonfiando i positivi nel riquadro «Feedback utenti». Ora un secondo voto dello stesso utente sulla stessa risposta sostituisce il primo, anche cambiando idea da 👍 a 👎, e il widget ignora il clic ripetuto sullo stesso pollice; i contatori applicano la stessa regola anche ai voti già registrati.
+      </div>
+    </div>
+    <div class="cl-entry">
       <div class="cl-date">10 ott 2026</div>
       <div class="cl-text">
         <span class="cl-tag fix">fix</span><strong>Contatore dei feedback negativi</strong>: nel riquadro «Feedback utenti» i pollici giù continuavano a essere contati anche dopo che la segnalazione era stata marcata «✓ Risolto», così il numero (e il donut) non scendevano mai. Ora si contano solo le segnalazioni aperte; quelle risolte sono indicate a parte e il riquadro si aggiorna subito dopo ogni «✓ Risolto». <span class="cl-tag feat">feat</span> <strong>Posta in uscita via Carbonio attiva</strong>: completato il passaggio annunciato l'8 ottobre, verificato con una consegna a Gmail (SPF, DKIM e DMARC superati).
