@@ -63,7 +63,7 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 *        *    *    *     *    root /opt/chatbot/scripts/watchdog.sh
 0        2    *    *     *    root /opt/chatbot/scripts/backup_vectorstore.sh
 30       2    *    *     1    root /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
-0        3    1    *     *    root /opt/chatbot/scripts/full_sync.sh
+0        3    1    *     *    root /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    root /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
 ```
 
@@ -75,11 +75,13 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
 | every 15 minutes               | `news_sync.sh`          | New bulletin articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
 
+Two jobs of `scripts/cron_setup.sh` below are **not** in the production crontab: `sync inbox` is run by hand after dropping documents into `data/inbox/` (nobody does that continuously, and run as root it restarts the API like the other syncs), and `purge_logs` stays off until the retention periods are approved by the data protection officer (try it with `--dry-run`; to enable it add `15 2 * * * root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1`).
+
 `sync.py` also prints its log to stdout: without `>/dev/null`, cron tries to mail it and, with no local mailer, the job ends with exit 120.
 
 ### `scripts/cron_setup.sh`
 
-The script (run it as root: `crontab -u` requires it) adds to the crontab of the user `chatbot` the incremental and full sync above, plus:
+An alternative for installations that run the service as a dedicated `chatbot` user (production does not: it uses the `/etc/crontab` above). The script (run it as root: `crontab -u` requires it) adds to the crontab of the user `chatbot` the incremental and full sync above, plus:
 
 | Schedule                          | Command      | Description |
 |-----------------------------------|--------------|-------------|
