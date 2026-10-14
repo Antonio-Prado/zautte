@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
 </p>
 
-Zautte is a **RAG** (Retrieval-Augmented Generation) assistant for public-sector and other content-heavy websites. It crawls the site's pages and PDFs, finds the passages relevant to each question and lets an LLM answer **from those passages only, citing its sources**. Personal data is masked before anything reaches the model or the logs.
+Zautte is a **RAG** (Retrieval-Augmented Generation) assistant for public-sector and other content-heavy websites. It crawls the site's pages and PDFs, finds the passages relevant to each question and lets an LLM answer **from those passages only, citing its sources**. Personal data in questions is masked before it reaches the model or the logs.
 
 It runs in production as a pilot for the **Comune di San Benedetto del Tronto** (Italy), on a single FreeBSD server with no database and no containers.
 
@@ -42,7 +42,7 @@ It runs in production as a pilot for the **Comune di San Benedetto del Tronto** 
 </tr>
 <tr>
 <td width="50%">👍 <b>Feedback loop</b><br>Users rate answers and can point to the right page; admins resolve reports and the user is notified by email.</td>
-<td width="50%">🔄 <b>Self-updating index</b><br>Weekly incremental and monthly full crawl; only new or changed chunks are re-embedded; nightly backups and a watchdog.</td>
+<td width="50%">🔄 <b>Self-updating index</b><br>News are indexed every 15 minutes; weekly incremental and monthly full crawl; only new or changed chunks are re-embedded; nightly backups and a watchdog.</td>
 </tr>
 <tr>
 <td width="50%">🧠 <b>Your choice of LLM</b><br>Claude through the Anthropic API or AWS Bedrock (EU, Milan region), or a fully local model with Ollama.</td>
@@ -72,8 +72,8 @@ Every question is masked, rewritten if it is a follow-up, expanded with synonyms
 
 <table>
   <tr>
-    <td align="center"><b>221,129</b><br><sub>chunks indexed</sub></td>
-    <td align="center"><b>9,873</b><br><sub>pages and documents</sub></td>
+    <td align="center"><b>270,745</b><br><sub>chunks indexed</sub></td>
+    <td align="center"><b>13,939</b><br><sub>pages and documents</sub></td>
     <td align="center"><b>80 / 100</b><br><sub>test questions with the right page<br>among the chunks given to the LLM</sub></td>
     <td align="center"><b>weekly</b><br><sub>incremental crawl,<br>full crawl monthly</sub></td>
   </tr>
