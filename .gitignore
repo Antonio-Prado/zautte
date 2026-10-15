@@ -1,6 +1,13 @@
 # Secrets
 .env
 
+# Contenuti specifici di ogni ente (fatti noti, sinonimi, uffici, override del crawl):
+# non fanno parte del software, partire dai file *.example.json
+config/known_facts.json
+config/synonyms.json
+config/offices.json
+config/crawl_extra.json
+
 # Dati generati a runtime (non versionare)
 data/
 venv/

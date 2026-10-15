@@ -77,10 +77,10 @@ zautte/                       # deployed as /opt/chatbot
 │
 ├── config/
 │   ├── settings.py           # Centralized config (loads .env)
-│   ├── known_facts.json      # Curated facts injected for specific topics
-│   ├── synonyms.json         # Query expansion synonyms
-│   ├── offices.json          # Office suggested when the question matches its keywords
-│   └── crawl_extra.json      # Site-specific crawl overrides: extra seed URLs, exclude patterns, per-domain path depth, URL aliases
+│   ├── known_facts.json      # Curated facts injected for specific topics (site-specific, not in the repo: copy known_facts.example.json)
+│   ├── synonyms.json         # Query expansion synonyms (site-specific, see synonyms.example.json)
+│   ├── offices.json          # Office suggested when the question matches its keywords (site-specific, see offices.example.json)
+│   └── crawl_extra.json      # Site-specific crawl overrides (see crawl_extra.example.json): extra seed URLs, exclude patterns, per-domain path depth, URL aliases
 │
 ├── crawler/
 │   ├── crawler.py            # Async httpx crawler
