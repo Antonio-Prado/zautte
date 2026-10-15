@@ -64,6 +64,8 @@ With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRI
 
 ### Known Facts
 
+The four files in `config/` that describe a specific organisation (`known_facts.json`, `synonyms.json`, `offices.json`, `crawl_extra.json`) are not versioned: copy each `*.example.json` to the same name without `.example` and fill it in. Without them Zautte still starts, with no known facts, synonyms, offices or crawl overrides.
+
 `config/known_facts.json` holds curated texts for topics the site covers poorly (opening hours, procedures, links). An entry is added to the context, ahead of the retrieved chunks and with score 1.0, when the question contains one of its `keywords` and one of its `require_any` words (whole single words: multi-word keywords never match). Retrieved chunks from the same source are dropped.
 
 ### Query Expansion
