@@ -53,18 +53,32 @@ It runs in production as a pilot for the **Comune di San Benedetto del Tronto** 
 ## How it works
 
 ```mermaid
-flowchart TB
-    subgraph IDX["Indexing · every 15 min, weekly and monthly"]
-        direction LR
-        site["Website<br/>HTML + PDF"] --> crawler["Crawler"] --> indexer["Chunking +<br/>embeddings"] --> store[("Vector store<br/>numpy + BM25")]
-        news["News<br/>bulletin + feed"] --> indexer
-        inbox["Inbox<br/>PDF · DOCX"] --> indexer
+sequenceDiagram
+    autonumber
+    actor U as Colleague / citizen
+    participant W as Widget
+    participant A as API
+    participant S as Vector store<br/>(numpy + BM25)
+    participant L as LLM
+    participant I as Indexer<br/>(crawler, news, inbox)
+
+    loop every 15 min, weekly, monthly
+        I->>S: crawl site, bulletin, feed, PDF/DOCX<br/>chunk + embed + index
+        I->>A: reload index (no restart)
     end
-    subgraph ANS["Answering · each question"]
-        direction LR
-        prep["Question: mask personal<br/>data, rewrite follow-ups"] --> search["Hybrid search<br/>semantic + BM25"] --> llm["LLM: answer<br/>with sources"]
+
+    U->>W: question
+    W->>A: POST /chat
+    A->>A: mask personal data,<br/>rewrite follow-ups, expand synonyms
+    A->>S: hybrid search (semantic + BM25)
+    S-->>A: best chunks
+    A->>L: question + chunks + known facts<br/>("use nothing else")
+    L-->>A: answer with sources
+    A-->>W: answer, sources
+    W-->>U: reply
+    opt site cannot answer
+        A->>A: log question for review
     end
-    IDX -- "searched at every question" --> ANS
 ```
 
 New items from the municipal bulletin and the site's news feed are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. Every question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
