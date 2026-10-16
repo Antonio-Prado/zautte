@@ -77,7 +77,7 @@
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a>" +
-      "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Il tuo IP: <span style=\"overflow-wrap:anywhere\"></span></span>" +
+      "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Il tuo IP: <a target=\"_blank\" rel=\"noopener\" title=\"Dati RIS di RIPEstat\" style=\"color:inherit;overflow-wrap:anywhere\"></a></span>" +
       "</div>" +
       "<div style=\"display:flex;flex-wrap:wrap;justify-content:center;align-items:center;row-gap:4px;margin-top:4px\">" +
       ITEM + "Powered by <a href=\"https://as59715.net\" target=\"_blank\" rel=\"noopener\" title=\"SBTAP\" style=\"display:flex\">" +
@@ -101,7 +101,10 @@
         var ip = String((d && d.ip) || "");
         if (!/^[0-9A-Fa-f.:]{2,45}$/.test(ip)) return;
         var box = document.getElementById("zautte-client-ip");
-        box.querySelector("span").textContent = ip;
+        var link = box.querySelector("a");
+        link.textContent = ip;
+        // Dati di instradamento (RIS) di RIPEstat, in una nuova scheda
+        link.href = "https://stat.ripe.net/" + encodeURIComponent(ip);
         box.hidden = false;
       })
       .catch(function () { /* API non raggiungibile */ });
