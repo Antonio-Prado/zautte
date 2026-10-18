@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Zautte"
+abstract: "Open-source RAG chatbot that answers citizens' questions about a municipality, grounded in the official website and public documents."
+type: software
+authors:
+  - family-names: Prado
+    given-names: Antonio
+    email: antonio@prado.it
+repository-code: "https://github.com/Antonio-Prado/zautte"
+license: MIT
+version: 0.1.0
+date-released: 2026-10-04
+keywords:
+  - chatbot
+  - RAG
+  - public administration
+  - Italy
+  - open source
