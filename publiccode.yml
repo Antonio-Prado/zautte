@@ -1,0 +1,89 @@
+publiccodeYmlVersion: "0.4"
+
+name: Zautte
+url: "https://github.com/Antonio-Prado/zautte"
+landingURL: "https://github.com/Antonio-Prado/zautte"
+releaseDate: "2026-10-18"
+softwareVersion: "0.1.1"
+developmentStatus: beta
+softwareType: "standalone/web"
+platforms:
+  - web
+
+categories:
+  - digital-citizenship
+  - knowledge-management
+
+usedBy:
+  - Comune di San Benedetto del Tronto
+
+legal:
+  license: MIT
+  repoOwner: Comune di San Benedetto del Tronto
+
+maintenance:
+  type: internal
+  contacts:
+    - name: Antonio Prado
+      email: antonio@prado.it
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - it
+
+dependsOn:
+  open:
+    - name: Python
+      versionMin: "3.11"
+    - name: Ollama
+      optional: true
+
+description:
+  it:
+    localisedName: Zautte
+    shortDescription: >
+      Assistente virtuale open source che risponde alle domande dei cittadini
+      sul Comune, basandosi solo sul sito istituzionale e sui documenti pubblici.
+    longDescription: >
+      Zautte è un chatbot RAG (retrieval-augmented generation) pensato per gli
+      enti locali. Un crawler raccoglie le pagine e i documenti pubblici del
+      sito istituzionale, un indice vettoriale li rende ricercabili e un modello
+      linguistico compone la risposta citando sempre le fonti. Include un widget
+      web accessibile da incorporare nel sito, un'area riservata per la
+      gestione delle segnalazioni degli utenti, la cancellazione dei dati su
+      richiesta e il mascheramento dei dati personali prima dell'invio al
+      modello. I contenuti specifici dell'ente (fatti noti, sinonimi, uffici)
+      sono mantenuti fuori dal codice e si configurano con file dedicati.
+    features:
+      - Risposte con citazione delle fonti ufficiali
+      - Sincronizzazione notturna e quasi in tempo reale delle notizie del sito
+      - Widget web accessibile (WCAG) da incorporare nel sito
+      - Mascheramento dei dati personali e cancellazione su richiesta
+      - Segnalazioni degli utenti con riscontro via email
+  en:
+    localisedName: Zautte
+    shortDescription: >
+      Open source virtual assistant that answers citizens' questions about the
+      municipality, grounded only in the official website and public documents.
+    longDescription: >
+      Zautte is a RAG (retrieval-augmented generation) chatbot designed for
+      local authorities. A crawler collects the public pages and documents of
+      the institutional website, a vector index makes them searchable and a
+      language model composes the answer, always citing its sources. It
+      includes an accessible web widget to embed in the website, a restricted
+      area to handle user feedback, erasure of data on request and masking of
+      personal data before it is sent to the model. Entity-specific content
+      (known facts, synonyms, offices) is kept outside the code and configured
+      through dedicated files.
+    features:
+      - Answers citing official sources
+      - Nightly and near-real-time synchronisation of website news
+      - Accessible web widget (WCAG) to embed in the website
+      - Personal data masking and erasure on request
+      - User feedback with email follow-up
+
+it:
+  countryExtensionVersion: "0.2"
+  riuso:
+    codiceIPA: c_h769
