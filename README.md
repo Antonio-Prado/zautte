@@ -64,7 +64,7 @@ sequenceDiagram
     participant I as Indexer<br/>(crawler, news, inbox)
 
     loop every 15 min, weekly, monthly
-        I->>S: crawl site, bulletin, feed, PDF/DOCX<br/>chunk + embed + index
+        I->>S: crawl site, news sources, feed, PDF/DOCX<br/>chunk + embed + index
         I->>A: reload index (no restart)
     end
 
@@ -98,7 +98,7 @@ sequenceDiagram
     W-->>U: reply
 ```
 
-New items from the municipal bulletin and the site's news feed are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. A question that contains personal data is not processed at all and the user is asked to rephrase it; any other question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
+New items from the configured news sources (for example a WordPress news site or an RSS feed) are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. A question that contains personal data is not processed at all and the user is asked to rephrase it; any other question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
 
 ## In production
 
@@ -107,7 +107,7 @@ New items from the municipal bulletin and the site's news feed are indexed withi
     <td align="center"><b>270,745</b><br><sub>chunks indexed</sub></td>
     <td align="center"><b>13,939</b><br><sub>pages and documents</sub></td>
     <td align="center"><b>80 / 100</b><br><sub>test questions with the right page<br>among the chunks given to the LLM</sub></td>
-    <td align="center"><b>15 min</b><br><sub>to index new bulletin items;<br>incremental crawl weekly,<br>full crawl monthly</sub></td>
+    <td align="center"><b>15 min</b><br><sub>to index new news items;<br>incremental crawl weekly,<br>full crawl monthly</sub></td>
   </tr>
 </table>
 

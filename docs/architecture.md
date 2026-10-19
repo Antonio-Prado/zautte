@@ -133,7 +133,7 @@ zautte/                       # deployed as /opt/chatbot
 │
 ├── scripts/
 │   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news)
-│   ├── news_sync.py          # News in near real time: bulletin (WordPress API) + site feed, linked pages and attachments
+│   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade

@@ -29,7 +29,7 @@ python -m scripts.sync full-index
 python -m scripts.sync reembed
 
 # News published since the last run (see "News in near real time" below);
-# --backfill indexes the whole bulletin archive (one-off)
+# --backfill indexes the whole archive of the news sources (one-off)
 python -m scripts.sync news [--backfill]
 ```
 
@@ -37,12 +37,12 @@ Every mode except `news` ends by killing the `uvicorn api.main:app` processes so
 
 ### News in near real time (`scripts/news_sync.py`)
 
-The weekly crawl leaves a news item out of the index for up to seven days. `scripts.sync news` runs every 15 minutes from cron and reads two sources, configured in `config/crawl_extra.json` under `news`:
+The weekly crawl leaves a news item out of the index for up to seven days. `scripts.sync news` runs every 15 minutes from cron and reads the sources configured in `config/crawl_extra.json` under `news` (the file is specific to each installation; `config/crawl_extra.example.json` shows the format). Two kinds are supported:
 
-- the municipal bulletin (`wordpress_api`): WordPress REST API `wp/v2/posts`, full article text, date and categories; the state keeps the latest `modified` seen, so a run without news costs two HTTP requests and does not load the vector store;
-- the institutional site's news feed (`rss`): title, link and date.
+- a WordPress news site, such as a municipal bulletin (`wordpress_api`): WordPress REST API `wp/v2/posts`, full article text, date and categories; the state keeps the latest `modified` seen, so a run without news costs two HTTP requests and does not load the vector store;
+- a news feed of the institutional site (`rss`): title, link and date.
 
-For every new or modified item it indexes the bulletin article (text prefixed with "Notizia del <date> (<categories>)"), the site pages linked in the article (the twin news page, a service page: same text and metadata the crawler would produce, so the weekly crawl finds the chunks already there) and the PDF, ODT and DOCX attachments linked by the article or by those pages (downloaded to `data/documents/` like the crawler's PDFs; link texts feed the readable PDF titles). All these chunks carry `origin: news`: the incremental and full syncs never remove them as stale (the bulletin and old news pages are not reached by the crawl), but the crawler or a later news run can still replace them when the source changes. The state lives in `data/crawl_cache/news_state.json`; `--backfill` ignores it and indexes the whole archive (San Benedetto: about 2,600 articles since 2021, 1-2 hours), then emails a summary to `FEEDBACK_NOTIFY_EMAIL`.
+For every new or modified item it indexes the article (text prefixed with "Notizia del <date> (<categories>)"), the site pages linked in the article (the twin news page, a service page: same text and metadata the crawler would produce, so the weekly crawl finds the chunks already there) and the PDF, ODT and DOCX attachments linked by the article or by those pages (downloaded to `data/documents/` like the crawler's PDFs; link texts feed the readable PDF titles). All these chunks carry `origin: news`: the incremental and full syncs never remove them as stale (news pages are not always reached by the crawl), but the crawler or a later news run can still replace them when the source changes. The state lives in `data/crawl_cache/news_state.json`; `--backfill` ignores it and indexes the whole archive (San Benedetto: about 2,600 articles since 2021, 1-2 hours), then emails a summary to `FEEDBACK_NOTIFY_EMAIL`.
 
 `scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
@@ -73,7 +73,7 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
-| every 15 minutes               | `news_sync.sh`          | New bulletin articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
+| every 15 minutes               | `news_sync.sh`          | New articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
 
 Two jobs of `scripts/cron_setup.sh` below are **not** in the production crontab: `sync inbox` is run by hand after dropping documents into `data/inbox/` (nobody does that continuously, and run as root it restarts the API like the other syncs), and `purge_logs` stays off until the retention periods are approved by the data protection officer (try it with `--dry-run`; to enable it add `15 2 * * * root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1`).
 

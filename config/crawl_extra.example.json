@@ -1,8 +1,20 @@
 {
-  "exclude_patterns": ["wp-login.php", "?feed="],
+  "exclude_patterns": [
+    "wp-login.php",
+    "?feed="
+  ],
   "domain_max_path_depth": {},
   "extra_start_urls": [],
   "url_aliases": [],
   "pdf_exclude_patterns": [],
-  "news": {}
+  "news": {
+    "wordpress_api": "https://news.example.org/wp-json/wp/v2",
+    "rss": [
+      "https://www.example.org/feed/"
+    ],
+    "attachment_hosts": [
+      "files.example.org"
+    ],
+    "section": "Notizie"
+  }
 }

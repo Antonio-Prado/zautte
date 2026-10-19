@@ -5,8 +5,8 @@ Il crawl settimanale (lunedì notte) lascia fuori per giorni le notizie appena
 pubblicate. Questo modulo legge le fonti configurate in `config/crawl_extra.json`
 (chiave "news"):
 
-  - il Bollettino Ufficiale Municipale (WordPress, `wordpress_api`): articoli
-    completi tramite la REST API `wp/v2/posts`;
+  - un sito di notizie WordPress, per esempio un bollettino dell'ente
+    (`wordpress_api`): articoli completi tramite la REST API `wp/v2/posts`;
   - i feed RSS del sito istituzionale (`rss`): titolo, link e data.
 
 Per ogni notizia nuova o modificata indicizza:

@@ -10,7 +10,7 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 ## [Unreleased]
 
 ### Changed
-- Documentation brought in line with 0.2.0: restricted area and lockout (`ADMIN_PATH`, `ADMIN_MAX_ATTEMPTS`, `ADMIN_LOCKOUT_SECONDS`), `INSTANCE_DIR`, generic pages and footer, releasing; the sequence diagram in the README now shows sign-in, the block on questions with personal data, the daily limit and the fixed replies.
+- Documentation brought in line with 0.2.0: restricted area and lockout (`ADMIN_PATH`, `ADMIN_MAX_ATTEMPTS`, `ADMIN_LOCKOUT_SECONDS`), `INSTANCE_DIR`, generic pages and footer, releasing; the sequence diagram in the README now shows sign-in, the block on questions with personal data, the daily limit and the fixed replies; news sources are described generically (WordPress, RSS) instead of as a municipal bulletin.
 
 ## [0.2.0] - 2026-10-19
 
