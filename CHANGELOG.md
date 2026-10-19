@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-19
+
+### Changed
+- The AI badge in the header of the chat reads "AI" when the widget is in English ("IA" in Italian).
+- The README screenshots show the generic English pages with invented data (chat on a desktop and on a
+  phone, restricted area).
+
+### Removed
+- `aiofiles` and `pydantic-settings` from `requirements.txt`: nothing imports them.
+
 ## [0.4.0] - 2026-10-19
 
 ### Changed
@@ -99,7 +109,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Antonio-Prado/zautte/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Antonio-Prado/zautte/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Antonio-Prado/zautte/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Antonio-Prado/zautte/compare/v0.3.0...v0.3.1

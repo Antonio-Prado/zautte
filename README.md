@@ -28,7 +28,7 @@ It runs in production as a pilot for an Italian municipality (the **Comune di Sa
   &nbsp;
   <img src="docs/images/chat-mobile.png" alt="Zautte answering a question about the identity card, phone view" width="22.5%">
 </p>
-<p align="center"><sub>Screenshots of the reference installation, whose interface is in Italian; the widget also speaks English.</sub></p>
+<p align="center"><sub>Screenshots with invented data; the widget speaks Italian and English.</sub></p>
 
 ## Features
 
@@ -114,7 +114,7 @@ New items from the configured news sources (for example a WordPress news site or
 <sub>Figures from October 2026. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3`.</sub>
 
 <details>
-<summary><b>Admin area</b> of the reference installation (user questions, names and costs blurred)</summary>
+<summary><b>Restricted admin area</b> (invented data)</summary>
 <br>
 <p align="center"><img src="docs/images/admin.png" alt="Admin dashboard: service status, indexed content, activity and feedback" width="80%"></p>
 </details>

@@ -698,7 +698,7 @@
             : iconChat}
         </div>
         <div id="${WIDGET_ID}-header-text">
-          <div id="${WIDGET_ID}-header-title">${cfg.title}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">IA</span><span class="${WIDGET_ID}-sr">${T.aiBadge}</span></span></div>
+          <div id="${WIDGET_ID}-header-title">${cfg.title}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">${isItalian ? "IA" : "AI"}</span><span class="${WIDGET_ID}-sr">${T.aiBadge}</span></span></div>
           <div id="${WIDGET_ID}-header-subtitle">${cfg.subtitle}</div>
         </div>
         <div id="${WIDGET_ID}-header-actions">
