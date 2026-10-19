@@ -98,7 +98,7 @@ except (OSError, ValueError, TypeError, AttributeError) as _e:
 # --- Domini migrati / dismessi ---
 # Domini le cui risorse non sono più raggiungibili al vecchio indirizzo perché
 # il portale è stato sostituito da una nuova piattaforma che redirige tutto a
-# una landing generica (es. Amministrazione Trasparente SBT → Nuvola Palitalsoft).
+# una landing generica (es. un portale di trasparenza sostituito da un nuovo fornitore).
 # I chunk già indicizzati da questi domini RESTANO nel vector store — il testo è
 # ancora valido e utile — ma:
 #   - il loro URL-fonte NON viene mostrato all'utente né passato al LLM: darebbe
@@ -107,16 +107,11 @@ except (OSError, ValueError, TypeError, AttributeError) as _e:
 #     più crawlabili (altrimenti si perderebbe gran parte della base di conoscenza).
 # Gli URL originali restano nei metadati: se in futuro il fornitore fornirà una
 # mappa di redirect stabile, si potranno rimappare. Lista separata da virgola in
-# .env (override); default: portale trasparenza SBT dismesso.
+# .env: MIGRATED_DOMAINS=vecchio.example.it,nuovo.example.it/percorso-dismesso (un dominio o
+# un prefisso di percorso). Vuota = nessun dominio migrato.
 MIGRATED_DOMAINS = [
     d.strip()
-    for d in os.getenv(
-        "MIGRATED_DOMAINS",
-        # 1) vecchio portale trasparenza (redirige tutto a una landing generica)
-        # 2) ponte /dati/trasparenza-legacy sul nuovo dominio (ora serve HTML generico)
-        "vecchio.example.it,"
-        "nuovo.example.it/dati/trasparenza-legacy",
-    ).split(",")
+    for d in os.getenv("MIGRATED_DOMAINS", "").split(",")
     if d.strip()
 ]
 
@@ -251,7 +246,7 @@ USERS_FILE = DATA_DIR / "users.json"
 DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
 
 # --- Invio email (SMTP) — per recapitare le credenziali ai partecipanti ---
-# Relay interno del Comune (destinatari @example.it):
+# Relay interno dell'ente (destinatari del dominio dell'ente):
 #   SMTP_HOST=mail.example.it  SMTP_PORT=25  (senza auth né TLS)
 # SMTP_USER/PASSWORD e SMTP_STARTTLS servono solo se il relay li richiede.
 SMTP_HOST = os.getenv("SMTP_HOST", "")

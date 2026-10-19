@@ -3,7 +3,7 @@ Cancella su richiesta le domande di un utente, o singole domande, da tutti i
 file di dati e dalla memoria dell'API in esecuzione, senza riavviarla.
 
 Uso (sul server, dalla directory del progetto; serve ADMIN_API_KEY nel .env):
-    venv/bin/python -m scripts.forget --user antonio.prado@example.it --last 1
+    venv/bin/python -m scripts.forget --user m.rossi@example.it --last 1
     venv/bin/python -m scripts.forget --user <email o id> --last 5
     venv/bin/python -m scripts.forget --user <email o id> --all   (anche id di utenti rimossi)
     venv/bin/python -m scripts.forget --rid 3f9a0c1d2e4b [--rid ...]

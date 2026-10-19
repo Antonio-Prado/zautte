@@ -108,7 +108,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 ### How It Works
 
 1. **BFS** (breadth-first) starting from `SITE_URL` and the `extra_start_urls` in `config/crawl_extra.json`
-2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: the San Benedetto CMS serves the same attachment under `/s3/6115/` on four hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
+2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: the CMS of the reference site serves the same attachment under `/s3/6115/` on four hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
 3. Skips URLs containing any of the `CRAWL_EXCLUDE_PATTERNS` (plus `exclude_patterns` from `crawl_extra.json`), deeper than `CRAWL_MAX_PATH_DEPTH` (10 segments; per-domain limits in `domain_max_path_depth`), or repeating a non-numeric path segment (CMS breadcrumb loops); PDF links skip instead those containing one of the `pdf_exclude_patterns`
 4. For each HTML page (responses with HTTP status ≥ 400 are skipped):
    - Extracts text with `clean_text()` (removes nav, footer, widgets, noise lines)

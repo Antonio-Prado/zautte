@@ -8,7 +8,7 @@ Config via .env / config.settings:
     SMTP_STARTTLS                     (opzionale: true per STARTTLS, porta 587)
     SMTP_SSL                          (opzionale: true per TLS implicito, porta 465)
 
-Relay interno del Comune (destinatari @example.it):
+Relay interno dell'ente (destinatari del dominio dell'ente):
     SMTP_HOST=mail.example.it  SMTP_PORT=25  (niente auth, niente TLS)
 SMTP autenticato (es. Carbonio):
     SMTP_HOST=<host> SMTP_PORT=465 SMTP_SSL=true SMTP_USER=... SMTP_PASSWORD=...

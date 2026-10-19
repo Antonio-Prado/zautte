@@ -3,7 +3,7 @@ Titoli leggibili per le fonti PDF.
 
 Il titolo salvato di un PDF è il /Title interno del file oppure, se manca, il nome
 del file in cache (percorso dell'URL + hash: «Engine_RAServeFile.php_f__Allegato_B.pdf_660…»).
-Molti /Title non dicono nulla («COMUNE DI SAN BENEDETTO DEL TRONTO» su 182 file,
+Molti /Title non dicono nulla («COMUNE DI ESEMPIO» su 182 file,
 «Layout 1», «Microsoft Word - …», «INDICE»). Il titolo da mostrare (fonti del widget,
 contesto del modello) si sceglie al volo: il /Title se è informativo, altrimenti il
 nome del file preso dall'URL, ripulito; se anche quello è generico, il titolo ricavato
@@ -188,7 +188,7 @@ def _tame_caps(s: str) -> str:
                 or (_KEEP_UPPER_SMALL.match(w) and (w.startswith("(") or w.endswith(":"))))
         out.append(w if keep else w.lower())
     t = " ".join(out)
-    if SITE_NAME:  # «san benedetto del tronto» → «San Benedetto del Tronto»
+    if SITE_NAME:  # «esempio del lago» → «Esempio del Lago»
         place = re.sub(r"^(?:comune|citt[aà]) di\s+", "", SITE_NAME, flags=re.IGNORECASE)
         for name in {SITE_NAME, place}:
             t = re.sub(re.escape(name), name, t, flags=re.IGNORECASE)

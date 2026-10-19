@@ -127,7 +127,6 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── architecture.md, installation.md, configuration.md, how-it-works.md,
 │   │   api.md, widget.md, operations.md, privacy-and-security.md
 │   ├── images/               # Screenshots used in the README
-│   ├── informativa-privacy-zautte.md  # Draft privacy notice (to be approved by the DPO)
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │
 ├── scripts/

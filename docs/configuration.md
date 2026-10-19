@@ -4,6 +4,19 @@
 
 Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
 
+## Separating your organisation's files from the code
+
+The repository holds the generic product. Everything that belongs to one organisation (its pages, logos, footer, statistics, the changelog of the installation, the privacy notice) lives outside the repository, in a folder pointed to by `INSTANCE_DIR` in `.env`:
+
+```
+your-instance/
+├── widget/        # replaces the files of the same name served at /widget/ (dashboard.html, pilot.html, come-funziona.html, site-footer.js, matomo.js, manifest.webmanifest, logos, og.png...)
+├── admin_panel/   # panel.html/css/js and login.html replace the generic ones; changelog.html is appended to the panel
+└── config/        # known_facts.json, synonyms.json, offices.json, crawl_extra.json (symlinked into config/)
+```
+
+A file that is missing from the folder falls back to the generic one in the repository, so you only keep what you change. The path of the restricted area is set with `ADMIN_PATH` in `.env` (empty = the area is off), so it does not appear in the code.
+
 ## `.env` File
 
 ```ini
@@ -13,7 +26,7 @@ SITE_NAME=Your-organization
 # Domains allowed during the crawl (comma-separated; with an empty list only the start URLs are fetched)
 CRAWL_ALLOWED_DOMAINS=www.your-site.com
 # Domains whose links are dead after a migration: content stays indexed, links are hidden
-# (the default lists the San Benedetto del Tronto ones; leave empty on other sites)
+# (comma-separated domains or path prefixes; empty = none)
 MIGRATED_DOMAINS=
 
 # LLM provider: "ollama" (local), "claude" (Anthropic API) or "bedrock" (Claude on AWS Bedrock)
@@ -95,7 +108,7 @@ ADMIN_API_KEY=your-secret-key-here
 | `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); production excludes two university theses published among the site's attachments (`/s3/6115/allegati/tesi-`) |
 | `NEWS_SOURCES`         | `news` in `crawl_extra.json`   | Sources of the near-real-time news sync (`scripts.sync news`, see [Operations](operations.md)): `wordpress_api` (base URL of a WordPress REST API, `.../wp-json/wp/v2`), `rss` (feeds of the institutional site), `attachment_hosts` (extra hosts whose PDF/ODT/DOCX attachments are downloaded), `section` (metadata label) |
 | `CRAWL_URL_ALIASES`    | `url_aliases` in `crawl_extra.json` | Hosts that serve the same files under a path prefix (the CMS attachments on `www.`, the API host and the S3 bucket): their URLs are rewritten to `canonical_host`, so each file is fetched and indexed once and attachments on hosts outside `CRAWL_ALLOWED_DOMAINS` are included |
-| `MIGRATED_DOMAINS`     | San Benedetto del Tronto domains | Domains whose links are hidden from answers and sources |
+| `MIGRATED_DOMAINS`     | empty                          | Domains whose links are hidden from answers and sources |
 | `CHUNK_SIZE`           | `800`                          | Not used: chunks are paragraphs of up to 1200 characters (`MAX_PARAGRAPH_CHARS` in `indexer/chunker.py`) |
 | `CHUNK_OVERLAP`        | `100`                          | Overlap when splitting long paragraphs (minimum — effective is 150) |
 | `OLLAMA_EMBED_MODEL`   | `bge-m3`                       | Embedding model (1024 dim)                           |

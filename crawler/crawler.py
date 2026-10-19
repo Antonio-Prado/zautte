@@ -80,7 +80,7 @@ def _describe(resp: httpx.Response) -> str:
 
 async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """GET senza cookie. Il client httpx conserva i cookie tra richieste; su
-    turismo.example.it il plugin WordPress Post Views Counter aggiunge al
+    un sottodominio turistico il plugin WordPress Post Views Counter aggiunge al
     cookie pvc_visits ogni post visitato, e dopo ~1.650 pagine l'header supera
     il limite di Apache (8 KB): da lì ogni richiesta al sito, PDF compresi,
     riceveva 400 Bad Request. Nessuna pagina crawlata richiede cookie."""
@@ -127,7 +127,7 @@ def should_skip(url: str) -> bool:
 
 def canonical_url(url: str) -> str:
     """Riscrive sull'host canonico gli URL di host alias (CRAWL_URL_ALIASES): lo stesso
-    allegato servito da comune…, www.comune…, municipiumapp.it e dal bucket S3 diventa un
+    allegato servito dal sito dell'ente, da un portale esterno e da un bucket S3 diventa un
     solo URL, quindi si scarica e si indicizza una volta sola."""
     if not CRAWL_URL_ALIASES:
         return url
@@ -558,7 +558,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crawler sito Comune SBT")
+    parser = argparse.ArgumentParser(description="Crawler del sito dell'ente")
     parser.add_argument("--incremental", action="store_true",
                         help="Scarica solo le pagine modificate dall'ultima scansione")
     args = parser.parse_args()

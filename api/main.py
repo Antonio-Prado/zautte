@@ -122,12 +122,16 @@ _panel_dir = Path(__file__).parent.parent / "admin_panel"
 _instance = Path(INSTANCE_DIR) if INSTANCE_DIR else None
 
 
-def _panel_file(name: str) -> str:
+def _panel_file(name: str, optional: bool = False) -> str:
     """File dell'area riservata: quello dell'installazione (INSTANCE_DIR/admin_panel)
-    se c'è, altrimenti quello generico del repository."""
-    if _instance and (_instance / "admin_panel" / name).is_file():
-        return (_instance / "admin_panel" / name).read_text(encoding="utf-8")
-    return (_panel_dir / name).read_text(encoding="utf-8")
+    se c'è, altrimenti quello generico del repository. Con optional=True un file
+    assente dà una stringa vuota."""
+    for base in ([_instance / "admin_panel"] if _instance else []) + [_panel_dir]:
+        if (base / name).is_file():
+            return (base / name).read_text(encoding="utf-8")
+    if optional:
+        return ""
+    raise FileNotFoundError(name)
 
 
 if ADMIN_PATH:
@@ -149,6 +153,8 @@ if ADMIN_PATH:
         pubblica, si ricevono solo con una chiave valida (e con l'indirizzo non bloccato)."""
         try:
             parts = {k: _panel_file("panel." + k) for k in ("css", "html", "js")}
+            # changelog dell'installazione: facoltativo, in coda al pannello
+            parts["html"] += _panel_file("changelog.html", optional=True)
         except OSError as e:
             log.error("Pannello non leggibile: %s", e)
             raise HTTPException(status_code=500, detail="Pannello non disponibile")
@@ -478,7 +484,7 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
     `partial` la risposta si è interrotta (errore o utente andato via) e il testo
     è quello arrivato fino a quel momento. La risposta non viene mascherata: la
     domanda lo è già prima del modello e il testo viene dai contenuti pubblici
-    del Comune (recapiti degli uffici compresi).
+    dell'ente (recapiti degli uffici compresi).
     """
     if not uid or uid == "anon" or not rid:
         return
