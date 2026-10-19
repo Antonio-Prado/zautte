@@ -71,6 +71,10 @@ CRAWL_EXTRA_START_URLS: list[str] = []
 # [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. Il crawler
 # riscrive questi URL sull'host canonico, così un file si scarica e si indicizza una volta.
 CRAWL_URL_ALIASES: list[dict] = []
+# Etichetta «sezione» dei metadati dal nome dell'host, in ordine, vince la prima regola:
+# [{"host_contains": "suap", "section": "suap"}]. Senza regole valida SECTION_DEFAULT.
+CRAWL_SECTION_RULES: list[dict] = []
+SECTION_DEFAULT = "sito_principale"
 # Pezzi di URL dei PDF da non scaricare (i PDF non passano da CRAWL_EXCLUDE_PATTERNS,
 # che contiene ".pdf" per tenerli fuori dalla navigazione delle pagine)
 CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
@@ -90,6 +94,7 @@ try:
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
         CRAWL_URL_ALIASES += _crawl_extra.get("url_aliases", [])
+        CRAWL_SECTION_RULES += _crawl_extra.get("section_rules", [])
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:

@@ -245,7 +245,7 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Indicizzatore contenuti Comune SBT")
+    parser = argparse.ArgumentParser(description="Indicizzatore dei contenuti del sito")
     parser.add_argument("--reset", action="store_true",
                         help="Svuota il vector store prima di indicizzare")
     parser.add_argument("--stats", action="store_true",

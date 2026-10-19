@@ -1,6 +1,6 @@
 """
 Controlla che la versione sia la stessa in version.json, nell'ultima voce di CHANGELOG.md
-(la prima dopo [Unreleased]) e in CITATION.cff; con un argomento (il tag, es. v0.2.0)
+(la prima dopo [Unreleased]), in CITATION.cff e in publiccode.yml; con un argomento (il tag, es. v0.2.0)
 controlla anche che il tag coincida. Esce con 1 se qualcosa non torna.
 
 Uso:  python scripts/check_version.py [vX.Y.Z]
@@ -29,12 +29,15 @@ def main(argv: list[str]) -> int:
     cff = re.search(rf"^version: ({SEMVER})$", (ROOT / "CITATION.cff").read_text(encoding="utf-8"), re.MULTILINE)
     if not cff or cff.group(1) != version:
         errors.append(f"CITATION.cff: versione {cff.group(1) if cff else 'assente'}, version.json dice {version}")
+    pub = re.search(rf'^softwareVersion: "({SEMVER})"$', (ROOT / "publiccode.yml").read_text(encoding="utf-8"), re.MULTILINE)
+    if not pub or pub.group(1) != version:
+        errors.append(f"publiccode.yml: versione {pub.group(1) if pub else 'assente'}, version.json dice {version}")
     if argv and argv[0] != f"v{version}":
         errors.append(f"il tag {argv[0]} non coincide con version.json (v{version})")
     for e in errors:
         print("KO  " + e)
     if not errors:
-        print(f"ok  versione {version} coerente (version.json, CHANGELOG.md, CITATION.cff)")
+        print(f"ok  versione {version} coerente (version.json, CHANGELOG.md, CITATION.cff, publiccode.yml)")
     return 1 if errors else 0
 
 

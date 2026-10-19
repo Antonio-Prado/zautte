@@ -16,5 +16,15 @@
       "files.example.org"
     ],
     "section": "Notizie"
-  }
+  },
+  "section_rules": [
+    {
+      "host_contains": "suap",
+      "section": "suap"
+    },
+    {
+      "host_contains": "servizi.",
+      "section": "servizi_online"
+    }
+  ]
 }

@@ -5,7 +5,7 @@ version, never a batch.
 
 1. Change the code and add a section to `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com/),
    [SemVer](https://semver.org/): patch for fixes, minor for new features; `0.x` while it is a pilot).
-2. Set the same version in `version.json` and `CITATION.cff` (also `date-released`).
+2. Set the same version in `version.json`, `CITATION.cff` (also `date-released`) and `publiccode.yml` (also `releaseDate`).
    `python scripts/check_version.py` checks the three files and the changelog; CI runs it.
 3. Commit and push, then wait for the green pipeline (lint, version check, accessibility, CodeQL).
 4. Deploy and verify online (for example with the hashes of the files).

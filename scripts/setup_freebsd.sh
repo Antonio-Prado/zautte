@@ -4,7 +4,7 @@
 
 set -e
 
-echo "=== Setup Chatbot Comune SBT su FreeBSD ==="
+echo "=== Setup Zautte su FreeBSD ==="
 
 # --- Pacchetti di sistema ---
 echo "[1/5] Installazione pacchetti di sistema..."

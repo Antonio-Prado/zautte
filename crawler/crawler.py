@@ -31,8 +31,10 @@ from config.settings import (
     CRAWL_MAX_PAGES,
     CRAWL_MAX_PATH_DEPTH,
     CRAWL_PDF_EXCLUDE_PATTERNS,
+    CRAWL_SECTION_RULES,
     CRAWL_URL_ALIASES,
     DOCUMENTS_DIR,
+    SECTION_DEFAULT,
     SITE_URL,
 )
 from crawler.state import CrawlState, content_hash
@@ -283,16 +285,8 @@ def extract_metadata(html: str, url: str) -> dict:
 
     # --- Sezione dal dominio ---
     netloc = parsed.netloc.lower()
-    if "amministrazionetrasparente" in netloc:
-        section = "trasparenza"
-    elif "sportellounico" in netloc or "suap" in netloc:
-        section = "suap"
-    elif "ambitosociale" in netloc:
-        section = "ambito_sociale"
-    elif "servizi." in netloc:
-        section = "servizi_online"
-    else:
-        section = "sito_principale"
+    section = next((r["section"] for r in CRAWL_SECTION_RULES
+                    if r.get("host_contains") and r["host_contains"] in netloc), SECTION_DEFAULT)
 
     # --- Data di pubblicazione/aggiornamento ---
     date = None

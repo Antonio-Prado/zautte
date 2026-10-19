@@ -9,8 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-19
+
+### Added
+- `section_rules` in `crawl_extra.json`: rules that label each page with a `section` from its host
+  name (first match wins, `sito_principale` otherwise). The labels used to be fixed in the crawler.
+- `config/crawl_extra.example.json` shows every key, including `news` and `section_rules`.
+- `scripts/check_version.py` also checks `softwareVersion` in `publiccode.yml`.
+
 ### Changed
-- Documentation brought in line with 0.2.0: restricted area and lockout (`ADMIN_PATH`, `ADMIN_MAX_ATTEMPTS`, `ADMIN_LOCKOUT_SECONDS`), `INSTANCE_DIR`, generic pages and footer, releasing; the sequence diagram in the README now shows sign-in, the block on questions with personal data, the daily limit and the fixed replies; news sources are described generically (WordPress, RSS) instead of as a municipal bulletin.
+- Documentation brought in line with 0.2.0: restricted area and lockout (`ADMIN_PATH`,
+  `ADMIN_MAX_ATTEMPTS`, `ADMIN_LOCKOUT_SECONDS`), `INSTANCE_DIR`, generic pages and footer,
+  releasing; the sequence diagram in the README shows sign-in, the block on questions with
+  personal data, the daily limit and the fixed replies.
+- News sources are described generically (WordPress, RSS) instead of as a municipal bulletin.
+- `publiccode.yml`: the repository owner is the author, version 0.3.0.
+- Scripts and messages no longer name a specific organisation.
 
 ## [0.2.0] - 2026-10-19
 
@@ -59,7 +73,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Antonio-Prado/zautte/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Antonio-Prado/zautte/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Antonio-Prado/zautte/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Antonio-Prado/zautte/releases/tag/v0.1.0

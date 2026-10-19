@@ -141,7 +141,7 @@ State is managed by the `CrawlState` class in `crawler/state.py`.
 | Field            | How it is determined                                     |
 |------------------|----------------------------------------------------------|
 | `category`       | URL path: `/services/`, `/service/` → `servizio`; `/news/`, `/news-category/`, `/notizie/` → `notizia`; `/faq` → `faq`; `/documents/`, `/public_documents/` → `documento`; `/topics/` → `argomento`; otherwise `pagina` |
-| `section`        | Host name: `amministrazionetrasparente` → `trasparenza`; `sportellounico`/`suap` → `suap`; `ambitosociale` → `ambito_sociale`; `servizi.` → `servizi_online`; otherwise `sito_principale` |
+| `section`        | Host name, by the rules in `section_rules` of `crawl_extra.json` (`{"host_contains": "suap", "section": "suap"}`, first match wins); `sito_principale` when none matches |
 | `date`           | First of the meta tags `article:modified_time`, `article:published_time`, `date`, `DC.date`, `last-modified`, else the first `<time datetime>`; truncated to `YYYY-MM-DD` |
 | `service_status` | `servizio` pages only: "servizio attivo" → `attivo`; "servizio non attivo"/"servizio sospeso" → `non attivo` |
 

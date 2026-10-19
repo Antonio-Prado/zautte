@@ -3,8 +3,8 @@ publiccodeYmlVersion: "0.4"
 name: Zautte
 url: "https://github.com/Antonio-Prado/zautte"
 landingURL: "https://github.com/Antonio-Prado/zautte"
-releaseDate: "2026-10-18"
-softwareVersion: "0.1.1"
+releaseDate: "2026-10-19"
+softwareVersion: "0.3.0"
 developmentStatus: beta
 softwareType: "standalone/web"
 platforms:
@@ -19,7 +19,7 @@ usedBy:
 
 legal:
   license: MIT
-  repoOwner: Comune di San Benedetto del Tronto
+  repoOwner: Antonio Prado
 
 maintenance:
   type: internal
