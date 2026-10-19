@@ -162,7 +162,7 @@ Then add the widget to your site's pages:
 
 ## Built with
 
-Python 3.11 · FastAPI and uvicorn · Ollama (`bge-m3` embeddings) · numpy · rank-bm25 · httpx, BeautifulSoup and lxml · pypdf · Claude (Anthropic API or AWS Bedrock) · vanilla JavaScript · FreeBSD rc.d, cron and newsyslog.
+Python 3.11 · FastAPI and uvicorn · Ollama (`bge-m3` embeddings) · numpy · rank-bm25 · httpx, BeautifulSoup and lxml · pypdf · a hosted LLM (Anthropic API, AWS Bedrock) or a local one with Ollama · vanilla JavaScript · FreeBSD rc.d, cron and newsyslog.
 
 ## Contributing and security
 
