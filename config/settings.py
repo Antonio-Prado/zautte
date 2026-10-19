@@ -29,6 +29,13 @@ VECTOR_DB_DIR = DATA_DIR / "vectordb"
 DOCUMENTS_DIR = DATA_DIR / "documents"
 CRAWL_CACHE_DIR = DATA_DIR / "crawl_cache"
 
+# --- Personalizzazioni dell'ente ---
+# Cartella (fuori dal repository) con i file specifici dell'installazione: pagine e
+# immagini del widget (widget/), area riservata (admin_panel/) e file di config
+# (config/). I file qui sostituiscono quelli omonimi del repository; quelli che
+# mancano restano i file generici. Vuota = solo i file del repository.
+INSTANCE_DIR = os.getenv("INSTANCE_DIR", "").strip()
+
 # --- Sito target ---
 # Obbligatori: impostare in .env
 SITE_URL  = os.getenv("SITE_URL", "")

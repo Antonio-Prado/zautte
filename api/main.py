@@ -40,6 +40,7 @@ from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
+    INSTANCE_DIR,
     ADMIN_PATH,
     API_CORS_ORIGINS,
     API_DOCS,
@@ -118,6 +119,15 @@ app = FastAPI(
 )
 
 _panel_dir = Path(__file__).parent.parent / "admin_panel"
+_instance = Path(INSTANCE_DIR) if INSTANCE_DIR else None
+
+
+def _panel_file(name: str) -> str:
+    """File dell'area riservata: quello dell'installazione (INSTANCE_DIR/admin_panel)
+    se c'è, altrimenti quello generico del repository."""
+    if _instance and (_instance / "admin_panel" / name).is_file():
+        return (_instance / "admin_panel" / name).read_text(encoding="utf-8")
+    return (_panel_dir / name).read_text(encoding="utf-8")
 
 
 if ADMIN_PATH:
@@ -127,7 +137,7 @@ if ADMIN_PATH:
         """Pagina con il solo modulo per la chiave. Il resto (pannello, script,
         stili) si riceve da <indirizzo>/dati con una chiave valida."""
         try:
-            html = (_panel_dir / "login.html").read_text(encoding="utf-8")
+            html = _panel_file("login.html")
         except OSError as e:
             log.error("Pagina di accesso non leggibile: %s", e)
             raise HTTPException(status_code=404, detail="Not Found")
@@ -138,7 +148,7 @@ if ADMIN_PATH:
         """Stili, HTML e JavaScript dell'area riservata: non stanno in nessuna pagina
         pubblica, si ricevono solo con una chiave valida (e con l'indirizzo non bloccato)."""
         try:
-            parts = {k: (_panel_dir / ("panel." + k)).read_text(encoding="utf-8") for k in ("css", "html", "js")}
+            parts = {k: _panel_file("panel." + k) for k in ("css", "html", "js")}
         except OSError as e:
             log.error("Pannello non leggibile: %s", e)
             raise HTTPException(status_code=500, detail="Pannello non disponibile")
@@ -177,10 +187,33 @@ class _RevalidatedStaticFiles(StaticFiles):
         return response
 
 
+class _OverlayStaticFiles(_RevalidatedStaticFiles):
+    """Come _RevalidatedStaticFiles, ma prima cerca il file nella cartella
+    dell'installazione (INSTANCE_DIR/widget) e solo se manca usa quello generico."""
+
+    def __init__(self, directory: str, overlay: str | None = None):
+        super().__init__(directory=directory)
+        self._overlay = StaticFiles(directory=overlay) if overlay else None
+
+    async def get_response(self, path, scope):
+        if self._overlay is not None:
+            try:
+                response = await self._overlay.get_response(path, scope)
+                if response.status_code != 404:
+                    response.headers["Cache-Control"] = "no-cache"
+                    return response
+            except StarletteHTTPException as e:
+                if e.status_code != 404:
+                    raise
+        return await super().get_response(path, scope)
+
+
 # Serve il widget JS come file statico (GET /widget/chatbot-widget.js)
 _widget_dir = Path(__file__).parent.parent / "widget"
+_widget_overlay = _instance / "widget" if _instance and (_instance / "widget").is_dir() else None
 if _widget_dir.exists():
-    app.mount("/widget", _RevalidatedStaticFiles(directory=str(_widget_dir)), name="widget")
+    app.mount("/widget", _OverlayStaticFiles(str(_widget_dir), str(_widget_overlay) if _widget_overlay else None),
+              name="widget")
 
 
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
