@@ -84,7 +84,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             batch = texts[i : i + BATCH_SIZE]
             batch_num = i // BATCH_SIZE + 1
             total_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
-            log.info(f"  Embedding {batch_num}/{total_batches} ({len(batch)} testi)...")
+            log.info(f"  Embedding {batch_num}/{total_batches} ({len(batch)} texts)...")
             if batch_failures >= BATCH_GIVE_UP:
                 # A rejected batch costs 30-50 s: if they fail in a row (e.g.
                 # re-embedding of problematic chunks) switch to single calls.
@@ -94,10 +94,10 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
                 if vecs is None:
                     batch_failures += 1
                     if batch_failures == BATCH_GIVE_UP:
-                        log.warning(f"  {BATCH_GIVE_UP} batch consecutivi rifiutati: "
-                                    "singoli per il resto della corsa")
+                        log.warning(f"  {BATCH_GIVE_UP} consecutive batches rejected: "
+                                    "single requests for the rest of the run")
                     else:
-                        log.warning(f"  Batch {len(batch)} testi fallito, uso singoli paralleli...")
+                        log.warning(f"  Batch of {len(batch)} texts failed, falling back to parallel single requests...")
                     vecs = _embed_parallel(client, batch)
                 else:
                     batch_failures = 0
@@ -131,14 +131,14 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
                 log.warning(f"  Batch Ollama 400: {resp.text[:200]!r}")
                 return None
             if attempt == MAX_RETRIES:
-                log.warning(f"  Batch Ollama HTTP {resp.status_code} dopo {MAX_RETRIES} retry")
+                log.warning(f"  Batch Ollama HTTP {resp.status_code} after {MAX_RETRIES} retries")
                 return None
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
             if attempt == MAX_RETRIES:
-                log.warning(f"  Batch Ollama errore dopo {MAX_RETRIES} retry: {e}")
+                log.warning(f"  Batch Ollama error after {MAX_RETRIES} retries: {e}")
                 return None
         delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-        log.warning(f"  Batch Ollama 500, retry {attempt + 1}/{MAX_RETRIES} tra {delay:.1f}s...")
+        log.warning(f"  Batch Ollama 500, retry {attempt + 1}/{MAX_RETRIES} in {delay:.1f}s...")
         time.sleep(delay)
     return None
 
@@ -171,11 +171,11 @@ def _embed_one(client: httpx.Client, text: str) -> list[float]:
         vec, too_long = _embed_request(client, cleaned[:n], text)
         if vec is not None:
             if n < len(cleaned):
-                log.info(f"  Testo troncato a {n} caratteri per il contesto del modello: {text[:60]!r}")
+                log.info(f"  Text truncated to {n} characters to fit the model context: {text[:60]!r}")
             return vec
         if not too_long:
             return _zero()
-    log.warning(f"  Testo oltre il contesto anche a {lengths[-1]} caratteri, vettore zero: {text[:80]!r}")
+    log.warning(f"  Text exceeds the context even at {lengths[-1]} characters, zero vector: {text[:80]!r}")
     return _zero()
 
 
@@ -194,22 +194,22 @@ def _embed_request(client: httpx.Client, text: str,
                 embeddings = resp.json().get("embeddings") or []
                 if embeddings:
                     return embeddings[0], False
-                log.warning("  /api/embed ha risposto senza embedding, vettore zero")
+                log.warning("  /api/embed returned no embedding, zero vector")
                 return None, False
             if resp.status_code == 400:
                 if _CTX_ERROR in resp.text:
                     return None, True
-                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — testo: {original[:80]!r}")
+                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — text: {original[:80]!r}")
                 return _embed_one_legacy(client, text), False
             if attempt == MAX_RETRIES:
-                log.warning(f"  Embedding singolo fallito (HTTP {resp.status_code}), vettore zero")
+                log.warning(f"  Single embedding failed (HTTP {resp.status_code}), zero vector")
                 return None, False
         except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
             if attempt == MAX_RETRIES:
-                log.warning(f"  Embedding singolo fallito: {e}, vettore zero")
+                log.warning(f"  Single embedding failed: {e}, zero vector")
                 return None, False
         delay = RETRY_BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-        log.warning(f"  Ollama {status}, retry {attempt + 1}/{MAX_RETRIES} tra {delay:.1f}s...")
+        log.warning(f"  Ollama {status}, retry {attempt + 1}/{MAX_RETRIES} in {delay:.1f}s...")
         time.sleep(delay)
     return None, False
 
@@ -224,9 +224,9 @@ def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
         )
         if resp.status_code == 200:
             return resp.json()["embedding"]
-        log.warning(f"  /api/embeddings HTTP {resp.status_code}: {resp.text[:200]!r}, vettore zero")
+        log.warning(f"  /api/embeddings HTTP {resp.status_code}: {resp.text[:200]!r}, zero vector")
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
-        log.warning(f"  /api/embeddings errore: {e}, vettore zero")
+        log.warning(f"  /api/embeddings error: {e}, zero vector")
     return _zero()
 
 

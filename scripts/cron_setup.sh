@@ -20,10 +20,10 @@ add_cron() {
     crontab -u "${CRON_USER}" -l 2>/dev/null | grep -qF "${line}" && return
     (crontab -u "${CRON_USER}" -l 2>/dev/null; echo "${line}") \
         | crontab -u "${CRON_USER}" -
-    echo "Aggiunto: ${line}"
+    echo "Added: ${line}"
 }
 
-echo "Configurazione cron job per utente '${CRON_USER}'..."
+echo "Configuring cron jobs for user '${CRON_USER}'..."
 
 # --- Incremental sync every Monday at 02:30 ---
 # Checks the site for changes and indexes new/updated documents.
@@ -49,10 +49,10 @@ add_cron "15 2 * * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.purge_logs >
 add_cron "0 4 * * 0 find ${LOG_DIR} -name '*.log' -size +10M -exec sh -c 'mv \"\$1\" \"\$1.old\" && gzip \"\$1.old\"' _ {} \;"
 
 echo ""
-echo "Cron job configurati. Verifica con: crontab -u ${CRON_USER} -l"
+echo "Cron jobs configured. Check with: crontab -u ${CRON_USER} -l"
 echo ""
-echo "Schedule attivo:"
-echo "  02:30 ogni lunedì   → sync incrementale (modifiche)"
-echo "  03:00 il 1° del mese → sync completo (full crawl, indice sempre attivo)"
-echo "  ogni 30min (8-18 lun-ven) → inbox documenti"
-echo "  02:15 ogni giorno     → scadenza dei log degli utenti (purge_logs)"
+echo "Active schedule:"
+echo "  02:30 every Monday   → incremental sync (changes)"
+echo "  03:00 1st of the month → full sync (full crawl, index always live)"
+echo "  every 30 min (8-18 Mon-Fri) → document inbox"
+echo "  02:15 every day     → user log expiry (purge_logs)"

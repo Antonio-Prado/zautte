@@ -6,7 +6,7 @@
     }
 
     function fmtNum(n) {
-      return n != null ? Number(n).toLocaleString('it') : '—';
+      return n != null ? Number(n).toLocaleString('en-GB') : '—';
     }
 
     function updateStats() {
@@ -18,12 +18,12 @@
           document.getElementById('dot').className = 'dot ok';
           document.getElementById('backend-status').textContent = 'online';
           document.getElementById('latency').textContent = ms + ' ms';
-          document.getElementById('last-update').textContent = new Date().toLocaleTimeString('it');
+          document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-GB');
           document.getElementById('uptime').textContent = fmtUptime(d.uptime_seconds || 0);
 
           document.getElementById('model-name').textContent = d.llm_model || '—';
           document.getElementById('llm-provider').textContent = d.llm_provider ? '(' + d.llm_provider + ')' : '';
-          document.getElementById('hybrid').textContent = d.hybrid_search ? '✓ attivo' : '✗ non disponibile';
+          document.getElementById('hybrid').textContent = d.hybrid_search ? '✓ active' : '✗ not available';
           document.getElementById('last-indexed').textContent = d.last_indexed || '—';
           document.getElementById('unique-sources').textContent = fmtNum(d.unique_sources);
           document.getElementById('chunk-count').textContent = fmtNum(d.indexed_chunks);
@@ -58,7 +58,7 @@
             const bar = document.createElement('div');
             bar.className = 'hour-bar' + (h === nowH ? ' active' : '');
             bar.style.height = Math.max(2, Math.round(v/maxH*38)) + 'px';
-            bar.setAttribute('data-label', h + ':00 — ' + v + ' domande');
+            bar.setAttribute('data-label', h + ':00 — ' + v + ' questions');
             chart.appendChild(bar);
           });
 
@@ -80,7 +80,7 @@
           document.getElementById('fb-total').textContent = fmtNum(fb.total ?? 0);
           document.getElementById('fb-pos').textContent = fmtNum(fb.positive ?? 0);
           document.getElementById('fb-neg').textContent = fmtNum(fb.negative ?? 0);
-          document.getElementById('fb-res').textContent = fb.resolved ? '✓ ' + fmtNum(fb.resolved) + ' risolti' : '';
+          document.getElementById('fb-res').textContent = fb.resolved ? '✓ ' + fmtNum(fb.resolved) + ' resolved' : '';
           {
             const r = 28, cx = 35, cy = 35, sw = 10;
             const circ = 2 * Math.PI * r;
@@ -143,7 +143,7 @@
         })
         .catch(() => {
           document.getElementById('dot').className = 'dot err';
-          document.getElementById('backend-status').textContent = 'non raggiungibile';
+          document.getElementById('backend-status').textContent = 'unreachable';
         });
     }
 
@@ -158,7 +158,7 @@
             const done = html.current >= html.total;
             document.getElementById('crawl-progress-html').style.display = '';
             document.getElementById('crawl-html-label').textContent =
-              'HTML: ' + fmtNum(html.current) + ' / ' + fmtNum(html.total) + ' pagine' + (done ? ' ✓' : ' — in corso ' + html.ts);
+              'HTML: ' + fmtNum(html.current) + ' / ' + fmtNum(html.total) + ' pages' + (done ? ' ✓' : ' — in progress ' + html.ts);
             document.getElementById('crawl-html-bar').style.width = pct + '%';
           }
           const pdf = d.current_pdf;
@@ -167,7 +167,7 @@
             const done = pdf.current >= pdf.total;
             document.getElementById('crawl-progress-pdf').style.display = '';
             document.getElementById('crawl-pdf-label').textContent =
-              'PDF: ' + fmtNum(pdf.current) + ' / ' + fmtNum(pdf.total) + (done ? ' ✓' : ' — in corso ' + pdf.ts);
+              'PDF: ' + fmtNum(pdf.current) + ' / ' + fmtNum(pdf.total) + (done ? ' ✓' : ' — in progress ' + pdf.ts);
             document.getElementById('crawl-pdf-bar').style.width = pct + '%';
           }
 
@@ -187,12 +187,12 @@
                 '</li>';
             }).join('');
           } else {
-            tl.innerHTML = '<li><span class="tl-label" style="color:#666">nessun evento trovato nel log</span></li>';
+            tl.innerHTML = '<li><span class="tl-label" style="color:#666">no events found in the log</span></li>';
           }
         })
         .catch(() => {
           document.getElementById('crawl-timeline').innerHTML =
-            '<li><span class="tl-label" style="color:#e53935">errore caricamento storico</span></li>';
+            '<li><span class="tl-label" style="color:#e53935">error loading history</span></li>';
         });
     }
 
@@ -210,18 +210,18 @@
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(data => {
           const msgs = data.messages || [];
-          status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
+          status.textContent = '— ' + (data.total || msgs.length) + ' messages';
           // The table is rebuilt every 30 s: open answers stay open.
           const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.rid));
           if (!msgs.length) {
-            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun messaggio registrato finora.</span>';
+            body.innerHTML = '<span style="color:#666;font-size:.85em">No messages recorded so far.</span>';
             return;
           }
           let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
             + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
-            + '<th style="padding:6px 8px;white-space:nowrap">Quando</th>'
-            + '<th style="padding:6px 8px;white-space:nowrap">Utente</th>'
-            + '<th style="padding:6px 8px">Domanda e risposta</th></tr></thead><tbody>';
+            + '<th style="padding:6px 8px;white-space:nowrap">When</th>'
+            + '<th style="padding:6px 8px;white-space:nowrap">User</th>'
+            + '<th style="padding:6px 8px">Question and answer</th></tr></thead><tbody>';
           msgs.forEach(m => {
             const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
             // Since 07/10/2026 the answer given by Zautte is also there (answers.jsonl):
@@ -235,7 +235,7 @@
               });
               cell = '<details class="msg-answer" data-rid="' + _esc(m.rid) + '"'
                 + (open.has(m.rid) ? ' open' : '') + '><summary>' + _esc(m.q)
-                + (m.partial ? ' <span class="msg-partial">(risposta interrotta)</span>' : '')
+                + (m.partial ? ' <span class="msg-partial">(answer interrupted)</span>' : '')
                 + '</summary><div class="msg-answer-text">' + _esc(m.a) + '</div>'
                 + (src ? '<ul class="msg-sources">' + src + '</ul>' : '') + '</details>';
             }
@@ -248,7 +248,7 @@
           body.innerHTML = html;
         })
         .catch(() => {
-          body.innerHTML = '<span style="color:#666;font-size:.85em">Errore nel caricamento del log.</span>';
+          body.innerHTML = '<span style="color:#666;font-size:.85em">Error loading the log.</span>';
         });
     }
 
@@ -260,9 +260,9 @@
       let notify = false;
       if (user) {
         const answer = prompt(
-          'Risolvo la segnalazione di ' + user + '.\n\n' +
-          'OK = risolvi e invia l\'email di riscontro al collega (qui sotto puoi aggiungere una nota facoltativa).\n' +
-          'Annulla = risolvi senza inviare email.', '');
+          'Resolving the report from ' + user + '.\n\n' +
+          'OK = resolve and send the follow-up email to the colleague (you can add an optional note below).\n' +
+          'Cancel = resolve without sending an email.', '');
         notify = answer !== null;
         note = answer || '';
       }
@@ -274,12 +274,12 @@
         body: JSON.stringify({ ts, question, note, notify }),
       })
         .then(r => {
-          if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Chiave admin non valida.'); return; }
+          if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Resolved'; alert('Invalid admin key.'); return; }
           if (!r.ok) throw new Error('HTTP ' + r.status);
           liEl.classList.add('resolving');
           setTimeout(() => { liEl.remove(); updateNegStatus(); updateStats(); }, 320);
         })
-        .catch(() => { btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Errore durante la risoluzione.'); });
+        .catch(() => { btnEl.disabled = false; btnEl.textContent = '✓ Resolved'; alert('Error while resolving.'); });
     }
 
     function updateNegStatus() {
@@ -287,8 +287,8 @@
       const listEl = document.getElementById('neg-fb-list');
       const count = listEl.querySelectorAll(':scope > li').length;
       if (count === 0) {
-        listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
-        statusEl.textContent = '— 0 aperte';
+        listEl.innerHTML = '<li><span class="neg-q" style="color:#666">No open negative feedback.</span></li>';
+        statusEl.textContent = '— 0 open';
       }
     }
 
@@ -300,9 +300,9 @@
         .then(data => {
           const items = (data.items || []).slice().reverse();
           const total = data.total_negative || 0;
-          statusEl.textContent = '— ' + items.length + ' aperte su ' + total + ' totali';
+          statusEl.textContent = '— ' + items.length + ' open out of ' + total + ' total';
           if (!items.length) {
-            listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
+            listEl.innerHTML = '<li><span class="neg-q" style="color:#666">No open negative feedback.</span></li>';
             return;
           }
           listEl.innerHTML = '';
@@ -324,7 +324,7 @@
             main.innerHTML = html;
             const btn = document.createElement('button');
             btn.className = 'btn-resolve';
-            btn.textContent = '✓ Risolto';
+            btn.textContent = '✓ Resolved';
             btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn, e.user || ''));
             li.appendChild(main);
             li.appendChild(btn);
@@ -333,7 +333,7 @@
         })
         .catch(() => {
           statusEl.textContent = '';
-          listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Errore caricamento.</span></li>';
+          listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Error loading.</span></li>';
         });
     }
 
@@ -342,7 +342,7 @@
       if (!key) return;
       const body = document.getElementById('usage-body');
       const status = document.getElementById('usage-status');
-      body.innerHTML = '<span style="color:#666;font-size:.85em">caricamento…</span>';
+      body.innerHTML = '<span style="color:#666;font-size:.85em">loading…</span>';
       fetch(apiBase + '/usage/summary', { headers: { 'X-Admin-Key': key } })
         .then(r => {
           if (r.status === 403) { _adminKey = null; throw new Error('key'); }
@@ -353,19 +353,19 @@
           const users = data.users || [];
           const reg = (data.total_registered != null ? data.total_registered : (data.total_users || 0));
           const act = (data.total_active != null ? data.total_active : users.length);
-          status.textContent = '— ' + reg + ' registrati · ' + act + ' attivi · ' + (data.total_messages || 0) + ' messaggi';
+          status.textContent = '— ' + reg + ' registered · ' + act + ' active · ' + (data.total_messages || 0) + ' messages';
           if (!users.length) {
-            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun utente registrato.</span>';
+            body.innerHTML = '<span style="color:#666;font-size:.85em">No registered users.</span>';
             return;
           }
           let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
             + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
-            + '<th style="padding:6px 8px">Utente</th>'
-            + '<th style="padding:6px 8px;text-align:right">Messaggi</th>'
-            + '<th style="padding:6px 8px;text-align:right">Giorni attivi</th>'
-            + '<th style="padding:6px 8px">Ultimo accesso</th></tr></thead><tbody>';
+            + '<th style="padding:6px 8px">User</th>'
+            + '<th style="padding:6px 8px;text-align:right">Messages</th>'
+            + '<th style="padding:6px 8px;text-align:right">Active days</th>'
+            + '<th style="padding:6px 8px">Last access</th></tr></thead><tbody>';
           users.forEach(u => {
-            const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'mai';
+            const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'never';
             const dim = u.messages ? '' : 'color:#666;';
             html += '<tr style="border-bottom:1px solid #f3f3f3;' + dim + '">'
               + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
@@ -377,9 +377,9 @@
           body.innerHTML = html;
         })
         .catch(e => {
-          body.innerHTML = '<button id="usage-load-btn" class="btn-resolve">Riprova (chiave admin)</button>';
+          body.innerHTML = '<button id="usage-load-btn" class="btn-resolve">Retry (admin key)</button>';
           document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
-          if (String(e && e.message) === 'key') alert('Chiave admin non valida.');
+          if (String(e && e.message) === 'key') alert('Invalid admin key.');
         });
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);

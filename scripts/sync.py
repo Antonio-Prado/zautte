@@ -64,7 +64,7 @@ def _setup_logging():
         fh.setFormatter(fmt)
         root.addHandler(fh)
     except OSError as e:
-        print(f"[WARN] impossibile aprire log file {LOG_FILE}: {e}", file=sys.stderr)
+        print(f"[WARN] cannot open log file {LOG_FILE}: {e}", file=sys.stderr)
 
     # Stdout: useful when launched manually
     sh = logging.StreamHandler(sys.stdout)
@@ -87,13 +87,13 @@ def print_separator(title: str = ""):
 
 async def run_sync(mode: str, backfill: bool = False):
     started_at = now_local()
-    print_separator(f"SYNC — modalità: {mode.upper()}")
+    print_separator(f"SYNC — mode: {mode.upper()}")
 
     if mode == "full":
-        print_separator("Fase 1/3: Crawl completo del sito")
+        print_separator("Phase 1/3: Full site crawl")
         index = await crawl(incremental=False)
 
-        print_separator("Fase 2/3: Reindicizzazione completa (senza svuotare l'indice)")
+        print_separator("Phase 2/3: Full reindex (without emptying the index)")
         index_pages(index["pages"], replace_existing=True)
         index_pdfs(index["pdfs"], replace_existing=True)
 
@@ -108,17 +108,17 @@ async def run_sync(mode: str, backfill: bool = False):
             if not is_migrated_source(s)
         }
         if stale:
-            log.info(f"Pulizia: {len(stale)} sorgenti non più presenti nel sito")
+            log.info(f"Cleanup: {len(stale)} sources no longer on the site")
             remove_sources(stale)
 
-        print_separator("Fase 3/3: Inbox documenti")
+        print_separator("Phase 3/3: Document inbox")
         process_inbox()
 
     elif mode == "incremental":
-        print_separator("Fase 1/3: Crawl incrementale")
+        print_separator("Phase 1/3: Incremental crawl")
         index = await crawl(incremental=True)
 
-        print_separator("Fase 2/3: Indicizzazione modifiche")
+        print_separator("Phase 2/3: Indexing changes")
         from crawler.state import CrawlState
         state = CrawlState()
         changed_urls = set(state.get_changed_urls())
@@ -130,7 +130,7 @@ async def run_sync(mode: str, backfill: bool = False):
             index_pages(changed_pages)
             index_pdfs(changed_pdfs)
         else:
-            log.info("Nessuna modifica rilevata, niente da reindicizzare.")
+            log.info("No changes detected, nothing to reindex.")
 
         # Cleanup of HTML sources no longer present in the current crawl
         current_html_urls = {p["url"] for p in index["pages"]}
@@ -139,59 +139,59 @@ async def run_sync(mode: str, backfill: bool = False):
                       and not s.lower().endswith(".pdf")
                       and not is_migrated_source(s)}
         if stale_html:
-            log.info(f"Pulizia: {len(stale_html)} sorgenti HTML stale da rimuovere")
+            log.info(f"Cleanup: {len(stale_html)} stale HTML sources to remove")
             remove_sources(stale_html)
 
-        print_separator("Fase 3/3: Inbox documenti")
+        print_separator("Phase 3/3: Document inbox")
         process_inbox()
 
     elif mode == "reembed":
-        print_separator("Re-embedding chunk con vettore zero")
+        print_separator("Re-embedding chunks with zero vector")
         from indexer.embedder import embed_texts
         candidates = get_zero_vector_chunks()
         if not candidates:
-            log.info("Nessun chunk con vettore zero trovato — indice pulito.")
+            log.info("No chunks with zero vector found — index clean.")
         else:
-            log.info(f"Trovati {len(candidates)} chunk da ri-embedare")
+            log.info(f"Found {len(candidates)} chunks to re-embed")
             texts = [c["text"] for c in candidates]
             embeddings = embed_texts(texts)
             updates = [(c["idx"], emb) for c, emb in zip(candidates, embeddings)]
             updated = update_embeddings(updates)
             remaining = len(candidates) - updated
-            log.info(f"Re-embedding completato: {updated}/{len(candidates)} aggiornati"
-                     + (f", {remaining} ancora con vettore zero" if remaining else ""))
+            log.info(f"Re-embedding complete: {updated}/{len(candidates)} updated"
+                     + (f", {remaining} still with zero vector" if remaining else ""))
 
     elif mode == "inbox":
-        print_separator("Fase 1/1: Inbox documenti")
+        print_separator("Phase 1/1: Document inbox")
         process_inbox()
 
     elif mode == "news":
-        print_separator("Fase 1/1: Notizie" + (" (archivio completo)" if backfill else ""))
+        print_separator("Phase 1/1: News" + (" (full archive)" if backfill else ""))
         news = run_news(backfill=backfill)
         if not any(news[k] for k in ("posts", "pages", "attachments", "chunks")):
             return   # nothing new: no summary, no reload
 
     elif mode == "full-index":
-        print_separator("Fase 1/2: Reset e reindicizzazione da file esistenti")
+        print_separator("Phase 1/2: Reset and reindex from existing files")
         index = load_index()
         clear_collection()
         index_pages(index["pages"])
         index_pdfs(index["pdfs"])
-        print_separator("Fase 2/2: Inbox documenti")
+        print_separator("Phase 2/2: Document inbox")
         process_inbox()
 
     else:
-        log.error(f"Modalità sconosciuta: {mode}")
+        log.error(f"Unknown mode: {mode}")
         sys.exit(1)
 
     elapsed = (now_local() - started_at).total_seconds()
     stats = get_stats()
 
-    print_separator("RIEPILOGO")
-    log.info(f"Modalità:              {mode}")
-    log.info(f"Durata:                {elapsed:.0f}s")
-    log.info(f"Chunk totali nel DB:   {stats['total_chunks']}")
-    log.info(f"Completato alle:       {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
+    print_separator("SUMMARY")
+    log.info(f"Mode:                  {mode}")
+    log.info(f"Duration:              {elapsed:.0f}s")
+    log.info(f"Total chunks in DB:   {stats['total_chunks']}")
+    log.info(f"Completed at:         {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
     if mode == "news":
         _reload_api()
@@ -212,11 +212,11 @@ def _reload_api():
         resp = httpx.post(f"http://127.0.0.1:{API_PORT}/admin/reload",
                           headers={"X-Admin-Key": ADMIN_API_KEY}, timeout=600.0)
         if resp.status_code == 200 and resp.json().get("reloaded"):
-            log.info(f"Reload API: {resp.json().get('total_chunks')} chunk in memoria")
+            log.info(f"Reload API: {resp.json().get('total_chunks')} chunks in memory")
         else:
-            log.warning(f"Reload API non riuscito: HTTP {resp.status_code} {resp.text[:200]}")
+            log.warning(f"Reload API unsuccessful: HTTP {resp.status_code} {resp.text[:200]}")
     except (httpx.HTTPError, ValueError) as e:
-        log.warning(f"Reload API fallito: {e}")
+        log.warning(f"Reload API failed: {e}")
 
 
 def _notify(subject: str, body: str):
@@ -227,7 +227,7 @@ def _notify(subject: str, body: str):
         if smtp_configured() and FEEDBACK_NOTIFY_EMAIL:
             send_email(FEEDBACK_NOTIFY_EMAIL, subject, body)
     except (OSError, ValueError, RuntimeError) as e:
-        log.warning(f"Email di riepilogo non inviata: {e}")
+        log.warning(f"Summary email not sent: {e}")
 
 
 def _restart_api():
@@ -239,34 +239,34 @@ def _restart_api():
         )
         pids = [int(p) for p in result.stdout.split() if p.strip()]
         if not pids:
-            log.warning("Restart API: nessun processo uvicorn trovato")
+            log.warning("Restart API: no uvicorn process found")
             return
         for pid in pids:
             os.kill(pid, signal.SIGKILL)
-        log.info(f"Restart API: SIGKILL inviato a {len(pids)} processi uvicorn "
+        log.info(f"Restart API: SIGKILL sent to {len(pids)} uvicorn processes "
                  f"(PID: {', '.join(map(str, pids))})")
     except (OSError, ValueError) as e:
-        log.warning(f"Restart API fallito: {e}")
+        log.warning(f"Restart API failed: {e}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Sincronizzazione contenuti: crawl + indicizzazione"
+        description="Content sync: crawl + indexing"
     )
     parser.add_argument(
         "mode",
         choices=["full", "incremental", "inbox", "full-index", "reembed", "news"],
         help=(
-            "full=crawl completo + reindicizza tutto | "
-            "incremental=solo modifiche | "
-            "inbox=solo nuovi documenti | "
-            "full-index=reindicizza senza crawl | "
-            "reembed=ri-embeda chunk con vettore zero | "
-            "news=notizie nuove dal Bollettino e dai feed"
+            "full=full crawl + reindex everything | "
+            "incremental=changes only | "
+            "inbox=new documents only | "
+            "full-index=reindex without crawling | "
+            "reembed=re-embed chunks with zero vector | "
+            "news=new items from the Bulletin and feeds"
         )
     )
     parser.add_argument("--backfill", action="store_true",
-                        help="con news: tutto l'archivio del Bollettino, non solo le novità")
+                        help="with news: the whole Bulletin archive, not just new items")
     args = parser.parse_args()
     asyncio.run(run_sync(args.mode, backfill=args.backfill))
 

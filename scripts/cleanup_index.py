@@ -68,7 +68,7 @@ def cleanup(dry_run: bool = False):
     state_path = CRAWL_CACHE_DIR / "crawl_state.json"
 
     if not index_path.exists():
-        log.error(f"index.json non trovato in {CRAWL_CACHE_DIR}")
+        log.error(f"index.json not found in {CRAWL_CACHE_DIR}")
         sys.exit(1)
 
     with open(index_path, encoding="utf-8") as f:
@@ -81,8 +81,8 @@ def cleanup(dry_run: bool = False):
 
     pages_in  = index.get("pages", [])
     pdfs_in   = index.get("pdfs",  [])
-    log.info(f"Indice attuale: {len(pages_in)} pagine, {len(pdfs_in)} PDF")
-    log.info(f"Stato attuale:  {len(state)} URL tracciati")
+    log.info(f"Current index: {len(pages_in)} pages, {len(pdfs_in)} PDFs")
+    log.info(f"Current state:  {len(state)} tracked URLs")
 
     pages_keep, pages_drop = [], []
     for entry in pages_in:
@@ -96,17 +96,17 @@ def cleanup(dry_run: bool = False):
     state_drop = {url for url in state if should_skip(url)}
 
     log.info(
-        f"\nPagine:  {len(pages_keep)} rimangono, {len(pages_drop)} rimosse"
+        f"\nPages:   {len(pages_keep)} kept, {len(pages_drop)} removed"
     )
     log.info(
-        f"PDF:     {len(pdfs_keep)} rimangono, {len(pdfs_drop)} rimossi"
+        f"PDFs:    {len(pdfs_keep)} kept, {len(pdfs_drop)} removed"
     )
     log.info(
-        f"State:   {len(state) - len(state_drop)} rimangono, {len(state_drop)} rimossi"
+        f"State:   {len(state) - len(state_drop)} kept, {len(state_drop)} removed"
     )
 
     if dry_run:
-        log.info("\n[DRY-RUN] Nessuna modifica applicata.")
+        log.info("\n[DRY-RUN] No changes applied.")
         # Show a sample of the removed URLs per category
         _show_sample("Pagine rimosse (campione)", [e["url"] for e in pages_drop])
         _show_sample("PDF rimossi (campione)", [e["url"] for e in pdfs_drop])
@@ -120,40 +120,40 @@ def cleanup(dry_run: bool = False):
             fpath.unlink()
             files_deleted += 1
 
-    log.info(f"\nFile eliminati dal disco: {files_deleted}")
+    log.info(f"\nFiles deleted from disk: {files_deleted}")
 
     # --- Save the cleaned index.json ---
     cleaned_index = {"pages": pages_keep, "pdfs": pdfs_keep}
     with open(index_path, "w", encoding="utf-8") as f:
         json.dump(cleaned_index, f, ensure_ascii=False, indent=2)
-    log.info(f"index.json aggiornato → {len(pages_keep)} pagine, {len(pdfs_keep)} PDF")
+    log.info(f"index.json updated → {len(pages_keep)} pages, {len(pdfs_keep)} PDFs")
 
     # --- Save the cleaned crawl_state.json ---
     if state_path.exists():
         cleaned_state = {url: data for url, data in state.items() if url not in state_drop}
         with open(state_path, "w", encoding="utf-8") as f:
             json.dump(cleaned_state, f, ensure_ascii=False, indent=2)
-        log.info(f"crawl_state.json aggiornato → {len(cleaned_state)} URL tracciati")
+        log.info(f"crawl_state.json updated → {len(cleaned_state)} tracked URLs")
 
-    log.info("\nPulizia completata.")
-    log.info("Prossimo passo: re-indicizza con   python -m indexer.indexer")
+    log.info("\nCleanup complete.")
+    log.info("Next step: re-index with   python -m indexer.indexer")
 
 
 def _show_sample(label: str, urls: list[str], n: int = 5):
     if not urls:
         return
-    log.info(f"\n{label} ({len(urls)} totali):")
+    log.info(f"\n{label} ({len(urls)} total):")
     for url in urls[:n]:
         log.info(f"  {url}")
     if len(urls) > n:
-        log.info(f"  ... e altri {len(urls) - n}")
+        log.info(f"  ... and {len(urls) - n} more")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Pulizia indice crawler")
+    parser = argparse.ArgumentParser(description="Crawler index cleanup")
     parser.add_argument(
         "--dry-run", action="store_true",
-        help="Mostra cosa verrebbe rimosso senza modificare nulla"
+        help="Show what would be removed without changing anything"
     )
     args = parser.parse_args()
     cleanup(dry_run=args.dry_run)

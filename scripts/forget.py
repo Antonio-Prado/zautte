@@ -44,9 +44,9 @@ def _find_user(user: str) -> tuple[str, str]:
         if key in ((u.get("email") or "").strip().lower(), u.get("id")):
             return u["id"], u.get("name", "")
     if "@" in key:
-        sys.exit(f"Utente non trovato in {USERS_FILE}: {user}")
+        sys.exit(f"User not found in {USERS_FILE}: {user}")
     # Id of an already removed user (adduser --remove): their questions remain in usage.jsonl
-    print(f"Id {user} non presente in {USERS_FILE}: lo uso così com'è")
+    print(f"Id {user} not present in {USERS_FILE}: using it as is")
     return user.strip(), ""
 
 
@@ -54,22 +54,22 @@ def _forget(client: httpx.Client, base: str, body: dict) -> dict:
     try:
         r = client.post(f"{base}/usage/forget", json=body, headers={"X-Admin-Key": ADMIN_API_KEY})
     except httpx.HTTPError as e:
-        sys.exit(f"API non raggiungibile su {base}: {e}")
+        sys.exit(f"API unreachable at {base}: {e}")
     if r.status_code != 200:
-        sys.exit(f"{base}: errore {r.status_code} {r.text[:200]}")
+        sys.exit(f"{base}: error {r.status_code} {r.text[:200]}")
     return r.json()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Cancella domande dai log su richiesta")
-    parser.add_argument("--user", help="email o id dell'utente")
+    parser = argparse.ArgumentParser(description="Delete questions from the logs on request")
+    parser.add_argument("--user", help="the user's email or id")
     who = parser.add_mutually_exclusive_group()
-    who.add_argument("--last", type=int, default=0, help="le ultime N domande dell'utente")
-    who.add_argument("--all", action="store_true", help="tutte le domande e i feedback dell'utente")
-    parser.add_argument("--rid", action="append", default=[], help="identificativo di una domanda")
-    parser.add_argument("--api", default=DEFAULT_API, help=f"indirizzo dell'API (default: {DEFAULT_API})")
-    parser.add_argument("--dry-run", action="store_true", help="mostra e non cancella")
-    parser.add_argument("--yes", action="store_true", help="non chiede conferma")
+    who.add_argument("--last", type=int, default=0, help="the user's last N questions")
+    who.add_argument("--all", action="store_true", help="all of the user's questions and feedback")
+    parser.add_argument("--rid", action="append", default=[], help="identifier of a question")
+    parser.add_argument("--api", default=DEFAULT_API, help=f"API address (default: {DEFAULT_API})")
+    parser.add_argument("--dry-run", action="store_true", help="show without deleting")
+    parser.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     args = parser.parse_args()
 
     selection: dict = {}
@@ -82,29 +82,29 @@ def main() -> None:
             selection["all"] = True
         else:
             selection["last"] = args.last or 1
-        print(f"Utente: {name or uid} ({uid})")
+        print(f"User: {name or uid} ({uid})")
     elif args.last or args.all:
-        parser.error("--last e --all richiedono --user")
+        parser.error("--last and --all require --user")
     if not selection:
-        parser.error("indicare --user oppure --rid")
+        parser.error("specify --user or --rid")
 
     with httpx.Client(timeout=30) as client:
         preview = _forget(client, args.api, {**selection, "dry_run": True})
         questions = preview["questions"]
         if not questions and not preview["feedback"]:
-            print("Nessuna domanda trovata.")
+            print("No questions found.")
             return
-        print(f"Domande trovate: {len(questions)}")
+        print(f"Questions found: {len(questions)}")
         for q in questions:
             text = (q.get("q") or "(testo già scaduto)").replace("\n", " ")
-            print(f"  {q.get('ts', '')[:19].replace('T', ' ')}  [{q.get('rid') or 'senza rid'}]  {text[:100]}")
-        print(f"Da togliere: {preview['usage']} voci d'uso, {preview.get('answers', 0)} risposte, "
+            print(f"  {q.get('ts', '')[:19].replace('T', ' ')}  [{q.get('rid') or 'no rid'}]  {text[:100]}")
+        print(f"To remove: {preview['usage']} usage entries, {preview.get('answers', 0)} answers, "
               f"{preview['gaps']} lacune, {preview['feedback']} feedback, "
               f"{preview['resolved']} marcature «risolto»")
         if args.dry_run:
             return
-        if not args.yes and input("Cancellare? [s/N] ").strip().lower() not in ("s", "si", "sì", "y", "yes"):
-            print("Annullato.")
+        if not args.yes and input("Delete? [y/N] ").strip().lower() not in ("s", "si", "sì", "y", "yes"):
+            print("Cancelled.")
             return
 
         # From here on the choice is fixed to what was shown (except --all):
@@ -118,9 +118,9 @@ def main() -> None:
                 fixed.update(uid=selection["uid"], ts=legacy_ts)
 
         r = _forget(client, args.api, fixed)
-        print(f"Tolte {r['usage']} voci d'uso, {r.get('answers', 0)} risposte, {r['gaps']} lacune, "
-              f"{r['feedback']} feedback, {r['resolved']} marcature «risolto», "
-              f"{r['memory']} dalla memoria")
+        print(f"Removed {r['usage']} usage entries, {r.get('answers', 0)} answers, {r['gaps']} gaps, "
+              f"{r['feedback']} feedback, {r['resolved']} 'resolved' marks, "
+              f"{r['memory']} from memory")
 
 
 if __name__ == "__main__":

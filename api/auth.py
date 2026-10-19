@@ -279,6 +279,6 @@ async def forgot(request: Request, req: ForgotRequest):
                         user["email"], user.get("name", ""), new_pw, PILOT_LOGIN_URL
                     )
             except Exception:
-                log.warning("Email di reset password non inviata a %s",
+                log.warning("Password reset email not sent to %s",
                             user.get("email"), exc_info=True)
     return generic

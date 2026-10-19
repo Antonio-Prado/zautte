@@ -81,7 +81,7 @@ def _ensure_loaded():
     try:
         loaded = _read_from_disk()
     except Exception as e:
-        log.warning(f"Errore caricamento vector store: {e} — parto da zero", exc_info=True)
+        log.warning(f"Error loading vector store: {e} — starting from scratch", exc_info=True)
         loaded = None
     if loaded is None:
         _reset_state()
@@ -89,7 +89,7 @@ def _ensure_loaded():
         _embeddings, _metadata, _ids = loaded
         _id_to_idx = {id_: i for i, id_ in enumerate(_ids)}
         dim = _embeddings.shape[1] if _embeddings.ndim == 2 else 0
-        log.info(f"Vector store caricato: {len(_ids)} chunk, dim={dim}")
+        log.info(f"Vector store loaded: {len(_ids)} chunks, dim={dim}")
         _build_bm25()
     _last_save_ts = time.time()
 
@@ -106,10 +106,10 @@ def reload() -> dict:
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
-        log.warning(f"Reload vector store fallito, resta quello in memoria: {e}")
+        log.warning(f"Vector store reload failed, keeping the in-memory one: {e}")
         return {**get_stats(), "reloaded": False}
     if loaded is None:
-        log.warning("Reload vector store: file assenti, resta quello in memoria")
+        log.warning("Vector store reload: files missing, keeping the in-memory one")
         return {**get_stats(), "reloaded": False}
     embeddings, metadata, ids = loaded
     bm25 = _make_bm25(metadata)
@@ -119,7 +119,7 @@ def reload() -> dict:
         _bm25, _bm25_dirty = bm25, False
         _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts = None, {}, {}, {}
         _last_save_ts = time.time()
-    log.info(f"Vector store ricaricato: {len(_ids)} chunk")
+    log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
 
 
@@ -147,8 +147,8 @@ def _make_bm25(metadata: list[dict]):
         from rank_bm25 import BM25Okapi
         return BM25Okapi([_tokenize(m.get("text", "")) for m in metadata])
     except ImportError:
-        log.warning("rank_bm25 non installato — hybrid search disabilitato. "
-                    "Installa con: pip install rank-bm25")
+        log.warning("rank_bm25 not installed — hybrid search disabled. "
+                    "Install with: pip install rank-bm25")
         return None
 
 
@@ -279,7 +279,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         if vec is None:
             idx = _id_to_idx.get(cid)
             if idx is None:
-                log.warning(f"  Chunk {cid} senza embedding e non presente nello store, ignorato")
+                log.warning(f"  Chunk {cid} has no embedding and is not in the store, ignored")
                 continue
             if _metadata[idx].get("needs_reembedding"):
                 meta["needs_reembedding"] = True
@@ -390,7 +390,7 @@ def _load_link_texts() -> dict[str, str]:
     try:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, ValueError):
-        log.warning(f"{path} illeggibile: titoli dei PDF senza i testi dei link")
+        log.warning(f"{path} unreadable: PDF titles without the link texts")
         return {}
 
 
@@ -436,7 +436,7 @@ def _search(query_embedding: list[float], top_k: int) -> list[dict]:
     _ensure_loaded()
 
     if _embeddings is None or len(_ids) == 0:
-        log.warning("Vector store vuoto. Eseguire prima l'indicizzazione.")
+        log.warning("Vector store is empty. Run the indexing first.")
         return []
 
     q = np.array(query_embedding, dtype=np.float32)
@@ -486,7 +486,7 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     _ensure_loaded()
 
     if _embeddings is None or len(_ids) == 0:
-        log.warning("Vector store vuoto.")
+        log.warning("Vector store is empty.")
         return []
 
     _ensure_bm25()
@@ -622,7 +622,7 @@ def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
         return 0
     _apply_keep(keep)
     _save()
-    log.info(f"Rimossi {removed} chunk da {len(stale)} sorgenti stale.")
+    log.info(f"Removed {removed} chunks from {len(stale)} stale sources.")
     return removed
 
 
@@ -639,14 +639,14 @@ def remove_chunk_ids(chunk_ids: set[str]) -> int:
     keep = [i for i in range(len(_ids)) if i not in drop]
     _apply_keep(keep)
     _save()
-    log.info(f"Rimossi {len(drop)} chunk stale.")
+    log.info(f"Removed {len(drop)} stale chunks.")
     return len(drop)
 
 
 def clear_collection():
     _reset_state()
     _save()
-    log.info("Vector store svuotato.")
+    log.info("Vector store emptied.")
 
 
 def get_zero_vector_chunks() -> list[dict]:

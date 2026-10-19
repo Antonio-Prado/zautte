@@ -180,7 +180,7 @@ def save_link_texts(observed: dict[str, list[str]]) -> int:
     try:
         saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     except (OSError, ValueError):
-        log.warning(f"{path} illeggibile: lo riscrivo da zero")
+        log.warning(f"{path} unreadable: rewriting it from scratch")
         saved = {}
     updated = 0
     for url, texts in observed.items():
@@ -356,8 +356,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
         results_pages = list(existing_index.get("pages", []))
         results_pdfs = list(existing_index.get("pdfs", []))
         log.info(
-            f"Modalità incrementale — base: {len(results_pages)} pagine, "
-            f"{len(results_pdfs)} PDF già indicizzati"
+            f"Incremental mode — base: {len(results_pages)} pages, "
+            f"{len(results_pdfs)} PDFs already indexed"
         )
 
     # PDFs already known but with a missing or invalid file (e.g. an HTML error page
@@ -366,7 +366,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
         valid_pdfs = [p for p in results_pdfs if _is_pdf_file(Path(p["file"]))]
         invalid = len(results_pdfs) - len(valid_pdfs)
         if invalid:
-            log.warning(f"{invalid} PDF noti con file mancante o non valido: verranno riscaricati")
+            log.warning(f"{invalid} known PDFs with a missing or invalid file: they will be downloaded again")
             results_pdfs = valid_pdfs
 
     known_page_urls = {p["url"] for p in results_pages}
@@ -401,7 +401,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 if resp.status_code >= 400:
                     # Error pages (404, 400, 503...) must not be indexed
                     # nor treated as content: they used to end up in the HTML parser.
-                    log.warning(f"  Errore HTTP: {url} — {_describe(resp)}")
+                    log.warning(f"  HTTP error: {url} — {_describe(resp)}")
                     continue
 
                 # --- HTML page ---
@@ -421,7 +421,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
                     # Skip if content unchanged (incremental mode only)
                     if incremental and not state.is_changed(url, page_hash):
-                        log.debug("  Invariata, skip")
+                        log.debug("  Unchanged, skipping")
                         state.mark_unchanged(url)
                         skipped_pages += 1
                         continue
@@ -431,7 +431,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                     meta = extract_metadata(raw_html, url)
 
                     if len(text) < 100:
-                        log.debug("  Testo troppo corto, skip")
+                        log.debug("  Text too short, skipping")
                         continue
 
                     fname = url_to_filename(url) + ".json"
@@ -451,21 +451,21 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                             for p in results_pages
                         ]
                         updated_pages += 1
-                        log.info(f"  AGGIORNATA [{meta['category']}]: '{title}'")
+                        log.info(f"  UPDATED [{meta['category']}]: '{title}'")
                     else:
                         results_pages.append(page_entry)
                         known_page_urls.add(url)
                         new_pages += 1
-                        log.info(f"  NUOVA [{meta['category']}]: '{title}' ({len(text)} chars)")
+                        log.info(f"  NEW [{meta['category']}]: '{title}' ({len(text)} chars)")
 
                 # --- Direct PDF ---
                 elif "application/pdf" in content_type:
                     if not _pdf_response_ok(resp):
-                        log.warning(f"  PDF non valido: {url} — {_describe(resp)}")
+                        log.warning(f"  Invalid PDF: {url} — {_describe(resp)}")
                         continue
                     pdf_hash = content_hash(resp.content)
                     if incremental and not state.is_changed(url, pdf_hash):
-                        log.debug("  PDF invariato, skip")
+                        log.debug("  PDF unchanged, skipping")
                         state.mark_unchanged(url)
                         continue
 
@@ -480,23 +480,23 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                             pdf_entry if p["url"] == url else p
                             for p in results_pdfs
                         ]
-                        log.info(f"  PDF AGGIORNATO: {fname}")
+                        log.info(f"  PDF UPDATED: {fname}")
                     else:
                         results_pdfs.append(pdf_entry)
                         known_pdf_urls.add(url)
-                        log.info(f"  PDF NUOVO: {fname} ({len(resp.content)//1024} KB)")
+                        log.info(f"  PDF NEW: {fname} ({len(resp.content)//1024} KB)")
 
             except httpx.RequestError as e:
-                log.warning(f"  Errore di rete: {url} — {e}")
+                log.warning(f"  Network error: {url} — {e}")
             except Exception:
-                log.exception(f"  Errore inatteso: {url}")
+                log.exception(f"  Unexpected error: {url}")
 
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
         # --- PDFs found in pages ---
         new_pdfs = pdf_urls - known_pdf_urls
         if new_pdfs:
-            log.info(f"\nScaricamento {len(new_pdfs)} nuovi PDF...")
+            log.info(f"\nDownloading {len(new_pdfs)} new PDFs...")
         for pdf_url in new_pdfs:
             if pdf_url in visited:
                 continue
@@ -504,7 +504,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
             try:
                 resp = await _get(client, pdf_url)
                 if not _pdf_response_ok(resp):
-                    log.warning(f"  PDF non valido: {pdf_url} — {_describe(resp)}")
+                    log.warning(f"  Invalid PDF: {pdf_url} — {_describe(resp)}")
                     continue
                 # A PDF not in the index must always be saved and marked
                 # changed, even if the state already knows its hash: otherwise
@@ -518,7 +518,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 results_pdfs.append({"url": pdf_url, "file": str(fpath)})
                 log.info(f"  PDF: {fname} ({len(resp.content)//1024} KB)")
             except (httpx.HTTPError, OSError) as e:
-                log.warning(f"  Errore PDF {pdf_url}: {e}")
+                log.warning(f"  PDF error {pdf_url}: {e}")
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
         # --- Remove pages that disappeared from the site ---
@@ -528,9 +528,9 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
         visited |= pdf_urls & known_pdf_urls
         removed = state.get_removed_urls(visited)
         if removed:
-            log.info(f"\n{len(removed)} URL non più trovati nel sito:")
+            log.info(f"\n{len(removed)} URLs no longer found on the site:")
             for url in removed:
-                log.info(f"  RIMOSSO: {url}")
+                log.info(f"  REMOVED: {url}")
                 state.remove(url)
                 results_pages = [p for p in results_pages if p["url"] != url]
                 results_pdfs  = [p for p in results_pdfs  if p["url"] != url]
@@ -538,22 +538,22 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     # Save state and index
     state.save()
     updated = save_link_texts(pdf_link_texts)
-    log.info(f"Testi dei link ai PDF: {len(pdf_link_texts)} PDF citati, {updated} titoli nuovi o cambiati")
+    log.info(f"PDF link texts: {len(pdf_link_texts)} PDFs cited, {updated} new or changed titles")
     index = {"pages": results_pages, "pdfs": results_pdfs}
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
 
     mode = "incrementale" if incremental else "completo"
-    log.info(f"=== Crawl {mode} completato ===")
+    log.info(f"=== Crawl {mode} completed ===")
     if incremental:
-        log.info(f"Nuove: {new_pages} | Aggiornate: {updated_pages} | Invariate: {skipped_pages}")
-    log.info(f"Totale indice: {len(results_pages)} pagine, {len(results_pdfs)} PDF")
+        log.info(f"New: {new_pages} | Updated: {updated_pages} | Unchanged: {skipped_pages}")
+    log.info(f"Index total: {len(results_pages)} pages, {len(results_pdfs)} PDFs")
 
     return index
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crawler del sito dell'ente")
+    parser = argparse.ArgumentParser(description="Crawler for the organisation's website")
     parser.add_argument("--incremental", action="store_true",
-                        help="Scarica solo le pagine modificate dall'ultima scansione")
+                        help="Download only the pages modified since the last crawl")
     args = parser.parse_args()
     asyncio.run(crawl(incremental=args.incremental))

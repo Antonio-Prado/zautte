@@ -93,8 +93,8 @@ def purge_feedback(dry_run: bool) -> tuple[int, int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Applica i tempi di conservazione ai log degli utenti")
-    parser.add_argument("--dry-run", action="store_true", help="mostra i conteggi senza modificare i file")
+    parser = argparse.ArgumentParser(description="Apply the retention periods to the user logs")
+    parser.add_argument("--dry-run", action="store_true", help="show the counts without modifying the files")
     args = parser.parse_args()
 
     u_removed, u_stripped = purge_usage(args.dry_run)
@@ -103,12 +103,12 @@ def main() -> None:
     f_removed, r_removed = purge_feedback(args.dry_run)
 
     prefix = "[dry-run] " if args.dry_run else ""
-    print(f"{prefix}usage.jsonl: {u_removed} voci eliminate, testo tolto da {u_stripped} "
-          f"(scadenze: testo {RETENTION_USAGE_TEXT_DAYS} gg, voce {RETENTION_USAGE_DAYS} gg)")
-    print(f"{prefix}answers.jsonl: {a_removed} risposte eliminate (scadenza {RETENTION_USAGE_TEXT_DAYS} gg)")
-    print(f"{prefix}gaps.jsonl: {g_removed} voci eliminate (scadenza {RETENTION_GAPS_DAYS} gg)")
-    print(f"{prefix}feedback.jsonl: {f_removed} voci eliminate, {r_removed} marcature 'risolto' tolte "
-          f"(scadenza {RETENTION_FEEDBACK_DAYS} gg)")
+    print(f"{prefix}usage.jsonl: {u_removed} entries deleted, text removed from {u_stripped} "
+          f"(retention: text {RETENTION_USAGE_TEXT_DAYS} d, entry {RETENTION_USAGE_DAYS} d)")
+    print(f"{prefix}answers.jsonl: {a_removed} answers deleted (retention {RETENTION_USAGE_TEXT_DAYS} d)")
+    print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d)")
+    print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, {r_removed} 'resolved' marks removed "
+          f"(retention {RETENTION_FEEDBACK_DAYS} d)")
 
 
 if __name__ == "__main__":

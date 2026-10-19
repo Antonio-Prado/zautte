@@ -90,7 +90,7 @@ def load_state() -> dict:
         try:
             return json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError) as e:
-            log.warning(f"Stato notizie illeggibile ({e}): riparto da zero")
+            log.warning(f"News state unreadable ({e}): starting from scratch")
     return {"wp_cursor": "", "items": {}}
 
 
@@ -113,7 +113,7 @@ def _get(client: httpx.Client, url: str, **kw) -> httpx.Response | None:
     except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
         # InvalidURL/ValueError (also IDNAError): malformed links in articles,
         # e.g. a host longer than 253 characters (2025 archive, 12/10/2026)
-        log.warning(f"  Errore di rete: {url[:120]} — {e}")
+        log.warning(f"  Network error: {url[:120]} — {e}")
         return None
     time.sleep(CRAWL_DELAY_SECONDS)
     if resp.status_code >= 400:
@@ -151,7 +151,7 @@ def wp_posts(client: httpx.Client, api: str, modified_after: str = "", after: st
         try:
             batch = resp.json()
         except ValueError:
-            log.warning("  Risposta WordPress non JSON")
+            log.warning("  WordPress response is not JSON")
             break
         if not isinstance(batch, list) or not batch:
             break
@@ -181,7 +181,7 @@ def rss_items(client: httpx.Client, url: str) -> list[dict]:
     try:
         root = ET.fromstring(resp.content)
     except ET.ParseError as e:
-        log.warning(f"  Feed non leggibile {url}: {e}")
+        log.warning(f"  Feed unreadable {url}: {e}")
         return []
     items = []
     for it in root.iter("item"):
@@ -241,7 +241,7 @@ def office_text(path: Path) -> str:
         with zipfile.ZipFile(path) as z:
             root = ET.fromstring(z.read(inner))
     except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError) as e:
-        log.warning(f"  Documento non leggibile {path.name}: {e}")
+        log.warning(f"  Document unreadable {path.name}: {e}")
         return ""
     paras = ["".join(el.itertext()).strip() for el in root.iter() if el.tag in tags]
     return "\n\n".join(p for p in paras if p)
@@ -337,7 +337,7 @@ def attachment_doc(client: httpx.Client, url: str, link_text: str, date: str) ->
         return None
     ext = Path(urlparse(url).path).suffix.lower()
     if ext == ".pdf" and not resp.content.startswith(PDF_MAGIC):
-        log.warning(f"  Non è un PDF: {url}")
+        log.warning(f"  Not a PDF: {url}")
         return None
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     fpath = DOCUMENTS_DIR / (url_to_filename(url) + ext)
@@ -354,7 +354,7 @@ def attachment_doc(client: httpx.Client, url: str, link_text: str, date: str) ->
         title = link_text or fpath.stem
         doc_type = "document"
     if len(text.strip()) < MIN_TEXT_LEN:
-        log.info(f"  Allegato senza testo utile (scansione?): {fpath.name}")
+        log.info(f"  Attachment without useful text (scan?): {fpath.name}")
         return None
     extra["origin"] = "news"
     chunks = chunk_document(text=text, source_url=url, title=title, doc_type=doc_type,
@@ -419,14 +419,14 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             doc = post_doc(post, categories)
             if doc is None:
                 continue
-            log.info(f"  NUOVA [bollettino {post['date']}]: '{post['title']}'")
+            log.info(f"  NEW [bulletin {post['date']}]: '{post['title']}'")
             add(doc, "posts")
             new_items[post["url"]] = {"hash": digest, "ts": now_local().isoformat(timespec="seconds")}
             try:
                 follow(post["html"], post["url"], post["date"], pages=True)
             except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
                 # a broken link or attachment must not stop the run (the article is already queued)
-                log.warning(f"  Link dell'articolo non seguiti: {post['url']} — {e}")
+                log.warning(f"  Article links not followed: {post['url']} — {e}")
 
     for feed in NEWS_SOURCES.get("rss", []):
         for item in rss_items(client, feed):
@@ -435,14 +435,14 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             doc, html = page_doc(client, item["url"], item["date"])
             if doc is None:
                 continue
-            log.info(f"  NUOVA [sito {item['date']}]: '{item['title']}'")
+            log.info(f"  NEW [site {item['date']}]: '{item['title']}'")
             add(doc, "pages")
             new_items[item["url"]] = {"hash": _digest(item["title"], item["date"]),
                                       "ts": now_local().isoformat(timespec="seconds")}
             try:
                 follow(html, item["url"], item["date"], pages=False)
             except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
-                log.warning(f"  Allegati della notizia non seguiti: {item['url']} — {e}")
+                log.warning(f"  News attachments not followed: {item['url']} — {e}")
 
     if link_texts:
         save_link_texts(link_texts)
@@ -454,7 +454,7 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
 def run_news(backfill: bool = False) -> dict:
     """One run: news → index. Returns the counters (0 if nothing new)."""
     if not NEWS_SOURCES:
-        log.warning("Nessuna fonte notizie configurata (crawl_extra.json → \"news\")")
+        log.warning("No news source configured (crawl_extra.json → \"news\")")
         return {"posts": 0, "pages": 0, "attachments": 0, "chunks": 0}
     state = load_state()
     if backfill:
@@ -462,11 +462,11 @@ def run_news(backfill: bool = False) -> dict:
     with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=30.0) as client:
         docs, new_state, counts = collect(client, state, backfill)
     if not docs:
-        log.info("Notizie: nessuna novità")
+        log.info("News: nothing new")
         save_state(new_state)
         return {**counts, "chunks": 0}
-    log.info(f"Notizie: {counts['posts']} articoli, {counts['pages']} pagine, "
-             f"{counts['attachments']} allegati da indicizzare")
+    log.info(f"News: {counts['posts']} articles, {counts['pages']} pages, "
+             f"{counts['attachments']} attachments to index")
     _, inserted = _index_documents(docs, "NEWS", lambda d: d["chunks"], skip_existing=False)
     save_state(new_state)
     return {**counts, "chunks": inserted}

@@ -79,7 +79,7 @@ def _load_cache(cache: Path) -> dict[str, np.ndarray]:
         keys = json.loads(keys_file.read_text(encoding="utf-8"))
         vecs = np.load(vec_file)
         if len(keys) != len(vecs):
-            log.warning(f"{keys_file.name}: {len(keys)} chiavi e {len(vecs)} vettori, blocco ignorato")
+            log.warning(f"{keys_file.name}: {len(keys)} keys and {len(vecs)} vectors, block ignored")
             continue
         out.update(zip(keys, vecs, strict=True))
     return out
@@ -102,7 +102,7 @@ def _check_model(model: str) -> int:
     """Check that Ollama answers with the model and return its dimension."""
     vec = _embed(model, ["prova"])[0]
     if not np.any(vec):
-        sys.exit(f"Ollama non calcola embedding con {model} (ollama pull {model}?)")
+        sys.exit(f"Ollama does not compute embeddings with {model} (ollama pull {model}?)")
     return len(vec)
 
 
@@ -114,8 +114,8 @@ def build(model: str, cache: Path) -> None:
         texts.setdefault(_key(t), t)
     done = _cached_keys(cache)
     todo = [(k, t) for k, t in texts.items() if k not in done]
-    log.info(f"{model} (dim {dim}): {len(texts)} testi distinti, {len(done)} già in cache, "
-             f"{len(todo)} da calcolare")
+    log.info(f"{model} (dim {dim}): {len(texts)} distinct texts, {len(done)} already cached, "
+             f"{len(todo)} to compute")
 
     t0 = time.time()
     failed = 0
@@ -127,30 +127,30 @@ def build(model: str, cache: Path) -> None:
         _save_part(cache, [k for (k, _), good in zip(block, ok, strict=True) if good], vecs[ok])
         n = i + len(block)
         rate = n / (time.time() - t0)
-        log.info(f"{n}/{len(todo)} ({rate:.2f} testi/s, ~{(len(todo) - n) / rate / 3600:.1f} h "
-                 f"alla fine, falliti {failed})")
-    log.info(f"build finito in {(time.time() - t0) / 3600:.1f} h, testi falliti {failed}")
+        log.info(f"{n}/{len(todo)} ({rate:.2f} texts/s, ~{(len(todo) - n) / rate / 3600:.1f} h "
+                 f"left, failed {failed})")
+    log.info(f"build finished in {(time.time() - t0) / 3600:.1f} h, failed texts {failed}")
 
 
 def status(cache: Path) -> None:
     keys = [_key(t) for t in _store_texts()]
     cached = _cached_keys(cache)
     missing = {k for k in keys if k not in cached}
-    log.info(f"store: {len(keys)} brani, {len(set(keys))} testi distinti; cache: {len(cached)} "
-             f"testi; mancano {len(missing)} testi ({sum(k in missing for k in keys)} brani)")
+    log.info(f"store: {len(keys)} chunks, {len(set(keys))} distinct texts; cache: {len(cached)} "
+             f"texts; {len(missing)} texts missing ({sum(k in missing for k in keys)} chunks)")
 
 
 def apply(model: str, cache: Path, backup: Path) -> None:
     dim = _check_model(model)
     if dim != EMBEDDING_DIMENSION:
-        sys.exit(f"{model} ha dimensione {dim}, EMBEDDING_DIMENSION è {EMBEDDING_DIMENSION}")
+        sys.exit(f"{model} has dimension {dim}, EMBEDDING_DIMENSION is {EMBEDDING_DIMENSION}")
     with open(vs.METADATA_FILE, encoding="utf-8") as f:
         meta = json.load(f)
     with open(vs.IDS_FILE, encoding="utf-8") as f:
         n_ids = len(json.load(f))
     n_old = np.load(vs.EMBEDDINGS_FILE, mmap_mode="r").shape[0]
     if not len(meta) == n_ids == n_old:
-        sys.exit(f"store incoerente: metadata {len(meta)}, ids {n_ids}, vettori {n_old}")
+        sys.exit(f"inconsistent store: metadata {len(meta)}, ids {n_ids}, vectors {n_old}")
 
     vectors = _load_cache(cache)
     keys = [_key(m.get("text", "")) for m in meta]
@@ -158,8 +158,8 @@ def apply(model: str, cache: Path, backup: Path) -> None:
     for k, m in zip(keys, meta, strict=True):
         if k not in vectors:
             missing.setdefault(k, m.get("text", ""))
-    log.info(f"store: {len(meta)} brani; dalla cache {len(meta) - sum(k in missing for k in keys)}, "
-             f"testi nuovi o cambiati da calcolare {len(missing)}")
+    log.info(f"store: {len(meta)} chunks; from cache {len(meta) - sum(k in missing for k in keys)}, "
+             f"new or changed texts to compute {len(missing)}")
     if missing:
         vecs = _embed(model, list(missing.values()))
         ok = np.linalg.norm(vecs, axis=1) > 0
@@ -185,31 +185,31 @@ def apply(model: str, cache: Path, backup: Path) -> None:
     backup.mkdir(parents=True, exist_ok=True)
     dest = backup / f"embeddings_{OLLAMA_EMBED_MODEL}_{now_local():%Y%m%d_%H%M%S}.npy"
     shutil.copy2(vs.EMBEDDINGS_FILE, dest)
-    log.info(f"vecchi vettori copiati in {dest}")
+    log.info(f"old vectors copied to {dest}")
     vs._atomic_write_npy(vs.EMBEDDINGS_FILE, emb)
     if flags_changed:
         vs._atomic_write_json(vs.METADATA_FILE, meta)
     zeros = int((~np.any(emb, axis=1)).sum())
-    log.info(f"scritto {vs.EMBEDDINGS_FILE}: {emb.shape}, vettori zero {zeros}, "
-             f"flag needs_reembedding cambiati {flags_changed}. Ora OLLAMA_EMBED_MODEL={model} "
-             "nel .env e riavvio dell'API.")
+    log.info(f"written {vs.EMBEDDINGS_FILE}: {emb.shape}, zero vectors {zeros}, "
+             f"needs_reembedding flags changed {flags_changed}. Now set OLLAMA_EMBED_MODEL={model} "
+             "in .env and restart the API.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ricalcolo degli embedding con un altro modello")
+    parser = argparse.ArgumentParser(description="Recompute embeddings with another model")
     parser.add_argument("mode", choices=["build", "status", "apply"])
-    parser.add_argument("--model", help="modello di embedding di Ollama (build, apply)")
-    parser.add_argument("--cache", type=Path, required=True, help="cartella della cache dei vettori")
-    parser.add_argument("--backup", type=Path, help="dove copiare il vecchio embeddings.npy (apply)")
+    parser.add_argument("--model", help="Ollama embedding model (build, apply)")
+    parser.add_argument("--cache", type=Path, required=True, help="vector cache folder")
+    parser.add_argument("--backup", type=Path, help="where to copy the old embeddings.npy (apply)")
     parser.add_argument("--threads", type=int,
-                        help="thread di Ollama (num_thread): meno dei core, per lasciare CPU all'API")
+                        help="Ollama threads (num_thread): fewer than the cores, to leave CPU for the API")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
     logging.getLogger("indexer.embedder").setLevel(logging.WARNING)  # one line per batch of 16
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     if args.mode != "status" and not args.model:
-        parser.error("--model è obbligatorio")
+        parser.error("--model is required")
     if args.threads:
         embedder.OLLAMA_OPTIONS = {"num_thread": args.threads}
     if args.mode == "build":
@@ -218,7 +218,7 @@ def main():
         status(args.cache)
     else:
         if not args.backup:
-            parser.error("--backup è obbligatorio con apply")
+            parser.error("--backup is required with apply")
         apply(args.model, args.cache, args.backup)
 
 

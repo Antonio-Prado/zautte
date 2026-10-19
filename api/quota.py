@@ -54,7 +54,7 @@ def _load_today(day: str) -> dict[str, int]:
     except FileNotFoundError:
         pass  # no question recorded so far: start from zero
     except OSError as e:
-        log.warning("usage.jsonl non leggibile, contatori giornalieri da zero: %s", e)
+        log.warning("usage.jsonl not readable, daily counters start from zero: %s", e)
     return counts
 
 
@@ -74,7 +74,7 @@ def load() -> None:
     """Reads today's counters; at API startup, in a thread (file I/O)."""
     counts = _current()
     if counts:
-        log.info("Domande di oggi ricostruite da usage.jsonl: %d utenti, %d domande",
+        log.info("Today's questions rebuilt from usage.jsonl: %d users, %d questions",
                  len(counts), sum(counts.values()))
 
 

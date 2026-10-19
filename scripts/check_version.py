@@ -37,7 +37,7 @@ def main(argv: list[str]) -> int:
     for e in errors:
         print("KO  " + e)
     if not errors:
-        print(f"ok  versione {version} coerente (version.json, CHANGELOG.md, CITATION.cff, publiccode.yml)")
+        print(f"ok  version {version} consistent (version.json, CHANGELOG.md, CITATION.cff, publiccode.yml)")
     return 1 if errors else 0
 
 

@@ -9,11 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
 ### Changed
-- `publiccode.yml`: the IPA code of the reference installation is removed (the repository owner is the author) and English is listed among the available languages.
-- The "Built with" line of the README names the kind of LLM (hosted or local) instead of a single product.
-- The Zenodo archive was made again and kept the same concept DOI, `10.5281/zenodo.23452491`: it is back in
-  `CITATION.cff` and in the README badge.
+- The generic pages (`dashboard.html`, `pilot.html`, `come-funziona.html`, `embed-snippet.html`), the
+  footer, the manifest and the restricted area (login page and panel) are in English, and the widget
+  on them starts in English. An installation keeps its own language through `INSTANCE_DIR`.
+- The anchor of the accessibility section of `come-funziona.html` is `#accessibility`.
+- Log messages, command-line help and printed messages of the services and scripts are in English
+  (the text shown to users, the emails and the answers are unchanged). The restricted area reads the
+  new sync log lines as well as the old Italian ones.
+- The accessibility check runs the pages with the Italian widget and also checks the English pages;
+  its report is in English.
 
 ## [0.3.2] - 2026-10-19
 
@@ -92,7 +99,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Antonio-Prado/zautte/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Antonio-Prado/zautte/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Antonio-Prado/zautte/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Antonio-Prado/zautte/compare/v0.2.0...v0.3.0

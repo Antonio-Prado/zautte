@@ -43,9 +43,9 @@ def _listen(host: str, port: int) -> socket.socket:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Avvia l'API su più indirizzi con un solo processo")
+    parser = argparse.ArgumentParser(description="Start the API on multiple addresses with a single process")
     parser.add_argument("app", nargs="?", default="api.main:app")
-    parser.add_argument("--host", action="append", help="ripetibile (default: 127.0.0.1 e ::1)")
+    parser.add_argument("--host", action="append", help="repeatable (default: 127.0.0.1 and ::1)")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
@@ -54,8 +54,8 @@ def main() -> None:
     # Config also configures uvicorn's logging
     config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS)
     log = logging.getLogger("uvicorn.error")
-    log.info("In ascolto sulla porta %d di %s", args.port, ", ".join(hosts))
-    log.info("X-Forwarded-For accettato da %s", FORWARDED_ALLOW_IPS)
+    log.info("Listening on port %d of %s", args.port, ", ".join(hosts))
+    log.info("X-Forwarded-For accepted from %s", FORWARDED_ALLOW_IPS)
     uvicorn.Server(config).run(sockets=sockets)
 
 

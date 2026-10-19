@@ -12,5 +12,5 @@ STATUS=$?
 if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then
     exit 0   # previous sync still running
 elif [ $STATUS -ne 0 ]; then
-    logger -t chatbot-news "sync notizie terminato con errore (exit $STATUS)"
+    logger -t chatbot-news "news sync failed (exit $STATUS)"
 fi

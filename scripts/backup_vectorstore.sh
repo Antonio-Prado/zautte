@@ -17,10 +17,10 @@ tar -czf "$DEST" -C /opt/chatbot/data vectorstore 2>/dev/null
 if [ $? -eq 0 ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') — Backup OK: $DEST" >> $LOG
 else
-    echo "$(date '+%Y-%m-%d %H:%M:%S') — Backup FALLITO" >> $LOG
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — Backup FAILED" >> $LOG
     exit 1
 fi
 
 # Remove backups older than KEEP days
 find "$BACKUP_DIR" -name "vectorstore_*.tar.gz" -mtime +$KEEP -delete
-echo "$(date '+%Y-%m-%d %H:%M:%S') — Backup vecchi rimossi (>$KEEP giorni)" >> $LOG
+echo "$(date '+%Y-%m-%d %H:%M:%S') — Old backups removed (>$KEEP days)" >> $LOG

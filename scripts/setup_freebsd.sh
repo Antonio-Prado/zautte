@@ -4,10 +4,10 @@
 
 set -e
 
-echo "=== Setup Zautte su FreeBSD ==="
+echo "=== Zautte setup on FreeBSD ==="
 
 # --- System packages ---
-echo "[1/5] Installazione pacchetti di sistema..."
+echo "[1/5] Installing system packages..."
 # On FreeBSD PyPI has no prebuilt wheels: pip compiles numpy, lxml, pydantic-core,
 # jiter etc. This needs Rust, ninja (without it pip also builds ninja and CMake: very slow),
 # pkgconf and the XML libraries for lxml.
@@ -24,18 +24,18 @@ pkg install -y \
     libxslt
 
 # --- Ollama (local LLM) ---
-echo "[2/5] Installazione Ollama..."
+echo "[2/5] Installing Ollama..."
 # Ollama supports FreeBSD through the port or the Linux binary with compat
 # Check https://github.com/ollama/ollama for FreeBSD updates
 if ! command -v ollama > /dev/null 2>&1; then
-    echo "ATTENZIONE: Installare Ollama manualmente su FreeBSD."
-    echo "Opzione 1: usa il port net/ollama se disponibile"
-    echo "Opzione 2: abilita Linux compatibility e usa il binario Linux"
-    echo "Vedi: https://docs.freebsd.org/en/books/handbook/linuxemu/"
+    echo "WARNING: Install Ollama manually on FreeBSD."
+    echo "Option 1: use the net/ollama port if available"
+    echo "Option 2: enable Linux compatibility and use the Linux binary"
+    echo "See: https://docs.freebsd.org/en/books/handbook/linuxemu/"
 fi
 
 # --- Python environment ---
-echo "[3/5] Creazione ambiente virtuale Python..."
+echo "[3/5] Creating Python virtual environment..."
 CHATBOT_DIR="$(dirname "$(dirname "$(realpath "$0")")")"
 cd "$CHATBOT_DIR"
 
@@ -52,20 +52,20 @@ else
     pip install -r requirements.txt
 fi
 
-echo "[4/5] Creazione directory dati..."
+echo "[4/5] Creating data directories..."
 mkdir -p data/vectorstore data/documents data/crawl_cache data/inbox
 
-echo "[5/5] Scaricamento modelli Ollama (se disponibile)..."
+echo "[5/5] Downloading Ollama models (if available)..."
 if command -v ollama > /dev/null 2>&1; then
     ollama pull bge-m3              # embedding: always needed, even with Claude
     ollama pull llama3.1:8b         # local LLM (LLM_PROVIDER=ollama)
-    echo "Modelli scaricati."
+    echo "Models downloaded."
 else
-    echo "SKIP: Ollama non trovato. Scaricare il modello manualmente dopo l'installazione."
+    echo "SKIP: Ollama not found. Download the model manually after installing it."
 fi
 
 echo ""
-echo "=== Setup completato ==="
-echo "Per avviare il backend:"
+echo "=== Setup completed ==="
+echo "To start the backend:"
 echo "  . venv/bin/activate"
 echo "  uvicorn api.main:app --host 0.0.0.0 --port 8000"

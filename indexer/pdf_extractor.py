@@ -18,7 +18,7 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
 
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
-        log.warning(f"PDF non trovato: {pdf_path}")
+        log.warning(f"PDF not found: {pdf_path}")
         return ""
 
     try:
@@ -33,7 +33,7 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         return _clean_pdf_text(full_text)
 
     except Exception as e:  # noqa: BLE001 - pypdf raises heterogeneous exception types on corrupt PDFs
-        log.error(f"Errore estrazione PDF {pdf_path.name}: {e}")
+        log.error(f"PDF extraction error {pdf_path.name}: {e}")
         return ""
 
 

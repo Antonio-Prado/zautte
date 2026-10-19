@@ -46,9 +46,9 @@ class CrawlState:
             try:
                 with open(STATE_FILE, encoding="utf-8") as f:
                     self._state = json.load(f)
-                log.info(f"Stato caricato: {len(self._state)} URL tracciati")
+                log.info(f"State loaded: {len(self._state)} tracked URLs")
             except (OSError, ValueError) as e:
-                log.warning(f"Impossibile caricare lo stato: {e} — parto da zero")
+                log.warning(f"Unable to load state: {e} — starting from scratch")
                 self._state = {}
 
     def save(self):

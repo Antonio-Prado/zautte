@@ -50,22 +50,22 @@ def _save(users: list[dict]) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Gestione utenti Zautte")
+    ap = argparse.ArgumentParser(description="Zautte user management")
     ap.add_argument("--email")
     ap.add_argument("--name")
-    ap.add_argument("--password", help="se omessa: generata (con --send-email) o chiesta")
+    ap.add_argument("--password", help="if omitted: generated (with --send-email) or prompted")
     ap.add_argument("--send-email", action="store_true",
-                    help="recapita le credenziali all'utente via SMTP")
-    ap.add_argument("--login-url", help="override dell'URL di login nell'email")
-    ap.add_argument("--list", action="store_true", help="elenca gli utenti")
-    ap.add_argument("--remove", metavar="EMAIL", help="rimuove un utente")
+                    help="deliver the credentials to the user via SMTP")
+    ap.add_argument("--login-url", help="override the login URL in the email")
+    ap.add_argument("--list", action="store_true", help="list users")
+    ap.add_argument("--remove", metavar="EMAIL", help="remove a user")
     args = ap.parse_args()
 
     users = _load()
 
     if args.list:
         if not users:
-            print("Nessun utente registrato.")
+            print("No users registered.")
         for u in users:
             print(f"  {u.get('name', '?'):30} {u.get('email', '?'):35} (id={u.get('id')})")
         return
@@ -74,10 +74,10 @@ def main() -> None:
         email = args.remove.strip().lower()
         kept = [u for u in users if u.get("email", "").strip().lower() != email]
         if len(kept) == len(users):
-            print(f"Utente non trovato: {email}")
+            print(f"User not found: {email}")
             sys.exit(1)
         _save(kept)
-        print(f"Rimosso: {email}")
+        print(f"Removed: {email}")
         return
 
     if not args.email or not args.name:
@@ -85,7 +85,7 @@ def main() -> None:
 
     email = args.email.strip().lower()
     if args.send_email and not smtp_configured():
-        print("SMTP non configurato: le credenziali non si possono recapitare. Nessuna modifica.")
+        print("SMTP not configured: the credentials cannot be delivered. No changes made.")
         sys.exit(1)
     # Password: explicit, or generated (if --send-email), or interactive
     if args.password:
@@ -95,7 +95,7 @@ def main() -> None:
     else:
         password = getpass.getpass("Password: ")
     if len(password) < 8:
-        print("La password deve avere almeno 8 caratteri.")
+        print("The password must be at least 8 characters long.")
         sys.exit(1)
 
     pw_hash = hash_password(password)
@@ -105,7 +105,7 @@ def main() -> None:
     if existing:
         existing["name"] = args.name
         existing["pw_hash"] = pw_hash
-        print(f"Aggiornato: {args.name} <{email}>")
+        print(f"Updated: {args.name} <{email}>")
     else:
         users.append({
             "id": secrets.token_hex(8),
@@ -113,7 +113,7 @@ def main() -> None:
             "email": email,
             "pw_hash": pw_hash,
         })
-        print(f"Creato: {args.name} <{email}>")
+        print(f"Created: {args.name} <{email}>")
     _save(users)
 
     if args.send_email:
@@ -122,10 +122,10 @@ def main() -> None:
         url = args.login_url or PILOT_LOGIN_URL
         try:
             send_credentials(email, args.name, password, url)
-            print(f"  Email con le credenziali inviata a {email}")
+            print(f"  Email with the credentials sent to {email}")
         except Exception as e:  # noqa: BLE001
-            print(f"  Invio email FALLITO ({e}): credenziali non recapitate. "
-                  "Rilancia lo stesso comando per riprovare.")
+            print(f"  Sending email FAILED ({e}): credentials not delivered. "
+                  "Run the same command again to retry.")
             sys.exit(1)
 
 

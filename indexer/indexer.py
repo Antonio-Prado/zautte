@@ -84,7 +84,7 @@ class _Batcher:
         embeddings = [next(vecs) if f else None for f in self.flags]
         inserted = upsert_chunks(self.chunks, embeddings)
         if texts:
-            log.info(f"  → {inserted} chunk inseriti nel vector store")
+            log.info(f"  → {inserted} chunks inserted into the vector store")
         self.total_inserted += inserted
         self.chunks, self.flags, self.to_embed = [], [], 0
 
@@ -97,7 +97,7 @@ class _Batcher:
             self.total_removed += remove_chunk_ids(self.stale_ids)
             self.stale_ids = set()
         if checkpoint(force=True):
-            log.info("  Checkpoint: vector store salvato su disco")
+            log.info("  Checkpoint: vector store saved to disk")
 
     def finish(self):
         self.checkpoint(force=True)
@@ -107,8 +107,8 @@ def load_index() -> dict:
     """Load the index produced by the crawler."""
     index_path = CRAWL_CACHE_DIR / "index.json"
     if not index_path.exists():
-        log.error(f"Indice crawler non trovato: {index_path}")
-        log.error("Esegui prima il crawler: python -m crawler.crawler")
+        log.error(f"Crawler index not found: {index_path}")
+        log.error("Run the crawler first: python -m crawler.crawler")
         sys.exit(1)
     with open(index_path, encoding="utf-8") as f:
         return json.load(f)
@@ -152,10 +152,10 @@ def _index_documents(
                 continue
 
             n_embed, n_stale = _queue_document(batcher, chunks, doc["url"])
-            detail = f"{n_embed} da embeddare"
+            detail = f"{n_embed} to embed"
             if n_stale:
-                detail += f", {n_stale} stale da rimuovere"
-            log.info(f"  {len(chunks)} chunk ({detail})")
+                detail += f", {n_stale} stale to remove"
+            log.info(f"  {len(chunks)} chunks ({detail})")
             if n_embed == 0 and n_stale == 0:
                 unchanged += 1
             docs_ok += 1
@@ -164,11 +164,11 @@ def _index_documents(
         batcher.finish()
 
     if skipped:
-        log.info(f"  {skipped} {label} già indicizzati, saltati")
+        log.info(f"  {skipped} {label} already indexed, skipped")
     if unchanged:
-        log.info(f"  {unchanged} {label} invariati nel VS, embedding saltato")
+        log.info(f"  {unchanged} {label} unchanged in the VS, embedding skipped")
     if batcher.total_removed:
-        log.info(f"  {batcher.total_removed} chunk stale rimossi")
+        log.info(f"  {batcher.total_removed} stale chunks removed")
     return docs_ok, batcher.total_inserted
 
 
@@ -176,7 +176,7 @@ def _page_chunks(page: dict) -> list[dict] | None:
     """Read the text saved by the crawler and split it into chunks."""
     fpath = Path(page["file"])
     if not fpath.exists():
-        log.warning(f"  File non trovato: {fpath}")
+        log.warning(f"  File not found: {fpath}")
         return None
 
     with open(fpath, encoding="utf-8") as f:
@@ -184,7 +184,7 @@ def _page_chunks(page: dict) -> list[dict] | None:
 
     text = data.get("text", "").strip()
     if not text:
-        log.debug("  Testo vuoto, skip")
+        log.debug("  Empty text, skipping")
         return None
 
     extra = {}
@@ -205,12 +205,12 @@ def _pdf_chunks(pdf: dict) -> list[dict] | None:
     """Extract the text from the PDF and split it into chunks."""
     fpath = Path(pdf["file"])
     if not fpath.exists():
-        log.warning(f"  File non trovato: {fpath}")
+        log.warning(f"  File not found: {fpath}")
         return None
 
     text = extract_text_from_pdf(fpath)
     if not text:
-        log.debug("  Testo vuoto (PDF scansionato o protetto?), skip")
+        log.debug("  Empty text (scanned or protected PDF?), skipping")
         return None
 
     meta = get_pdf_metadata(fpath)
@@ -224,7 +224,7 @@ def _pdf_chunks(pdf: dict) -> list[dict] | None:
         extra_metadata={"pdf_pages": meta["pages"]},
     )
     if chunks:
-        log.info(f"  {meta['pages']} pagine")
+        log.info(f"  {meta['pages']} pages")
     return chunks
 
 
@@ -245,33 +245,33 @@ def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Indicizzatore dei contenuti del sito")
+    parser = argparse.ArgumentParser(description="Indexer for the website content")
     parser.add_argument("--reset", action="store_true",
-                        help="Svuota il vector store prima di indicizzare")
+                        help="Empty the vector store before indexing")
     parser.add_argument("--stats", action="store_true",
-                        help="Mostra statistiche e termina")
+                        help="Show statistics and exit")
     parser.add_argument("--only-html", action="store_true",
-                        help="Indicizza solo le pagine HTML")
+                        help="Index only the HTML pages")
     parser.add_argument("--only-pdf", action="store_true",
-                        help="Indicizza solo i documenti PDF")
+                        help="Index only the PDF documents")
     args = parser.parse_args()
 
     if args.stats:
         stats = get_stats()
         print(f"\nVector store: {stats['collection']}")
-        print(f"Chunk totali: {stats['total_chunks']}")
+        print(f"Total chunks: {stats['total_chunks']}")
         return
 
     if args.reset:
-        log.info("Reset del vector store...")
+        log.info("Resetting the vector store...")
         clear_collection()
 
     index = load_index()
     pages = index.get("pages", [])
     pdfs = index.get("pdfs", [])
 
-    log.info(f"Trovati: {len(pages)} pagine HTML, {len(pdfs)} documenti PDF")
-    log.info("Caricamento modello embedding (prima esecuzione: download automatico)...")
+    log.info(f"Found: {len(pages)} HTML pages, {len(pdfs)} PDF documents")
+    log.info("Loading embedding model (first run: automatic download)...")
 
     total_docs = 0
     total_chunks = 0
@@ -282,19 +282,19 @@ def main():
         docs, chunks = index_pages(pages, skip_existing=skip)
         total_docs += docs
         total_chunks += chunks
-        log.info(f"HTML: {docs}/{len(pages)} documenti, {chunks} chunk")
+        log.info(f"HTML: {docs}/{len(pages)} documents, {chunks} chunks")
 
     if not args.only_html:
         docs, chunks = index_pdfs(pdfs, skip_existing=skip)
         total_docs += docs
         total_chunks += chunks
-        log.info(f"PDF: {docs}/{len(pdfs)} documenti, {chunks} chunk")
+        log.info(f"PDF: {docs}/{len(pdfs)} documents, {chunks} chunks")
 
     stats = get_stats()
-    log.info("\n=== Indicizzazione completata ===")
-    log.info(f"Documenti processati: {total_docs}")
-    log.info(f"Chunk inseriti questa sessione: {total_chunks}")
-    log.info(f"Chunk totali nel vector store: {stats['total_chunks']}")
+    log.info("\n=== Indexing completed ===")
+    log.info(f"Documents processed: {total_docs}")
+    log.info(f"Chunks inserted this session: {total_chunks}")
+    log.info(f"Total chunks in the vector store: {stats['total_chunks']}")
 
 
 if __name__ == "__main__":

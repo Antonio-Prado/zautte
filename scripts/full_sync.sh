@@ -16,7 +16,7 @@ lockf -t "$WAIT_SECONDS" "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.syn
 STATUS=$?
 
 if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then
-    logger -t chatbot-sync 'full sync: altro sync ancora in corso dopo 12h — skip'
+    logger -t chatbot-sync 'full sync: another sync still running after 12h — skip'
 elif [ $STATUS -ne 0 ]; then
-    logger -t chatbot-sync "full sync terminato con errore (exit $STATUS)"
+    logger -t chatbot-sync "full sync failed (exit $STATUS)"
 fi

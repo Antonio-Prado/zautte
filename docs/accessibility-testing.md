@@ -33,7 +33,7 @@ Automated checks find only part of the barriers. They do not tell whether a scre
 | VoiceOver | Safari | iPhone | Settings › Accessibility, or triple-click the side button if set |
 | TalkBack | Chrome | Android | Settings › Accessibility, or both volume keys for 3 seconds if set |
 
-Test both pages: `https://<server>/widget/pilot.html` (floating chat) and `https://<server>/widget/dashboard.html` (chat inside the page). Use a test account (`python -m scripts.adduser`): questions are logged, and after the session `python -m scripts.forget --user <account> --all` deletes them.
+Test both pages: `https://<server>/widget/pilot.html` (floating chat) and `https://<server>/widget/dashboard.html` (chat inside the page). Use a test account (`python -m scripts.adduser`): questions are logged, and after the session `python -m scripts.forget --user <account> --all` deletes them. The generic pages show the English interface; the scenarios below use the Italian wording, so set `lang: 'it'` in the page's `window.ChatbotConfig` to follow them word for word (the automated check does this for you).
 
 ### Tasks and expected results
 

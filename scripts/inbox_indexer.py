@@ -62,7 +62,7 @@ def load_metadata(doc_path: Path) -> dict:
             with open(meta_path, encoding="utf-8") as f:
                 return json.load(f)
         except (OSError, ValueError) as e:
-            log.warning(f"Metadati {meta_path.name} non leggibili: {e}")
+            log.warning(f"Metadata {meta_path.name} unreadable: {e}")
     return {}
 
 
@@ -85,10 +85,10 @@ def extract_text(doc_path: Path) -> str:
             doc = docx.Document(str(doc_path))
             return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except ImportError:
-            log.error("python-docx non installato. Esegui: pip install python-docx")
+            log.error("python-docx not installed. Run: pip install python-docx")
             raise
         except Exception as e:
-            log.error(f"Errore lettura DOCX: {e}")
+            log.error(f"Error reading DOCX: {e}")
             raise
 
     else:
@@ -100,14 +100,14 @@ def process_file(doc_path: Path) -> bool:
     Process a single file: extract text, chunk, index.
     Returns True if processing succeeded.
     """
-    log.info(f"Processamento: {doc_path.name}")
+    log.info(f"Processing: {doc_path.name}")
 
     try:
         meta = load_metadata(doc_path)
         text = extract_text(doc_path)
 
         if not text or len(text.strip()) < 100:
-            log.warning(f"  Testo troppo corto o vuoto, skip: {doc_path.name}")
+            log.warning(f"  Text too short or empty, skipping: {doc_path.name}")
             return False
 
         title = meta.get("title") or doc_path.stem
@@ -127,17 +127,17 @@ def process_file(doc_path: Path) -> bool:
         )
 
         if not chunks:
-            log.warning(f"  Nessun chunk generato: {doc_path.name}")
+            log.warning(f"  No chunks generated: {doc_path.name}")
             return False
 
         embeddings = embed_texts([c["text"] for c in chunks])
         inserted = upsert_chunks(chunks, embeddings)
 
-        log.info(f"  OK: {inserted} chunk indicizzati da '{title}'")
+        log.info(f"  OK: {inserted} chunks indexed from '{title}'")
         return True
 
     except Exception:
-        log.exception(f"  ERRORE: {doc_path.name}")
+        log.exception(f"  ERROR: {doc_path.name}")
         return False
 
 
@@ -154,10 +154,10 @@ def process_inbox() -> tuple[int, int]:
     ]
 
     if not candidates:
-        log.info("Inbox vuota, nessun file da processare.")
+        log.info("Inbox empty, no files to process.")
         return 0, 0
 
-    log.info(f"Trovati {len(candidates)} file nell'inbox.")
+    log.info(f"Found {len(candidates)} files in the inbox.")
     ok = 0
     errors = 0
 
@@ -175,28 +175,28 @@ def process_inbox() -> tuple[int, int]:
         else:
             errors += 1
 
-    log.info(f"Inbox: {ok} OK, {errors} errori")
+    log.info(f"Inbox: {ok} OK, {errors} errors")
     return ok, errors
 
 
 def watch_inbox(interval_seconds: int = 60):
     """Continuous polling of the inbox folder."""
-    log.info(f"Watch inbox attivo (ogni {interval_seconds}s). Ctrl+C per fermare.")
+    log.info(f"Inbox watch active (every {interval_seconds}s). Ctrl+C to stop.")
     try:
         while True:
             process_inbox()
             time.sleep(interval_seconds)
     except KeyboardInterrupt:
-        log.info("Watch interrotto.")
+        log.info("Watch stopped.")
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Inbox indexer — processa nuovi documenti")
+    parser = argparse.ArgumentParser(description="Inbox indexer — process new documents")
     parser.add_argument("--watch", action="store_true",
-                        help="Rimane in ascolto e processa nuovi file periodicamente")
+                        help="Keep running and process new files periodically")
     parser.add_argument("--interval", type=int, default=60,
-                        help="Intervallo di polling in secondi (default: 60)")
+                        help="Polling interval in seconds (default: 60)")
     args = parser.parse_args()
 
     if args.watch:

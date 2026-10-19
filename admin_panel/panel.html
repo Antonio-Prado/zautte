@@ -2,39 +2,39 @@
 
     <!-- Service status -->
     <div class="card">
-      <h2>Stato del servizio</h2>
+      <h2>Service status</h2>
       <table>
-        <tr><td>Backend</td><td><span class="dot" id="dot"></span><span id="backend-status">verifica…</span><span class="latency" id="latency"></span></td></tr>
+        <tr><td>Backend</td><td><span class="dot" id="dot"></span><span id="backend-status">checking…</span><span class="latency" id="latency"></span></td></tr>
         <tr><td>Uptime</td><td><span id="uptime">—</span></td></tr>
-        <tr><td>Modello LLM</td><td><span id="model-name">—</span> <span style="color:#666;font-size:.8em" id="llm-provider"></span></td></tr>
+        <tr><td>LLM model</td><td><span id="model-name">—</span> <span style="color:#666;font-size:.8em" id="llm-provider"></span></td></tr>
         <tr><td>Hybrid search</td><td><span id="hybrid">—</span></td></tr>
-        <tr><td>Ultima indicizzazione</td><td><span id="last-indexed">—</span></td></tr>
+        <tr><td>Last indexing</td><td><span id="last-indexed">—</span></td></tr>
       </table>
-      <div class="refresh-note">auto-refresh 30s · <span id="last-update">—</span></div>
+      <div class="refresh-note">auto-refresh every 30s · <span id="last-update">—</span></div>
     </div>
 
     <!-- Indexed content -->
     <div class="card">
-      <h2>Contenuto indicizzato</h2>
+      <h2>Indexed content</h2>
       <table>
-        <tr><td>Documenti sorgente</td><td><span id="unique-sources">—</span></td></tr>
-        <tr><td>Chunk totali</td><td><span id="chunk-count">—</span></td></tr>
+        <tr><td>Source documents</td><td><span id="unique-sources">—</span></td></tr>
+        <tr><td>Total chunks</td><td><span id="chunk-count">—</span></td></tr>
         <tr><td>Breakdown</td><td><span id="doc-types">—</span></td></tr>
-        <tr><td>Doc. più corposo</td><td><span id="top-doc">—</span></td></tr>
+        <tr><td>Largest document</td><td><span id="top-doc">—</span></td></tr>
       </table>
     </div>
 
     <!-- Activity -->
     <div class="card">
-      <h2>Attività (cumulativa)</h2>
+      <h2>Activity (cumulative)</h2>
       <div class="stats-row">
         <div class="stat-item">
           <div class="stat-big" id="query-count">—</div>
-          <div class="stat-label">domande ricevute</div>
+          <div class="stat-label">questions received</div>
         </div>
         <div class="stat-item">
           <div class="stat-big" id="gaps-count">—</div>
-          <div class="stat-label">senza risposta</div>
+          <div class="stat-label">unanswered</div>
         </div>
         <div class="stat-item">
           <div class="stat-big" style="font-size:1.1em" id="gaps-pct">—</div>
@@ -42,28 +42,28 @@
         </div>
         <div class="stat-item">
           <div class="stat-big" style="font-size:1.1em" id="avg-resp">—</div>
-          <div class="stat-label">ms medi LLM</div>
+          <div class="stat-label">avg LLM ms</div>
         </div>
       </div>
     </div>
 
     <!-- Feedback -->
     <div class="card">
-      <h2>Feedback utenti</h2>
+      <h2>User feedback</h2>
       <div class="feedback-layout">
         <div class="feedback-stats">
           <div class="stats-row">
             <div class="stat-item">
               <div class="stat-big" id="fb-total">—</div>
-              <div class="stat-label">totali</div>
+              <div class="stat-label">total</div>
             </div>
             <div class="stat-item">
               <div class="stat-big" style="color:#43a047" id="fb-pos">—</div>
-              <div class="stat-label">👍 positivi</div>
+              <div class="stat-label">👍 positive</div>
             </div>
             <div class="stat-item">
               <div class="stat-big" style="color:#e53935" id="fb-neg">—</div>
-              <div class="stat-label">👎 negativi aperti</div>
+              <div class="stat-label">👎 open negative</div>
               <div class="stat-label" id="fb-res" style="margin-top:2px"></div>
             </div>
           </div>
@@ -74,91 +74,91 @@
 
     <!-- Peak hours -->
     <div class="card">
-      <h2>Domande per ora del giorno</h2>
+      <h2>Questions by hour of day</h2>
       <div class="hours-chart" id="hours-chart"></div>
       <div class="hours-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
     </div>
 
     <!-- Most frequent queries -->
     <div class="card">
-      <h2>Query più frequenti (sessione)</h2>
-      <div id="top-queries"><span style="color:#666;font-size:.85em">nessuna ancora</span></div>
+      <h2>Most frequent queries (session)</h2>
+      <div id="top-queries"><span style="color:#666;font-size:.85em">none yet</span></div>
     </div>
 
     <!-- Negative feedback -->
     <div class="card wide">
-      <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>Questions with negative feedback 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <ul class="neg-list" id="neg-fb-list">
-        <li><span class="neg-q" style="color:#666">caricamento…</span></li>
+        <li><span class="neg-q" style="color:#666">loading…</span></li>
       </ul>
     </div>
 
     <!-- Users (pilot project, login enabled) -->
     <div class="card wide">
-      <h2>Utenti (accessi con login) <span id="usage-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>Users (logged-in access) <span id="usage-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="usage-body">
-        <button id="usage-load-btn" class="btn-resolve">Mostra utenti (richiede chiave admin)</button>
-        <div style="color:#666;font-size:.8em;margin-top:8px">Visibile solo se il backend ha <code>AUTH_ENABLED=true</code>.</div>
+        <button id="usage-load-btn" class="btn-resolve">Show users (requires admin key)</button>
+        <div style="color:#666;font-size:.8em;margin-top:8px">Only visible if the backend has <code>AUTH_ENABLED=true</code>.</div>
       </div>
     </div>
 
     <!-- User message log -->
     <div class="card wide">
-      <h2>Log messaggi utenti <span id="msg-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
+      <h2>User message log <span id="msg-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="msg-body" style="max-height:460px;overflow:auto">
-        <span style="color:#666;font-size:.85em">caricamento…</span>
+        <span style="color:#666;font-size:.85em">loading…</span>
       </div>
     </div>
 
     <!-- API tokens & costs -->
     <div class="card wide">
-      <h2>Token &amp; Costi API Anthropic</h2>
+      <h2>Tokens &amp; Anthropic API costs</h2>
       <div class="stats-row" style="margin-bottom:12px">
         <div class="stat-item">
           <div class="stat-big" id="tok-in">—</div>
-          <div class="stat-label">token input (totale)</div>
+          <div class="stat-label">input tokens (total)</div>
         </div>
         <div class="stat-item">
           <div class="stat-big" id="tok-out">—</div>
-          <div class="stat-label">token output (totale)</div>
+          <div class="stat-label">output tokens (total)</div>
         </div>
         <div class="stat-item">
           <div class="stat-big" id="tok-avg-in" style="font-size:1.1em">—</div>
-          <div class="stat-label">input medi/query</div>
+          <div class="stat-label">avg input/query</div>
         </div>
         <div class="stat-item">
           <div class="stat-big" id="tok-avg-out" style="font-size:1.1em">—</div>
-          <div class="stat-label">output medi/query</div>
+          <div class="stat-label">avg output/query</div>
         </div>
         <div class="stat-item">
           <div class="cost-total" id="tok-cost">—</div>
-          <div class="stat-label">costo totale (USD)</div>
+          <div class="stat-label">total cost (USD)</div>
         </div>
       </div>
       <div id="cost-chart-wrap" style="display:none">
-        <div style="font-size:0.78em;color:#666;margin-top:4px">Costo per sessione (USD)</div>
+        <div style="font-size:0.78em;color:#666;margin-top:4px">Cost per session (USD)</div>
         <div class="cost-chart" id="cost-chart"></div>
       </div>
       <table class="token-table">
         <thead>
           <tr>
             <th>Timestamp</th>
-            <th>Utente</th>
-            <th>Modello</th>
+            <th>User</th>
+            <th>Model</th>
             <th>Input tok</th>
             <th>Output tok</th>
-            <th>Costo USD</th>
+            <th>Cost USD</th>
           </tr>
         </thead>
         <tbody id="token-history-body">
-          <tr><td colspan="6" style="color:#666;text-align:center;padding:8px">nessun dato ancora</td></tr>
+          <tr><td colspan="6" style="color:#666;text-align:center;padding:8px">no data yet</td></tr>
         </tbody>
       </table>
     </div>
 
     <!-- Crawl history -->
     <div class="card wide">
-      <h2>Storico crawling &amp; indicizzazione</h2>
+      <h2>Crawl &amp; indexing history</h2>
       <div id="crawl-progress-html" class="crawl-progress" style="display:none">
         <span id="crawl-html-label">—</span>
         <div class="progress-bar-wrap"><div class="progress-bar-fill html" id="crawl-html-bar" style="width:0%"></div></div>
@@ -168,7 +168,7 @@
         <div class="progress-bar-wrap"><div class="progress-bar-fill pdf" id="crawl-pdf-bar" style="width:0%"></div></div>
       </div>
       <ul class="timeline" id="crawl-timeline">
-        <li><span class="tl-label" style="color:#666">caricamento…</span></li>
+        <li><span class="tl-label" style="color:#666">loading…</span></li>
       </ul>
     </div>
 

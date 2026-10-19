@@ -14,7 +14,7 @@
  * Accessibility: the AgID guidelines require a link to the accessibility statement
  * in the footer. Once the administration has published it, its address goes in the
  * data-accessibility attribute of the script tag and the link becomes
- * "Dichiarazione di accessibilità"; until then "Accessibilità" leads to the
+ * "Accessibility statement"; until then "Accessibility" leads to the
  * section of come-funziona.html.
  *
  *   <script src="./site-footer.js" data-accessibility="https://form.agid.gov.it/view/…" defer></script>
@@ -28,20 +28,20 @@
   // Pages and API live on the same server (widget/ served by FastAPI)
   var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
-  var A11Y_LINK = { href: new URL("come-funziona.html#accessibilita", BASE).href, text: "Accessibilità" };
+  var A11Y_LINK = { href: new URL("come-funziona.html#accessibility", BASE).href, text: "Accessibility" };
   if (/^https:\/\//.test(STATEMENT)) {
     try {
       // Only https:// addresses, with the characters not allowed in a URL encoded
-      A11Y_LINK = { href: encodeURI(decodeURI(STATEMENT)), text: "Dichiarazione di accessibilità" };
+      A11Y_LINK = { href: encodeURI(decodeURI(STATEMENT)), text: "Accessibility statement" };
     } catch (e) {
-      // invalid %xx sequence in the address: the «Accessibilità» link stays
+      // invalid %xx sequence in the address: the "Accessibility" link stays
     }
   }
 
   // Commit date and time as YYYYMMDDhhmmss, in the visitor's time zone
   function stamp(d) {
     var parts = {};
-    new Intl.DateTimeFormat("it-IT", {
+    new Intl.DateTimeFormat("en-GB", {
       year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
     }).formatToParts(d).forEach(function (p) { parts[p.type] = p.value; });
@@ -62,7 +62,7 @@
       "<span id=\"zautte-release\" hidden><a href=\"https://github.com/" + REPO + "/releases\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<span id=\"zautte-last-commit\" hidden><a href=\"https://github.com/" + REPO + "\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\"></a> &nbsp;·&nbsp; </span>" +
       "<a id=\"zautte-a11y-link\" style=\"color:inherit\"></a>" +
-      "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Il tuo IP: <a target=\"_blank\" rel=\"noopener\" title=\"Dati RIS di RIPEstat\" style=\"color:inherit;overflow-wrap:anywhere\"></a></span>" +
+      "<span id=\"zautte-client-ip\" hidden> &nbsp;·&nbsp; Your IP: <a target=\"_blank\" rel=\"noopener\" title=\"RIS data from RIPEstat\" style=\"color:inherit;overflow-wrap:anywhere\"></a></span>" +
       "</div>";
     document.body.appendChild(footer);
     var a11y = document.getElementById("zautte-a11y-link");
@@ -112,7 +112,7 @@
         var date = c.commit && c.commit.committer && c.commit.committer.date;
         var box = document.getElementById("zautte-last-commit");
         var link = box.querySelector("a");
-        link.textContent = "Ultimo commit " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
+        link.textContent = "Latest commit " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
         box.hidden = false;
       })
       .catch(function () { /* GitHub unreachable or rate limit reached */ });

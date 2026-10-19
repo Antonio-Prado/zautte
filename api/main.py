@@ -78,23 +78,23 @@ async def require_admin(request: Request, key: str | None = Security(_api_key_he
 async def lifespan(app: FastAPI):
     import signal
 
-    log.info("Avvio chatbot...")
+    log.info("Starting chatbot...")
     try:
         from indexer.embedder import check_ollama_embed
         if check_ollama_embed():
             stats = get_stats()
-            log.info(f"Pronto. Ollama raggiungibile. Vector store: {stats['total_chunks']} chunk.")
+            log.info(f"Ready. Ollama reachable. Vector store: {stats['total_chunks']} chunks.")
         else:
-            log.warning("Ollama non raggiungibile all'avvio. Assicurarsi che 'ollama serve' sia attivo.")
+            log.warning("Ollama not reachable at startup. Make sure 'ollama serve' is running.")
     except Exception:
-        log.exception("Errore durante l'avvio")
+        log.exception("Error during startup")
     await asyncio.to_thread(quota.load)
 
     # Graceful shutdown: waits for in-flight requests to complete
     shutdown_event = asyncio.Event()
 
     def _handle_sigterm(*_):
-        log.info("SIGTERM ricevuto — attendo completamento richieste in corso...")
+        log.info("SIGTERM received: waiting for in-flight requests to complete...")
         shutdown_event.set()
 
     signal.signal(signal.SIGTERM, _handle_sigterm)
@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     if shutdown_event.is_set():
         await asyncio.sleep(2)  # window for streaming requests to complete
 
-    log.info("Chatbot arrestato.")
+    log.info("Chatbot stopped.")
 
 
 app = FastAPI(
@@ -143,7 +143,7 @@ if ADMIN_PATH:
         try:
             html = _panel_file("login.html")
         except OSError as e:
-            log.error("Pagina di accesso non leggibile: %s", e)
+            log.error("Login page not readable: %s", e)
             raise HTTPException(status_code=404, detail="Not Found")
         return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
@@ -156,7 +156,7 @@ if ADMIN_PATH:
             # installation changelog: optional, at the end of the panel
             parts["html"] += _panel_file("changelog.html", optional=True)
         except OSError as e:
-            log.error("Pannello non leggibile: %s", e)
+            log.error("Dashboard not readable: %s", e)
             raise HTTPException(status_code=500, detail="Pannello non disponibile")
         return JSONResponse(parts, headers={"Cache-Control": "no-store"})
 
@@ -323,8 +323,8 @@ def _take_question(request: Request, user: dict) -> str:
     already reached (the widget shows the message with the number of questions)."""
     key = quota.key_for(user, request.client.host if request.client else "")
     if not quota.take(key):
-        log.info("Limite di %d domande al giorno raggiunto (%s)",
-                 DAILY_QUESTION_LIMIT, "utente" if key.startswith("uid:") else "IP")
+        log.info("Limit of %d questions per day reached (%s)",
+                 DAILY_QUESTION_LIMIT, "user" if key.startswith("uid:") else "IP")
         raise HTTPException(
             status_code=429,
             detail={"error": "daily_limit", "limit": DAILY_QUESTION_LIMIT},
@@ -340,7 +340,7 @@ def _blocked_for_pii(question: str) -> str | None:
     if not contains_personal(question):
         return None
     rid = secrets.token_hex(6)
-    log.info("Domanda %s scartata: contiene dati personali", rid)
+    log.info("Question %s discarded: contains personal data", rid)
     return rid
 
 
@@ -367,12 +367,12 @@ def _read_jsonl(path: Path) -> list[dict]:
                 try:
                     obj = json.loads(line)
                 except ValueError:
-                    log.debug("Riga JSONL malformata in %s ignorata", path.name)
+                    log.debug("Malformed JSONL line in %s ignored", path.name)
                     continue
                 if isinstance(obj, dict):
                     entries.append(obj)
     except OSError as e:
-        log.warning("Impossibile leggere %s: %s", path, e)
+        log.warning("Could not read %s: %s", path, e)
     return entries
 
 
@@ -383,7 +383,7 @@ def _grep_lines(path: Path, markers: tuple[str, ...]) -> list[str]:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return [ln.rstrip("\n") for ln in fh if any(m in ln for m in markers)]
     except OSError as e:
-        log.warning("Impossibile leggere %s: %s", path, e)
+        log.warning("Could not read %s: %s", path, e)
         return []
 
 
@@ -438,7 +438,7 @@ def _load_user_names() -> dict[str, str]:
             for u in json.loads(users_file.read_text(encoding="utf-8")):
                 names[u.get("id")] = u.get("name", "")
         except (OSError, ValueError, TypeError, AttributeError) as e:
-            log.warning("users.json non leggibile: %s", e)
+            log.warning("users.json not readable: %s", e)
     return names
 
 
@@ -471,7 +471,7 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
         with open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as e:
-        log.warning("Registrazione uso non riuscita: %s", e)
+        log.warning("Usage logging failed: %s", e)
 
 
 def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
@@ -504,7 +504,7 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
         with open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as e:
-        log.warning("Registrazione risposta non riuscita: %s", e)
+        log.warning("Answer logging failed: %s", e)
 
 
 @app.get("/health")
@@ -653,7 +653,7 @@ def _notify_feedback(entry: dict) -> None:
     try:
         send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, entry, PILOT_LOGIN_URL)
     except Exception:
-        log.warning("Notifica segnalazione non inviata a %s", FEEDBACK_NOTIFY_EMAIL, exc_info=True)
+        log.warning("Feedback notification not sent to %s", FEEDBACK_NOTIFY_EMAIL, exc_info=True)
 
 
 def _resolved_negative_file():
@@ -740,7 +740,7 @@ def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
     try:
         send_feedback_resolved(to, name, entry, note, PILOT_LOGIN_URL, reply_to=FEEDBACK_NOTIFY_EMAIL)
     except Exception:
-        log.warning("Email di riscontro non inviata a %s", to, exc_info=True)
+        log.warning("Acknowledgement email not sent to %s", to, exc_info=True)
 
 
 @app.get("/feedback/list")
@@ -903,8 +903,8 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
     memory = 0
     if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
-        log.info("Cancellazione su richiesta: domande %d, tolte voci d'uso %d, risposte %d, "
-                 "lacune %d, feedback %d, dalla memoria %d", len(result["questions"]),
+        log.info("Deletion on request: questions %d, usage entries removed %d, answers %d, "
+                 "gaps %d, feedback %d, from memory %d", len(result["questions"]),
                  result["usage"], result["answers"], result["gaps"], result["feedback"], memory)
     return {**result, "memory": memory, "dry_run": req.dry_run}
 
@@ -918,8 +918,9 @@ async def crawl_history(_: None = Security(require_admin)):
 
     # Line-by-line reading: memory-efficient on 50MB files,
     # filters in Python without depending on subprocess/grep
-    MARKERS = ("Vector store caricato:", "Crawl incrementale completato",
-               "=== Crawl", "[HTML ", "[PDF ")
+    # Old log lines are in Italian and stay in the files for a while: both forms are read
+    MARKERS = ("Vector store loaded:", "Vector store caricato:", "Crawl incrementale completato",
+               "Incremental crawl completed", "=== Crawl", "[HTML ", "[PDF ")
 
     lines = await asyncio.to_thread(_grep_lines, log_path, MARKERS)
 
@@ -940,15 +941,16 @@ async def crawl_history(_: None = Security(require_admin)):
         else:
             msg = line.strip()   # lines without a timestamp (e.g. "=== Crawl ... ===")
 
-        if "Crawl incrementale completato" in msg or "=== Crawl" in msg:
+        if ("Crawl incrementale completato" in msg or "Incremental crawl completed" in msg
+                or "=== Crawl" in msg):
             events.append({"ts": last_ts, "type": "crawl_end",
-                           "label": "Crawl HTML completato"})
-        elif "Vector store caricato:" in msg:
+                           "label": "HTML crawl completed"})
+        elif "Vector store loaded:" in msg or "Vector store caricato:" in msg:
             m2 = re.search(r"(\d+) chunk", msg)
             if m2:
                 n = int(m2.group(1))
                 events.append({"ts": last_ts, "type": "vs_loaded", "chunks": n,
-                               "label": f"Vector store: {n:,} chunk"})
+                               "label": f"Vector store: {n:,} chunks"})
         else:
             mh = html_re.search(msg)
             if mh:
@@ -956,7 +958,7 @@ async def crawl_history(_: None = Security(require_admin)):
                 last_html = {"ts": last_ts, "current": cur, "total": tot}
                 if cur == tot:
                     events.append({"ts": last_ts, "type": "html_done",
-                                   "label": f"HTML: {tot:,} pagine completate",
+                                   "label": f"HTML: {tot:,} pages completed",
                                    "pages": tot})
                 continue
             mp = pdf_re.search(msg)
@@ -1012,7 +1014,7 @@ async def chat(request: Request, req: ChatRequest,
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         quota.give_back(key)
-        log.exception("Errore in /chat")
+        log.exception("Error in /chat")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
 
@@ -1050,7 +1052,7 @@ async def chat_stream(request: Request, req: ChatRequest,
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         quota.give_back(key)
-        log.exception("Errore in /chat/stream")
+        log.exception("Error in /chat/stream")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
     async def event_stream():
@@ -1071,7 +1073,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 await queue.put(("sources", None))
                 await queue.put(("done", None))
             except Exception as exc:
-                log.warning("Errore durante lo streaming della risposta", exc_info=True)
+                log.warning("Error while streaming the answer", exc_info=True)
                 quota.give_back(key)
                 await queue.put(("error", str(exc)))
             finally:
@@ -1105,7 +1107,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                     yield 'data: {"done": true}\n\n'
                     break
                 elif kind == "error":
-                    log.error(f"Errore durante lo streaming: {value}")
+                    log.error(f"Error while streaming: {value}")
                     yield 'data: {"error": "Errore durante la generazione"}\n\n'
                     yield 'data: {"done": true}\n\n'
                     break

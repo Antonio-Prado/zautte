@@ -26,12 +26,12 @@ if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
         exit 0  # all ok
     fi
     # Process alive but not responding — kill it
-    echo "$(date '+%Y-%m-%d %H:%M:%S') — Chatbot non risponde, riavvio..." >> $LOG
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — Chatbot not responding, restarting..." >> $LOG
     kill -9 $(cat "$PIDFILE") 2>/dev/null
     pkill -9 -f "api.main:app" 2>/dev/null
     sleep 2
 fi
 
 # Start the service
-echo "$(date '+%Y-%m-%d %H:%M:%S') — Watchdog: avvio chatbot" >> $LOG
+echo "$(date '+%Y-%m-%d %H:%M:%S') — Watchdog: starting chatbot" >> $LOG
 service chatbot start >> $LOG 2>&1

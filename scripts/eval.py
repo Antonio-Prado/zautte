@@ -110,12 +110,12 @@ async def eval_full(question: str, expected_keywords: list[str], min_chunks: int
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-llm", action="store_true",
-                        help="Valuta solo il retrieval senza chiamare il LLM")
+                        help="Evaluate retrieval only, without calling the LLM")
     args = parser.parse_args()
 
     print(f"\n{'='*60}")
-    print(f"EVAL Zautte — {len(TEST_CASES)} domande di test")
-    print(f"Modalità: {'solo retrieval' if args.no_llm else 'retrieval + LLM'}")
+    print(f"EVAL Zautte — {len(TEST_CASES)} test questions")
+    print(f"Mode: {'retrieval only' if args.no_llm else 'retrieval + LLM'}")
     print(f"{'='*60}\n")
 
     results = []
@@ -148,16 +148,16 @@ async def main():
     print(f"RETRIEVAL OK: {retrieval_ok}/{len(results)}")
     if not args.no_llm:
         kw_avg = sum(r.get("keyword_score", 0) for r in results) / len(results)
-        print(f"KEYWORD SCORE medio: {kw_avg:.0%}")
+        print(f"Average KEYWORD SCORE: {kw_avg:.0%}")
     avg_ms = sum(r["elapsed_ms"] for r in results) / len(results)
-    print(f"TEMPO MEDIO: {avg_ms:.0f}ms")
+    print(f"AVERAGE TIME: {avg_ms:.0f}ms")
     print(f"{'='*60}\n")
 
     # Save results
     out = Path(__file__).parent.parent / "data" / "eval_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Risultati salvati in {out}")
+    print(f"Results saved to {out}")
 
 
 if __name__ == "__main__":

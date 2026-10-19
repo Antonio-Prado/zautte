@@ -20,6 +20,7 @@ import functools
 import http.server
 import json
 import os
+import re
 import sys
 import threading
 from pathlib import Path
@@ -68,13 +69,18 @@ def serve() -> str:
 
 
 def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, language: str = "it",
-             chat_status: int = 200) -> None:
+             chat_status: int = 200, ui_lang: str | None = "it") -> None:
+    """ui_lang "it" serves the widget pages with the widget in Italian (the generic pages are English):
+    most of the checks below read Italian texts; None leaves the pages as they are."""
     def handle(route):
         url = route.request.url
         path = urlsplit(url).path
         if path.endswith("/dati"):                         # panel of the restricted area, which the server only serves with a key
             return route.fulfill(json={k: (ROOT / "admin_panel" / f"panel.{k}").read_text(encoding="utf-8")
                                        for k in ("css", "html", "js")})
+        if path.endswith(".html") and ui_lang == "it" and url.startswith(base + "/widget/"):
+            resp = route.fetch()
+            return route.fulfill(response=resp, body=re.sub(r"lang:\s*'en'", "lang: 'it'", resp.text()))
         if url.startswith(base + "/widget/") or path == "/admin_panel/login.html":
             return route.continue_()
         if not url.startswith(base):
@@ -115,7 +121,7 @@ def axe(page, state: str) -> None:
     page.add_script_tag(content=AXE_JS)
     result = page.evaluate("t => axe.run(document, {runOnly: {type: 'tag', values: t}})", TAGS)
     found = [f"{v['id']} ({len(v['nodes'])}): {v['nodes'][0]['target']}" for v in result["violations"]]
-    check(not found, f"{state}: nessuna violazione axe" + (" — " + "; ".join(found) if found else ""))
+    check(not found, f"{state}: no axe violations" + (" — " + "; ".join(found) if found else ""))
 
 
 def open_panel(page) -> None:
@@ -154,67 +160,67 @@ def main() -> int:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel=os.environ.get("A11Y_CHANNEL") or None)
 
-        print("pilot.html: widget flottante")
+        print("pilot.html: floating widget")
         page = new_page(browser, viewport={"width": 1280, "height": 800})
         mock_api(page, base)
         page.goto(base + "/widget/pilot.html")
-        axe(page, "chiuso")
+        axe(page, "closed")
         inside = False
         for _ in range(10):
             page.keyboard.press("Tab")
             inside = inside or focus_in_panel(page)
-        check(not inside, "a chat chiusa il tasto Tab non entra nel pannello")
+        check(not inside, "with the chat closed, Tab does not enter the panel")
         open_panel(page)
         page.wait_for_selector(f"{W}-login-email", state="visible")
-        check(page.get_attribute(f"{W}-panel", "aria-modal") is None, "pannello non modale")
+        check(page.get_attribute(f"{W}-panel", "aria-modal") is None, "panel is not modal")
         check(page.is_visible("label[for='zautte-chatbot-login-email']")
-              and page.is_visible("label[for='zautte-chatbot-login-pw']"), "etichette visibili nel login")
+              and page.is_visible("label[for='zautte-chatbot-login-pw']"), "visible labels in the login form")
         axe(page, "login")
         login(page)
-        check(page.is_visible("#zautte-chatbot-input-label"), "etichetta visibile del campo di testo")
+        check(page.is_visible("#zautte-chatbot-input-label"), "visible label on the text field")
         check(page.evaluate("() => { const m = document.getElementById('zautte-chatbot-messages');"
                             " return !m.hasAttribute('aria-live') && m.getAttribute('role') !== 'log'; }"),
-              "la conversazione non è una regione live")
-        check(page.get_attribute(f"{W}-status", "role") == "status", "regione di stato per gli annunci")
-        axe(page, "chat aperta")
+              "the conversation is not a live region")
+        check(page.get_attribute(f"{W}-status", "role") == "status", "status region for announcements")
+        axe(page, "chat open")
         ask(page)
         bubble = ".zautte-chatbot-msg.bot:last-of-type .zautte-chatbot-bubble"
-        check(page.locator(f"{bubble} h3").count() == 1, "il titolo della risposta è un <h3>")
-        check(page.locator(f"{bubble} ul > li").count() == 2, "l'elenco della risposta è un <ul> con 2 voci")
-        check(page.locator(f"{bubble} a a").count() == 0, "nessun link dentro un altro link")
+        check(page.locator(f"{bubble} h3").count() == 1, "the answer title is an <h3>")
+        check(page.locator(f"{bubble} ul > li").count() == 2, "the answer list is a <ul> with 2 items")
+        check(page.locator(f"{bubble} a a").count() == 0, "no link inside another link")
         hrefs = page.eval_on_selector_all(f"{bubble} a", "els => els.map(e => e.getAttribute('href'))")
-        check(hrefs == ["https://www.example.org/cie", "mailto:anagrafe@example.org"], f"link della risposta: {hrefs}")
+        check(hrefs == ["https://www.example.org/cie", "mailto:anagrafe@example.org"], f"answer links: {hrefs}")
         status = page.text_content(f"{W}-status") or ""
         check(status.startswith("Per rinnovare la carta d'identità") and "**" not in status
               and "https://" not in status and status.rstrip().endswith("Fonti: 2"),
-              "la risposta finita è annunciata una volta, senza markdown né URL, con il numero di fonti")
-        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo la risposta")
-        axe(page, "risposta con fonti e 👍/👎")
+              "the finished answer is announced once, without markdown or URLs, with the number of sources")
+        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus in the field after the answer")
+        axe(page, "answer with sources and 👍/👎")
         page.click(".zautte-chatbot-feedback button:nth-child(2)")
         page.wait_for_selector(".zautte-chatbot-fbform textarea")
         pressed = page.eval_on_selector_all(".zautte-chatbot-feedback button",
                                             "els => els.map(e => [e.getAttribute('aria-label'), e.getAttribute('aria-pressed')])")
-        check(pressed == [["Risposta utile", "false"], ["Risposta non utile", "true"]], f"👍/👎 con nome e stato: {pressed}")
-        check(page.evaluate("document.activeElement.tagName") == "TEXTAREA", "focus nel commento dopo 👎")
-        axe(page, "modulo di segnalazione")
+        check(pressed == [["Risposta utile", "false"], ["Risposta non utile", "true"]], f"👍/👎 with name and state: {pressed}")
+        check(page.evaluate("document.activeElement.tagName") == "TEXTAREA", "focus in the comment after 👎")
+        axe(page, "report form")
         page.click(".zautte-chatbot-fbform button[type=submit]")
         check(page.get_attribute(".zautte-chatbot-fbform-msg", "role") == "alert"
-              and bool(page.text_content(".zautte-chatbot-fbform-msg")), "errore del modulo annunciato (role=alert)")
+              and bool(page.text_content(".zautte-chatbot-fbform-msg")), "form error announced (role=alert)")
         page.click(".zautte-chatbot-fbform-actions button:not(.primary)")
-        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo «Non ora»")
+        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus in the field after «Non ora»")
         # With VoiceOver the full region made one meet a second copy of the
         # answer while exploring the chat: after the announcement it must be emptied
         page.wait_for_timeout(5500)
         check(not (page.text_content(f"{W}-status") or "").strip(),
-              "dopo qualche secondo la regione degli annunci si svuota")
+              "after a few seconds the announcement region is emptied")
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-btn"
               and page.eval_on_selector(f"{W}-panel", "e => getComputedStyle(e).visibility") == "hidden",
-              "Esc chiude la chat e riporta il focus al pulsante")
+              "Esc closes the chat and returns focus to the button")
         page.close()
 
-        print("pilot.html: login sbagliato, risposta in inglese, schermo stretto, movimento ridotto")
+        print("pilot.html: wrong login, English answer, narrow screen, reduced motion")
         page = new_page(browser, viewport={"width": 1280, "height": 800})
         mock_api(page, base, login_status=401)
         page.goto(base + "/widget/pilot.html")
@@ -224,8 +230,8 @@ def main() -> int:
         page.click(f"{W}-login-submit")
         page.wait_for_selector(f"{W}-login-error", state="visible")
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-login-submit",
-              "focus non perso dopo un login sbagliato")
-        axe(page, "errore di login")
+              "focus is kept after a wrong login")
+        axe(page, "login error")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
@@ -235,7 +241,7 @@ def main() -> int:
         login(page)
         ask(page, "How do I renew my identity card?")
         check(page.get_attribute(".zautte-chatbot-msg.bot:last-of-type", "lang") == "en"
-              and page.get_attribute(f"{W}-status span", "lang") == "en", "risposta inglese marcata lang=en")
+              and page.get_attribute(f"{W}-status span", "lang") == "en", "English answer marked lang=en")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
@@ -248,9 +254,9 @@ def main() -> int:
         page.wait_for_selector(".zautte-chatbot-msg.bot:last-of-type :text('limite di 20 domande')")
         page.wait_for_timeout(250)
         check("limite di 20 domande al giorno" in (page.text_content(f"{W}-status") or ""),
-              "limite giornaliero: messaggio con il numero di domande, annunciato")
-        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo il limite")
-        axe(page, "limite giornaliero raggiunto")
+              "daily limit: message with the number of questions, announced")
+        check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus in the field after the limit")
+        axe(page, "daily limit reached")
         page.close()
 
         page = new_page(browser, viewport={"width": 320, "height": 640}, reduced_motion="reduce")
@@ -259,24 +265,24 @@ def main() -> int:
         open_panel(page)
         login(page)
         check(page.eval_on_selector(f"{W}-btn", "e => getComputedStyle(e).visibility") == "hidden",
-              "320 px: il pulsante coperto dal pannello non prende il focus")
+              "320 px: the button covered by the panel does not take focus")
         check(page.eval_on_selector(f"{W}-panel", "e => getComputedStyle(e).transitionDuration")
-              .replace(" ", "").strip("0s,") == "", "movimento ridotto: niente transizioni")
+              .replace(" ", "").strip("0s,") == "", "reduced motion: no transitions")
         ask(page)
-        check(page.evaluate("document.documentElement.scrollWidth") <= 320, "320 px: niente scorrimento orizzontale")
-        axe(page, "320 px, risposta")
+        check(page.evaluate("document.documentElement.scrollWidth") <= 320, "320 px: no horizontal scrolling")
+        axe(page, "320 px, answer")
         page.close()
 
-        print("dashboard.html e come-funziona.html")
+        print("dashboard.html and come-funziona.html")
         page = new_page(browser, viewport={"width": 1280, "height": 800})
         mock_api(page, base)
         page.goto(base + "/widget/dashboard.html")
         page.wait_for_selector(f"{W}-login-email", state="visible")
-        axe(page, "dashboard, login colleghi")
+        axe(page, "dashboard, colleagues login")
         login(page)
-        check(page.get_attribute(f"{W}-panel", "role") == "region", "chat nella pagina come regione, non finestra")
+        check(page.get_attribute(f"{W}-panel", "role") == "region", "in-page chat as a region, not a dialog")
         ask(page)
-        axe(page, "dashboard, chat nella pagina")
+        axe(page, "dashboard, in-page chat")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
@@ -285,7 +291,7 @@ def main() -> int:
         page.goto(base + "/admin_panel/login.html")
         page.wait_for_selector("#admin-grid", state="visible")
         page.wait_for_timeout(500)
-        axe(page, "area riservata, vista amministratore")
+        axe(page, "admin area, administrator view")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
@@ -293,18 +299,28 @@ def main() -> int:
         page.goto(base + "/widget/come-funziona.html")
         axe(page, "come-funziona.html")
         page.wait_for_selector("#zautte-a11y-link")
-        check(page.get_attribute("#zautte-a11y-link", "href").endswith("/widget/come-funziona.html#accessibilita")
-              and page.locator("#accessibilita").count() == 1,
-              "footer: link «Accessibilità» alla sezione di come-funziona.html")
+        check(page.get_attribute("#zautte-a11y-link", "href").endswith("/widget/come-funziona.html#accessibility")
+              and page.locator("#accessibility").count() == 1,
+              "footer: «Accessibility» link to the come-funziona.html section")
         check(page.get_attribute("nav.back a", "href") == "./dashboard.html"
               and page.locator("main > p.back-end a[href='./dashboard.html']").count() == 1,
-              "come-funziona.html: link «Torna a Zautte» in cima e in fondo")
+              "come-funziona.html: «Back to Zautte» link at top and bottom")
+
+        page = new_page(browser, viewport={"width": 1280, "height": 800})
+        mock_api(page, base, ui_lang=None)
+        page.goto(base + "/widget/dashboard.html")
+        page.wait_for_selector(f"{W}-login-email", state="visible")
+        check(page.evaluate("document.documentElement.lang") == "en"
+              and "Sign in" in (page.text_content(f"{W}-login-submit") or ""),
+              "generic pages in English: page and widget (login)")
+        axe(page, "dashboard in English, login")
+        page.close()
         browser.close()
 
     if failures:
-        print(f"\n{len(failures)} problemi di accessibilità")
+        print(f"\n{len(failures)} accessibility problems")
         return 1
-    print("\nAccessibilità: tutto ok")
+    print("\nAccessibility: all ok")
     return 0
 
 

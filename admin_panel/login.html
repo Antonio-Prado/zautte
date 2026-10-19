@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex,nofollow">
-  <title>Accesso riservato — Zautte</title>
+  <title>Restricted access — Zautte</title>
   <link rel="icon" href="/widget/zautte-favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/widget/dashboard.css?v=20261019a">
   <style id="area-css"></style>
@@ -20,17 +20,17 @@
 </head>
 <body class="user-view">
   <div class="page-head">
-    <h1><img class="brand-logo" src="/widget/zautte-logo.svg" alt="Zautte" width="160" height="36">Accesso riservato</h1>
+    <h1><img class="brand-logo" src="/widget/zautte-logo.svg" alt="Zautte" width="160" height="36">Restricted access</h1>
     <div id="session-box" style="display:none">
       <span id="session-name"></span>
-      <button type="button" class="btn-logout" id="logout-btn">Esci</button>
+      <button type="button" class="btn-logout" id="logout-btn">Log out</button>
     </div>
   </div>
 
   <form id="key-form" autocomplete="off">
-    <label for="key-input">Chiave di accesso</label>
+    <label for="key-input">Access key</label>
     <input type="password" id="key-input" autocomplete="off" required>
-    <button type="submit" id="key-btn">Entra</button>
+    <button type="submit" id="key-btn">Log in</button>
     <p id="key-msg" role="alert"></p>
   </form>
 
@@ -55,13 +55,13 @@
         const r = await fetch(apiBase + location.pathname.replace(/\/+$/, '') + '/dati', { headers: { 'X-Admin-Key': key } });
         if (r.status === 429) {
           const m = Math.ceil((Number(r.headers.get('Retry-After')) || 0) / 60);
-          _keyError = 'Troppi tentativi: riprova tra ' + (m || 'qualche') + ' minuti.';
+          _keyError = 'Too many attempts: try again in ' + (m || 'a few') + ' minutes.';
           return false;
         }
-        if (!r.ok) { _keyError = 'Chiave non valida.'; return false; }
+        if (!r.ok) { _keyError = 'Invalid key.'; return false; }
         _panel = await r.json();
         return true;
-      } catch (_) { _keyError = 'Servizio non raggiungibile.'; return false; }
+      } catch (_) { _keyError = 'Service unreachable.'; return false; }
     }
 
     let _user = { loggedIn: false, name: '' };
@@ -71,7 +71,7 @@
       const name = document.getElementById('session-name');
       const parts = [];
       if (_user.loggedIn && _user.name) parts.push(_user.name);
-      if (_statsStarted) parts.push('amministratore');
+      if (_statsStarted) parts.push('administrator');
       name.textContent = parts.join(' · ');
       box.style.display = (_user.loggedIn || _statsStarted) ? '' : 'none';
     }

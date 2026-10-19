@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zautte — Assistente virtuale</title>
-  <meta name="description" content="Zautte: assistente virtuale che risponde alle domande sui servizi dell'ente citando le fonti ufficiali.">
+  <title>Zautte — Virtual assistant</title>
+  <meta name="description" content="Zautte: a virtual assistant that answers questions about the organisation's services, citing official sources.">
   <meta name="theme-color" content="#003366">
   <link rel="icon" href="./zautte-favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -13,18 +13,18 @@
 </head>
 <body class="user-view">
   <div class="page-head">
-    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="160" height="36">Assistente virtuale</h1>
+    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="160" height="36">Virtual assistant</h1>
     <div id="session-box" style="display:none">
       <span id="session-name"></span>
-      <button type="button" class="btn-logout" id="logout-btn">Esci</button>
+      <button type="button" class="btn-logout" id="logout-btn">Log out</button>
     </div>
   </div>
   <div id="pilot-intro" style="max-width:640px;margin:10px 0 14px;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.5;color:#444">
-    <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
-    <span class="before-login">Accedi con le credenziali che hai ricevuto e fai</span><span class="after-login" id="intro-greeting">Fai</span> le tue domande.
-    Usa 👍 / 👎 per darci un riscontro.<br>
-    Se metti 👎, sotto la risposta compare un modulo: scrivi cosa non va e incolla il link
-    della pagina dove si trova l'informazione corretta.
+    <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Access restricted to authorised users</strong>
+    <span class="before-login">Log in with the credentials you received and ask</span><span class="after-login" id="intro-greeting">Ask</span> your questions.
+    Use 👍 / 👎 to give us feedback.<br>
+    If you choose 👎, a form appears below the answer: tell us what is wrong and paste the link
+    to the page where the correct information can be found.
   </div>
 
   <div id="chat-area"></div>
@@ -43,7 +43,7 @@
       _user = e.detail || { loggedIn: false, name: '' };
       document.body.classList.toggle('logged-in', !!_user.loggedIn);
       const greeting = document.getElementById('intro-greeting');
-      if (greeting) greeting.textContent = _user.name ? 'Ciao ' + _user.name + ', fai' : 'Fai';
+      if (greeting) greeting.textContent = _user.name ? 'Hi ' + _user.name + ', ask' : 'Ask';
       updateSessionBox();
     });
     document.getElementById('logout-btn').addEventListener('click', function () {
@@ -61,15 +61,16 @@
       title:         'Zautte',
       subtitle:      '',
       welcomeIt:     'Ciao, mi chiamo Zautte! Sono un assistente virtuale: uso l\'intelligenza artificiale per aiutarti a trovare informazioni sui contenuti del sito istituzionale.',
+      welcomeEn:     'Hi, my name is Zautte! I am a virtual assistant: I use artificial intelligence to help you find information on the content of the institutional website.',
       contactEmail:  '',
       infoUrl:       './come-funziona.html',
       position:      'right',
-      lang:          'it',
+      lang:          'en',
       logoUrl:      './zautte-icon.svg',
       suggestions:  [
-        'Come posso contattare un ufficio?',
-        'Quali sono gli orari di apertura degli sportelli?',
-        'Dove trovo la modulistica?',
+        'How can I contact an office?',
+        'What are the opening hours of the service desks?',
+        'Where can I find the forms?',
       ],
     };
   </script>

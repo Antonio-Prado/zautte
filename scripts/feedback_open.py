@@ -43,10 +43,10 @@ def format_entry(e: dict) -> str:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Feedback negativi con dettagli")
-    ap.add_argument("--all", action="store_true", help="includi anche i feedback risolti")
-    ap.add_argument("--details", action="store_true", help="solo feedback con commento o link")
-    ap.add_argument("--json", action="store_true", help="output JSON")
+    ap = argparse.ArgumentParser(description="Negative feedback with details")
+    ap.add_argument("--all", action="store_true", help="also include resolved feedback")
+    ap.add_argument("--details", action="store_true", help="only feedback with a comment or link")
+    ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--limit", type=int, default=200)
     args = ap.parse_args(argv)
 
@@ -61,7 +61,7 @@ def main(argv=None) -> int:
                          ensure_ascii=False, indent=2))
         return 0
 
-    print(f"Feedback negativi aperti: {open_count} (feedback totali: {total}); mostrati: {len(items)}\n")
+    print(f"Open negative feedback: {open_count} (total feedback: {total}); shown: {len(items)}\n")
     for e in items:
         print(format_entry(e))
         print()

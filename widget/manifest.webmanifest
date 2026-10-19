@@ -1,8 +1,8 @@
 {
-  "name": "Zautte — Assistente virtuale",
+  "name": "Zautte — Virtual assistant",
   "short_name": "Zautte",
-  "description": "Assistente virtuale basato su intelligenza artificiale",
-  "lang": "it",
+  "description": "Virtual assistant based on artificial intelligence",
+  "lang": "en",
   "start_url": "/widget/dashboard.html",
   "scope": "/widget/",
   "display": "browser",

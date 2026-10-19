@@ -66,15 +66,15 @@ def main() -> int:
         np.savez(path, idx=np.array(idx), texts=np.array(texts + QUERIES, dtype=object),
                  stored=stored, vec=vec)
         c = _cos(vec[:N], stored)
-        print(f"Ollama attuale vs indice: min {c.min():.6f}  media {c.mean():.6f}")
+        print(f"Current Ollama vs index: min {c.min():.6f}  mean {c.mean():.6f}")
         return 0
     saved = np.load(path, allow_pickle=True)
     vec = np.array(embed_texts(list(saved["texts"])), dtype=np.float32)
     old = _cos(vec, saved["vec"])
     idx = _cos(vec[:N], saved["stored"])
-    print(f"ora vs salvataggio: brani min {old[:N].min():.6f} media {old[:N].mean():.6f}; "
+    print(f"now vs saved: chunks min {old[:N].min():.6f} mean {old[:N].mean():.6f}; "
           f"domande min {old[N:].min():.6f} media {old[N:].mean():.6f}")
-    print(f"ora vs indice:      brani min {idx.min():.6f} media {idx.mean():.6f}")
+    print(f"now vs index:       chunks min {idx.min():.6f} mean {idx.mean():.6f}")
     same = float(old.min()) >= THRESHOLD
     print("ESITO:", "UGUALI" if same else f"DIVERSI (minima sotto {THRESHOLD})")
     return 0 if same else 2

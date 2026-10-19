@@ -133,7 +133,7 @@ def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
             result.append((pattern, e["name"], url))
         return result
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        log.warning(f"Impossibile caricare offices.json: {exc}")
+        log.warning(f"Could not load offices.json: {exc}")
         return []
 
 _OFFICE_MAP = _load_office_map()
@@ -158,7 +158,7 @@ def _load_synonyms() -> dict[str, list[str]]:
     try:
         return _j.loads(f.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        log.warning(f"Impossibile caricare synonyms.json: {exc}")
+        log.warning(f"Could not load synonyms.json: {exc}")
         return {}
 
 _SYNONYMS = _load_synonyms()
@@ -254,7 +254,7 @@ def _load_known_facts() -> list[dict]:
             })
         return result
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        log.warning(f"Impossibile caricare known_facts.json: {exc}")
+        log.warning(f"Could not load known_facts.json: {exc}")
         return []
 
 _KNOWN_FACTS = _load_known_facts()
@@ -297,7 +297,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     # Detect embedding failure (zero vector) — use pure BM25
     vec_is_zero = all(v == 0.0 for v in query_vec[:10])
     if vec_is_zero:
-        log.warning("Embedding zero — fallback BM25 puro per retrieval")
+        log.warning("Zero embedding: falling back to pure BM25 for retrieval")
         chunks = hybrid_search(query_vec, expanded_query, top_k=top_k * 3,
                                vector_weight=0.0, bm25_weight=1.0)
         chunks = _dedup_chunks(chunks)
@@ -500,7 +500,7 @@ async def contextualize_query(
             return _fallback_contextualize(query, history)
         return text
     except Exception:
-        log.warning("Riscrittura della domanda fallita: uso il ripiego", exc_info=True)
+        log.warning("Question rewrite failed: using the fallback", exc_info=True)
         return _fallback_contextualize(query, history)
 
 
@@ -521,7 +521,7 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
                            _REWRITE_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
-        log.debug("Conteggio token non registrato: %s", exc)
+        log.debug("Token count not recorded: %s", exc)
     return _text_of(response)
 
 
@@ -583,7 +583,7 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
                 return
         except httpx.HTTPStatusError as e:
             last_exc = e
-            log.warning(f"Ollama HTTP {e.response.status_code} (tentativo {attempt+1}/2)")
+            log.warning(f"Ollama HTTP {e.response.status_code} (attempt {attempt+1}/2)")
             continue
         except Exception:
             raise
@@ -614,10 +614,10 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
                            _ANSWER_MODEL, uid=uid)
     except (AttributeError, TypeError, ValueError) as exc:
-        log.debug("Conteggio token non registrato: %s", exc)
+        log.debug("Token count not recorded: %s", exc)
     text = _text_of(response)
     if response.stop_reason == "refusal":
-        log.warning("Il modello ha rifiutato la richiesta")
+        log.warning("The model refused the request")
         text = (text + "\n\n" + _REFUSAL_TEXT).strip()
     return text
 
@@ -644,17 +644,17 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
         try:
             final = await stream.get_final_message()
         except (AttributeError, TypeError, ValueError) as exc:
-            log.debug("Messaggio finale non disponibile: %s", exc)
+            log.debug("Final message not available: %s", exc)
             final = None
         if final and final.stop_reason == "refusal":
-            log.warning("Il modello ha rifiutato la richiesta")
+            log.warning("The model refused the request")
             yield ("\n\n" if sent else "") + _REFUSAL_TEXT
         try:
             if final and final.usage:
                 _record_tokens(final.usage.input_tokens, final.usage.output_tokens,
                                _ANSWER_MODEL, uid=uid)
         except (AttributeError, TypeError, ValueError) as exc:
-            log.debug("Conteggio token non registrato: %s", exc)
+            log.debug("Token count not recorded: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -693,7 +693,7 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
         with open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as exc:
-        log.debug("Log dei gap non scritto: %s", exc)
+        log.debug("Gap log not written: %s", exc)
 
 _CACHE_MAX = 200  # max cached answers
 _response_cache: OrderedDict = OrderedDict()
@@ -778,7 +778,7 @@ def _load_stats():
         _token_cost_total = d.get("token_cost_total", 0.0)
         _token_history    = d.get("token_history", [])[-_TOKEN_HISTORY_MAX:]
     except (OSError, ValueError, TypeError, AttributeError) as e:
-        log.warning(f"Impossibile caricare stats: {e}")
+        log.warning(f"Could not load stats: {e}")
 
 
 def _save_stats():
@@ -796,7 +796,7 @@ def _save_stats():
                 "token_history":    _token_history[-_TOKEN_HISTORY_MAX:],
             }, f)
     except (OSError, TypeError, ValueError) as e:
-        log.warning(f"Impossibile salvare stats: {e}")
+        log.warning(f"Could not save stats: {e}")
 
 
 _load_stats()
@@ -908,7 +908,7 @@ async def answer(
     small = smalltalk.classify(query)
     if small:
         kind, language = small
-        log.info("Domanda %s: messaggio senza domanda (%s), risposta fissa", log_rid, kind)
+        log.info("Question %s: message without a question (%s), fixed reply", log_rid, kind)
         text = smalltalk.reply(kind, language)
         _save_stats()
         if stream:
@@ -924,7 +924,7 @@ async def answer(
     if use_cache:
         cached = _cache_get(query)
         if cached:
-            log.info("Domanda %s: risposta dalla cache", log_rid)
+            log.info("Question %s: answer served from cache", log_rid)
             return cached
 
     language = detect_language(query)
@@ -932,7 +932,7 @@ async def answer(
     # (the dialogue topic), not just the follow-up text.
     retrieval_query = await contextualize_query(query, history, uid=uid)
     if retrieval_query != query:
-        log.info("Domanda %s riscritta per la ricerca (%d -> %d caratteri)",
+        log.info("Question %s rewritten for retrieval (%d -> %d characters)",
                  log_rid, len(query), len(retrieval_query))
     chunks = retrieve_context(retrieval_query)
     context = build_context_block(chunks)
@@ -963,7 +963,7 @@ async def answer(
 
     # Only the identifier: the text stays in the data/ files, which have an
     # expiry and can be cleaned on request (the API log cannot).
-    log.info("Domanda %s | %d caratteri | lang=%s | chunks=%d | provider=%s",
+    log.info("Question %s | %d characters | lang=%s | chunks=%d | provider=%s",
              log_rid, len(query), language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
