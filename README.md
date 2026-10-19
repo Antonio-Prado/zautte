@@ -11,6 +11,7 @@
   <a href="https://github.com/Antonio-Prado/zautte/actions/workflows/ci.yml"><img src="https://github.com/Antonio-Prado/zautte/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/Antonio-Prado/zautte/actions/workflows/codeql.yml"><img src="https://github.com/Antonio-Prado/zautte/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://github.com/Antonio-Prado/zautte/releases"><img src="https://img.shields.io/github/v/release/Antonio-Prado/zautte?color=003366" alt="Release"></a>
+  <a href="https://doi.org/10.5281/zenodo.23452491"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23452491.svg" alt="DOI"></a>
   <img src="https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/platform-FreeBSD-AB2B28?logo=freebsd&logoColor=white" alt="FreeBSD">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>

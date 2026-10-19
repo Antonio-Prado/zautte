@@ -9,6 +9,10 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+### Changed
+- The Zenodo archive was made again and kept the same concept DOI, `10.5281/zenodo.23452491`: it is back in
+  `CITATION.cff` and in the README badge.
+
 ## [0.3.2] - 2026-10-19
 
 ### Changed
