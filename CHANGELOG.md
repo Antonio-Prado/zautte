@@ -9,6 +9,10 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+### Changed
+- The README screenshots have new file names (`zautte-chat-desktop.png`, `zautte-chat-phone.png`,
+  `zautte-admin-area.png`), so that browsers and image caches show the new pictures.
+
 ## [0.4.1] - 2026-10-19
 
 ### Changed

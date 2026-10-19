@@ -24,9 +24,9 @@ It runs in production as a pilot for an Italian municipality (the **Comune di Sa
 **Why "Zautte"?** In the dialect of San Benedetto del Tronto, a *zautte* is a sea laborer, a dockworker. *Li zautte* are young, strong workers who, historically coordinated by a foreman known as *lu sbarzòcche*, unload the fish from the boats just back in port and carry it to the fish market.
 
 <p align="center">
-  <img src="docs/images/chat.png" alt="Zautte answering a question about changing residence, desktop view" width="66%">
+  <img src="docs/images/zautte-chat-desktop.png" alt="Zautte answering a question about changing residence, desktop view" width="66%">
   &nbsp;
-  <img src="docs/images/chat-mobile.png" alt="Zautte answering a question about the identity card, phone view" width="22.5%">
+  <img src="docs/images/zautte-chat-phone.png" alt="Zautte answering a question about the identity card, phone view" width="22.5%">
 </p>
 <p align="center"><sub>Screenshots with invented data; the widget speaks Italian and English.</sub></p>
 
@@ -116,7 +116,7 @@ New items from the configured news sources (for example a WordPress news site or
 <details>
 <summary><b>Restricted admin area</b> (invented data)</summary>
 <br>
-<p align="center"><img src="docs/images/admin.png" alt="Admin dashboard: service status, indexed content, activity and feedback" width="80%"></p>
+<p align="center"><img src="docs/images/zautte-admin-area.png" alt="Admin dashboard: service status, indexed content, activity and feedback" width="80%"></p>
 </details>
 
 ## Quick start
