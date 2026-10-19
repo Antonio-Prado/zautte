@@ -25,6 +25,7 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - News sources are described generically (WordPress, RSS) instead of as a municipal bulletin.
 - `publiccode.yml`: the repository owner is the author, version 0.3.0.
 - Scripts and messages no longer name a specific organisation.
+- The host hardening section of the operations guide is a list of recommendations; the state of a particular machine is no longer described in the repository.
 
 ## [0.2.0] - 2026-10-19
 
