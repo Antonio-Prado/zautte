@@ -126,6 +126,7 @@
     loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
     logout: isItalian ? "Esci" : "Sign out",
     forgot: isItalian ? "Password dimenticata?" : "Forgot password?",
+    apply: isItalian ? "Candidatura" : "Apply as a volunteer",
     forgotNoEmail: isItalian ? "Inserisci prima la tua email qui sopra." : "Enter your email above first.",
     forgotSent: isItalian
       ? "Se l'indirizzo è registrato, riceverai una nuova password via email."
@@ -836,10 +837,13 @@
       style="padding:11px 12px;border:none;border-radius:8px;background:${p};color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
       ${T.loginSubmit}
     </button>
-    <button type="button" id="${WIDGET_ID}-forgot"
-      style="background:none;border:none;padding:4px;font:inherit;font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
-      ${T.forgot}
-    </button>`;
+    <div style="display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap;">
+      <button type="button" id="${WIDGET_ID}-forgot"
+        style="background:none;border:none;padding:4px;font:inherit;font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
+        ${T.forgot}
+      </button>
+      <span id="${WIDGET_ID}-apply" style="padding:4px;font-size:13px;color:${p};">${T.apply}</span>
+    </div>`;
   panel.appendChild(loginEl);
 
   // Pulsante logout (nell'header, visibile solo da autenticati)
