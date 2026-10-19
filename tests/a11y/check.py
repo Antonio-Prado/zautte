@@ -72,7 +72,10 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
     def handle(route):
         url = route.request.url
         path = urlsplit(url).path
-        if url.startswith(base + "/widget/"):
+        if path.endswith("/dati"):                         # pannello dell'area riservata, che il server dà solo con chiave
+            return route.fulfill(json={k: (ROOT / "admin_panel" / f"panel.{k}").read_text(encoding="utf-8")
+                                       for k in ("css", "html", "js")})
+        if url.startswith(base + "/widget/") or path == "/admin_panel/login.html":
             return route.continue_()
         if not url.startswith(base):
             return route.fulfill(status=404, body="")      # GitHub, font esterni...
@@ -279,10 +282,10 @@ def main() -> int:
         page = new_page(browser, viewport={"width": 1280, "height": 800})
         page.add_init_script("localStorage.setItem('zautte_admin_key', 'k')")
         mock_api(page, base)
-        page.goto(base + "/widget/dashboard.html")
+        page.goto(base + "/admin_panel/login.html")
         page.wait_for_selector("#admin-grid", state="visible")
         page.wait_for_timeout(500)
-        axe(page, "dashboard, vista amministratore")
+        axe(page, "area riservata, vista amministratore")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
