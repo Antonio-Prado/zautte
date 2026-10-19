@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
@@ -27,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -145,6 +147,24 @@ if ADMIN_PATH:
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+_NOT_FOUND_PAGE = (
+    '<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><title>Pagina non trovata</title>'
+    '<meta name="robots" content="noindex"></head><body style="font-family:Arial,sans-serif;'
+    'text-align:center;padding:15vh 20px;color:#333"><h1 style="color:#003366">404</h1>'
+    '<p>La pagina richiesta non esiste.</p></body></html>'
+)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def not_found_page(request: Request, exc: StarletteHTTPException):
+    """Percorso o metodo inesistente: pagina generica invece del JSON di FastAPI
+    (non rivela con quale framework è scritto il servizio). Gli errori voluti dagli
+    endpoint, con un loro messaggio, restano in JSON."""
+    if (exc.status_code, exc.detail) in ((404, "Not Found"), (405, "Method Not Allowed")):
+        return HTMLResponse(_NOT_FOUND_PAGE, status_code=exc.status_code)
+    return await http_exception_handler(request, exc)
 
 class _RevalidatedStaticFiles(StaticFiles):
     """File statici con Cache-Control: no-cache: il browser può tenerli in cache ma
