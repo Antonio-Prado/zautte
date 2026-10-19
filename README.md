@@ -68,21 +68,37 @@ sequenceDiagram
         I->>A: reload index (no restart)
     end
 
+    Note over U,A: sign-in when login is enabled (AUTH_ENABLED)
+    U->>W: sign in (email + password)
+    W->>A: POST /auth/login
+    A-->>W: signed token
+
     U->>W: question
-    W->>A: POST /chat
-    A->>A: mask personal data,<br/>rewrite follow-ups, expand synonyms
-    A->>S: hybrid search (semantic + BM25)
-    S-->>A: best chunks
-    A->>L: question + chunks + known facts<br/>("use nothing else")
-    L-->>A: answer with sources
-    A-->>W: answer, sources
-    W-->>U: reply
-    opt site cannot answer
-        A->>A: log question for review
+    W->>A: POST /chat/stream (token)
+    alt the question contains personal data
+        A-->>W: fixed reply: rephrase it<br/>(nothing sent to the LLM, nothing logged)
+    else daily limit of questions reached
+        A-->>W: 429, the widget explains it
+    else
+        A->>A: mask residual personal data
+        alt greeting, thanks, insult
+            A-->>W: fixed reply (no search, no LLM)
+        else
+            A->>A: rewrite follow-ups, expand synonyms
+            A->>S: hybrid search (semantic + BM25)
+            S-->>A: best chunks
+            A->>L: question + chunks + known facts<br/>("use nothing else")
+            L-->>A: answer with sources
+            A-->>W: answer, sources (streamed)
+            opt site cannot answer
+                A->>A: log question for review
+            end
+        end
     end
+    W-->>U: reply
 ```
 
-New items from the municipal bulletin and the site's news feed are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. Every question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
+New items from the municipal bulletin and the site's news feed are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. A question that contains personal data is not processed at all and the user is asked to rephrase it; any other question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
 
 ## In production
 
