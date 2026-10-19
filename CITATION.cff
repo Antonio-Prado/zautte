@@ -8,9 +8,8 @@ authors:
     given-names: Antonio
     email: antonio@prado.it
 repository-code: "https://github.com/Antonio-Prado/zautte"
-doi: 10.5281/zenodo.23452491
 license: MIT
-version: 0.3.1
+version: 0.3.2
 date-released: 2026-10-19
 keywords:
   - chatbot
