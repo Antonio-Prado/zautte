@@ -32,6 +32,9 @@ jobs:
       - name: Ruff — lint
         run: ruff check .
 
+      - name: Version consistent (version.json, CHANGELOG.md, CITATION.cff)
+        run: python scripts/check_version.py
+
       - name: Syntax check (all .py files)
         run: |
           find . -name "*.py" -not -path "./venv/*" -not -path "./.git/*" \

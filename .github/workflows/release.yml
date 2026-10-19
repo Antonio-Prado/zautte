@@ -1,0 +1,37 @@
+name: Release
+
+# A protected tag vX.Y.Z creates the release; its notes are the matching section of CHANGELOG.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create release from tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag matches version.json, CHANGELOG.md and CITATION.cff
+        run: python3 scripts/check_version.py "${GITHUB_REF_NAME}"
+
+      - name: Notes from CHANGELOG.md
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md | sed '/./,$!d' > notes.md
+          test -s notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" --verify-tag \
+            --title "Zautte ${GITHUB_REF_NAME}" --notes-file notes.md
