@@ -40,13 +40,13 @@ from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
-    INSTANCE_DIR,
     ADMIN_PATH,
     API_CORS_ORIGINS,
     API_DOCS,
     BEDROCK_MODEL,
     CLAUDE_MODEL,
     DAILY_QUESTION_LIMIT,
+    INSTANCE_DIR,
     LLM_PROVIDER,
     OLLAMA_MODEL,
     SITE_NAME,
