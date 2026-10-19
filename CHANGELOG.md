@@ -10,6 +10,7 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 ## [Unreleased]
 
 ### Changed
+- `publiccode.yml`: the IPA code of the reference installation is removed (the repository owner is the author) and English is listed among the available languages.
 - The "Built with" line of the README names the kind of LLM (hosted or local) instead of a single product.
 - The Zenodo archive was made again and kept the same concept DOI, `10.5281/zenodo.23452491`: it is back in
   `CITATION.cff` and in the README badge.
