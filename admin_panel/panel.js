@@ -1,0 +1,399 @@
+    function fmtUptime(sec) {
+      if (sec < 60) return sec + 's';
+      if (sec < 3600) return Math.floor(sec/60) + 'm ' + (sec%60) + 's';
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
+      return h + 'h ' + m + 'm';
+    }
+
+    function fmtNum(n) {
+      return n != null ? Number(n).toLocaleString('it') : '—';
+    }
+
+    function updateStats() {
+      const t0 = performance.now();
+      fetch(apiBase + '/health', { headers: adminHeaders() })
+        .then(r => r.json())
+        .then(d => {
+          const ms = Math.round(performance.now() - t0);
+          document.getElementById('dot').className = 'dot ok';
+          document.getElementById('backend-status').textContent = 'online';
+          document.getElementById('latency').textContent = ms + ' ms';
+          document.getElementById('last-update').textContent = new Date().toLocaleTimeString('it');
+          document.getElementById('uptime').textContent = fmtUptime(d.uptime_seconds || 0);
+
+          document.getElementById('model-name').textContent = d.llm_model || '—';
+          document.getElementById('llm-provider').textContent = d.llm_provider ? '(' + d.llm_provider + ')' : '';
+          document.getElementById('hybrid').textContent = d.hybrid_search ? '✓ attivo' : '✗ non disponibile';
+          document.getElementById('last-indexed').textContent = d.last_indexed || '—';
+          document.getElementById('unique-sources').textContent = fmtNum(d.unique_sources);
+          document.getElementById('chunk-count').textContent = fmtNum(d.indexed_chunks);
+
+          if (d.doc_types) {
+            const parts = Object.entries(d.doc_types).sort((a,b)=>b[1]-a[1]).map(([k,v])=>fmtNum(v)+' '+k);
+            document.getElementById('doc-types').textContent = parts.join(' · ');
+          }
+          if (d.top_doc) {
+            const td = d.top_doc;
+            document.getElementById('top-doc').innerHTML =
+              '<a href="'+_esc(td.source)+'" target="_blank" style="color:#003366;font-size:.9em">'+_esc(td.title||td.source.split('/').pop())+'</a>'
+              +' <span style="color:#666;font-size:.8em">('+td.chunks+' chunk)</span>';
+          }
+
+          const q = d.queries_since_restart ?? 0;
+          const g = d.gaps_total ?? 0;
+          document.getElementById('query-count').textContent = fmtNum(q);
+          document.getElementById('gaps-count').textContent = fmtNum(g);
+          document.getElementById('gaps-pct').textContent = q > 0 ? Math.round(g/q*100)+'%' : '—';
+
+          const act = d.activity || {};
+          document.getElementById('avg-resp').textContent = act.avg_response_ms != null ? fmtNum(act.avg_response_ms) : '—';
+
+          // Ore di picco
+          const hc = act.hour_counts || new Array(24).fill(0);
+          const maxH = Math.max(...hc, 1);
+          const chart = document.getElementById('hours-chart');
+          chart.innerHTML = '';
+          const nowH = new Date().getHours();
+          hc.forEach((v, h) => {
+            const bar = document.createElement('div');
+            bar.className = 'hour-bar' + (h === nowH ? ' active' : '');
+            bar.style.height = Math.max(2, Math.round(v/maxH*38)) + 'px';
+            bar.setAttribute('data-label', h + ':00 — ' + v + ' domande');
+            chart.appendChild(bar);
+          });
+
+          // Top queries — barre orizzontali
+          const tq = act.top_queries || [];
+          const qDiv = document.getElementById('top-queries');
+          if (tq.length) {
+            const maxC = Math.max(...tq.map(([,c]) => c), 1);
+            qDiv.innerHTML = tq.map(([q,c]) =>
+              '<div class="qbar-item">' +
+              '<div class="qbar-header"><span class="qbar-text">'+q+'</span><span class="qbar-count">×'+c+'</span></div>' +
+              '<div class="qbar-track"><div class="qbar-fill" style="width:'+Math.round(c/maxC*100)+'%"></div></div>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Feedback + donut SVG
+          const fb = d.feedback || {};
+          document.getElementById('fb-total').textContent = fmtNum(fb.total ?? 0);
+          document.getElementById('fb-pos').textContent = fmtNum(fb.positive ?? 0);
+          document.getElementById('fb-neg').textContent = fmtNum(fb.negative ?? 0);
+          document.getElementById('fb-res').textContent = fb.resolved ? '✓ ' + fmtNum(fb.resolved) + ' risolti' : '';
+          {
+            const r = 28, cx = 35, cy = 35, sw = 10;
+            const circ = 2 * Math.PI * r;
+            const t = fb.total || 0;
+            const pos = fb.positive || 0;
+            const neg = fb.negative || 0;
+            const posLen = t > 0 ? (pos/t)*circ : 0;
+            const negLen = t > 0 ? (neg/t)*circ : 0;
+            const posSeg = posLen > 0
+              ? '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#43a047" stroke-width="'+sw+'" stroke-dasharray="'+posLen.toFixed(1)+' '+circ.toFixed(1)+'" stroke-dashoffset="0" transform="rotate(-90 '+cx+' '+cy+')"/>'
+              : '';
+            const negSeg = negLen > 0
+              ? '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#e53935" stroke-width="'+sw+'" stroke-dasharray="'+negLen.toFixed(1)+' '+circ.toFixed(1)+'" stroke-dashoffset="'+(-posLen).toFixed(1)+'" transform="rotate(-90 '+cx+' '+cy+')"/>'
+              : '';
+            const pct = t > 0 ? Math.round(pos/t*100) : 0;
+            document.getElementById('fb-donut').innerHTML =
+              '<svg viewBox="0 0 70 70" width="70" height="70">' +
+              '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#eee" stroke-width="'+sw+'"/>' +
+              posSeg + negSeg +
+              '<text x="'+cx+'" y="'+(cy+1)+'" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="bold" fill="#555">'+pct+'%</text>' +
+              '</svg>';
+          }
+
+          // Token & Costi
+          document.getElementById('tok-in').textContent  = fmtNum(act.token_in_total);
+          document.getElementById('tok-out').textContent = fmtNum(act.token_out_total);
+          document.getElementById('tok-avg-in').textContent  = fmtNum(act.token_avg_in);
+          document.getElementById('tok-avg-out').textContent = fmtNum(act.token_avg_out);
+          const cost = act.token_cost_total;
+          document.getElementById('tok-cost').textContent = cost != null ? '$' + cost.toFixed(4) : '—';
+
+          const hist = act.token_history || [];
+          // Cost chart
+          if (hist.length) {
+            document.getElementById('cost-chart-wrap').style.display = '';
+            const maxCost = Math.max(...hist.map(e => e.cost || 0), 0.001);
+            document.getElementById('cost-chart').innerHTML = hist.map(e => {
+              const h = Math.max(2, Math.round((e.cost || 0) / maxCost * 46));
+              const lbl = (e.ts || '').replace(/T.*/,'').slice(5);
+              return '<div class="cost-bar-col">' +
+                '<div class="cost-bar" style="height:'+h+'px" data-tip="'+lbl+' — $'+(e.cost||0).toFixed(4)+'"></div>' +
+                '<div class="cost-bar-lbl">'+lbl+'</div>' +
+                '</div>';
+            }).join('');
+          }
+          // Token history table
+          const tbody = document.getElementById('token-history-body');
+          if (hist.length) {
+            tbody.innerHTML = [...hist].reverse().map(e =>
+              '<tr>' +
+              '<td>' + (e.ts || '').replace('T',' ').slice(0, 19) + '</td>' +
+              '<td>' + (e.user ? _esc(e.user) : '<span style="color:#666">—</span>') + '</td>' +
+              '<td style="color:#666">' + (e.model || '').replace('claude-','') + '</td>' +
+              '<td>' + fmtNum(e.in) + '</td>' +
+              '<td>' + fmtNum(e.out) + '</td>' +
+              '<td>$' + (e.cost || 0).toFixed(5) + '</td>' +
+              '</tr>'
+            ).join('');
+          }
+        })
+        .catch(() => {
+          document.getElementById('dot').className = 'dot err';
+          document.getElementById('backend-status').textContent = 'non raggiungibile';
+        });
+    }
+
+    function updateCrawlHistory() {
+      fetch(apiBase + '/crawl-history', { headers: adminHeaders() })
+        .then(r => r.json())
+        .then(d => {
+          // Barre di avanzamento
+          const html = d.current_html;
+          if (html) {
+            const pct = html.total > 0 ? Math.round(html.current / html.total * 100) : 0;
+            const done = html.current >= html.total;
+            document.getElementById('crawl-progress-html').style.display = '';
+            document.getElementById('crawl-html-label').textContent =
+              'HTML: ' + fmtNum(html.current) + ' / ' + fmtNum(html.total) + ' pagine' + (done ? ' ✓' : ' — in corso ' + html.ts);
+            document.getElementById('crawl-html-bar').style.width = pct + '%';
+          }
+          const pdf = d.current_pdf;
+          if (pdf) {
+            const pct = pdf.total > 0 ? Math.round(pdf.current / pdf.total * 100) : 0;
+            const done = pdf.current >= pdf.total;
+            document.getElementById('crawl-progress-pdf').style.display = '';
+            document.getElementById('crawl-pdf-label').textContent =
+              'PDF: ' + fmtNum(pdf.current) + ' / ' + fmtNum(pdf.total) + (done ? ' ✓' : ' — in corso ' + pdf.ts);
+            document.getElementById('crawl-pdf-bar').style.width = pct + '%';
+          }
+
+          // Timeline eventi
+          const evs = d.events || [];
+          const tl = document.getElementById('crawl-timeline');
+          if (evs.length) {
+            tl.innerHTML = [...evs].reverse().map(e => {
+              let dotClass = '';
+              if (e.type === 'vs_loaded') dotClass = 'vs';
+              else if (e.type === 'html_done') dotClass = 'html';
+              else if (e.type === 'crawl_end') dotClass = 'crawl';
+              return '<li>' +
+                '<div class="tl-dot ' + dotClass + '"></div>' +
+                '<span class="tl-ts">' + e.ts + '</span>' +
+                '<span class="tl-label">' + (e.label || e.type) + '</span>' +
+                '</li>';
+            }).join('');
+          } else {
+            tl.innerHTML = '<li><span class="tl-label" style="color:#666">nessun evento trovato nel log</span></li>';
+          }
+        })
+        .catch(() => {
+          document.getElementById('crawl-timeline').innerHTML =
+            '<li><span class="tl-label" style="color:#e53935">errore caricamento storico</span></li>';
+        });
+    }
+
+    // Testo dentro HTML, anche come valore di attributo tra virgolette
+    function _esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function loadMessages() {
+      const body = document.getElementById('msg-body');
+      const status = document.getElementById('msg-status');
+      fetch(apiBase + '/usage/messages?limit=500', { headers: adminHeaders() })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(data => {
+          const msgs = data.messages || [];
+          status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
+          // La tabella si ricostruisce ogni 30 s: le risposte aperte restano aperte.
+          const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.rid));
+          if (!msgs.length) {
+            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun messaggio registrato finora.</span>';
+            return;
+          }
+          let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
+            + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
+            + '<th style="padding:6px 8px;white-space:nowrap">Quando</th>'
+            + '<th style="padding:6px 8px;white-space:nowrap">Utente</th>'
+            + '<th style="padding:6px 8px">Domanda e risposta</th></tr></thead><tbody>';
+          msgs.forEach(m => {
+            const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
+            // Dal 07/10/2026 c'è anche la risposta data da Zautte (answers.jsonl):
+            // la domanda apre e chiude la risposta, con le fonti in fondo.
+            let cell = _esc(m.q);
+            if (typeof m.a === 'string') {
+              let src = '';
+              (m.sources || []).forEach(s => {
+                const t = _esc(s.title || s.url || '');
+                src += '<li>' + (s.url ? '<a href="' + _esc(s.url) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</li>';
+              });
+              cell = '<details class="msg-answer" data-rid="' + _esc(m.rid) + '"'
+                + (open.has(m.rid) ? ' open' : '') + '><summary>' + _esc(m.q)
+                + (m.partial ? ' <span class="msg-partial">(risposta interrotta)</span>' : '')
+                + '</summary><div class="msg-answer-text">' + _esc(m.a) + '</div>'
+                + (src ? '<ul class="msg-sources">' + src + '</ul>' : '') + '</details>';
+            }
+            html += '<tr style="border-bottom:1px solid #f3f3f3">'
+              + '<td style="padding:6px 8px;color:#666;white-space:nowrap">' + ts + '</td>'
+              + '<td style="padding:6px 8px;white-space:nowrap">' + _esc(m.name) + '</td>'
+              + '<td style="padding:6px 8px">' + cell + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        })
+        .catch(() => {
+          body.innerHTML = '<span style="color:#666;font-size:.85em">Errore nel caricamento del log.</span>';
+        });
+    }
+
+    function resolveNegative(ts, question, liEl, btnEl, user) {
+      const key = getAdminKey();
+      // Se il feedback ha un autore, chi risolve può avvisarlo via email con una
+      // nota facoltativa: OK = risolvi e avvisa, Annulla = risolvi in silenzio.
+      let note = '';
+      let notify = false;
+      if (user) {
+        const answer = prompt(
+          'Risolvo la segnalazione di ' + user + '.\n\n' +
+          'OK = risolvi e invia l\'email di riscontro al collega (qui sotto puoi aggiungere una nota facoltativa).\n' +
+          'Annulla = risolvi senza inviare email.', '');
+        notify = answer !== null;
+        note = answer || '';
+      }
+      btnEl.disabled = true;
+      btnEl.textContent = '…';
+      fetch(apiBase + '/feedback/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+        body: JSON.stringify({ ts, question, note, notify }),
+      })
+        .then(r => {
+          if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Chiave admin non valida.'); return; }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          liEl.classList.add('resolving');
+          setTimeout(() => { liEl.remove(); updateNegStatus(); updateStats(); }, 320);
+        })
+        .catch(() => { btnEl.disabled = false; btnEl.textContent = '✓ Risolto'; alert('Errore durante la risoluzione.'); });
+    }
+
+    function updateNegStatus() {
+      const statusEl = document.getElementById('neg-fb-status');
+      const listEl = document.getElementById('neg-fb-list');
+      const count = listEl.querySelectorAll(':scope > li').length;
+      if (count === 0) {
+        listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
+        statusEl.textContent = '— 0 aperte';
+      }
+    }
+
+    function loadNegativeFeedback() {
+      const statusEl = document.getElementById('neg-fb-status');
+      const listEl = document.getElementById('neg-fb-list');
+      fetch(apiBase + '/feedback/negative', { headers: adminHeaders() })
+        .then(r => r.json())
+        .then(data => {
+          const items = (data.items || []).slice().reverse();
+          const total = data.total_negative || 0;
+          statusEl.textContent = '— ' + items.length + ' aperte su ' + total + ' totali';
+          if (!items.length) {
+            listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Nessun feedback negativo aperto.</span></li>';
+            return;
+          }
+          listEl.innerHTML = '';
+          items.forEach(e => {
+            const ts = (e.ts || '').replace('T', ' ').slice(0, 16);
+            const li = document.createElement('li');
+            const main = document.createElement('div');
+            main.className = 'neg-main';
+            let html = '<span class="neg-q">— ' + _esc(e.question || '') + '</span>';
+            const meta = [ts, e.user ? '👤 ' + _esc(e.user) : ''].filter(Boolean).join(' · ');
+            if (meta) html += '<div class="neg-meta">' + meta + '</div>';
+            if (e.comment) html += '<div class="neg-comment">' + _esc(e.comment) + '</div>';
+            if (e.urls && e.urls.length) {
+              html += '<ul class="neg-urls">' + e.urls.map(u => {
+                const safe = _esc(u);
+                return '<li>🔗 <a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + safe + '</a></li>';
+              }).join('') + '</ul>';
+            }
+            main.innerHTML = html;
+            const btn = document.createElement('button');
+            btn.className = 'btn-resolve';
+            btn.textContent = '✓ Risolto';
+            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn, e.user || ''));
+            li.appendChild(main);
+            li.appendChild(btn);
+            listEl.appendChild(li);
+          });
+        })
+        .catch(() => {
+          statusEl.textContent = '';
+          listEl.innerHTML = '<li><span class="neg-q" style="color:#666">Errore caricamento.</span></li>';
+        });
+    }
+
+    function loadUsage() {
+      const key = getAdminKey();
+      if (!key) return;
+      const body = document.getElementById('usage-body');
+      const status = document.getElementById('usage-status');
+      body.innerHTML = '<span style="color:#666;font-size:.85em">caricamento…</span>';
+      fetch(apiBase + '/usage/summary', { headers: { 'X-Admin-Key': key } })
+        .then(r => {
+          if (r.status === 403) { _adminKey = null; throw new Error('key'); }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(data => {
+          const users = data.users || [];
+          const reg = (data.total_registered != null ? data.total_registered : (data.total_users || 0));
+          const act = (data.total_active != null ? data.total_active : users.length);
+          status.textContent = '— ' + reg + ' registrati · ' + act + ' attivi · ' + (data.total_messages || 0) + ' messaggi';
+          if (!users.length) {
+            body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun utente registrato.</span>';
+            return;
+          }
+          let html = '<table style="width:100%;border-collapse:collapse;font-size:.9em">'
+            + '<thead><tr style="text-align:left;color:#666;border-bottom:1px solid #eee">'
+            + '<th style="padding:6px 8px">Utente</th>'
+            + '<th style="padding:6px 8px;text-align:right">Messaggi</th>'
+            + '<th style="padding:6px 8px;text-align:right">Giorni attivi</th>'
+            + '<th style="padding:6px 8px">Ultimo accesso</th></tr></thead><tbody>';
+          users.forEach(u => {
+            const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'mai';
+            const dim = u.messages ? '' : 'color:#666;';
+            html += '<tr style="border-bottom:1px solid #f3f3f3;' + dim + '">'
+              + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + u.messages + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + u.active_days + '</td>'
+              + '<td style="padding:6px 8px;color:#666">' + last + '</td></tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        })
+        .catch(e => {
+          body.innerHTML = '<button id="usage-load-btn" class="btn-resolve">Riprova (chiave admin)</button>';
+          document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
+          if (String(e && e.message) === 'key') alert('Chiave admin non valida.');
+        });
+    }
+    document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
+
+    // Avvio della vista amministratore: chiamato da startAdminView() (dashboard.html)
+    // dopo aver inserito il pannello nella pagina.
+    window.zautteAdminBoot = function () {
+      updateStats();
+      updateCrawlHistory();
+      loadNegativeFeedback();
+      loadUsage();
+      loadMessages();
+      setInterval(updateStats, 30000);
+      setInterval(updateCrawlHistory, 60000);
+      setInterval(loadNegativeFeedback, 60000);
+      setInterval(loadMessages, 30000);
+    };

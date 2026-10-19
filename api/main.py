@@ -31,13 +31,13 @@ from slowapi.errors import RateLimitExceeded
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import auth, quota
+from api.admin_guard import check_admin_key
 from api.auth import require_user
 from api.datalog import forget
 from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
-    ADMIN_API_KEY,
     API_CORS_ORIGINS,
     API_DOCS,
     BEDROCK_MODEL,
@@ -63,11 +63,10 @@ _DATA_DIR = Path(__file__).parent.parent / "data"
 _api_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
 
 
-async def require_admin(key: str | None = Security(_api_key_header)):
-    """Dependency per proteggere gli endpoint admin con API key."""
-    if not ADMIN_API_KEY:
-        return  # autenticazione disabilitata (sviluppo)
-    if key != ADMIN_API_KEY:
+async def require_admin(request: Request, key: str | None = Security(_api_key_header)):
+    """Dependency per proteggere gli endpoint admin con API key (con limite ai
+    tentativi errati, vedi api/admin_guard.py)."""
+    if not check_admin_key(request, key):
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
 
 
@@ -114,6 +113,22 @@ app = FastAPI(
     openapi_url="/openapi.json" if API_DOCS else None,
     redoc_url=None,
 )
+
+_panel_dir = Path(__file__).parent.parent / "admin_panel"
+
+
+@app.get("/admin/panel", include_in_schema=False)
+async def admin_panel(_: None = Security(require_admin)):
+    """HTML e JavaScript della vista amministratore (dashboard.html#admin): non
+    stanno nella pagina pubblica, si ricevono solo con una chiave admin valida."""
+    try:
+        html = (_panel_dir / "panel.html").read_text(encoding="utf-8")
+        js = (_panel_dir / "panel.js").read_text(encoding="utf-8")
+    except OSError as e:
+        log.error("Pannello admin non leggibile: %s", e)
+        raise HTTPException(status_code=500, detail="Pannello non disponibile")
+    return JSONResponse({"html": html, "js": js}, headers={"Cache-Control": "no-store"})
+
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -421,7 +436,7 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
 
 
 @app.get("/health")
-async def health(key: str | None = Security(_api_key_header)):
+async def health(request: Request, key: str | None = Security(_api_key_header)):
     """Liveness pubblico (minimale). I dettagli operativi (statistiche, query,
     feedback, costi) sono restituiti SOLO con una chiave admin valida, per non
     esporli a chiunque conosca l'URL."""
@@ -432,7 +447,7 @@ async def health(key: str | None = Security(_api_key_header)):
         "uptime_seconds": int((now_local() - _startup_time).total_seconds()),
     }
 
-    is_admin = (not ADMIN_API_KEY) or (key == ADMIN_API_KEY)
+    is_admin = check_admin_key(request, key)
     if not is_admin:
         return base
 

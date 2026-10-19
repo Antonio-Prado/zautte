@@ -219,6 +219,10 @@ API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes"
 # Impostare in .env per proteggere /gaps e /stats
 # Lasciare vuoto per disabilitare l'autenticazione (solo in sviluppo)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+# Tentativi errati consentiti per indirizzo: raggiunto il massimo l'indirizzo viene
+# bloccato (429) per ADMIN_LOCKOUT_SECONDS, anche con la chiave giusta.
+ADMIN_MAX_ATTEMPTS = int(os.getenv("ADMIN_MAX_ATTEMPTS", "5"))
+ADMIN_LOCKOUT_SECONDS = int(os.getenv("ADMIN_LOCKOUT_SECONDS", "900"))
 
 # --- Autenticazione utenti (login email+password per pilota a gruppo ristretto) ---
 # AUTH_ENABLED=true attiva il gate su /chat, /chat/stream, /feedback: chi non
