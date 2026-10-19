@@ -1,58 +1,58 @@
 """
-Mascheramento dei dati personali riconoscibili nel testo delle domande.
+Masking of recognisable personal data in question text.
 
-La domanda del visitatore arriva al modello linguistico (fornitore esterno),
-ai log locali (usage.jsonl, gaps.jsonl, feedback.jsonl, stats.json) e al log
-dell'applicazione. Il widget chiede di non inserire dati personali ma non può
-impedirlo: qui i dati con un formato riconoscibile vengono sostituiti da un
-segnaposto PRIMA di qualsiasi uso.
+The visitor's question reaches the language model (external provider),
+the local logs (usage.jsonl, gaps.jsonl, feedback.jsonl, stats.json) and the
+application log. The widget asks users not to enter personal data but cannot
+prevent it: here data in a recognisable format is replaced by a
+placeholder BEFORE any use.
 
-Mascherati: codice fiscale, IBAN (con verifica del codice di controllo), numeri
-di carta di pagamento (con verifica di Luhn), indirizzi email (tranne quelli dei
-domini istituzionali in PII_KEEP_EMAIL_DOMAINS) e numeri di telefono italiani.
-Nomi, indirizzi di residenza e altri dati in forma libera non sono riconoscibili
-in modo affidabile e restano: l'avviso nel widget resta necessario.
+Masked: tax code (codice fiscale), IBAN (with check-digit verification), payment
+card numbers (with Luhn verification), email addresses (except those of the
+institutional domains in PII_KEEP_EMAIL_DOMAINS) and Italian phone numbers.
+Names, home addresses and other free-form data cannot be recognised
+reliably and remain: the notice in the widget is still necessary.
 
-Con PII_BLOCK la domanda che contiene dati personali (quelli riconosciuti sopra,
-oppure una presentazione in prima persona: nome, indirizzo di residenza, data
-e luogo di nascita) non viene proprio elaborata: contains_personal() la
-intercetta e l'API risponde con BLOCK_MESSAGE, senza invio al fornitore del
-modello e senza registrare il testo (parere del DPO del 19/10/2026).
+With PII_BLOCK a question containing personal data (the kinds recognised above,
+or a first-person introduction: name, home address, date
+and place of birth) is not processed at all: contains_personal()
+intercepts it and the API answers with BLOCK_MESSAGE, without sending it to the
+model provider and without recording the text (DPO opinion of 19/10/2026).
 """
 
 import re
 
 from config.settings import PII_BLOCK, PII_KEEP_EMAIL_DOMAINS, PII_REDACTION
 
-# Codice fiscale delle persone fisiche, anche in omocodia (cifre sostituite
-# dalle lettere LMNPQRSTUV).
+# Tax code (codice fiscale) of natural persons, including omocodia (digits replaced
+# by the letters LMNPQRSTUV).
 _CF_RE = re.compile(
     r"(?<![A-Za-z0-9])[A-Za-z]{6}[0-9LMNPQRSTUVlmnpqrstuv]{2}[ABCDEHLMPRSTabcdehlmprst]"
     r"[0-9LMNPQRSTUVlmnpqrstuv]{2}[A-Za-z][0-9LMNPQRSTUVlmnpqrstuv]{3}[A-Za-z](?![A-Za-z0-9])"
 )
 
-# IBAN: paese + 2 cifre di controllo + 11-30 caratteri, tutto attaccato oppure
-# a gruppi di 4 separati da uno spazio (solo maiuscole, così le parole che
-# seguono non vengono inglobate nel numero).
+# IBAN: country + 2 check digits + 11-30 characters, either contiguous or
+# in groups of 4 separated by a space (uppercase only, so that the words that
+# follow are not swallowed into the number).
 _IBAN_RE = re.compile(
     r"(?<![A-Za-z0-9])(?:[A-Za-z]{2}\d{2}[A-Za-z0-9]{11,30}"
     r"|[A-Z]{2}\d{2}(?: [A-Z0-9]{4}){2,7}(?: [A-Z0-9]{1,4})?)(?![A-Za-z0-9])"
 )
 
-# Carta di pagamento: 13-19 cifre, eventualmente separate da spazi o trattini.
+# Payment card: 13-19 digits, optionally separated by spaces or hyphens.
 _CARD_RE = re.compile(r"(?<![\d.,/])\d(?:[ -]?\d){12,18}(?![\d.,/])")
 
-# Ripetizioni limitate alle lunghezze massime di un indirizzo (64 caratteri prima
-# della @, 63 per etichetta del dominio): nessun backtracking costoso su testi
-# costruiti apposta (es. lunghe sequenze di "+").
+# Repetitions bounded by the maximum lengths of an address (64 characters before
+# the @, 63 per domain label): no costly backtracking on deliberately
+# crafted text (e.g. long runs of "+").
 _EMAIL_RE = re.compile(
     r"(?<![\w.+-])[\w.+-]{1,64}@([A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24})"
 )
 
-# Telefono italiano: prefisso internazionale facoltativo, poi cellulare (3xx) o
-# fisso (0x), con spazi/punti/trattini/barre tra le cifre. La lunghezza viene
-# controllata dopo (9-11 cifre nazionali), così date come 01/02/2026 (8 cifre)
-# e importi non vengono toccati.
+# Italian phone: optional international prefix, then mobile (3xx) or
+# landline (0x), with spaces/dots/hyphens/slashes between digits. The length is
+# checked afterwards (9-11 national digits), so dates like 01/02/2026 (8 digits)
+# and amounts are left untouched.
 _PHONE_RE = re.compile(
     r"(?<![\w.,/+])(?:(?:\+|00)39[ .-]?)?[03]\d(?:[ ./-]?\d){5,10}(?![\w])"
 )
@@ -93,8 +93,8 @@ def _email_kept(domain: str) -> bool:
 
 
 def redact(text: str) -> str:
-    """Il testo con i dati personali riconoscibili sostituiti da un segnaposto.
-    Con PII_REDACTION disattivo restituisce il testo invariato."""
+    """The text with recognisable personal data replaced by a placeholder.
+    With PII_REDACTION off it returns the text unchanged."""
     if not PII_REDACTION or not text:
         return text
     text = _CF_RE.sub("[codice fiscale]", text)
@@ -106,9 +106,9 @@ def redact(text: str) -> str:
 
 
 def redact_history(history: list[dict] | None) -> list[dict] | None:
-    """Maschera i messaggi dell'utente nella cronologia. Le risposte del
-    bot restano intatte: contengono recapiti pubblici degli uffici che servono
-    al modello per rispondere alle domande successive."""
+    """Masks the user's messages in the history. The bot's answers
+    are left intact: they contain public office contact details that the
+    model needs to answer the following questions."""
     if not history:
         return history
     return [
@@ -117,9 +117,9 @@ def redact_history(history: list[dict] | None) -> list[dict] | None:
     ]
 
 
-# Presentazioni in prima persona. I nomi propri richiedono l'iniziale maiuscola
-# (le parole che seguono «sono» sono spesso comuni: «sono residente», «sono
-# anziano»), per questo i pattern sono sensibili alle maiuscole.
+# First-person introductions. Proper names require an initial capital
+# (the words following «sono» are often common words: «sono residente», «sono
+# anziano»), hence the patterns are case-sensitive.
 _NAME = r"[A-ZÀ-Ý][a-zà-ÿ']{1,}"
 _SELF_RE = re.compile(
     r"(?i:\bmi chiamo|\bil mio nome è|\bil mio cognome è|\bme chiamo|\bmy name is|\bi am called)\s+" + _NAME
@@ -140,9 +140,9 @@ BLOCK_MESSAGE = (
 
 
 def contains_personal(text: str) -> bool:
-    """True se il testo contiene dati personali riconoscibili o una
-    presentazione in prima persona (vedi PII_BLOCK). Sempre False con il blocco
-    spento."""
+    """True if the text contains recognisable personal data or a
+    first-person introduction (see PII_BLOCK). Always False with blocking
+    off."""
     if not PII_BLOCK or not text:
         return False
     return redact(text) != text or bool(_SELF_RE.search(text))

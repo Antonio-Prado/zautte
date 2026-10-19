@@ -1,24 +1,24 @@
 """
-Avvio di produzione: un solo processo uvicorn in ascolto su IPv4 e IPv6.
+Production startup: a single uvicorn process listening on IPv4 and IPv6.
 
-uvicorn da riga di comando apre un solo indirizzo e su FreeBSD «::» non accetta
-connessioni IPv4 (net.inet6.ip6.v6only=1), così start.sh lanciava due processi,
-uno per famiglia di indirizzi, con memoria separata: ognuno caricava il proprio
-vector store, aveva la sua cache e i suoi contatori e riscriveva a turno
-data/stats.json, perdendo i conti dell'altro. Qui si aprono i due socket e li
-si passa a un solo server.
+uvicorn from the command line opens only one address and on FreeBSD «::» does not accept
+IPv4 connections (net.inet6.ip6.v6only=1), so start.sh launched two processes,
+one per address family, with separate memory: each loaded its own
+vector store, had its own cache and counters and took turns rewriting
+data/stats.json, losing the other's counts. Here the two sockets are opened and
+passed to a single server.
 
     python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000
 
-Senza --host ascolta solo in locale (127.0.0.1 e ::1): l'apertura a tutta la
-rete è una scelta esplicita di chi lo avvia (start.sh in produzione).
+Without --host it listens locally only (127.0.0.1 and ::1): opening it to the whole
+network is an explicit choice of whoever starts it (start.sh in production).
 
-Gli indirizzi del proxy di cui fidarsi per X-Forwarded-For (FORWARDED_ALLOW_IPS)
-si leggono da config.settings, cioè anche da .env: uvicorn da solo guarda solo
-l'ambiente del processo e lo farebbe prima che l'app carichi .env.
+The proxy addresses to trust for X-Forwarded-For (FORWARDED_ALLOW_IPS)
+are read from config.settings, i.e. also from .env: uvicorn alone only looks at
+the process environment and would do so before the app loads .env.
 
-L'app compare come argomento perché i comandi che cercano il processo dell'API
-(scripts/sync.py, scripts/watchdog.sh, scripts/chatbot_rcd) usano «api.main:app».
+The app appears as an argument because the commands that look for the API process
+(scripts/sync.py, scripts/watchdog.sh, scripts/chatbot_rcd) use «api.main:app».
 """
 
 import argparse
@@ -35,8 +35,8 @@ def _listen(host: str, port: int) -> socket.socket:
     sock = socket.socket(family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if family == socket.AF_INET6:
-        # Solo IPv6: le connessioni IPv4 hanno il loro socket (vale anche dove il
-        # sistema, come macOS e Linux, aprirebbe «::» a entrambe le famiglie).
+        # IPv6 only: IPv4 connections have their own socket (this also holds where the
+        # system, like macOS and Linux, would open «::» to both families).
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
     sock.bind((host, port))
     return sock
@@ -51,7 +51,7 @@ def main() -> None:
 
     hosts = args.host or ["127.0.0.1", "::1"]
     sockets = [_listen(h, args.port) for h in hosts]
-    # Config configura anche il logging di uvicorn
+    # Config also configures uvicorn's logging
     config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS)
     log = logging.getLogger("uvicorn.error")
     log.info("In ascolto sulla porta %d di %s", args.port, ", ".join(hosts))

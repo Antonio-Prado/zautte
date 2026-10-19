@@ -1,16 +1,16 @@
 """
-Messaggi senza una domanda: saluti, ringraziamenti, complimenti, congedi e insulti.
+Messages without a question: greetings, thanks, compliments, farewells and insults.
 
-«grazie», «bravo», «ciao» o un insulto non chiedono nulla al sito. Prima
-passavano dalla ricerca e dal modello linguistico (costo, e il testo arrivava al
-fornitore esterno) e finivano in gaps.jsonl come se fossero lacune nei
-contenuti. Qui vengono riconosciuti con una regola semplice e ricevono una
-risposta fissa, senza ricerca né modello.
+«grazie», «bravo», «ciao» or an insult ask nothing of the site. They used to
+go through the search and the language model (cost, and the text reached the
+external provider) and ended up in gaps.jsonl as if they were gaps in the
+content. Here they are recognised with a simple rule and get a
+fixed answer, with no search and no model.
 
-La regola: il messaggio è breve e fatto SOLO di parole di cortesia o insulti più
-qualche parola di contorno («sei», «molto», «mille», «per», «la»...). Basta una
-parola di contenuto («grazie, e per la TARI?», «non è chiaro», «la merda del
-cane sul marciapiede») perché il messaggio segua il percorso normale.
+The rule: the message is short and made ONLY of courtesy words or insults plus
+a few filler words («sei», «molto», «mille», «per», «la»...). A single
+content word («grazie, e per la TARI?», «non è chiaro», «la merda del
+cane sul marciapiede») is enough for the message to follow the normal path.
 """
 
 import re
@@ -18,7 +18,7 @@ import re
 _MAX_WORDS = 8
 _MAX_CHARS = 80
 
-# Parole che da sole fanno scattare la risposta fissa, per tipo e lingua
+# Words that on their own trigger the fixed answer, by type and language
 _TRIGGERS: dict[str, dict[str, set[str]]] = {
     "insult": {
         "it": {
@@ -62,9 +62,9 @@ _TRIGGERS: dict[str, dict[str, set[str]]] = {
     },
 }
 
-# Parole di contorno: non fanno scattare nulla, ma non bastano a fare una domanda
+# Filler words: they trigger nothing, but are not enough to make a question
 _FILLERS = {
-    # italiano
+    # Italian
     "sei", "siete", "è", "e", "ed", "ma", "che", "uno", "una", "un", "proprio", "davvero",
     "veramente", "molto", "tanto", "tanti", "tante", "troppo", "assai", "mille", "infinite",
     "ok", "okay", "no", "va", "bene", "allora", "beh", "boh", "ah", "oh", "eh", "mah", "dai",
@@ -72,7 +72,7 @@ _FILLERS = {
     "tutto", "tutti", "per", "l", "il", "lo", "la", "le", "i", "gli", "di", "del", "dello",
     "della", "dell", "da", "dal", "alla", "al", "risposta", "risposte", "aiuto",
     "informazioni", "info", "zautte", "assistente", "bot", "chatbot",
-    # inglese
+    # English
     "you", "are", "so", "very", "much", "really", "an", "is", "it", "this", "that",
     "all", "and", "for", "your", "the", "help", "see", "soon", "again", "good", "nice",
 }
@@ -110,8 +110,8 @@ _REPLIES = {
 
 
 def classify(text: str) -> tuple[str, str] | None:
-    """(tipo, lingua) se il messaggio è solo cortesia o insulto, altrimenti None.
-    Tipi: "insult", "thanks" (anche complimenti), "bye", "greeting"."""
+    """(type, language) if the message is only courtesy or insult, otherwise None.
+    Types: "insult", "thanks" (also compliments), "bye", "greeting"."""
     text = (text or "").strip().lower()
     if not text or len(text) > _MAX_CHARS:
         return None
@@ -125,7 +125,7 @@ def classify(text: str) -> tuple[str, str] | None:
             kind, lang = _WORDS[w]
             found.setdefault(kind, set()).add(lang)
         elif w not in _FILLERS:
-            return None   # parola di contenuto: è una domanda vera
+            return None   # content word: it is a real question
     for kind in _PRIORITY:
         if kind in found:
             langs = {lang for ls in found.values() for lang in ls}
@@ -134,6 +134,6 @@ def classify(text: str) -> tuple[str, str] | None:
 
 
 def reply(kind: str, language: str = "it") -> str:
-    """Risposta fissa per un messaggio riconosciuto da classify()."""
+    """Fixed answer for a message recognised by classify()."""
     texts = _REPLIES[kind]
     return texts.get(language, texts["it"])

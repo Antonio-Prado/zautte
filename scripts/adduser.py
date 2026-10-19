@@ -1,21 +1,21 @@
 """
-Provisioning utenti Zautte (login del progetto pilota).
+Zautte user provisioning (pilot project login).
 
-Uso:
-    # crea/aggiorna un utente (password chiesta in modo interattivo, nascosta)
+Usage:
+    # create/update a user (password asked interactively, hidden)
     python -m scripts.adduser --email m.rossi@example.it --name "Mario Rossi"
 
-    # non interattivo (es. da script)
+    # non-interactive (e.g. from a script)
     python -m scripts.adduser --email ... --name "..." --password "..."
 
-    # elenco utenti
+    # list users
     python -m scripts.adduser --list
 
-    # rimozione
+    # removal
     python -m scripts.adduser --remove m.rossi@example.it
 
-La password non viene mai salvata in chiaro: in data/users.json finisce solo
-l'hash scrypt. Il file data/ è già escluso dal versionamento (.gitignore).
+The password is never stored in clear text: only the scrypt hash ends up in
+data/users.json. The data/ folder is already excluded from version control (.gitignore).
 """
 
 import argparse
@@ -87,11 +87,11 @@ def main() -> None:
     if args.send_email and not smtp_configured():
         print("SMTP non configurato: le credenziali non si possono recapitare. Nessuna modifica.")
         sys.exit(1)
-    # Password: esplicita, oppure generata (se --send-email), oppure interattiva
+    # Password: explicit, or generated (if --send-email), or interactive
     if args.password:
         password = args.password
     elif args.send_email:
-        password = secrets.token_urlsafe(12)  # generata, verrà recapitata via email
+        password = secrets.token_urlsafe(12)  # generated, will be delivered by email
     else:
         password = getpass.getpass("Password: ")
     if len(password) < 8:
@@ -117,8 +117,8 @@ def main() -> None:
     _save(users)
 
     if args.send_email:
-        # La password non si stampa mai: se l'invio fallisce si rilancia il comando
-        # (senza --password ne genera una nuova).
+        # The password is never printed: if sending fails, rerun the command
+        # (without --password it generates a new one).
         url = args.login_url or PILOT_LOGIN_URL
         try:
             send_credentials(email, args.name, password, url)

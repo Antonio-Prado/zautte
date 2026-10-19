@@ -1,13 +1,13 @@
 """
-Riscrittura dei file di dati con le domande degli utenti (data/).
+Rewriting of the data files containing user questions (data/).
 
-La usano la scadenza automatica (scripts/purge_logs.py) e la cancellazione su
-richiesta (POST /usage/forget, scripts/forget.py).
+Used by the automatic expiry (scripts/purge_logs.py) and by deletion on
+request (POST /usage/forget, scripts/forget.py).
 
-Ogni domanda ha un identificativo `rid` (12 caratteri esadecimali) scritto in
-usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl e nel log dell'API: è il
-modo preciso per ritrovarla ovunque. Le voci registrate prima del 05/10/2026 non lo hanno e
-vengono abbinate per utente, testo e ora.
+Each question has an identifier `rid` (12 hexadecimal characters) written in
+usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl and in the API log: it is the
+precise way to find it everywhere. Entries recorded before 05/10/2026 do not have it and
+are matched by user, text and time.
 """
 
 import datetime as dt
@@ -25,8 +25,8 @@ GAPS_FILE = DATA_DIR / "gaps.jsonl"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
 RESOLVED_FILE = DATA_DIR / "resolved_negative.json"
 
-# Voci senza rid: il gap si scrive prima della risposta del modello e la voce
-# d'uso dopo (fino a un paio di minuti dopo); il feedback arriva dopo la domanda.
+# Entries without rid: the gap is written before the model's answer and the usage
+# entry after (up to a couple of minutes later); the feedback comes after the question.
 _LEGACY_WINDOW = dt.timedelta(minutes=5)
 
 
@@ -35,11 +35,11 @@ def parse_ts(ts: str) -> dt.datetime | None:
         t = dt.datetime.fromisoformat(ts)
     except (TypeError, ValueError):
         return None
-    return t if t.tzinfo else t.astimezone()   # ora locale se senza fuso
+    return t if t.tzinfo else t.astimezone()   # local time if naive
 
 
 def replace_keeping_owner(path: Path, tmp: Path) -> None:
-    """Sostituisce `path` con `tmp` mantenendo proprietario e permessi."""
+    """Replaces `path` with `tmp`, keeping owner and permissions."""
     st = path.stat()
     os.chmod(tmp, st.st_mode & 0o7777)
     if hasattr(os, "geteuid") and os.geteuid() == 0:
@@ -49,12 +49,12 @@ def replace_keeping_owner(path: Path, tmp: Path) -> None:
 
 def rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
                   dry_run: bool) -> tuple[int, int]:
-    """Riscrive un file JSONL applicando `transform` a ogni voce (None = elimina).
-    Ritorna (voci eliminate, voci modificate). Le righe non JSON restano.
+    """Rewrites a JSONL file applying `transform` to each entry (None = delete).
+    Returns (entries deleted, entries modified). Non-JSON lines are kept.
 
-    L'API continua ad aggiungere righe mentre il file viene riscritto: prima
-    della sostituzione si accodano le righe arrivate nel frattempo, così la
-    finestra in cui una scrittura può andare persa si riduce a pochi istanti."""
+    The API keeps appending lines while the file is being rewritten: before
+    the replacement the lines that arrived in the meantime are appended, so the
+    window in which a write can be lost shrinks to a few moments."""
     if not path.exists():
         return 0, 0
     with open(path, encoding="utf-8") as f:
@@ -89,14 +89,14 @@ def rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
             f.write("\n".join(out) + "\n")
         with open(path, encoding="utf-8") as src:
             src.seek(size)
-            f.write(src.read())   # righe aggiunte durante la riscrittura
+            f.write(src.read())   # lines appended during the rewrite
     replace_keeping_owner(path, tmp)
     return removed, changed
 
 
 def drop_resolved(drop: Callable[[str], bool], dry_run: bool) -> int:
-    """Toglie da resolved_negative.json le marcature «risolto» la cui chiave
-    ("<ts del feedback>::<domanda>") soddisfa `drop`. Ritorna quante."""
+    """Removes from resolved_negative.json the «risolto» marks whose key
+    ("<ts del feedback>::<domanda>") satisfies `drop`. Returns how many."""
     if not RESOLVED_FILE.exists():
         return 0
     try:
@@ -136,17 +136,17 @@ def _close_in_time(a: str, b: str) -> bool:
 
 def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
            every: bool = False, ts: Iterable[str] = (), dry_run: bool = False) -> dict:
-    """Cancella le domande scelte da usage.jsonl, answers.jsonl, gaps.jsonl e
-    feedback.jsonl, con le marcature «risolto» dei feedback tolti.
+    """Deletes the chosen questions from usage.jsonl, answers.jsonl, gaps.jsonl and
+    feedback.jsonl, with the «risolto» marks of the removed feedback.
 
-    Scelta: per `rids`, oppure per utente `uid` con le ultime `last` domande,
-    tutte (`every`, insieme a tutti i suoi feedback) o quelle con i timestamp
-    `ts` di usage.jsonl. Le voci senza rid (prima del 05/10/2026) si abbinano
-    per testo e ora; quelle dei visitatori anonimi stanno solo in gaps.jsonl e
-    si trovano solo per rid.
+    Selection: by `rids`, or by user `uid` with the last `last` questions,
+    all of them (`every`, together with all their feedback) or those with the `ts`
+    timestamps of usage.jsonl. Entries without rid (before 05/10/2026) are matched
+    by text and time; those of anonymous visitors are only in gaps.jsonl and
+    can only be found by rid.
 
-    Ritorna le domande trovate (ts, rid, q) e quante voci verrebbero tolte, o
-    sono state tolte, da ogni file. Con dry_run non modifica nulla."""
+    Returns the questions found (ts, rid, q) and how many entries would be removed, or
+    were removed, from each file. With dry_run it changes nothing."""
     rids = {r for r in rids if r}
     ts_set = set(ts)
     usage = _read_jsonl(USAGE_FILE)
@@ -169,7 +169,7 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
             return None if e["rid"] in all_rids else e
         return None if (e.get("uid"), e.get("ts")) in legacy_keys else e
 
-    only_gaps: list[dict] = []   # domande di anonimi: niente voce d'uso, solo il gap
+    only_gaps: list[dict] = []   # questions from anonymous users: no usage entry, only the gap
     found_rids = {e.get("rid") for e in picked}
 
     def drop_gap(e: dict) -> dict | None:
@@ -206,7 +206,7 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
         return e
 
     n_usage, _ = rewrite_jsonl(USAGE_FILE, drop_usage, dry_run) if (all_rids or legacy) else (0, 0)
-    # Le risposte (dal 07/10/2026) hanno sempre il rid: niente abbinamento per testo e ora.
+    # Answers (since 07/10/2026) always have the rid: no matching by text and time.
     n_answers, _ = (rewrite_jsonl(ANSWERS_FILE, lambda e: None if e.get("rid") in all_rids else e,
                                   dry_run) if all_rids else (0, 0))
     n_gaps, _ = rewrite_jsonl(GAPS_FILE, drop_gap, dry_run) if (all_rids or legacy) else (0, 0)

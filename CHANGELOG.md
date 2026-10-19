@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
+### Changed
+- Comments and docstrings in the code are in English (the text shown to users, log messages and the
+  language of the answers are unchanged).
+
 ## [0.3.0] - 2026-10-19
 
 ### Added
@@ -74,7 +80,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Antonio-Prado/zautte/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Antonio-Prado/zautte/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Antonio-Prado/zautte/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Antonio-Prado/zautte/compare/v0.1.0...v0.1.1

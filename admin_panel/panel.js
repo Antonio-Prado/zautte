@@ -48,7 +48,7 @@
           const act = d.activity || {};
           document.getElementById('avg-resp').textContent = act.avg_response_ms != null ? fmtNum(act.avg_response_ms) : '—';
 
-          // Ore di picco
+          // Peak hours
           const hc = act.hour_counts || new Array(24).fill(0);
           const maxH = Math.max(...hc, 1);
           const chart = document.getElementById('hours-chart');
@@ -62,7 +62,7 @@
             chart.appendChild(bar);
           });
 
-          // Top queries — barre orizzontali
+          // Top queries — horizontal bars
           const tq = act.top_queries || [];
           const qDiv = document.getElementById('top-queries');
           if (tq.length) {
@@ -75,7 +75,7 @@
             ).join('');
           }
 
-          // Feedback + donut SVG
+          // Feedback + SVG donut
           const fb = d.feedback || {};
           document.getElementById('fb-total').textContent = fmtNum(fb.total ?? 0);
           document.getElementById('fb-pos').textContent = fmtNum(fb.positive ?? 0);
@@ -104,7 +104,7 @@
               '</svg>';
           }
 
-          // Token & Costi
+          // Tokens & costs
           document.getElementById('tok-in').textContent  = fmtNum(act.token_in_total);
           document.getElementById('tok-out').textContent = fmtNum(act.token_out_total);
           document.getElementById('tok-avg-in').textContent  = fmtNum(act.token_avg_in);
@@ -151,7 +151,7 @@
       fetch(apiBase + '/crawl-history', { headers: adminHeaders() })
         .then(r => r.json())
         .then(d => {
-          // Barre di avanzamento
+          // Progress bars
           const html = d.current_html;
           if (html) {
             const pct = html.total > 0 ? Math.round(html.current / html.total * 100) : 0;
@@ -171,7 +171,7 @@
             document.getElementById('crawl-pdf-bar').style.width = pct + '%';
           }
 
-          // Timeline eventi
+          // Event timeline
           const evs = d.events || [];
           const tl = document.getElementById('crawl-timeline');
           if (evs.length) {
@@ -196,7 +196,7 @@
         });
     }
 
-    // Testo dentro HTML, anche come valore di attributo tra virgolette
+    // Text inside HTML, also as a quoted attribute value
     function _esc(s) {
       return String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -211,7 +211,7 @@
         .then(data => {
           const msgs = data.messages || [];
           status.textContent = '— ' + (data.total || msgs.length) + ' messaggi';
-          // La tabella si ricostruisce ogni 30 s: le risposte aperte restano aperte.
+          // The table is rebuilt every 30 s: open answers stay open.
           const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.rid));
           if (!msgs.length) {
             body.innerHTML = '<span style="color:#666;font-size:.85em">Nessun messaggio registrato finora.</span>';
@@ -224,8 +224,8 @@
             + '<th style="padding:6px 8px">Domanda e risposta</th></tr></thead><tbody>';
           msgs.forEach(m => {
             const ts = (m.ts || '').replace('T', ' ').slice(0, 19);
-            // Dal 07/10/2026 c'è anche la risposta data da Zautte (answers.jsonl):
-            // la domanda apre e chiude la risposta, con le fonti in fondo.
+            // Since 07/10/2026 the answer given by Zautte is also there (answers.jsonl):
+            // the question opens and closes the answer, with the sources at the bottom.
             let cell = _esc(m.q);
             if (typeof m.a === 'string') {
               let src = '';
@@ -254,8 +254,8 @@
 
     function resolveNegative(ts, question, liEl, btnEl, user) {
       const key = getAdminKey();
-      // Se il feedback ha un autore, chi risolve può avvisarlo via email con una
-      // nota facoltativa: OK = risolvi e avvisa, Annulla = risolvi in silenzio.
+      // If the feedback has an author, whoever resolves it can notify them by email with an
+      // optional note: OK = resolve and notify, Cancel = resolve silently.
       let note = '';
       let notify = false;
       if (user) {
@@ -384,8 +384,8 @@
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
-    // Avvio della vista amministratore: chiamato da startAdminView() (dashboard.html)
-    // dopo aver inserito il pannello nella pagina.
+    // Start of the admin view: called by startAdminView() (dashboard.html)
+    // after the panel has been inserted into the page.
     window.zautteAdminBoot = function () {
       updateStats();
       updateCrawlHistory();

@@ -7,35 +7,35 @@ body {
   color: #333;
 }
 h1 { color: #003366; margin: 0 0 4px; font-size: 1.5em; line-height: 1.25; }
-/* Logo Zautte in testa al titolo */
+/* Zautte logo above the title */
 .brand-logo { display: block; height: 36px; width: auto; margin: 0 0 8px; }
 body.user-view .brand-logo { margin: 0 auto 8px; }
 
-/* Vista collega: titolo, descrizione e chat che riempie il resto della finestra */
-/* (pagina compatta: il footer deve restare visibile anche su schermi bassi, 1366×768) */
+/* Colleague view: title, description and a chat filling the rest of the window */
+/* (compact page: the footer must stay visible even on short screens, 1366×768) */
 body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: 14px; padding-bottom: 16px; }
 #chat-area { max-width: 640px; }
 body.user-view #chat-area { flex: 1; }
-/* Prima dell'accesso conta solo l'altezza del modulo; dopo, la chat non scende sotto i 300 px */
+/* Before login only the form height matters; afterwards the chat never drops below 300 px */
 body.user-view.logged-in #chat-area { min-height: 300px; }
 
-/* Intestazione con utente collegato e pulsante "Esci" */
+/* Header with the logged-in user and the "Esci" button */
 .page-head {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 6px 16px; flex-wrap: wrap; max-width: 640px;
 }
 
-/* Vista collega: titolo, descrizione, login e chat centrati nella pagina */
+/* Colleague view: title, description, login and chat centred on the page */
 body.user-view { align-items: center; }
 body.user-view > .page-head,
 body.user-view > #pilot-intro,
 body.user-view > #chat-area { width: 100%; max-width: 640px; }
 body.user-view .page-head { flex-direction: column; align-items: center; text-align: center; }
 body.user-view #pilot-intro { text-align: justify; hyphens: auto; }
-/* Riquadro introduttivo: testo diverso prima e dopo l'accesso (classe logged-in dall'evento zautte:auth) */
+/* Intro box: different text before and after login (logged-in class set by the zautte:auth event) */
 body.logged-in .before-login { display: none !important; }
 body:not(.logged-in) .after-login { display: none !important; }
-/* «Cosa significa Zautte?»: una riga sotto il titolo, il testo si apre al clic */
+/* «Cosa significa Zautte?»: one line under the title, the text opens on click */
 .zautte-name { color: #444; }
 .zautte-name > summary { font-size: 0.85em; color: #003366; cursor: pointer; width: fit-content; line-height: 1.2; }
 body.user-view .zautte-name > summary { margin: 0 auto; }
@@ -50,7 +50,7 @@ body.user-view .zautte-name > summary { margin: 0 auto; }
   color: #003366; font-size: 0.95em; padding: 4px 12px; cursor: pointer;
 }
 .btn-logout:hover { background: #003366; color: #fff; }
-/* Schermi larghi: nome ed "Esci" in alto a destra, all'altezza del logo, senza una riga in più */
+/* Wide screens: name and "Esci" at the top right, level with the logo, without an extra row */
 @media (min-width: 760px) {
   body.user-view .page-head { position: relative; }
   body.user-view #session-box { position: absolute; top: 6px; right: 0; }

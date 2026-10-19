@@ -1,17 +1,17 @@
 """
-Script di sincronizzazione principale.
-Orchestrata crawl + indicizzazione in un unico comando.
+Main synchronisation script.
+Orchestrates crawl + indexing in a single command.
 
-Modalità:
-  full         → crawl completo + reindicizzazione totale (prima installazione)
-  incremental  → crawl incrementale + indicizza solo le modifiche (uso periodico)
-  inbox        → processa solo i documenti nella cartella inbox
-  full-index   → non fa crawl, reindicizza da zero tutto quello già scaricato
-  news         → notizie nuove dal Bollettino e dai feed, con pagine e allegati
-                 (ogni 15 minuti dal cron; --backfill = tutto l'archivio);
-                 ricarica l'indice nell'API a caldo invece di riavviarla
+Modes:
+  full         → full crawl + complete reindexing (first installation)
+  incremental  → incremental crawl + index only the changes (periodic use)
+  inbox        → process only the documents in the inbox folder
+  full-index   → no crawl, reindex from scratch everything already downloaded
+  news         → new items from the Bulletin and the feeds, with pages and attachments
+                 (every 15 minutes from cron; --backfill = whole archive);
+                 hot-reloads the index in the API instead of restarting it
 
-Uso:
+Usage:
   python -m scripts.sync full
   python -m scripts.sync incremental
   python -m scripts.sync inbox
@@ -51,14 +51,14 @@ LOG_FILE = Path("/var/log/chatbot-sync.log")
 
 def _setup_logging():
     """
-    Logging su file con WatchedFileHandler (sopravvive alla rotazione newsyslog)
-    + stdout per uso interattivo.
+    Logging to file with WatchedFileHandler (survives newsyslog rotation)
+    + stdout for interactive use.
     """
     fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
     root = logging.getLogger()
     root.setLevel(logging.INFO)
 
-    # File: riapre automaticamente se il file viene ruotato (inode cambia)
+    # File: reopens automatically if the file is rotated (inode changes)
     try:
         fh = logging.handlers.WatchedFileHandler(str(LOG_FILE), encoding="utf-8")
         fh.setFormatter(fmt)
@@ -66,7 +66,7 @@ def _setup_logging():
     except OSError as e:
         print(f"[WARN] impossibile aprire log file {LOG_FILE}: {e}", file=sys.stderr)
 
-    # Stdout: utile quando lanciato manualmente
+    # Stdout: useful when launched manually
     sh = logging.StreamHandler(sys.stdout)
     sh.setFormatter(fmt)
     root.addHandler(sh)
@@ -97,11 +97,11 @@ async def run_sync(mode: str, backfill: bool = False):
         index_pages(index["pages"], replace_existing=True)
         index_pdfs(index["pdfs"], replace_existing=True)
 
-        # Rimuovi sorgenti che non esistono più nel sito.
-        # I domini migrati (MIGRATED_DOMAINS) sono ESCLUSI: le loro risorse non
-        # sono più crawlabili (il portale redirige a una landing generica), ma il
-        # testo già indicizzato è ancora valido — non vanno trattate come "stale",
-        # altrimenti il full sync cancellerebbe gran parte della base di conoscenza.
+        # Remove sources that no longer exist on the site.
+        # Migrated domains (MIGRATED_DOMAINS) are EXCLUDED: their resources are
+        # no longer crawlable (the portal redirects to a generic landing page), but the
+        # text already indexed is still valid — they must not be treated as "stale",
+        # otherwise the full sync would delete a large part of the knowledge base.
         current_urls = {p["url"] for p in index["pages"]} | {p["url"] for p in index["pdfs"]}
         stale = {
             s for s in (get_indexed_sources() - current_urls)
@@ -132,7 +132,7 @@ async def run_sync(mode: str, backfill: bool = False):
         else:
             log.info("Nessuna modifica rilevata, niente da reindicizzare.")
 
-        # Pulizia sorgenti HTML non più presenti nel crawl corrente
+        # Cleanup of HTML sources no longer present in the current crawl
         current_html_urls = {p["url"] for p in index["pages"]}
         all_indexed = get_indexed_sources()
         stale_html = {s for s in all_indexed if s not in current_html_urls
@@ -169,7 +169,7 @@ async def run_sync(mode: str, backfill: bool = False):
         print_separator("Fase 1/1: Notizie" + (" (archivio completo)" if backfill else ""))
         news = run_news(backfill=backfill)
         if not any(news[k] for k in ("posts", "pages", "attachments", "chunks")):
-            return   # niente di nuovo: niente riepilogo, niente reload
+            return   # nothing new: no summary, no reload
 
     elif mode == "full-index":
         print_separator("Fase 1/2: Reset e reindicizzazione da file esistenti")
@@ -205,9 +205,9 @@ async def run_sync(mode: str, backfill: bool = False):
 
 
 def _reload_api():
-    """Chiede all'API di ricaricare lo store da disco (POST /admin/reload): nessun
-    riavvio, nessun 502. Se l'API è giù non fa nulla: al prossimo avvio caricherà
-    comunque i file aggiornati."""
+    """Ask the API to reload the store from disk (POST /admin/reload): no
+    restart, no 502. If the API is down it does nothing: at the next start it will
+    load the updated files anyway."""
     try:
         resp = httpx.post(f"http://127.0.0.1:{API_PORT}/admin/reload",
                           headers={"X-Admin-Key": ADMIN_API_KEY}, timeout=600.0)
@@ -220,7 +220,7 @@ def _reload_api():
 
 
 def _notify(subject: str, body: str):
-    """Resoconto via email a FEEDBACK_NOTIFY_EMAIL per le corse lunghe lanciate a mano."""
+    """Report by email to FEEDBACK_NOTIFY_EMAIL for long runs launched by hand."""
     try:
         from api.mailer import send_email, smtp_configured
         from config.settings import FEEDBACK_NOTIFY_EMAIL
@@ -231,7 +231,7 @@ def _notify(subject: str, body: str):
 
 
 def _restart_api():
-    """Invia SIGKILL al processo dell'API: il watchdog lo rilancerà e caricherà il VS aggiornato."""
+    """Send SIGKILL to the API process: the watchdog will relaunch it and load the updated VS."""
     try:
         result = subprocess.run(
             ["pgrep", "-f", "api.main:app"],

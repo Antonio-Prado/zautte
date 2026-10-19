@@ -1,8 +1,8 @@
 """
-Istanza condivisa del rate limiter (slowapi).
+Shared rate limiter instance (slowapi).
 
-Estratta in un modulo a sé per essere importata sia da api.main sia da
-api.auth senza creare import circolari.
+Extracted into a module of its own so it can be imported by both api.main and
+api.auth without creating circular imports.
 """
 
 from slowapi import Limiter

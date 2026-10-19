@@ -1,11 +1,11 @@
 """
-Controllo della chiave admin con limite ai tentativi errati.
+Admin key check with a limit on wrong attempts.
 
-Gli errori si contano per indirizzo IP (quello vero, dietro il bilanciatore, grazie
-a FORWARDED_ALLOW_IPS). Dopo ADMIN_MAX_ATTEMPTS chiavi sbagliate nella finestra
-l'indirizzo è bloccato per ADMIN_LOCKOUT_SECONDS: risposta 429 anche se la chiave
-fosse giusta. Il conteggio vive in memoria e riparte da zero al riavvio del
-servizio. Il localhost (sync.py, forget.py) non viene mai bloccato.
+Errors are counted per IP address (the real one, behind the load balancer, thanks
+to FORWARDED_ALLOW_IPS). After ADMIN_MAX_ATTEMPTS wrong keys within the window
+the address is blocked for ADMIN_LOCKOUT_SECONDS: 429 response even if the key
+were right. The count lives in memory and restarts from zero when the
+service restarts. Localhost (sync.py, forget.py) is never blocked.
 """
 
 import hmac
@@ -18,8 +18,8 @@ from config.settings import ADMIN_API_KEY, ADMIN_LOCKOUT_SECONDS, ADMIN_MAX_ATTE
 
 _LOCAL = {"127.0.0.1", "::1"}
 _lock = threading.Lock()
-_failures: dict[str, list[float]] = {}   # ip -> istanti degli errori recenti
-_blocked_until: dict[str, float] = {}    # ip -> fine del blocco
+_failures: dict[str, list[float]] = {}   # ip -> times of recent errors
+_blocked_until: dict[str, float] = {}    # ip -> end of block
 
 
 def _ip(request: Request) -> str:
@@ -27,7 +27,7 @@ def _ip(request: Request) -> str:
 
 
 def _locked(ip: str, now: float) -> float:
-    """Secondi di blocco rimasti per l'indirizzo (0 = libero)."""
+    """Seconds of block remaining for the address (0 = free)."""
     until = _blocked_until.get(ip, 0.0)
     if until <= now:
         _blocked_until.pop(ip, None)
@@ -43,16 +43,16 @@ def _register_failure(ip: str, now: float) -> None:
         _failures.pop(ip, None)
     else:
         _failures[ip] = recent
-    if len(_failures) > 10_000:  # non cresce senza limite sotto una scansione
+    if len(_failures) > 10_000:  # does not grow without limit under a scan
         for k in [k for k, v in _failures.items() if now - v[-1] >= ADMIN_LOCKOUT_SECONDS]:
             del _failures[k]
 
 
 def check_admin_key(request: Request, key: str | None) -> bool:
-    """True se la chiave è valida. Una chiave presente ma errata viene contata;
-    con l'indirizzo bloccato solleva 429 (Retry-After in secondi)."""
+    """True if the key is valid. A key that is present but wrong is counted;
+    with the address blocked it raises 429 (Retry-After in seconds)."""
     if not ADMIN_API_KEY:
-        return True  # autenticazione disabilitata (sviluppo)
+        return True  # authentication disabled (development)
     ip = _ip(request)
     if ip in _LOCAL:
         return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())
@@ -66,7 +66,7 @@ def check_admin_key(request: Request, key: str | None) -> bool:
                 headers={"Retry-After": str(int(wait) + 1)},
             )
         if not key:
-            return False  # nessun tentativo: niente da contare
+            return False  # no attempt: nothing to count
         if hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode()):
             _failures.pop(ip, None)
             return True

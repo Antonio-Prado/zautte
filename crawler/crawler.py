@@ -1,10 +1,10 @@
 """
-Crawler asincrono per siti web statici e CMS.
-Scarica pagine HTML e documenti PDF, salvando i risultati in data/crawl_cache/.
+Asynchronous crawler for static websites and CMSs.
+Downloads HTML pages and PDF documents, saving the results in data/crawl_cache/.
 
-Supporta due modalità:
-  - Completo (default): riscansiona tutto il sito
-  - Incrementale (--incremental): scarica solo pagine modificate dall'ultima scansione
+Supports two modes:
+  - Full (default): rescans the whole site
+  - Incremental (--incremental): downloads only pages changed since the last scan
 """
 
 import argparse
@@ -57,7 +57,7 @@ PDF_MAGIC = b"%PDF"
 
 
 def _is_pdf_file(path: Path) -> bool:
-    """True se il file esiste e inizia con l'intestazione PDF."""
+    """True if the file exists and starts with the PDF header."""
     try:
         with open(path, "rb") as f:
             return f.read(4) == PDF_MAGIC
@@ -66,14 +66,14 @@ def _is_pdf_file(path: Path) -> bool:
 
 
 def _pdf_response_ok(resp: httpx.Response) -> bool:
-    """Una risposta è un PDF solo se 200 e il corpo inizia con %PDF: i server
-    possono rispondere 200 con una pagina HTML di errore, che finiva salvata
-    come .pdf e faceva fallire l'estrazione a ogni sync."""
+    """A response is a PDF only if it is 200 and the body starts with %PDF: servers
+    may answer 200 with an HTML error page, which used to be saved
+    as .pdf and made extraction fail on every sync."""
     return resp.status_code == 200 and resp.content[:4] == PDF_MAGIC
 
 
 def _describe(resp: httpx.Response) -> str:
-    """Riassunto di una risposta anomala per i log: status, content-type, testo."""
+    """Summary of an anomalous response for the logs: status, content-type, text."""
     ct = resp.headers.get("content-type", "?")
     snippet = re.sub(r"<[^>]+>", " ", resp.text[:400])
     snippet = re.sub(r"\s+", " ", snippet).strip()[:80]
@@ -81,11 +81,11 @@ def _describe(resp: httpx.Response) -> str:
 
 
 async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
-    """GET senza cookie. Il client httpx conserva i cookie tra richieste; su
-    un sottodominio turistico il plugin WordPress Post Views Counter aggiunge al
-    cookie pvc_visits ogni post visitato, e dopo ~1.650 pagine l'header supera
-    il limite di Apache (8 KB): da lì ogni richiesta al sito, PDF compresi,
-    riceveva 400 Bad Request. Nessuna pagina crawlata richiede cookie."""
+    """GET without cookies. The httpx client keeps cookies between requests; on
+    a tourism subdomain the WordPress Post Views Counter plugin adds every
+    visited post to the pvc_visits cookie, and after ~1,650 pages the header exceeds
+    the Apache limit (8 KB): from then on every request to the site, PDFs included,
+    got 400 Bad Request. No crawled page requires cookies."""
     client.cookies.clear()
     return await client.get(url)
 
@@ -93,26 +93,26 @@ async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
 def should_skip(url: str) -> bool:
     parsed = urlparse(url)
 
-    # Protocolli non-HTTP (webcal, ftp, ecc.)
+    # Non-HTTP protocols (webcal, ftp, etc.)
     if parsed.scheme not in ("http", "https"):
         return True
 
-    # Indirizzi email mascherati da URL (es. http://utente@dominio.it)
+    # Email addresses disguised as URLs (e.g. http://utente@dominio.it)
     if "@" in parsed.netloc:
         return True
 
-    # Dominio non consentito
+    # Domain not allowed
     if not any(d in parsed.netloc for d in CRAWL_ALLOWED_DOMAINS):
         return True
 
-    # Pattern esclusi (estensioni, path vietati, script PHP, ecc.)
+    # Excluded patterns (extensions, forbidden paths, PHP scripts, etc.)
     full = parsed.path + ("?" + parsed.query if parsed.query else "")
     if any(pat in full for pat in CRAWL_EXCLUDE_PATTERNS):
         return True
 
-    # Profondità massima del path: previene l'esplosione su siti con
-    # navigazione cumulativa.
-    # Il limite per-dominio (più restrittivo) ha priorità su quello globale.
+    # Maximum path depth: prevents explosion on sites with
+    # cumulative navigation.
+    # The per-domain limit (stricter) takes priority over the global one.
     segments = [s for s in parsed.path.split("/") if s]
     domain_key = next(
         (k for k in CRAWL_DOMAIN_MAX_PATH_DEPTH if k in parsed.netloc), None
@@ -121,16 +121,16 @@ def should_skip(url: str) -> bool:
     if len(segments) > max_depth:
         return True
 
-    # Loop detector: se un segmento non numerico appare più volte nel path,
-    # è probabile che il CMS stia accumulando breadcrumb → scarta l'URL.
+    # Loop detector: if a non-numeric segment appears more than once in the path,
+    # the CMS is likely accumulating breadcrumbs → discard the URL.
     non_numeric = [s for s in segments if not s.isdigit()]
     return len(non_numeric) != len(set(non_numeric))
 
 
 def canonical_url(url: str) -> str:
-    """Riscrive sull'host canonico gli URL di host alias (CRAWL_URL_ALIASES): lo stesso
-    allegato servito dal sito dell'ente, da un portale esterno e da un bucket S3 diventa un
-    solo URL, quindi si scarica e si indicizza una volta sola."""
+    """Rewrite URLs of alias hosts (CRAWL_URL_ALIASES) onto the canonical host: the same
+    attachment served by the organisation's site, an external portal and an S3 bucket becomes a
+    single URL, so it is downloaded and indexed only once."""
     if not CRAWL_URL_ALIASES:
         return url
     parsed = urlparse(url)
@@ -157,9 +157,9 @@ def extract_links(html: str, base_url: str) -> list[str]:
 
 
 def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
-    """Link ai PDF dei domini ammessi, tranne quelli in CRAWL_PDF_EXCLUDE_PATTERNS:
-    (URL, testo del link). Il testo serve a dare al PDF un titolo leggibile; senza
-    testo (link-immagine) si prova l'attributo title."""
+    """Links to PDFs on allowed domains, except those in CRAWL_PDF_EXCLUDE_PATTERNS:
+    (URL, link text). The text is used to give the PDF a readable title; without
+    text (image link) the title attribute is tried."""
     soup = BeautifulSoup(html, "lxml")
     pdfs = []
     for tag in soup.find_all("a", href=True):
@@ -174,8 +174,8 @@ def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
 
 
 def save_link_texts(observed: dict[str, list[str]]) -> int:
-    """Aggiorna data/crawl_cache/pdf_link_texts.json (URL del PDF → testo del link più
-    descrittivo). I PDF non visti in questo crawl conservano il testo precedente."""
+    """Update data/crawl_cache/pdf_link_texts.json (PDF URL → most descriptive link
+    text). PDFs not seen in this crawl keep their previous text."""
     path = CRAWL_CACHE_DIR / LINK_TEXTS_FILE
     try:
         saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -207,12 +207,12 @@ _NOISE_LINES = re.compile(
 def clean_text(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
 
-    # Rimuovi tag non utili
+    # Remove useless tags
     for tag in soup.find_all(["script", "style", "nav", "header", "footer",
                                "aside", "noscript", "iframe", "form"]):
         tag.decompose()
 
-    # Rimuovi widget di feedback/valutazione
+    # Remove feedback/rating widgets
     for tag in soup.find_all(class_=re.compile(
         r"feedback|rating|survey|cookie|breadcrumb|pagination|share|social|"
         r"widget|banner|alert|modal|tooltip|dropdown|collapse", re.IGNORECASE
@@ -231,7 +231,7 @@ def clean_text(html: str) -> str:
 
     text = main.get_text(separator="\n", strip=True)
 
-    # Filtra righe rumorose
+    # Filter noisy lines
     lines = []
     for line in text.splitlines():
         line = line.strip()
@@ -257,19 +257,19 @@ def extract_title(html: str) -> str:
 
 def extract_metadata(html: str, url: str) -> dict:
     """
-    Estrae metadati aggiuntivi dalla pagina HTML e dall'URL.
+    Extract additional metadata from the HTML page and the URL.
 
-    Ritorna dict con:
-      - category: tipo di contenuto (servizio, notizia, pagina, faq, documento)
-      - section: sottodominio/sezione del sito
-      - date: data pubblicazione/aggiornamento (se disponibile)
-      - service_status: "attivo" | "non attivo" | None (solo per /services/)
+    Return a dict with:
+      - category: content type (servizio, notizia, pagina, faq, documento)
+      - section: subdomain/section of the site
+      - date: publication/update date (if available)
+      - service_status: "attivo" | "non attivo" | None (only for /services/)
     """
     soup = BeautifulSoup(html, "lxml")
     parsed = urlparse(url)
     path = parsed.path.lower()
 
-    # --- Categoria dal pattern URL ---
+    # --- Category from the URL pattern ---
     if "/services/" in path or "/service/" in path:
         category = "servizio"
     elif "/news/" in path or "/news-category/" in path or "/notizie/" in path:
@@ -283,26 +283,26 @@ def extract_metadata(html: str, url: str) -> dict:
     else:
         category = "pagina"
 
-    # --- Sezione dal dominio ---
+    # --- Section from the domain ---
     netloc = parsed.netloc.lower()
     section = next((r["section"] for r in CRAWL_SECTION_RULES
                     if r.get("host_contains") and r["host_contains"] in netloc), SECTION_DEFAULT)
 
-    # --- Data di pubblicazione/aggiornamento ---
+    # --- Publication/update date ---
     date = None
     for meta_name in ["article:modified_time", "article:published_time",
                        "date", "DC.date", "last-modified"]:
         tag = soup.find("meta", property=meta_name) or soup.find("meta", attrs={"name": meta_name})
         if tag and tag.get("content"):
-            date = tag["content"][:10]  # solo YYYY-MM-DD
+            date = tag["content"][:10]  # YYYY-MM-DD only
             break
     if not date:
-        # Cerca nel tag <time>
+        # Look in the <time> tag
         time_tag = soup.find("time", datetime=True)
         if time_tag:
             date = time_tag["datetime"][:10]
 
-    # --- Stato del servizio (solo per pagine /services/) ---
+    # --- Service status (only for /services/ pages) ---
     service_status = None
     if category == "servizio":
         page_text = soup.get_text(" ", strip=True).lower()
@@ -325,12 +325,12 @@ def extract_metadata(html: str, url: str) -> dict:
 
 async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     """
-    Crawl del sito.
+    Crawl the site.
 
-    incremental=True → salta le pagine il cui contenuto non è cambiato
-                        dall'ultima scansione (confronto hash).
-    Ritorna dict con 'pages' e 'pdfs', inclusi i risultati invariati
-    (necessari per mantenere l'indice completo).
+    incremental=True → skip pages whose content has not changed
+                        since the last scan (hash comparison).
+    Return a dict with 'pages' and 'pdfs', including unchanged results
+    (needed to keep the index complete).
     """
     CRAWL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -343,16 +343,16 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     visited: set[str] = set()
     to_visit: list[str] = [start_url] + CRAWL_EXTRA_START_URLS
     pdf_urls: set[str] = set()
-    pdf_link_texts: dict[str, list[str]] = {}  # URL del PDF → testi dei link che lo citano
+    pdf_link_texts: dict[str, list[str]] = {}  # PDF URL → texts of the links that cite it
     results_pages = []
     results_pdfs = []
 
-    # In modalità incrementale carichiamo l'indice esistente come base
+    # In incremental mode we load the existing index as a base
     existing_index: dict = {"pages": [], "pdfs": []}
     index_path = CRAWL_CACHE_DIR / "index.json"
     if incremental and index_path.exists():
         existing_index = json.loads(index_path.read_text(encoding="utf-8"))
-        # Pre-popola results con tutto ciò che già conosciamo
+        # Pre-populate results with everything we already know
         results_pages = list(existing_index.get("pages", []))
         results_pdfs = list(existing_index.get("pdfs", []))
         log.info(
@@ -360,8 +360,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
             f"{len(results_pdfs)} PDF già indicizzati"
         )
 
-    # PDF già noti ma con file mancante o non valido (es. pagina di errore HTML
-    # salvata al posto del PDF): tolti dalla base, così vengono riscaricati.
+    # PDFs already known but with a missing or invalid file (e.g. an HTML error page
+    # saved in place of the PDF): dropped from the base so they get re-downloaded.
     if results_pdfs:
         valid_pdfs = [p for p in results_pdfs if _is_pdf_file(Path(p["file"]))]
         invalid = len(results_pdfs) - len(valid_pdfs)
@@ -399,17 +399,17 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 content_type = resp.headers.get("content-type", "")
 
                 if resp.status_code >= 400:
-                    # Pagine di errore (404, 400, 503...) non vanno indicizzate
-                    # né trattate come contenuto: prima finivano nel parser HTML.
+                    # Error pages (404, 400, 503...) must not be indexed
+                    # nor treated as content: they used to end up in the HTML parser.
                     log.warning(f"  Errore HTTP: {url} — {_describe(resp)}")
                     continue
 
-                # --- Pagina HTML ---
+                # --- HTML page ---
                 if "text/html" in content_type:
                     raw_html = resp.text
                     page_hash = content_hash(raw_html)
 
-                    # Scopri nuovi link sempre, anche se la pagina non è cambiata
+                    # Always discover new links, even if the page has not changed
                     new_links = extract_links(raw_html, url)
                     for link in new_links:
                         if link not in visited and link not in to_visit:
@@ -419,7 +419,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                         if link_text:
                             pdf_link_texts.setdefault(pdf_url, []).append(link_text)
 
-                    # Salta se contenuto invariato (solo in modalità incrementale)
+                    # Skip if content unchanged (incremental mode only)
                     if incremental and not state.is_changed(url, page_hash):
                         log.debug("  Invariata, skip")
                         state.mark_unchanged(url)
@@ -458,7 +458,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                         new_pages += 1
                         log.info(f"  NUOVA [{meta['category']}]: '{title}' ({len(text)} chars)")
 
-                # --- PDF diretto ---
+                # --- Direct PDF ---
                 elif "application/pdf" in content_type:
                     if not _pdf_response_ok(resp):
                         log.warning(f"  PDF non valido: {url} — {_describe(resp)}")
@@ -493,7 +493,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
-        # --- PDF trovati nelle pagine ---
+        # --- PDFs found in pages ---
         new_pdfs = pdf_urls - known_pdf_urls
         if new_pdfs:
             log.info(f"\nScaricamento {len(new_pdfs)} nuovi PDF...")
@@ -506,10 +506,10 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 if not _pdf_response_ok(resp):
                     log.warning(f"  PDF non valido: {pdf_url} — {_describe(resp)}")
                     continue
-                # Un PDF non presente nell'indice va sempre salvato e marcato
-                # changed, anche se lo stato ne conosce già l'hash: altrimenti
-                # un PDF tolto dall'indice (file corrotto, rimozione) resterebbe
-                # fuori per sempre. Reindicizzarlo costa poco (confronto per chunk).
+                # A PDF not in the index must always be saved and marked
+                # changed, even if the state already knows its hash: otherwise
+                # a PDF dropped from the index (corrupt file, removal) would stay
+                # out forever. Reindexing it is cheap (per-chunk comparison).
                 pdf_hash = content_hash(resp.content)
                 fname = url_to_filename(pdf_url) + ".pdf"
                 fpath = DOCUMENTS_DIR / fname
@@ -521,10 +521,10 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 log.warning(f"  Errore PDF {pdf_url}: {e}")
             await asyncio.sleep(CRAWL_DELAY_SECONDS)
 
-        # --- Rimuovi pagine scomparse dal sito ---
-        # I PDF già noti e ancora linkati non si riscaricano in modalità incrementale,
-        # ma sono ancora sul sito: senza questa riga venivano dati per rimossi e la
-        # settimana dopo riscaricati come nuovi (109 «RIMOSSO» e 142 «nuovi» il 05/10/2026).
+        # --- Remove pages that disappeared from the site ---
+        # Already-known PDFs that are still linked are not re-downloaded in incremental mode,
+        # but they are still on the site: without this line they were reported as removed and
+        # re-downloaded as new the following week (109 «RIMOSSO» and 142 «nuovi» on 05/10/2026).
         visited |= pdf_urls & known_pdf_urls
         removed = state.get_removed_urls(visited)
         if removed:
@@ -535,7 +535,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                 results_pages = [p for p in results_pages if p["url"] != url]
                 results_pdfs  = [p for p in results_pdfs  if p["url"] != url]
 
-    # Salva stato e indice
+    # Save state and index
     state.save()
     updated = save_link_texts(pdf_link_texts)
     log.info(f"Testi dei link ai PDF: {len(pdf_link_texts)} PDF citati, {updated} titoli nuovi o cambiati")

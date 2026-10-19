@@ -1,12 +1,12 @@
 """
-Backend FastAPI di Zautte.
+Zautte FastAPI backend.
 
 Endpoints:
-  POST /chat          → risposta completa (JSON)
-  POST /chat/stream   → risposta in streaming (Server-Sent Events)
-  GET  /health        → stato del servizio
-  GET  /stats         → statistiche vector store
-  POST /usage/forget  → cancellazione di domande su richiesta (admin)
+  POST /chat          → complete answer (JSON)
+  POST /chat/stream   → streaming answer (Server-Sent Events)
+  GET  /health        → service status
+  GET  /stats         → vector store statistics
+  POST /usage/forget  → deletion of questions on request (admin)
 """
 
 import asyncio
@@ -63,13 +63,13 @@ log = logging.getLogger(__name__)
 _startup_time = now_local()
 _DATA_DIR = Path(__file__).parent.parent / "data"
 
-# --- Autenticazione endpoint admin ---
+# --- Admin endpoint authentication ---
 _api_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
 
 
 async def require_admin(request: Request, key: str | None = Security(_api_key_header)):
-    """Dependency per proteggere gli endpoint admin con API key (con limite ai
-    tentativi errati, vedi api/admin_guard.py)."""
+    """Dependency protecting the admin endpoints with an API key (with a limit on
+    wrong attempts, see api/admin_guard.py)."""
     if not check_admin_key(request, key):
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
 
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
         log.exception("Errore durante l'avvio")
     await asyncio.to_thread(quota.load)
 
-    # Graceful shutdown: attende il completamento delle richieste in corso
+    # Graceful shutdown: waits for in-flight requests to complete
     shutdown_event = asyncio.Event()
 
     def _handle_sigterm(*_):
@@ -102,7 +102,7 @@ async def lifespan(app: FastAPI):
     yield
 
     if shutdown_event.is_set():
-        await asyncio.sleep(2)  # finestra per completare richieste streaming
+        await asyncio.sleep(2)  # window for streaming requests to complete
 
     log.info("Chatbot arrestato.")
 
@@ -112,7 +112,7 @@ app = FastAPI(
     description="API di Zautte, assistente virtuale RAG.",
     version="1.0.0",
     lifespan=lifespan,
-    # /docs e /openapi.json solo con API_DOCS=true (sviluppo)
+    # /docs and /openapi.json only with API_DOCS=true (development)
     docs_url="/docs" if API_DOCS else None,
     openapi_url="/openapi.json" if API_DOCS else None,
     redoc_url=None,
@@ -123,9 +123,9 @@ _instance = Path(INSTANCE_DIR) if INSTANCE_DIR else None
 
 
 def _panel_file(name: str, optional: bool = False) -> str:
-    """File dell'area riservata: quello dell'installazione (INSTANCE_DIR/admin_panel)
-    se c'è, altrimenti quello generico del repository. Con optional=True un file
-    assente dà una stringa vuota."""
+    """Restricted-area file: the installation's (INSTANCE_DIR/admin_panel)
+    if present, otherwise the generic one from the repository. With optional=True a
+    missing file yields an empty string."""
     for base in ([_instance / "admin_panel"] if _instance else []) + [_panel_dir]:
         if (base / name).is_file():
             return (base / name).read_text(encoding="utf-8")
@@ -135,11 +135,11 @@ def _panel_file(name: str, optional: bool = False) -> str:
 
 
 if ADMIN_PATH:
-    # Indirizzo dell'area riservata: viene dal .env e non è scritto nel codice.
+    # Restricted-area address: it comes from .env and is not written in the code.
     @app.get(ADMIN_PATH, include_in_schema=False)
     async def area_page():
-        """Pagina con il solo modulo per la chiave. Il resto (pannello, script,
-        stili) si riceve da <indirizzo>/dati con una chiave valida."""
+        """Page with only the key form. The rest (panel, script,
+        styles) is received from <address>/dati with a valid key."""
         try:
             html = _panel_file("login.html")
         except OSError as e:
@@ -149,11 +149,11 @@ if ADMIN_PATH:
 
     @app.get(ADMIN_PATH + "/dati", include_in_schema=False)
     async def area_dati(_: None = Security(require_admin)):
-        """Stili, HTML e JavaScript dell'area riservata: non stanno in nessuna pagina
-        pubblica, si ricevono solo con una chiave valida (e con l'indirizzo non bloccato)."""
+        """Styles, HTML and JavaScript of the restricted area: they are in no public
+        page, they are received only with a valid key (and with the address not blocked)."""
         try:
             parts = {k: _panel_file("panel." + k) for k in ("css", "html", "js")}
-            # changelog dell'installazione: facoltativo, in coda al pannello
+            # installation changelog: optional, at the end of the panel
             parts["html"] += _panel_file("changelog.html", optional=True)
         except OSError as e:
             log.error("Pannello non leggibile: %s", e)
@@ -175,17 +175,17 @@ _NOT_FOUND_PAGE = (
 
 @app.exception_handler(StarletteHTTPException)
 async def not_found_page(request: Request, exc: StarletteHTTPException):
-    """Percorso o metodo inesistente: pagina generica invece del JSON di FastAPI
-    (non rivela con quale framework è scritto il servizio). Gli errori voluti dagli
-    endpoint, con un loro messaggio, restano in JSON."""
+    """Nonexistent path or method: generic page instead of FastAPI's JSON
+    (does not reveal which framework the service is written with). Errors raised on purpose by the
+    endpoints, with their own message, stay in JSON."""
     if (exc.status_code, exc.detail) in ((404, "Not Found"), (405, "Method Not Allowed")):
         return HTMLResponse(_NOT_FOUND_PAGE, status_code=exc.status_code)
     return await http_exception_handler(request, exc)
 
 class _RevalidatedStaticFiles(StaticFiles):
-    """File statici con Cache-Control: no-cache: il browser può tenerli in cache ma
-    li ricontrolla a ogni apertura (risposta 304 se invariati), così pagine e
-    script aggiornati arrivano subito senza dover forzare il ricaricamento."""
+    """Static files with Cache-Control: no-cache: the browser may cache them but
+    revalidates them on every open (304 response if unchanged), so updated pages and
+    scripts arrive immediately without forcing a reload."""
 
     async def get_response(self, path, scope):
         response = await super().get_response(path, scope)
@@ -194,8 +194,8 @@ class _RevalidatedStaticFiles(StaticFiles):
 
 
 class _OverlayStaticFiles(_RevalidatedStaticFiles):
-    """Come _RevalidatedStaticFiles, ma prima cerca il file nella cartella
-    dell'installazione (INSTANCE_DIR/widget) e solo se manca usa quello generico."""
+    """Like _RevalidatedStaticFiles, but first looks for the file in the installation's
+    folder (INSTANCE_DIR/widget) and uses the generic one only if it is missing."""
 
     def __init__(self, directory: str, overlay: str | None = None):
         super().__init__(directory=directory)
@@ -214,7 +214,7 @@ class _OverlayStaticFiles(_RevalidatedStaticFiles):
         return await super().get_response(path, scope)
 
 
-# Serve il widget JS come file statico (GET /widget/chatbot-widget.js)
+# Serves the JS widget as a static file (GET /widget/chatbot-widget.js)
 _widget_dir = Path(__file__).parent.parent / "widget"
 _widget_overlay = _instance / "widget" if _instance and (_instance / "widget").is_dir() else None
 if _widget_dir.exists():
@@ -224,9 +224,9 @@ if _widget_dir.exists():
 
 @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 async def root(request: Request):
-    """Chi apre solo il dominio (https://bot.example.it/) arriva alla pagina di
-    accesso invece che a un 404. Temporaneo (302): la radice potrà servire altro.
-    La query string passa intatta (es. ?tracker_install_check=… del test di Matomo)."""
+    """Whoever opens just the domain (https://bot.example.it/) lands on the login
+    page instead of a 404. Temporary (302): the root may serve something else.
+    The query string passes through intact (e.g. ?tracker_install_check=… from the Matomo test)."""
     query = request.url.query
     return RedirectResponse("/widget/dashboard.html" + ("?" + query if query else ""), status_code=302)
 
@@ -238,12 +238,12 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# Router di autenticazione utenti (POST /auth/login, GET /auth/me)
+# User authentication router (POST /auth/login, GET /auth/me)
 app.include_router(auth.router)
 
 
 # ---------------------------------------------------------------------------
-# Modelli request/response
+# Request/response models
 # ---------------------------------------------------------------------------
 
 class FeedbackRequest(BaseModel):
@@ -274,9 +274,9 @@ class HistoryMessage(BaseModel):
     @field_validator("content")
     @classmethod
     def _truncate(cls, v: str) -> str:
-        # Il widget rimanda per intero le risposte del bot: oltre il limite si tronca
-        # invece di rifiutare (con max_length la domanda successiva a una risposta
-        # lunga falliva con 422).
+        # The widget sends back the bot's answers in full: beyond the limit we truncate
+        # instead of rejecting (with max_length the question following a long
+        # answer failed with 422).
         return v[:_HISTORY_MAX_CHARS]
 
 
@@ -318,9 +318,9 @@ _RID_RE = re.compile(r"[0-9a-f]{12}")
 
 
 def _take_question(request: Request, user: dict) -> str:
-    """Conta la domanda nel limite giornaliero (api/quota.py) e ne restituisce la
-    chiave, per restituirla se la risposta fallisce; 429 se il limite di oggi è
-    già raggiunto (il widget mostra il messaggio con il numero di domande)."""
+    """Counts the question against the daily limit (api/quota.py) and returns its
+    key, so it can be given back if the answer fails; 429 if today's limit is
+    already reached (the widget shows the message with the number of questions)."""
     key = quota.key_for(user, request.client.host if request.client else "")
     if not quota.take(key):
         log.info("Limite di %d domande al giorno raggiunto (%s)",
@@ -334,9 +334,9 @@ def _take_question(request: Request, user: dict) -> str:
 
 
 def _blocked_for_pii(question: str) -> str | None:
-    """Se la domanda contiene dati personali (PII_BLOCK) restituisce l'rid con cui
-    è stata scartata: non si cerca, non si interroga il modello, non si
-    registra il testo e il limite giornaliero non viene toccato."""
+    """If the question contains personal data (PII_BLOCK) returns the rid with which
+    it was discarded: no search, no model call, the text is not
+    recorded and the daily limit is not touched."""
     if not contains_personal(question):
         return None
     rid = secrets.token_hex(6)
@@ -345,8 +345,8 @@ def _blocked_for_pii(question: str) -> str | None:
 
 
 def _new_rid() -> str:
-    """Identificativo di una domanda: lo stesso in usage.jsonl, gaps.jsonl,
-    feedback.jsonl e nel log dell'API (vedi api/datalog.py)."""
+    """Identifier of a question: the same in usage.jsonl, gaps.jsonl,
+    feedback.jsonl and the API log (see api/datalog.py)."""
     return secrets.token_hex(6)
 
 
@@ -355,9 +355,9 @@ def _new_rid() -> str:
 # ---------------------------------------------------------------------------
 
 def _read_jsonl(path: Path) -> list[dict]:
-    """Legge un file JSONL tollerando righe vuote o malformate (file append-only:
-    una riga può restare troncata da un crash). Funzione sincrona: negli endpoint
-    async va chiamata con asyncio.to_thread per non bloccare l'event loop."""
+    """Reads a JSONL file tolerating empty or malformed lines (append-only file:
+    a line may be left truncated by a crash). Synchronous function: in async
+    endpoints call it with asyncio.to_thread so as not to block the event loop."""
     entries: list[dict] = []
     try:
         with open(path, encoding="utf-8") as fh:
@@ -377,8 +377,8 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _grep_lines(path: Path, markers: tuple[str, ...]) -> list[str]:
-    """Righe di `path` che contengono almeno uno dei marker (lettura riga per riga,
-    il file può pesare decine di MB). Sincrona: chiamare con asyncio.to_thread."""
+    """Lines of `path` containing at least one of the markers (read line by line,
+    the file may weigh tens of MB). Synchronous: call with asyncio.to_thread."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return [ln.rstrip("\n") for ln in fh if any(m in ln for m in markers)]
@@ -406,10 +406,10 @@ def _read_recent_gaps(n: int) -> list[dict]:
 
 
 def _read_feedback_summary() -> dict:
-    """Contatori del pannello: `negative` conta solo i pollici giù NON ancora
-    risolti dall'amministratore (dal 10/10/2026); i risolti stanno in
-    `resolved`, fuori dal conto e dal totale. Un solo voto per utente e
-    risposta (dal 12/10/2026: i clic ripetuti sul pollice non si sommano)."""
+    """Panel counters: `negative` counts only thumbs-down NOT yet
+    resolved by the administrator (since 10/10/2026); resolved ones are in
+    `resolved`, outside the count and the total. One vote per user and
+    answer (since 12/10/2026: repeated clicks on the thumb do not add up)."""
     from api.feedback_store import dedup
     f = _DATA_DIR / "feedback.jsonl"
     pos = neg = res = 0
@@ -427,10 +427,10 @@ def _read_feedback_summary() -> dict:
 
 
 def _load_user_names() -> dict[str, str]:
-    """Mappa id utente -> nome da data/users.json (vuota se assente).
+    """Map of user id -> name from data/users.json (empty if absent).
 
-    Usata solo nelle risposte admin: i file dati (usage.jsonl, stats.json)
-    contengono l'id opaco, il nome viene risolto a video."""
+    Used only in admin responses: the data files (usage.jsonl, stats.json)
+    contain the opaque id, the name is resolved at display time."""
     users_file = _DATA_DIR / "users.json"
     names: dict[str, str] = {}
     if users_file.exists():
@@ -444,11 +444,11 @@ def _load_user_names() -> dict[str, str]:
 
 def _log_usage(uid: str, question: str, lang: str | None = None,
                response_ms: int | None = None, rid: str | None = None) -> None:
-    """Registra un evento d'uso per-utente in data/usage.jsonl.
+    """Records a per-user usage event in data/usage.jsonl.
 
-    Include il TESTO della domanda (per la review del pilota), oltre a id utente
-    opaco, identificativo della domanda, timestamp e metriche. Nome/email restano
-    in users.json e vengono risolti a video solo nella dashboard (vista admin).
+    Includes the TEXT of the question (for the pilot review), in addition to the opaque
+    user id, question identifier, timestamp and metrics. Name/email stay
+    in users.json and are resolved at display time only in the dashboard (admin view).
     """
     if not uid or uid == "anon":
         return
@@ -476,15 +476,15 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
 
 def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
                 partial: bool = False) -> None:
-    """Registra la risposta data a una domanda in data/answers.jsonl (dal 07/10/2026).
+    """Records the answer given to a question in data/answers.jsonl (since 07/10/2026).
 
-    Una riga per risposta: ora, id utente opaco, `rid` della domanda (lo stesso di
-    usage.jsonl), testo della risposta così come l'ha vista l'utente e fonti
-    (titolo e link). Solo per gli utenti autenticati, come usage.jsonl. Con
-    `partial` la risposta si è interrotta (errore o utente andato via) e il testo
-    è quello arrivato fino a quel momento. La risposta non viene mascherata: la
-    domanda lo è già prima del modello e il testo viene dai contenuti pubblici
-    dell'ente (recapiti degli uffici compresi).
+    One line per answer: time, opaque user id, the question's `rid` (the same as in
+    usage.jsonl), answer text as the user saw it, and sources
+    (title and link). Only for authenticated users, like usage.jsonl. With
+    `partial` the answer was interrupted (error or user gone) and the text
+    is what arrived up to that point. The answer is not masked: the
+    question already is, before the model, and the text comes from the public
+    content of the body (office contact details included).
     """
     if not uid or uid == "anon" or not rid:
         return
@@ -509,9 +509,9 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
 
 @app.get("/health")
 async def health(request: Request, key: str | None = Security(_api_key_header)):
-    """Liveness pubblico (minimale). I dettagli operativi (statistiche, query,
-    feedback, costi) sono restituiti SOLO con una chiave admin valida, per non
-    esporli a chiunque conosca l'URL."""
+    """Public liveness (minimal). Operational details (statistics, queries,
+    feedback, costs) are returned ONLY with a valid admin key, so as not to
+    expose them to anyone who knows the URL."""
     base = {
         "status": "ok",
         "llm_provider": LLM_PROVIDER,
@@ -531,7 +531,7 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
         last_indexed = (datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC)
                         .astimezone().strftime("%d/%m/%Y %H:%M"))
 
-    # Storico token: risolvi l'id utente in nome (solo qui, vista admin).
+    # Token history: resolve the user id to a name (only here, admin view).
     activity = get_activity_stats()
     names = _load_user_names()
     activity["token_history"] = [
@@ -557,33 +557,33 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
 
 @app.get("/client-ip")
 async def client_ip(request: Request):
-    """Indirizzo IP del client come lo vede l'API, mostrato nel footer delle
-    pagine. Dietro il bilanciatore è quello inoltrato in X-Forwarded-For (solo
-    dagli indirizzi in FORWARDED_ALLOW_IPS). Pubblico: dice a ciascuno solo il
-    proprio indirizzo."""
+    """Client IP address as seen by the API, shown in the footer of the
+    pages. Behind the load balancer it is the one forwarded in X-Forwarded-For (only
+    from the addresses in FORWARDED_ALLOW_IPS). Public: it tells each caller only their
+    own address."""
     ip = request.client.host if request.client else ""
     return JSONResponse({"ip": ip}, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/admin/reload")
 async def admin_reload(_: None = Security(require_admin)):
-    """Ricarica il vector store da disco senza riavviare l'API: lo usa
-    `scripts.sync news` dopo aver indicizzato le notizie nuove. Risposta: le
-    statistiche dello store e `reloaded` (false se i file erano illeggibili e
-    resta in memoria la versione precedente)."""
+    """Reloads the vector store from disk without restarting the API: used by
+    `scripts.sync news` after indexing the new news items. Response: the
+    store statistics and `reloaded` (false if the files were unreadable and
+    the previous version stays in memory)."""
     from indexer.vector_store import reload
     return {"ok": True, **await asyncio.to_thread(reload)}
 
 
 @app.get("/stats")
 async def stats(_: None = Security(require_admin)):
-    """Statistiche sul contenuto indicizzato."""
+    """Statistics on the indexed content."""
     return get_stats()
 
 
 @app.get("/gaps")
 async def gaps(limit: int = 50, _: None = Security(require_admin)):
-    """Query senza risposta — utile per identificare gap di contenuto."""
+    """Unanswered queries — useful to identify content gaps."""
     gaps_file = _DATA_DIR / "gaps.jsonl"
     if not gaps_file.exists():
         return {"gaps": [], "total": 0}
@@ -595,12 +595,12 @@ async def gaps(limit: int = 50, _: None = Security(require_admin)):
 @limiter.limit("60/hour")
 async def feedback(request: Request, req: FeedbackRequest, background_tasks: BackgroundTasks,
                    user: dict = Security(require_user)):
-    """Salva il feedback dell'utente (pollice su/giù). Con il login attivo registra
-    anche chi lo ha dato (nome del collega), così l'amministratore sa a chi
-    chiedere. Commento e URL possono arrivare qui oppure dopo, con
-    POST /feedback/detail. Un secondo voto dello stesso utente sulla stessa
-    risposta (stesso rid) sostituisce il primo invece di sommarsi. Ritorna
-    l'id del feedback appena salvato."""
+    """Saves the user's feedback (thumbs up/down). With login enabled it also records
+    who gave it (the colleague's name), so the administrator knows whom
+    to ask. Comment and URL may arrive here or later, with
+    POST /feedback/detail. A second vote by the same user on the same
+    answer (same rid) replaces the first instead of adding to it. Returns
+    the id of the feedback just saved."""
     from api import feedback_store as fs
     entry = {
         "ts": fs.now_iso(),
@@ -628,9 +628,9 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
 @limiter.limit("60/hour")
 async def feedback_detail(request: Request, req: FeedbackDetailRequest, background_tasks: BackgroundTasks,
                           user: dict = Security(require_user)):
-    """Allega a un feedback già registrato il motivo (testo libero) e i link
-    alle pagine con l'informazione corretta. Solo l'autore del feedback.
-    Se FEEDBACK_NOTIFY_EMAIL è impostata, avvisa l'amministratore via email."""
+    """Attaches to an already recorded feedback the reason (free text) and the links
+    to the pages with the correct information. Only the feedback's author.
+    If FEEDBACK_NOTIFY_EMAIL is set, notifies the administrator by email."""
     from api import feedback_store as fs
     comment = fs.clean_comment(req.comment)
     urls = fs.clean_urls(req.urls[:20])
@@ -644,8 +644,8 @@ async def feedback_detail(request: Request, req: FeedbackDetailRequest, backgrou
 
 
 def _notify_feedback(entry: dict) -> None:
-    """Email all'amministratore per una segnalazione. Gira in background dopo
-    la risposta HTTP: un relay lento o giù non deve mai bloccare il collega."""
+    """Email to the administrator for a report. Runs in the background after
+    the HTTP response: a slow or down relay must never block the colleague."""
     from api.mailer import send_feedback_notification, smtp_configured
     from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     if not FEEDBACK_NOTIFY_EMAIL or not smtp_configured():
@@ -662,7 +662,7 @@ def _resolved_negative_file():
 
 
 def _load_resolved_negative() -> set[str]:
-    """Ritorna set di chiavi ts::question già risolte."""
+    """Returns the set of ts::question keys already resolved."""
     from api.feedback_store import load_resolved
     return load_resolved()
 
@@ -674,8 +674,8 @@ def _resolved_key(ts: str, question: str) -> str:
 
 @app.get("/feedback/negative")
 async def feedback_negative(limit: int = 200, _: None = Security(require_admin)):
-    """Domande con feedback negativo non ancora risolte, con autore, commento
-    e link segnalati dal collega. Solo admin."""
+    """Questions with negative feedback not yet resolved, with author, comment
+    and links reported by the colleague. Admin only."""
     from api import feedback_store as fs
     items, open_negative, total = fs.negative_open(_load_resolved_negative(), _resolved_key, limit)
     return {"items": items, "total_negative": open_negative, "total": total}
@@ -692,9 +692,9 @@ class ResolveRequest(BaseModel):
 @app.post("/feedback/resolve")
 async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTasks,
                            _: None = Security(require_admin)):
-    """Marca un feedback negativo come risolto — solo admin. Se il feedback ha
-    un autore con email (login attivo) e `notify` è vero, gli invia un'email di
-    riscontro con l'eventuale nota. Ritorna `notified` = email in partenza."""
+    """Marks a negative feedback as resolved — admin only. If the feedback has
+    an author with an email (login enabled) and `notify` is true, sends them a
+    reply email with the optional note. Returns `notified` = email being sent."""
     import json as _json
 
     from api import feedback_store as fs
@@ -731,8 +731,8 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
 
 
 def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
-    """Email di riscontro al collega, in background. Le risposte arrivano
-    all'amministratore (Reply-To = FEEDBACK_NOTIFY_EMAIL)."""
+    """Reply email to the colleague, in the background. Replies go
+    to the administrator (Reply-To = FEEDBACK_NOTIFY_EMAIL)."""
     from api.mailer import send_feedback_resolved, smtp_configured
     from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     if not smtp_configured():
@@ -745,7 +745,7 @@ def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
 
 @app.get("/feedback/list")
 async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
-    """Lista feedback ricevuti — solo admin. Un solo voto per utente e risposta."""
+    """List of feedback received — admin only. One vote per user and answer."""
     from api.feedback_store import dedup
     feedback_file = _DATA_DIR / "feedback.jsonl"
     if not feedback_file.exists():
@@ -763,11 +763,11 @@ async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
 
 @app.get("/usage/summary")
 async def usage_summary(_: None = Security(require_admin)):
-    """Riepilogo d'uso per-utente — solo admin.
+    """Per-user usage summary — admin only.
 
-    Aggrega data/usage.jsonl (id opachi + metriche) risolvendo i nomi da
-    data/users.json. Ritorna: messaggi per utente, primo/ultimo accesso,
-    giorni attivi, e l'andamento giornaliero (utenti attivi + messaggi).
+    Aggregates data/usage.jsonl (opaque ids + metrics) resolving names from
+    data/users.json. Returns: messages per user, first/last access,
+    active days, and the daily trend (active users + messages).
     """
     from collections import defaultdict
 
@@ -799,10 +799,10 @@ async def usage_summary(_: None = Security(require_admin)):
         day_msgs[day] += 1
         total += 1
 
-    # Includi anche gli utenti registrati che non hanno ancora usato il bot
-    # (compaiono con 0 messaggi e "ultimo accesso" vuoto).
+    # Also include registered users who have not used the bot yet
+    # (they appear with 0 messages and an empty "ultimo accesso").
     for uid in names:
-        _ = per_user[uid]  # defaultdict crea la voce a zero se assente
+        _ = per_user[uid]  # defaultdict creates the entry at zero if absent
 
     users_out = [
         {
@@ -815,7 +815,7 @@ async def usage_summary(_: None = Security(require_admin)):
         }
         for uid, u in per_user.items()
     ]
-    # ordina per messaggi (desc) e, a parità, per nome
+    # sort by messages (desc) and, on ties, by name
     users_out.sort(key=lambda x: (-x["messages"], (x["name"] or "").lower()))
 
     active = sum(1 for u in per_user.values() if u["messages"] > 0)
@@ -837,13 +837,13 @@ async def usage_summary(_: None = Security(require_admin)):
 
 @app.get("/usage/messages")
 async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
-    """Log dei messaggi digitati dagli utenti (testo + timestamp + utente) con la
-    risposta data da Zautte — solo admin.
+    """Log of the messages typed by users (text + timestamp + user) with the
+    answer given by Zautte — admin only.
 
-    Legge data/usage.jsonl risolvendo i nomi da data/users.json e abbina per
-    `rid` la risposta e le fonti da data/answers.jsonl (dal 07/10/2026; prima
-    `a` manca). Le voci più vecchie (registrate prima dell'introduzione del
-    testo) sono ignorate.
+    Reads data/usage.jsonl resolving names from data/users.json and matches by
+    `rid` the answer and sources from data/answers.jsonl (since 07/10/2026; before
+    that `a` is missing). Older entries (recorded before the question text
+    was introduced) are ignored.
     """
     usage_file = _DATA_DIR / "usage.jsonl"
     answers_file = _DATA_DIR / "answers.jsonl"
@@ -855,7 +855,7 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
     by_rid = {a.get("rid"): a for a in answers if a.get("rid")}
     msgs: list[dict] = []
     for e in entries:
-        if "q" not in e:  # voci vecchie senza testo della domanda
+        if "q" not in e:  # old entries without the question text
             continue
         uid = e.get("uid", "")
         m = {
@@ -877,27 +877,27 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
 
     total = len(msgs)
     recent = msgs[-limit:]
-    recent.reverse()  # più recenti in cima
+    recent.reverse()  # most recent first
     return {"messages": recent, "total": total}
 
 
 @app.post("/usage/forget")
 async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
-    """Cancella su richiesta le domande scelte — solo admin.
+    """Deletes the chosen questions on request — admin only.
 
-    Scelta: `rids`, oppure `uid` con `last` (le ultime N), `all` (tutte, con
-    i suoi feedback) o `ts` (timestamp esatti delle voci di usage.jsonl).
-    Toglie le voci da usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl e
-    le marcature «risolto», poi dalla memoria del processo: contatore delle domande più
-    frequenti (finisce in stats.json) e cache delle risposte. Il log dell'API
-    contiene solo l'identificativo, non il testo. Con `dry_run` ritorna solo
-    cosa verrebbe tolto. Presuppone un solo processo (api/serve.py): con più
-    worker la memoria degli altri resterebbe com'è fino al riavvio.
+    Selection: `rids`, or `uid` with `last` (the last N), `all` (all of them, with
+    their feedback) or `ts` (exact timestamps of the usage.jsonl entries).
+    Removes the entries from usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl and
+    the «risolto» marks, then from the process memory: counter of the most
+    frequent questions (ends up in stats.json) and answer cache. The API log
+    contains only the identifier, not the text. With `dry_run` it only returns
+    what would be removed. Assumes a single process (api/serve.py): with several
+    workers the others' memory would stay as is until restart.
     """
     if not req.rids and not (req.uid and (req.last or req.all or req.ts)):
         raise HTTPException(status_code=400, detail="Indicare rids oppure uid con last, all o ts")
-    # Sincrona di proposito: mentre riscrive i file questo processo non accoda
-    # altre righe (le scritture dell'altro processo le recupera rewrite_jsonl).
+    # Synchronous on purpose: while it rewrites the files this process does not append
+    # other lines (writes from the other process are recovered by rewrite_jsonl).
     result = forget(rids=req.rids, uid=req.uid, last=req.last, every=req.all, ts=req.ts,
                     dry_run=req.dry_run)
     memory = 0
@@ -911,13 +911,13 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
 
 @app.get("/crawl-history")
 async def crawl_history(_: None = Security(require_admin)):
-    """Storico crawling e indicizzazione (ultimi eventi dal sync log). Solo admin."""
+    """Crawl and indexing history (latest events from the sync log). Admin only."""
     log_path = Path("/var/log/chatbot-sync.log")
     if not log_path.exists():
         return {"events": [], "current_html": None, "current_pdf": None}
 
-    # Lettura riga-per-riga: efficiente in memoria su file da 50MB,
-    # filtra in Python senza dipendere da subprocess/grep
+    # Line-by-line reading: memory-efficient on 50MB files,
+    # filters in Python without depending on subprocess/grep
     MARKERS = ("Vector store caricato:", "Crawl incrementale completato",
                "=== Crawl", "[HTML ", "[PDF ")
 
@@ -938,7 +938,7 @@ async def crawl_history(_: None = Security(require_admin)):
             last_ts = m.group(1)
             msg = m.group(2).strip()
         else:
-            msg = line.strip()   # righe senza timestamp (es. "=== Crawl ... ===")
+            msg = line.strip()   # lines without a timestamp (e.g. "=== Crawl ... ===")
 
         if "Crawl incrementale completato" in msg or "=== Crawl" in msg:
             events.append({"ts": last_ts, "type": "crawl_end",
@@ -964,7 +964,7 @@ async def crawl_history(_: None = Security(require_admin)):
                 cur, tot = int(mp.group(1)), int(mp.group(2))
                 last_pdf = {"ts": last_ts, "current": cur, "total": tot}
 
-    # Deduplica eventi VS (mantieni solo i cambi di chunk count)
+    # Deduplicate VS events (keep only the chunk count changes)
     seen_chunks: set[int] = set()
     deduped: list[dict] = []
     for e in events:
@@ -985,8 +985,8 @@ async def crawl_history(_: None = Security(require_admin)):
 async def chat(request: Request, req: ChatRequest,
                user: dict = Security(require_user)):
     """
-    Risposta completa alla domanda del visitatore.
-    Attende la risposta intera prima di ritornare.
+    Complete answer to the visitor's question.
+    Waits for the whole answer before returning.
     """
     import time as _time
     blocked = _blocked_for_pii(req.question)
@@ -995,7 +995,7 @@ async def chat(request: Request, req: ChatRequest,
                 "rid": blocked, "blocked": True}
     key = _take_question(request, user)
     try:
-        # Dati personali riconoscibili mascherati prima del modello e dei log
+        # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
         history = redact_history([m.model_dump() for m in req.history]) if req.history else None
         rid = _new_rid()
@@ -1020,13 +1020,13 @@ async def chat(request: Request, req: ChatRequest,
 async def chat_stream(request: Request, req: ChatRequest,
                       user: dict = Security(require_user)):
     """
-    Risposta in streaming via Server-Sent Events (SSE).
-    Il widget riceve i token man mano che vengono generati.
+    Streaming answer via Server-Sent Events (SSE).
+    The widget receives tokens as they are generated.
 
-    Formato SSE:
-      data: {"token": "..."}\n\n        → token di testo
-      data: {"sources": [...], "rid": "...", "language": "it"}\n\n  → fonti, identificativo della domanda, lingua
-      data: {"done": true}\n\n          → fine stream
+    SSE format:
+      data: {"token": "..."}\n\n        → text token
+      data: {"sources": [...], "rid": "...", "language": "it"}\n\n  → sources, question identifier, language
+      data: {"done": true}\n\n          → end of stream
     """
     blocked = _blocked_for_pii(req.question)
     if blocked:
@@ -1038,7 +1038,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
     key = _take_question(request, user)
     try:
-        # Dati personali riconoscibili mascherati prima del modello e dei log
+        # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
         history = redact_history([m.model_dump() for m in req.history]) if req.history else None
         rid = _new_rid()
@@ -1058,7 +1058,7 @@ async def chat_stream(request: Request, req: ChatRequest,
 
         queue: _asyncio.Queue = _asyncio.Queue()
 
-        parts: list[str] = []   # testo della risposta, per answers.jsonl
+        parts: list[str] = []   # answer text, for answers.jsonl
         completed = False
 
         async def _produce():
@@ -1075,8 +1075,8 @@ async def chat_stream(request: Request, req: ChatRequest,
                 quota.give_back(key)
                 await queue.put(("error", str(exc)))
             finally:
-                # Anche se interrotta (errore, utente andato via): si registra
-                # ciò che è stato generato, segnato come parziale.
+                # Even if interrupted (error, user gone): we record
+                # what was generated, marked as partial.
                 _log_answer(user.get("uid"), rid, "".join(parts), sources,
                             partial=not completed)
 
@@ -1117,6 +1117,6 @@ async def chat_stream(request: Request, req: ChatRequest,
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # importante per nginx
+            "X-Accel-Buffering": "no",  # important for nginx
         },
     )

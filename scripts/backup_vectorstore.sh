@@ -1,12 +1,12 @@
 #!/bin/sh
-# Backup giornaliero del vector store.
-# Aggiungere a /etc/crontab:
+# Daily vector store backup.
+# Add to /etc/crontab:
 #   0 2 * * * root /opt/chatbot/scripts/backup_vectorstore.sh
 
 STORE=/opt/chatbot/data/vectorstore
 BACKUP_DIR=/opt/chatbot/data/backups
 LOG=/var/log/chatbot-sync.log
-KEEP=7  # giorni di backup da conservare
+KEEP=7  # days of backups to keep
 
 mkdir -p "$BACKUP_DIR"
 
@@ -21,6 +21,6 @@ else
     exit 1
 fi
 
-# Rimuovi backup più vecchi di KEEP giorni
+# Remove backups older than KEEP days
 find "$BACKUP_DIR" -name "vectorstore_*.tar.gz" -mtime +$KEEP -delete
 echo "$(date '+%Y-%m-%d %H:%M:%S') — Backup vecchi rimossi (>$KEEP giorni)" >> $LOG

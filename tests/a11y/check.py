@@ -1,19 +1,19 @@
 """
-Controllo di accessibilità del widget e delle pagine in widget/ (gira in CI).
+Accessibility check of the widget and of the pages in widget/ (runs in CI).
 
-axe-core (WCAG 2.0, 2.1 e 2.2, livelli A e AA) su ogni stato della chat, più le
-regole che axe non può vedere: la chat chiusa fuori dal tasto Tab, il focus che
-non si perde, gli annunci per gli screen reader, la struttura delle risposte
-(titoli, elenchi, link non annidati), la lingua delle risposte, le etichette.
-L'API è simulata: nessuna richiesta esce dalla macchina.
+axe-core (WCAG 2.0, 2.1 and 2.2, levels A and AA) on every chat state, plus the
+rules axe cannot see: the closed chat out of the Tab order, focus that
+is not lost, announcements for screen readers, the structure of answers
+(headings, lists, non-nested links), the language of answers, labels.
+The API is mocked: no request leaves the machine.
 
     pip install playwright && python -m playwright install chromium
     npm install --no-save axe-core@4.10.2
     python tests/a11y/check.py
 
-Variabili: AXE_JS (percorso di axe.min.js, default node_modules/axe-core/),
-A11Y_CHANNEL=chrome per usare il Chrome di sistema invece di Chromium.
-Esce con codice 1 se qualcosa non va. Vedi ACCESSIBILITY.md.
+Variables: AXE_JS (path of axe.min.js, default node_modules/axe-core/),
+A11Y_CHANNEL=chrome to use the system Chrome instead of Chromium.
+Exits with code 1 if something is wrong. See ACCESSIBILITY.md.
 """
 
 import functools
@@ -72,13 +72,13 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
     def handle(route):
         url = route.request.url
         path = urlsplit(url).path
-        if path.endswith("/dati"):                         # pannello dell'area riservata, che il server dà solo con chiave
+        if path.endswith("/dati"):                         # panel of the restricted area, which the server only serves with a key
             return route.fulfill(json={k: (ROOT / "admin_panel" / f"panel.{k}").read_text(encoding="utf-8")
                                        for k in ("css", "html", "js")})
         if url.startswith(base + "/widget/") or path == "/admin_panel/login.html":
             return route.continue_()
         if not url.startswith(base):
-            return route.fulfill(status=404, body="")      # GitHub, font esterni...
+            return route.fulfill(status=404, body="")      # GitHub, external fonts...
         replies = {
             "/auth/login": {"token": "tok", "name": "Prova", "expires_in": 3600},
             "/auth/me": {"uid": "u1", "name": "Prova"},
@@ -119,8 +119,8 @@ def axe(page, state: str) -> None:
 
 
 def open_panel(page) -> None:
-    """Apre la chat flottante e aspetta la fine della dissolvenza: durante la
-    transizione axe misurerebbe contrasti falsati dall'opacità parziale."""
+    """Opens the floating chat and waits for the fade to finish: during the
+    transition axe would measure contrasts distorted by the partial opacity."""
     page.click(f"{W}-btn")
     page.wait_for_function("getComputedStyle(document.getElementById('zautte-chatbot-panel')).opacity === '1'")
 
@@ -136,12 +136,12 @@ def ask(page, question: str = "Come rinnovo la carta d'identità?") -> None:
     page.fill(f"{W}-input", question)
     page.press(f"{W}-input", "Enter")
     page.wait_for_selector(".zautte-chatbot-feedback")
-    page.wait_for_timeout(250)   # l'annuncio parte 100 ms dopo la fine della risposta
+    page.wait_for_timeout(250)   # the announcement starts 100 ms after the end of the answer
 
 
 def new_page(browser, **kwargs):
     page = browser.new_page(**kwargs)
-    page.set_default_timeout(10_000)   # un elemento mancante fallisce presto
+    page.set_default_timeout(10_000)   # a missing element fails early
     return page
 
 
@@ -202,8 +202,8 @@ def main() -> int:
               and bool(page.text_content(".zautte-chatbot-fbform-msg")), "errore del modulo annunciato (role=alert)")
         page.click(".zautte-chatbot-fbform-actions button:not(.primary)")
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus nel campo dopo «Non ora»")
-        # Con VoiceOver la regione piena faceva incontrare una seconda copia della
-        # risposta esplorando la chat: dopo l'annuncio deve svuotarsi
+        # With VoiceOver the full region made one meet a second copy of the
+        # answer while exploring the chat: after the announcement it must be emptied
         page.wait_for_timeout(5500)
         check(not (page.text_content(f"{W}-status") or "").strip(),
               "dopo qualche secondo la regione degli annunci si svuota")

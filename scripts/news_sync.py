@@ -1,31 +1,31 @@
 """
-Notizie quasi in tempo reale.
+Near-real-time news.
 
-Il crawl settimanale (lunedì notte) lascia fuori per giorni le notizie appena
-pubblicate. Questo modulo legge le fonti configurate in `config/crawl_extra.json`
-(chiave "news"):
+The weekly crawl (Monday night) leaves freshly published news out for days.
+This module reads the sources configured in `config/crawl_extra.json`
+(key "news"):
 
-  - un sito di notizie WordPress, per esempio un bollettino dell'ente
-    (`wordpress_api`): articoli completi tramite la REST API `wp/v2/posts`;
-  - i feed RSS del sito istituzionale (`rss`): titolo, link e data.
+  - a WordPress news site, for example an organisation's bulletin
+    (`wordpress_api`): full articles through the `wp/v2/posts` REST API;
+  - the RSS feeds of the institutional site (`rss`): title, link and date.
 
-Per ogni notizia nuova o modificata indicizza:
-  1. l'articolo del Bollettino;
-  2. le pagine del sito istituzionale linkate nell'articolo (la notizia gemella,
-     un servizio): stesso testo e stessi metadati del crawler, così quando il
-     crawl le raggiunge trova i chunk già presenti;
-  3. gli allegati PDF, ODT e DOCX citati dall'articolo o dalla pagina gemella
-     (bando, modulo, avviso), scaricati in data/documents come fa il crawler.
+For each new or modified news item it indexes:
+  1. the Bulletin article;
+  2. the institutional-site pages linked in the article (the twin news item,
+     a service): same text and same metadata as the crawler, so when the
+     crawl reaches them it finds the chunks already present;
+  3. the PDF, ODT and DOCX attachments cited by the article or the twin page
+     (call for tenders, form, notice), downloaded into data/documents as the crawler does.
 
-Tutti i chunk portano origin=news: i sync settimanali e mensili non li tolgono
-come «stale» (il Bollettino e le notizie vecchie non sono raggiunti dal crawl),
-ma restano sostituibili quando il crawler o questo modulo reindicizzano la
-stessa sorgente (vedi vector_store._is_protected e source_chunk_ids).
+All chunks carry origin=news: weekly and monthly syncs do not remove them
+as "stale" (the Bulletin and old news are not reached by the crawl),
+but they can still be replaced when the crawler or this module reindexes the
+same source (see vector_store._is_protected and source_chunk_ids).
 
-Lo stato (`data/crawl_cache/news_state.json`) ricorda l'ultima modifica vista e
-l'hash di ogni notizia: una corsa senza novità costa due richieste HTTP e non
-carica il vector store. Uso: `python -m scripts.sync news [--backfill]`
-(--backfill = tutto l'archivio del Bollettino, da usare una volta).
+The state (`data/crawl_cache/news_state.json`) remembers the last modification seen and
+the hash of each news item: a run with nothing new costs two HTTP requests and does not
+load the vector store. Usage: `python -m scripts.sync news [--backfill]`
+(--backfill = the whole Bulletin archive, to be used once).
 """
 import hashlib
 import json
@@ -74,8 +74,8 @@ log = logging.getLogger(__name__)
 STATE_FILE = CRAWL_CACHE_DIR / "news_state.json"
 ATTACHMENT_EXT = (".pdf", ".odt", ".docx")
 MIN_TEXT_LEN = 100
-MAX_LINKED_PAGES = 10       # pagine del sito seguite per articolo
-FIRST_RUN_DAYS = 30         # senza stato e senza --backfill: ultimi N giorni
+MAX_LINKED_PAGES = 10       # site pages followed per article
+FIRST_RUN_DAYS = 30         # without state and without --backfill: last N days
 WP_PER_PAGE = 100
 MONTHS_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
              "agosto", "settembre", "ottobre", "novembre", "dicembre"]
@@ -83,7 +83,7 @@ _BLOCK_TAGS = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "fig
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Zautte/1.0)"}
 
 
-# --------------------------------------------------------------------------- stato
+# --------------------------------------------------------------------------- state
 
 def load_state() -> dict:
     if STATE_FILE.exists():
@@ -105,14 +105,14 @@ def _digest(*parts: str) -> str:
     return hashlib.sha256("\x1f".join(parts).encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
-# --------------------------------------------------------------------------- fonti
+# --------------------------------------------------------------------------- sources
 
 def _get(client: httpx.Client, url: str, **kw) -> httpx.Response | None:
     try:
         resp = client.get(url, **kw)
     except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
-        # InvalidURL/ValueError (anche IDNAError): link malformati negli articoli,
-        # es. un host più lungo di 253 caratteri (archivio 2025, 12/10/2026)
+        # InvalidURL/ValueError (also IDNAError): malformed links in articles,
+        # e.g. a host longer than 253 characters (2025 archive, 12/10/2026)
         log.warning(f"  Errore di rete: {url[:120]} — {e}")
         return None
     time.sleep(CRAWL_DELAY_SECONDS)
@@ -133,8 +133,8 @@ def wp_categories(client: httpx.Client, api: str) -> dict[int, str]:
 
 
 def wp_posts(client: httpx.Client, api: str, modified_after: str = "", after: str = "") -> list[dict]:
-    """Articoli del WordPress, dal più vecchio: tutti (backfill), quelli modificati
-    dopo `modified_after` oppure pubblicati dopo `after` (ISO 8601, ora locale)."""
+    """WordPress articles, oldest first: all of them (backfill), those modified
+    after `modified_after` or published after `after` (ISO 8601, local time)."""
     params = {"per_page": WP_PER_PAGE, "orderby": "modified" if modified_after else "date",
               "order": "asc", "status": "publish",
               "_fields": "id,date,modified,link,title,content,categories"}
@@ -198,11 +198,11 @@ def rss_items(client: httpx.Client, url: str) -> list[dict]:
     return items
 
 
-# --------------------------------------------------------------------------- testo
+# --------------------------------------------------------------------------- text
 
 def html_to_text(html: str) -> str:
-    """Testo dell'articolo a paragrafi (un blocco per p/h/li/td), senza i widget
-    di condivisione e gli articoli correlati che WordPress accoda al contenuto."""
+    """Article text as paragraphs (one block per p/h/li/td), without the sharing
+    widgets and related articles that WordPress appends to the content."""
     soup = BeautifulSoup(html, "lxml")
     for tag in soup.find_all(["script", "style", "iframe", "noscript", "form"]):
         tag.decompose()
@@ -229,7 +229,7 @@ def date_it(iso: str) -> str:
 
 
 def office_text(path: Path) -> str:
-    """Testo di un ODT o DOCX (paragrafi) leggendo l'XML nel pacchetto zip."""
+    """Text of an ODT or DOCX (paragraphs), reading the XML inside the zip package."""
     ext = path.suffix.lower()
     inner = "content.xml" if ext == ".odt" else "word/document.xml"
     if ext == ".odt":
@@ -247,7 +247,7 @@ def office_text(path: Path) -> str:
     return "\n\n".join(p for p in paras if p)
 
 
-# --------------------------------------------------------------------------- link
+# --------------------------------------------------------------------------- links
 
 def _attachment_hosts() -> set[str]:
     hosts = set(CRAWL_ALLOWED_DOMAINS) | set(NEWS_SOURCES.get("attachment_hosts", []))
@@ -262,7 +262,7 @@ def _host_ok(url: str, hosts: set[str]) -> bool:
 
 
 def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str]]]:
-    """(pagine del sito da seguire, allegati (url, testo del link)) citati nell'HTML."""
+    """(site pages to follow, attachments (url, link text)) cited in the HTML."""
     soup = BeautifulSoup(html, "lxml")
     hosts = _attachment_hosts()
     pages: list[str] = []
@@ -274,7 +274,7 @@ def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str
         url = canonical_url(urljoin(base_url, href)).split("#", 1)[0]
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc or len(parsed.netloc) > 253:
-            continue   # link malformato (host assente o troppo lungo): httpx lo rifiuterebbe
+            continue   # malformed link (missing or too-long host): httpx would reject it
         path = parsed.path.lower()
         if path.endswith(ATTACHMENT_EXT):
             if (_host_ok(url, hosts) and url not in [u for u, _ in attachments]
@@ -285,7 +285,7 @@ def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str
     return pages[:MAX_LINKED_PAGES], attachments
 
 
-# --------------------------------------------------------------------------- documenti
+# --------------------------------------------------------------------------- documents
 
 def _doc(url: str, chunks: list[dict]) -> dict:
     return {"url": url, "chunks": chunks}
@@ -295,15 +295,15 @@ def post_doc(post: dict, categories: dict[int, str]) -> dict | None:
     body = html_to_text(post["html"])
     if len(body) < MIN_TEXT_LEN:
         return None
-    # Categorie redazionali (Scuola, Tributi...), non quelle tecniche di impaginazione
+    # Editorial categories (Scuola, Tributi...), not the technical layout ones
     # («1 - COPERTINA», «Evidenza»)
     cats = ", ".join(n for n in (categories.get(c, "") for c in post["categories"])
                      if n and not re.match(r"^\d|copertina|evidenza", n, re.IGNORECASE))
     head = f"Notizia del {date_it(post['date'])}"
     if cats:
         head += f" ({cats})"
-    # La data va nello stesso paragrafo del primo blocco: il chunker scarta i
-    # paragrafi sotto gli 80 caratteri e ne fa un chunk per paragrafo.
+    # The date goes in the same paragraph as the first block: the chunker discards
+    # paragraphs under 80 characters and makes one chunk per paragraph.
     chunks = chunk_document(
         text=f"{head}. {body}", source_url=post["url"], title=post["title"], doc_type="html",
         extra_metadata={"category": "notizia", "section": NEWS_SOURCES.get("section", "bollettino"),
@@ -313,8 +313,8 @@ def post_doc(post: dict, categories: dict[int, str]) -> dict | None:
 
 
 def page_doc(client: httpx.Client, url: str, date: str) -> tuple[dict | None, str]:
-    """Pagina del sito istituzionale: stesso trattamento del crawler. Ritorna
-    (documento, HTML) — l'HTML serve a cercare gli allegati."""
+    """Institutional-site page: same treatment as the crawler. Returns
+    (document, HTML) — the HTML is used to look for attachments."""
     resp = _get(client, url)
     if resp is None or "text/html" not in resp.headers.get("content-type", ""):
         return None, ""
@@ -362,10 +362,10 @@ def attachment_doc(client: httpx.Client, url: str, link_text: str, date: str) ->
     return _doc(url, chunks) if chunks else None
 
 
-# --------------------------------------------------------------------------- corsa
+# --------------------------------------------------------------------------- run
 
 def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dict], dict, dict]:
-    """Scarica le novità. Ritorna (documenti da indicizzare, nuovo stato, contatori)."""
+    """Download the new items. Returns (documents to index, new state, counters)."""
     items: dict = state.get("items", {})
     new_items: dict = {}
     docs: list[dict] = []
@@ -410,9 +410,9 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
         categories = wp_categories(client, api) if posts else {}
         for post in posts:
             wp_cursor = max(wp_cursor, post["modified"])
-            # Hash sul testo pulito, non sull'HTML: il contenuto reso da WordPress
-            # cambia a ogni richiesta (articoli correlati, condivisione) e con l'HTML
-            # l'ultimo articolo veniva reindicizzato a ogni corsa (12/10/2026).
+            # Hash on the cleaned text, not on the HTML: the content rendered by WordPress
+            # changes on every request (related articles, sharing) and with the HTML
+            # the latest article was reindexed on every run (12/10/2026).
             digest = _digest(post["title"], html_to_text(post["html"]), post["date"])
             if items.get(post["url"], {}).get("hash") == digest:
                 continue
@@ -425,7 +425,7 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             try:
                 follow(post["html"], post["url"], post["date"], pages=True)
             except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
-                # un link o un allegato guasto non deve fermare la corsa (l'articolo è già in coda)
+                # a broken link or attachment must not stop the run (the article is already queued)
                 log.warning(f"  Link dell'articolo non seguiti: {post['url']} — {e}")
 
     for feed in NEWS_SOURCES.get("rss", []):
@@ -452,7 +452,7 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
 
 
 def run_news(backfill: bool = False) -> dict:
-    """Una corsa: novità → indice. Ritorna i contatori (0 se niente di nuovo)."""
+    """One run: news → index. Returns the counters (0 if nothing new)."""
     if not NEWS_SOURCES:
         log.warning("Nessuna fonte notizie configurata (crawl_extra.json → \"news\")")
         return {"posts": 0, "pages": 0, "attachments": 0, "chunks": 0}

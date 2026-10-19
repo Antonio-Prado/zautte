@@ -1,24 +1,24 @@
 /**
- * Zautte — statistiche delle pagine con un Matomo dell'ente (facoltativo). Si include
- * in ogni pagina con:
+ * Zautte — page statistics with the organisation's own Matomo (optional). Include it
+ * in every page with:
  *
  *   <script src="./matomo.js" defer></script>
  *
- * Senza configurazione non fa nulla. Per attivarlo, prima di questo script:
+ * Without configuration it does nothing. To enable it, before this script:
  *
  *   <script>window.ZautteMatomo = { url: "https://matomo.example.org/", siteId: "1" };</script>
  *
- * (oppure si sostituisce questo file con il proprio, tramite INSTANCE_DIR).
+ * (or replace this file with your own, via INSTANCE_DIR).
  *
- * Solo pagine viste e link esterni cliccati (le fonti sotto le risposte). Mai il
- * testo delle domande: la chat non passa di qui e l'indirizzo della pagina non lo
- * contiene. Niente cookie (disableCookies), così non serve il banner del consenso;
- * l'anonimizzazione dell'IP si imposta nel server Matomo (Privacy → Anonimizza i dati).
+ * Only page views and clicked external links (the sources under the answers). Never
+ * the text of the questions: the chat does not go through here and the page address
+ * does not contain it. No cookies (disableCookies), so no consent banner is needed;
+ * IP anonymisation is set in the Matomo server (Privacy → Anonymize data).
  *
- * Non conta: le pagine fuori da https (prove in locale, test di accessibilità) e
- * il browser in cui è salvata la chiave dell'area riservata, salvo il «Test
- * installation» di Matomo (?tracker_install_check=… nell'indirizzo), che si lancia
- * proprio da quel browser.
+ * Not counted: pages outside https (local tests, accessibility tests) and the
+ * browser where the restricted-area key is stored, except Matomo's «Test
+ * installation» (?tracker_install_check=… in the address), which is launched
+ * from that very browser.
  */
 (function () {
   "use strict";
@@ -31,7 +31,7 @@
   var installCheck = /[?&]tracker_install_check=[a-f0-9]{32}(&|$)/i.test(location.search);
   try {
     if (!installCheck && localStorage.getItem("zautte_admin_key")) return;
-  } catch (_) { /* localStorage bloccato: si conta normalmente */ }
+  } catch (_) { /* localStorage blocked: count as usual */ }
 
   var _paq = window._paq = window._paq || [];
   _paq.push(["disableCookies"]);

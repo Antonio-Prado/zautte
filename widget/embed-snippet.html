@@ -1,10 +1,10 @@
 <!--
-  ISTRUZIONI PER IL GESTORE DEL SITO
+  INSTRUCTIONS FOR THE SITE ADMINISTRATOR
   ====================================
-  Inserire questo codice prima del tag </body> in tutte le pagine
-  (o nel template/footer del CMS).
+  Insert this code before the </body> tag in all pages
+  (or in the CMS template/footer).
 
-  Sostituire "https://chatbot.esempio.it" con l'URL reale del backend.
+  Replace "https://chatbot.esempio.it" with the real backend URL.
 -->
 
 <script>
@@ -16,16 +16,16 @@
     position:      'right',
     logoUrl:       'https://chatbot.esempio.it/widget/logo.png',
     contactEmail:  'assistenza@esempio.it',
-    // Facoltativi: pagina "Come funziona" (trasparenza sul sistema di IA) e
-    // informativa privacy, linkate nell'avviso iniziale e nel footer del widget.
+    // Optional: "Come funziona" page (transparency on the AI system) and
+    // privacy notice, linked in the initial notice and in the widget footer.
     // infoUrl:       'https://chatbot.esempio.it/widget/come-funziona.html',
     // privacyUrl:    'https://www.esempio.it/privacy-assistente-virtuale',
-    // Progetto pilota: true = richiede login (email+password) prima di usare il bot.
-    // Attivare SOLO se il backend ha AUTH_ENABLED=true. Gli utenti si creano con
-    // `python -m scripts.adduser`. Vedi anche AUTH_SECRET nel file .env del server.
+    // Pilot project: true = requires login (email+password) before using the bot.
+    // Enable ONLY if the backend has AUTH_ENABLED=true. Users are created with
+    // `python -m scripts.adduser`. See also AUTH_SECRET in the server's .env file.
     requireLogin:  false,
-    // Facoltativo: selettore di un elemento della pagina in cui mostrare la chat
-    // sempre aperta, senza pulsante flottante (es. '#chat-area').
+    // Optional: selector of a page element in which to show the chat
+    // always open, without the floating button (e.g. '#chat-area').
     // inline:        '#chat-area',
     suggestions:  [
       'Prima domanda frequente?',

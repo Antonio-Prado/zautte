@@ -1,25 +1,25 @@
 /**
- * Zautte — Widget assistente virtuale RAG
- * Widget autonomo (zero dipendenze) da embeddare con un singolo <script>.
+ * Zautte — RAG virtual assistant widget
+ * Standalone widget (zero dependencies) to embed with a single <script>.
  *
- * Configurazione (opzionale, prima del tag <script>):
+ * Configuration (optional, before the <script> tag):
  *
  *   <script>
  *     window.ChatbotConfig = {
- *       apiUrl:        'https://chatbot.comune.example.it', // URL del backend
- *       primaryColor:  '#003366',                           // colore principale
- *       title:         'Assistente Zautte',                  // titolo chat
- *       subtitle:      'Comune di ...',                     // sottotitolo
- *       welcomeIt:     'Ciao! Come posso aiutarti?',        // messaggio iniziale IT
- *       welcomeEn:     'Hello! How can I help you?',        // messaggio iniziale EN
+ *       apiUrl:        'https://chatbot.comune.example.it', // backend URL
+ *       primaryColor:  '#003366',                           // primary colour
+ *       title:         'Assistente Zautte',                  // chat title
+ *       subtitle:      'Comune di ...',                     // subtitle
+ *       welcomeIt:     'Ciao! Come posso aiutarti?',        // initial message IT
+ *       welcomeEn:     'Hello! How can I help you?',        // initial message EN
  *       position:      'right',                             // 'right' | 'left'
- *       logoUrl:       '',                                  // URL logo (opzionale)
- *       contactEmail:  '',                                  // email segnalazione errori (opzionale)
- *       infoUrl:       '',                                  // pagina "Come funziona" (opzionale)
- *       loginSubtitle: '',                                  // testo sotto il titolo del login (opzionale)
- *       privacyUrl:    '',                                  // informativa privacy (opzionale)
- *       lang:          'it',                                // lingua default ('it' | 'en')
- *       inline:        '#chat-area',                        // pannello dentro la pagina (opzionale)
+ *       logoUrl:       '',                                  // logo URL (optional)
+ *       contactEmail:  '',                                  // error-report email (optional)
+ *       infoUrl:       '',                                  // "Come funziona" page (optional)
+ *       loginSubtitle: '',                                  // text under the login title (optional)
+ *       privacyUrl:    '',                                  // privacy notice (optional)
+ *       lang:          'it',                                // default language ('it' | 'en')
+ *       inline:        '#chat-area',                        // panel inside the page (optional)
  *     };
  *   </script>
  *   <script src="chatbot-widget.js"></script>
@@ -29,7 +29,7 @@
   "use strict";
 
   // ---------------------------------------------------------------------------
-  // Configurazione
+  // Configuration
   // ---------------------------------------------------------------------------
   const cfg = Object.assign(
     {
@@ -47,22 +47,22 @@
       position: "right",
       logoUrl: "",
       contactEmail: "",
-      infoUrl: "",     // pagina "Come funziona" (trasparenza sul sistema di IA)
-      privacyUrl: "",  // informativa sul trattamento dei dati personali
-      loginSubtitle: "",  // testo facoltativo sotto il titolo del modulo di accesso
+      infoUrl: "",     // "Come funziona" page (transparency on the AI system)
+      privacyUrl: "",  // personal data processing notice
+      loginSubtitle: "",  // optional text under the login form title
       zIndex: 99999,
       suggestions: [],
-      requireLogin: false,   // true = richiede login (progetto pilota a gruppo ristretto)
-      feedbackDetails: true, // dopo un 👎 chiede il motivo e i link alle pagine corrette
-      // Selettore CSS (o elemento) in cui mostrare il pannello sempre aperto, senza
-      // pulsante flottante. Con requireLogin, finché non si accede si vede solo il form.
+      requireLogin: false,   // true = requires login (pilot project with a restricted group)
+      feedbackDetails: true, // after a 👎 asks for the reason and links to the correct pages
+      // CSS selector (or element) in which to show the always-open panel, without the
+      // floating button. With requireLogin, only the form is visible until login.
       inline: null,
       inlineHeight: "min(640px, calc(100vh - 32px))",
     },
     window.ChatbotConfig || {}
   );
 
-  // Rilevamento lingua: config override oppure browser
+  // Language detection: config override or browser
   const browserLang = cfg.lang ||
     (navigator.language || navigator.userLanguage || "it").slice(0, 2).toLowerCase();
   const isItalian = browserLang !== "en";
@@ -78,7 +78,7 @@
     error: isItalian
       ? "Si è verificato un errore. Riprova tra qualche istante."
       : "An error occurred. Please try again.",
-    // Limite giornaliero di domande (n dal server; 0 se non arriva)
+    // Daily question limit (n from the server; 0 if missing)
     dailyLimit: (n) => isItalian
       ? `Hai raggiunto il limite di ${n > 0 ? n + " domande" : "domande"} al giorno. Potrai farne altre da domani.`
       : `You have reached the limit of ${n > 0 ? n + " questions" : "questions"} per day. You can ask more tomorrow.`,
@@ -98,8 +98,8 @@
     close: isItalian ? "Chiudi" : "Close",
     welcome: isItalian ? cfg.welcomeIt : cfg.welcomeEn,
     clearChat: isItalian ? "Nuova conversazione" : "New conversation",
-    // Avviso di interazione con un sistema di IA (AI Act, art. 50): sempre sotto
-    // il messaggio di benvenuto, anche quando welcomeIt/welcomeEn sono personalizzati.
+    // Notice of interaction with an AI system (AI Act, art. 50): always under
+    // the welcome message, even when welcomeIt/welcomeEn are customised.
     disclaimer: isItalian
       ? "🤖 **Stai dialogando con un sistema di intelligenza artificiale**, non con una persona. " +
         "Le risposte sono generate automaticamente a partire dalle pagine del sito e possono " +
@@ -117,7 +117,7 @@
     aiFooter: isItalian ? "🤖 Risposte generate dall'IA" : "🤖 AI-generated answers",
     infoLink: isItalian ? "Come funziona" : "How it works",
     privacyLink: isItalian ? "Privacy" : "Privacy",
-    loginTitle: isItalian ? "Accedi a" : "Sign in to",  // seguito dal titolo del widget
+    loginTitle: isItalian ? "Accedi a" : "Sign in to",  // followed by the widget title
     loginEmail: isItalian ? "Email" : "Email",
     loginPassword: isItalian ? "Password" : "Password",
     loginSubmit: isItalian ? "Entra" : "Sign in",
@@ -148,7 +148,7 @@
   };
 
   // ---------------------------------------------------------------------------
-  // Iniezione CSS
+  // CSS injection
   // ---------------------------------------------------------------------------
   const WIDGET_ID = "zautte-chatbot";
   const p = cfg.primaryColor;
@@ -198,8 +198,8 @@
       opacity: 0;
       transform: translateY(16px) scale(0.97);
       pointer-events: none;
-      /* Chiuso deve essere anche invisibile: con la sola opacità i controlli
-         restavano raggiungibili col tasto Tab (e letti dagli screen reader). */
+      /* Closed must also mean invisible: with opacity alone the controls
+         stayed reachable with the Tab key (and read by screen readers). */
       visibility: hidden;
       transition: opacity 0.22s ease, transform 0.22s ease, visibility 0s linear 0.22s;
     }
@@ -383,14 +383,14 @@
       transition: background 0.2s;
     }
     .${WIDGET_ID}-feedback button:hover { background: #f0f0f0; }
-    /* Selezione indicata anche dal bordo più spesso, non solo dal colore */
+    /* Selection also shown by a thicker border, not just by colour */
     .${WIDGET_ID}-feedback button[aria-pressed="true"] {
       background: #e8f5e9;
       border-color: ${p};
       box-shadow: inset 0 0 0 1px ${p};
     }
 
-    /* Modulo di segnalazione dopo un 👎 */
+    /* Report form after a 👎 */
     .${WIDGET_ID}-fbform {
       margin-top: 8px;
       padding: 10px;
@@ -449,7 +449,7 @@
     .${WIDGET_ID}-fbform-msg.err { color: #c62828; }
     .${WIDGET_ID}-fbform-thanks { margin-top: 8px; font-size: 13px; color: #2e7d32; }
 
-    /* Fonti */
+    /* Sources */
     .${WIDGET_ID}-sources {
       margin-top: 6px;
       font-size: 11px;
@@ -460,7 +460,7 @@
       margin-bottom: 2px;
       color: #555;
     }
-    /* Righe alte 24 px: bersagli abbastanza grandi e distanziati (WCAG 2.5.8) */
+    /* 24 px tall rows: targets large and spaced enough (WCAG 2.5.8) */
     .${WIDGET_ID}-sources a {
       display: block;
       color: ${p};
@@ -572,7 +572,7 @@
       background: #fff;
     }
 
-    /* Disclaimer benvenuto */
+    /* Welcome disclaimer */
     .${WIDGET_ID}-disclaimer {
       font-size: 11px;
       color: #555;
@@ -581,7 +581,7 @@
     }
     .${WIDGET_ID}-disclaimer a { color: #555; }
 
-    /* Domande suggerite */
+    /* Suggested questions */
     .${WIDGET_ID}-suggestions {
       display: flex;
       flex-wrap: wrap;
@@ -601,7 +601,7 @@
     }
     .${WIDGET_ID}-suggestion:hover { background: #dce5ff; }
 
-    /* Indicatore attesa lunga */
+    /* Long-wait indicator */
     .${WIDGET_ID}-wait-hint {
       font-size: 11px;
       color: #595959;
@@ -610,7 +610,7 @@
       font-style: italic;
     }
 
-    /* Modalità inline: pannello dentro la pagina, sempre aperto */
+    /* Inline mode: panel inside the page, always open */
     #${WIDGET_ID}-panel.inline {
       position: relative;
       bottom: auto;
@@ -649,14 +649,14 @@
         width: 50px;
         height: 50px;
       }
-      /* Il pannello copre tutto lo schermo: il pulsante sotto non deve
-         ricevere il focus (si chiude con la X o con Esc) */
+      /* The panel covers the whole screen: the button underneath must not
+         receive focus (close with the X or Esc) */
       #${WIDGET_ID}-btn[aria-expanded="true"] { visibility: hidden; }
       .${WIDGET_ID}-bubble {
         font-size: 14px;
       }
       #${WIDGET_ID}-input {
-        font-size: 16px; /* evita zoom automatico iOS */
+        font-size: 16px; /* avoids iOS automatic zoom */
       }
     }
 
@@ -676,7 +676,7 @@
   document.head.appendChild(styleEl);
 
   // ---------------------------------------------------------------------------
-  // HTML del widget
+  // Widget HTML
   // ---------------------------------------------------------------------------
 
   const iconChat = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
@@ -711,8 +711,8 @@
         </div>
       </div>
 
-      <!-- La conversazione non è una regione «live»: durante lo streaming verrebbe
-           riletta a ogni frammento. Gli annunci passano da ${WIDGET_ID}-status. -->
+      <!-- The conversation is not a «live» region: while streaming it would be read
+           again at every fragment. Announcements go through ${WIDGET_ID}-status. -->
       <div id="${WIDGET_ID}-messages" role="region" aria-label="${T.conversation}"></div>
       <div id="${WIDGET_ID}-status" class="${WIDGET_ID}-sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -741,11 +741,11 @@
   const inlineHost = cfg.inline
     ? (typeof cfg.inline === "string" ? document.querySelector(cfg.inline) : cfg.inline)
     : null;
-  if (inlineHost) container.style.height = "100%";  // per inlineHeight in percentuale
+  if (inlineHost) container.style.height = "100%";  // for a percentage inlineHeight
   (inlineHost || document.body).appendChild(container);
 
   // ---------------------------------------------------------------------------
-  // Riferimenti DOM
+  // DOM references
   // ---------------------------------------------------------------------------
   const btnToggle  = document.getElementById(`${WIDGET_ID}-btn`);
   const panel      = document.getElementById(`${WIDGET_ID}-panel`);
@@ -758,16 +758,16 @@
 
   if (inlineHost) {
     panel.classList.add("inline");
-    panel.setAttribute("role", "region");  // parte della pagina, non una finestra
+    panel.setAttribute("role", "region");  // part of the page, not a window
     btnToggle.style.display = "none";
   }
 
   let isOpen = false;
   let isLoading = false;
-  let conversationHistory = [];  // max 3 turni
+  let conversationHistory = [];  // max 3 turns
 
   // ---------------------------------------------------------------------------
-  // Autenticazione (progetto pilota a gruppo ristretto)
+  // Authentication (pilot project with a restricted group)
   // ---------------------------------------------------------------------------
   const AUTH_TOKEN_KEY = "zautte_token";
   const AUTH_NAME_KEY = "zautte_name";
@@ -778,7 +778,7 @@
     authName = localStorage.getItem(AUTH_NAME_KEY);
   } catch (_) {}
 
-  /** Aggiunge l'header Authorization se c'è un token. */
+  /** Adds the Authorization header if there is a token. */
   function authHeaders(base) {
     const h = Object.assign({}, base || {});
     if (authToken) h["Authorization"] = "Bearer " + authToken;
@@ -800,19 +800,19 @@
     emitAuth();
   }
 
-  /** Notifica alla pagina ospite lo stato di accesso (evento `zautte:auth`). */
+  /** Notifies the host page of the login state (`zautte:auth` event). */
   function emitAuth() {
     document.dispatchEvent(new CustomEvent("zautte:auth", {
       detail: { loggedIn: !!authToken, name: authName || "" },
     }));
   }
 
-  // Riferimenti alle aree che il login sostituisce
+  // References to the areas the login replaces
   const inputArea = document.getElementById(`${WIDGET_ID}-input-area`);
   const footerEl = document.getElementById(`${WIDGET_ID}-footer`);
   const headerActions = document.getElementById(`${WIDGET_ID}-header-actions`);
 
-  // Form di login (creato una volta, mostrato solo quando serve)
+  // Login form (created once, shown only when needed)
   const loginEl = document.createElement("form");
   loginEl.id = `${WIDGET_ID}-login`;
   loginEl.style.cssText =
@@ -846,7 +846,7 @@
     </div>`;
   panel.appendChild(loginEl);
 
-  // Pulsante logout (nell'header, visibile solo da autenticati)
+  // Logout button (in the header, visible only when logged in)
   const logoutBtn = document.createElement("button");
   logoutBtn.className = `${WIDGET_ID}-icon-btn`;
   logoutBtn.id = `${WIDGET_ID}-logout`;
@@ -888,8 +888,8 @@
     if (footerEl) footerEl.style.display = "";
   }
 
-  // Gestione submit del login. Il pulsante non viene disabilitato (un pulsante
-  // disabilitato perde il focus): un secondo invio viene semplicemente ignorato.
+  // Login submit handling. The button is not disabled (a disabled button
+  // loses focus): a second submit is simply ignored.
   let loggingIn = false;
   loginEl.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -934,7 +934,7 @@
     }
   });
 
-  // "Password dimenticata?" — invia una richiesta di reset per l'email inserita.
+  // "Password dimenticata?" — sends a reset request for the entered email.
   const _forgotLink = document.getElementById(`${WIDGET_ID}-forgot`);
   let forgotSending = false;
   if (_forgotLink) _forgotLink.addEventListener("click", async (e) => {
@@ -961,7 +961,7 @@
         body: JSON.stringify({ email }),
       });
     } catch (_) {}
-    // Messaggio generico sempre (anti-enumerazione, come il backend).
+    // Always a generic message (anti-enumeration, like the backend).
     errEl.style.color = "#2e7d32";
     errEl.textContent = T.forgotSent;
     errEl.style.display = "block";
@@ -970,19 +970,19 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Utilità
+  // Utilities
   // ---------------------------------------------------------------------------
 
   function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
   }
 
-  /** Annuncia un testo agli screen reader (regione di stato nascosta). Svuotarla
-   *  prima fa ripetere anche un annuncio uguale al precedente. `lang` vale solo
-   *  per `text`; `suffix` (es. «Fonti: 2») resta nella lingua dell'interfaccia.
-   *  Dopo qualche secondo la regione si svuota: lo screen reader ha già preso il
-   *  testo, e chi esplora la chat non incontra una seconda copia della risposta
-   *  (verificato con VoiceOver). */
+  /** Announces a text to screen readers (hidden status region). Clearing it
+   *  first makes an announcement identical to the previous one be repeated. `lang` applies only
+   *  to `text`; `suffix` (e.g. «Fonti: 2») stays in the interface language.
+   *  After a few seconds the region is emptied: the screen reader has already taken the
+   *  text, and whoever explores the chat does not meet a second copy of the answer
+   *  (verified with VoiceOver). */
   let announceTimer = null;
   let announceClear = null;
   function announce(text, lang, suffix) {
@@ -999,8 +999,8 @@
     }, 100);
   }
 
-  /** Testo da leggere di una risposta: senza simboli markdown e senza URL
-   *  (lettera per lettera sarebbero illeggibili; i link restano nel messaggio). */
+  /** Text to read aloud for an answer: without markdown symbols and without URLs
+   *  (spelled letter by letter they would be unreadable; links stay in the message). */
   function plainText(str) {
     return str
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
@@ -1022,8 +1022,8 @@
       .replace(/"/g, "&quot;");
   }
 
-  /** Link a "Come funziona" e all'informativa privacy, solo se configurati.
-   *  `lead` precede il primo link (default: lo stesso separatore). */
+  /** Links to "Come funziona" and to the privacy notice, only if configured.
+   *  `lead` precedes the first link (default: the same separator). */
   function infoLinksHtml(sep, lead) {
     const links = [];
     const a = (url, label) =>
@@ -1034,14 +1034,14 @@
     return (lead === undefined ? sep : lead) + links.join(sep);
   }
 
-  // Link, URL ed email in un solo passaggio: applicate una dopo l'altra, la regola
-  // degli URL nudi ritrovava l'URL dentro l'href appena creato da un link markdown
-  // [testo](url) e produceva un <a> dentro un altro (link rotto).
+  // Links, URLs and emails in a single pass: applied one after the other, the bare-URL
+  // rule found the URL again inside the href just created by a markdown link
+  // [text](url) and produced an <a> inside another (broken link).
   const INLINE_RE = new RegExp([
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/.source,          // [testo](url)
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/.source,          // [text](url)
     /\[(https?:\/\/[^\]\s]+)\]/.source,                     // [url]
-    // URL nudi: &amp; è ammesso (& codificato nei parametri), ci si ferma
-    // a &quot;/&gt;/&lt; (entità che non appartengono all'URL)
+    // Bare URLs: &amp; is allowed (encoded & in parameters), stop
+    // at &quot;/&gt;/&lt; (entities that do not belong to the URL)
     /(https?:\/\/(?:[^\s<>"&]|&amp;)+)/.source,
     /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/.source,
   ].join("|"), "g");
@@ -1050,14 +1050,14 @@
     return `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${text}</a>`;
   }
 
-  /** Formattazione di una riga (testo già escapato): link, URL, email, grassetto. */
+  /** Formatting of a line (already escaped text): links, URLs, emails, bold. */
   function formatInline(html) {
     return html
       .replace(INLINE_RE, (m, mdText, mdUrl, brUrl, url, email) => {
         if (mdUrl) return linkHtml(mdUrl, mdText);
         if (brUrl) return linkHtml(brUrl, brUrl);
         if (url) {
-          const tail = (url.match(/[.,;:!?]+$/) || [""])[0];   // punteggiatura finale fuori dal link
+          const tail = (url.match(/[.,;:!?]+$/) || [""])[0];   // trailing punctuation outside the link
           const clean = url.slice(0, url.length - tail.length);
           return linkHtml(clean, clean) + tail;
         }
@@ -1067,21 +1067,21 @@
   }
 
   /**
-   * Markdown essenziale delle risposte in HTML vero: paragrafi, titoli (# e ## →
-   * h3, ### e oltre → h4), elenchi puntati e numerati (anche annidati), citazioni
-   * e linee di separazione. Gli screen reader ne colgono così la struttura.
-   * Un testo di un solo paragrafo resta in linea, senza <p>.
+   * Essential markdown of the answers into real HTML: paragraphs, headings (# and ## →
+   * h3, ### and beyond → h4), bulleted and numbered lists (also nested), quotes
+   * and separator lines. Screen readers thus pick up the structure.
+   * A single-paragraph text stays inline, without <p>.
    */
   function formatText(str) {
     const lines = escapeHtml(str)
-      // Rimuove attributi HTML grezzi che l'LLM può accodare alle URL
-      // (es: ...comunali&quot; target=&quot;_blank&quot; rel=...)
+      // Removes raw HTML attributes that the LLM may append to URLs
+      // (e.g. ...comunali&quot; target=&quot;_blank&quot; rel=...)
       .replace(/&quot;\s+(?:target|rel|style|class)=[^\n<]*/g, "")
       .split("\n");
     const out = [];
     let para = [];
     let quote = [];
-    const lists = [];   // liste aperte, dalla più esterna: {tag, indent}; ognuna ha un <li> aperto
+    const lists = [];   // open lists, outermost first: {tag, indent}; each has an open <li>
 
     const flushPara = () => {
       if (para.length) out.push(`<p>${para.map(formatInline).join("<br>")}</p>`);
@@ -1100,7 +1100,7 @@
       const indent = line.match(/^[ \t]*/)[0].replace(/\t/g, "    ").length;
       let m;
       if (!line.trim()) {
-        // riga vuota: chiude paragrafo e citazione; un elenco può continuare
+        // blank line: closes paragraph and quote; a list may continue
         flushPara();
         flushQuote();
       } else if (/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line)) {
@@ -1130,7 +1130,7 @@
           lists.push({ tag, indent });
         }
       } else if (lists.length && indent >= 2) {
-        out.push(`<br>${formatInline(line.trim())}`);   // seguito della voce di elenco
+        out.push(`<br>${formatInline(line.trim())}`);   // continuation of the list item
       } else {
         flushQuote();
         closeLists();
@@ -1142,8 +1142,8 @@
     return out.join("");
   }
 
-  // Rende una fonte: link cliccabile se ha URL, altrimenti solo il titolo come
-  // testo (documento su dominio migrato, il cui link non è più valido).
+  // Renders a source: clickable link if it has a URL, otherwise just the title as
+  // text (document on a migrated domain, whose link is no longer valid).
   function renderSource(s) {
     let el;
     if (s.url) {
@@ -1183,7 +1183,7 @@
 
     messages.appendChild(wrap);
     scrollToBottom();
-    return bubble; // ritorna la bubble per aggiornamenti in streaming
+    return bubble; // returns the bubble for streaming updates
   }
 
   function addTypingIndicator() {
@@ -1208,7 +1208,7 @@
   function setLoading(val) {
     isLoading = val;
     sendBtn.disabled = val || inputEl.value.trim() === "";
-    // readOnly e non disabled: un campo disabilitato perde il focus
+    // readOnly and not disabled: a disabled field loses focus
     inputEl.readOnly = val;
     if (val) inputEl.setAttribute("aria-busy", "true"); else inputEl.removeAttribute("aria-busy");
   }
@@ -1219,7 +1219,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Apertura / chiusura
+  // Open / close
   // ---------------------------------------------------------------------------
 
   function openPanel() {
@@ -1238,13 +1238,13 @@
   }
 
   function closePanel() {
-    if (inlineHost) return;  // in modalità inline il pannello resta sempre aperto
+    if (inlineHost) return;  // in inline mode the panel always stays open
     isOpen = false;
     panel.classList.remove("open");
     btnToggle.setAttribute("aria-label", T.open);
     btnToggle.setAttribute("aria-expanded", "false");
     btnToggle.innerHTML = iconChat;
-    btnToggle.focus();  // rimetti focus sul pulsante di apertura
+    btnToggle.focus();  // restore focus to the open button
   }
 
   function showSuggestions() {
@@ -1272,11 +1272,11 @@
     messages.innerHTML = "";
     conversationHistory = [];
     addMessage("bot", T.welcome, null);
-    // Disclaimer sotto la bubble di benvenuto, font più piccolo
+    // Disclaimer under the welcome bubble, smaller font
     const disc = document.createElement("div");
     disc.className = `${WIDGET_ID}-disclaimer`;
     disc.innerHTML = formatText(T.disclaimer) + infoLinksHtml(" · ", "<br>");
-    // Appendilo dentro il wrap del messaggio appena creato
+    // Append it inside the wrapper of the message just created
     messages.lastElementChild.appendChild(disc);
     showSuggestions();
   }
@@ -1294,8 +1294,8 @@
       btn.setAttribute("aria-label", btn.title);
       btn.setAttribute("aria-pressed", "false");
       btn.addEventListener("click", () => {
-        // Un clic ripetuto sullo stesso pollice non rimanda il voto (il server
-        // comunque conta un solo voto per utente e risposta).
+        // A repeated click on the same thumb does not resend the vote (the server
+        // counts only one vote per user and answer anyway).
         if (btn.getAttribute("aria-pressed") === "true") return;
         fb.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", "false"));
         btn.setAttribute("aria-pressed", "true");
@@ -1304,13 +1304,13 @@
         fetch(`${cfg.apiUrl}/feedback`, {
           method: "POST",
           headers: authHeaders({ "Content-Type": "application/json" }),
-          // rid: identificativo della domanda, per poterla cancellare ovunque su richiesta
+          // rid: question identifier, so it can be deleted everywhere on request
           body: JSON.stringify({ question, answer: answerText, rating, rid: rid || undefined }),
         })
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
-            // Il modulo compare solo dopo un 👎 e solo se il backend ha
-            // restituito l'id del feedback (le versioni precedenti non lo fanno).
+            // The form appears only after a 👎 and only if the backend
+            // returned the feedback id (earlier versions do not).
             if (rating === -1 && cfg.feedbackDetails && data && data.id) {
               showFeedbackForm(wrap, data.id);
             }
@@ -1328,11 +1328,11 @@
   }
 
   /**
-   * Modulo sotto la risposta bocciata: commento libero + link alle pagine
-   * con l'informazione corretta. Sostituisce l'email all'amministratore:
-   * i dettagli finiscono nella dashboard accanto al feedback negativo.
+   * Form under the rejected answer: free comment + links to the pages
+   * with the correct information. Replaces the email to the administrator:
+   * the details end up in the dashboard next to the negative feedback.
    */
-  let fbFormCount = 0;  // id unici per etichette di moduli diversi
+  let fbFormCount = 0;  // unique ids for labels of different forms
 
   function showFeedbackForm(wrap, feedbackId) {
     removeFeedbackForm(wrap);
@@ -1373,7 +1373,7 @@
     function addUrlInput() {
       if (urlsBox.children.length >= MAX_URLS) return null;
       const input = document.createElement("input");
-      input.type = "text";          // non "url": la validazione la fa il backend
+      input.type = "text";          // not "url": validation is done by the backend
       input.inputMode = "url";
       input.placeholder = T.fbUrl;
       input.setAttribute("aria-labelledby", urlsLabel.id);
@@ -1400,7 +1400,7 @@
     skipBtn.textContent = T.fbSkip;
     skipBtn.addEventListener("click", () => {
       form.remove();
-      inputEl.focus();  // il pulsante sparisce con il modulo: il focus non va perso
+      inputEl.focus();  // the button disappears with the form: focus must not be lost
     });
     const msg = document.createElement("span");
     msg.className = `${WIDGET_ID}-fbform-msg`;
@@ -1460,13 +1460,13 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Invio domanda con streaming SSE
+  // Sending a question with SSE streaming
   // ---------------------------------------------------------------------------
 
   async function sendQuestion(question) {
     if (!question || isLoading) return;
 
-    // Rimuovi suggerimenti se presenti
+    // Remove suggestions if present
     const suggestionsEl = document.getElementById(`${WIDGET_ID}-suggestions`);
     if (suggestionsEl) suggestionsEl.remove();
 
@@ -1475,7 +1475,7 @@
     setLoading(true);
     announce(T.typing);
 
-    // Indicatore di attesa lunga dopo 10 secondi
+    // Long-wait indicator after 10 seconds
     let waitHint = null;
     const waitTimer = setTimeout(() => {
       waitHint = document.createElement("div");
@@ -1493,7 +1493,7 @@
         body: JSON.stringify({ question, history: conversationHistory }),
       });
 
-      // Sessione scaduta/assente: torna al login senza mostrare errore generico
+      // Session expired/missing: go back to login without showing a generic error
       if (resp.status === 401) {
         setAuth(null, null);
         updateHeaderUser();
@@ -1505,13 +1505,13 @@
         return;
       }
 
-      // Limite giornaliero raggiunto: messaggio chiaro al posto dell'errore generico
+      // Daily limit reached: clear message instead of the generic error
       if (resp.status === 429) {
         let limit = 0;
         try {
           const body = await resp.json();
           limit = Number(body && body.detail && body.detail.limit) || 0;
-        } catch (e) { /* corpo non JSON */ }
+        } catch (e) { /* body is not JSON */ }
         const text = T.dailyLimit(limit);
         removeTypingIndicator();
         addMessage("bot", text, null);
@@ -1521,7 +1521,7 @@
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-      // Crea la bubble del bot — appendita al DOM solo al primo token
+      // Create the bot bubble — appended to the DOM only at the first token
       const wrap = document.createElement("div");
       wrap.className = `${WIDGET_ID}-msg bot`;
       const bubble = document.createElement("div");
@@ -1545,7 +1545,7 @@
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop(); // ultima riga incompleta
+        buffer = lines.pop(); // last incomplete line
 
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
@@ -1570,11 +1570,11 @@
               receivedLang = payload.language || "";
               receivedBlocked = !!payload.blocked;
             } else if (payload.error) {
-              // Errore server: mostra messaggio e segna sentinel
+              // Server error: show message and set sentinel
               if (!fullText) {
                 removeTypingIndicator();
                 bubble.classList.remove("streaming");
-                fullText = "\x00"; // sentinel: non sovrascrivere con noInfo
+                fullText = "\x00"; // sentinel: do not overwrite with noInfo
                 bubble.textContent = T.error;
                 messages.appendChild(wrap);
                 scrollToBottom();
@@ -1582,10 +1582,10 @@
               }
             } else if (payload.done) {
               bubble.classList.remove("streaming");
-              // Risposta in una lingua diversa dall'interfaccia: lo screen reader
-              // deve leggerla con la voce giusta
+              // Answer in a language different from the interface: the screen reader
+              // must read it with the right voice
               if (receivedLang) wrap.setAttribute("lang", receivedLang);
-              // Aggiunge le fonti sotto la bubble
+              // Add the sources under the bubble
               if (receivedSources.length > 0) {
                 const srcDiv = document.createElement("div");
                 srcDiv.className = `${WIDGET_ID}-sources`;
@@ -1611,21 +1611,21 @@
           scrollToBottom();
           announce(T.noInfo);
         }
-        // fullText === "\x00" → wrap già in DOM, errore già mostrato
+        // fullText === "\x00" → wrap already in the DOM, error already shown
       } else {
-        // La risposta viene annunciata una volta sola, completa
+        // The answer is announced only once, in full
         const n = receivedSources.length;
         announce(plainText(fullText), receivedLang, n ? `${T.sources} ${n}` : "");
-        // Domanda scartata perché contiene dati personali: non entra nella
-        // cronologia (non deve essere rinviata al server) e non si valuta
+        // Question discarded because it contains personal data: it does not enter the
+        // history (must not be sent to the server again) and is not rated
         if (!receivedBlocked) {
-          // Aggiorna history conversazionale (max 3 turni = 6 messaggi)
+          // Update conversation history (max 3 turns = 6 messages)
           conversationHistory.push({ role: "user", content: question });
           conversationHistory.push({ role: "assistant", content: fullText });
           if (conversationHistory.length > 6) {
             conversationHistory = conversationHistory.slice(-6);
           }
-          // Aggiungi pulsanti feedback
+          // Add feedback buttons
           addFeedback(wrap, question, fullText, receivedRid);
         }
       }
@@ -1636,12 +1636,12 @@
       announce(T.error);
       console.error("[Chatbot] Errore:", err);
     } finally {
-      removeTypingIndicator(); // rimuovi se non sono arrivati token
+      removeTypingIndicator(); // remove if no tokens arrived
       clearTimeout(waitTimer);
       if (waitHint) waitHint.remove();
       setLoading(false);
       scrollToBottom();
-      inputEl.focus();  // accessibilità: rimetti il focus sull'input
+      inputEl.focus();  // accessibility: restore focus to the input
     }
   }
 
@@ -1676,14 +1676,14 @@
     if (q && !isLoading) {
       inputEl.value = "";
       autoResizeInput();
-      inputEl.focus();  // prima di disabilitare il pulsante, che perderebbe il focus
+      inputEl.focus();  // before disabling the button, which would lose focus
       sendBtn.disabled = true;
       sendQuestion(q);
     }
   });
 
-  // Chiudi con Escape, solo se il focus è nella chat (la chat non è modale:
-  // Esc premuto altrove nella pagina non la riguarda)
+  // Close with Escape, only if focus is in the chat (the chat is not modal:
+  // Esc pressed elsewhere on the page does not concern it)
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isOpen &&
         (panel.contains(document.activeElement) || document.activeElement === btnToggle)) {
@@ -1692,7 +1692,7 @@
   });
 
   // ---------------------------------------------------------------------------
-  // Avvio
+  // Startup
   // ---------------------------------------------------------------------------
   btnToggle.setAttribute("aria-expanded", "false");
   clearChat();
@@ -1700,11 +1700,11 @@
   if (inlineHost) openPanel();
   if (cfg.requireLogin) emitAuth();
 
-  // API minima per la pagina ospite (es. pulsante "Esci" fuori dal widget).
+  // Minimal API for the host page (e.g. an "Esci" button outside the widget).
   window.ZautteChatbot = { logout };
 
-  // Token salvato ma scaduto o revocato: torna subito al login, invece di
-  // scoprirlo alla prima domanda (che andrebbe persa).
+  // Token saved but expired or revoked: go back to login right away, instead of
+  // finding out at the first question (which would be lost).
   if (cfg.requireLogin && authToken) {
     fetch(`${cfg.apiUrl}/auth/me`, { headers: authHeaders() })
       .then((r) => {

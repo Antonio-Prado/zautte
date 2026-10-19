@@ -1,11 +1,11 @@
 """
-Motore RAG: riceve una query, recupera i chunk rilevanti dal vector store
-e genera una risposta tramite LLM (Ollama o Claude API).
+RAG engine: receives a query, retrieves the relevant chunks from the vector store
+and generates an answer through an LLM (Ollama or Claude API).
 
-Pipeline di retrieval:
-  1. Query expansion — sinonimi e varianti per query municipali
-  2. Hybrid search — cosine similarity + BM25 con RRF
-  3. Re-ranking — boost titolo + penalità duplicati
+Retrieval pipeline:
+  1. Query expansion — synonyms and variants for municipal queries
+  2. Hybrid search — cosine similarity + BM25 with RRF
+  3. Re-ranking — title boost + duplicate penalty
 """
 
 import logging
@@ -43,14 +43,14 @@ from indexer.vector_store import hybrid_search
 
 log = logging.getLogger(__name__)
 
-# Modelli Claude: API diretta Anthropic ("claude") oppure AWS Bedrock ("bedrock")
+# Claude models: direct Anthropic API ("claude") or AWS Bedrock ("bedrock")
 _USES_CLAUDE = LLM_PROVIDER in ("claude", "bedrock")
 _ANSWER_MODEL = BEDROCK_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_MODEL
 _REWRITE_MODEL = BEDROCK_REWRITE_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_REWRITE_MODEL
 _claude_client_instance = None
 
-# Modelli che rifiutano temperature (400) e regolano il ragionamento con
-# output_config.effort; il ragionamento conta in max_tokens, quindi serve margine.
+# Models that reject temperature (400) and control reasoning with
+# output_config.effort; reasoning counts toward max_tokens, so headroom is needed.
 _EFFORT_MODELS = ("claude-sonnet-5", "claude-opus-5", "claude-opus-4-7", "claude-opus-4-8", "claude-fable")
 _THINKING_MARGIN = 3072
 _REFUSAL_TEXT = ("Non posso rispondere a questa richiesta. Per informazioni puoi rivolgerti "
@@ -58,8 +58,8 @@ _REFUSAL_TEXT = ("Non posso rispondere a questa richiesta. Per informazioni puoi
 
 
 def _model_options(model: str, temperature: float, max_tokens: int) -> dict:
-    """Parametri della richiesta che dipendono dal modello. temperature va in
-    extra_body perché anthropic 1.x l'ha tolta dalla firma (funziona anche con 0.x)."""
+    """Request parameters that depend on the model. temperature goes in
+    extra_body because anthropic 1.x removed it from the signature (also works with 0.x)."""
     base = model.split("anthropic.", 1)[1] if "anthropic." in model else model
     if base.startswith(_EFFORT_MODELS):
         return {"max_tokens": max_tokens + _THINKING_MARGIN,
@@ -68,12 +68,12 @@ def _model_options(model: str, temperature: float, max_tokens: int) -> dict:
 
 
 def _text_of(message) -> str:
-    """Testo della risposta: i blocchi di ragionamento (anche vuoti) possono precedere il testo."""
+    """Answer text: reasoning blocks (even empty ones) may precede the text."""
     return "".join(b.text for b in message.content if getattr(b, "type", "") == "text").strip()
 
 
 def _claude_client():
-    """Client asincrono per i modelli Claude, creato una volta per processo."""
+    """Async client for the Claude models, created once per process."""
     global _claude_client_instance
     if _claude_client_instance is None:
         import anthropic
@@ -83,40 +83,40 @@ def _claude_client():
             _claude_client_instance = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
     return _claude_client_instance
 
-# Soglie e pesi dipendono dal modello di embedding: tarati per bge-m3 il 04/10/2026
-# su 100 domande con pagina giusta e 12 fuori tema (con mxbai-embed-large erano
-# 0,38 / 0,55 / pesi 0,4-0,6, ma mxbai dava ~0,70 anche alle domande fuori tema).
-# Coseno bge-m3 del brano migliore: domande in tema 0,56-0,70, fuori tema 0,38-0,50,
-# brani a caso ~0,35.
-# Verifica sull'indice completo (05/10/2026, 222.480 brani): pagina giusta nei 7
-# brani 80/100 (mxbai 58); miglior brano fuori tema p50 0,49 / p90 0,53, quindi
-# 0,45 lasciava 5,5 brani fuori tema su 7 e 0,50 ne lascia 1,9 (80 → 79 in tema).
+# Thresholds and weights depend on the embedding model: tuned for bge-m3 on 04/10/2026
+# on 100 questions with a correct page and 12 off-topic ones (with mxbai-embed-large they were
+# 0.38 / 0.55 / weights 0.4-0.6, but mxbai gave ~0.70 even to off-topic questions).
+# bge-m3 cosine of the best passage: on-topic questions 0.56-0.70, off-topic 0.38-0.50,
+# random passages ~0.35.
+# Check on the full index (05/10/2026, 222,480 passages): correct page within the 7
+# passages 80/100 (mxbai 58); best off-topic passage p50 0.49 / p90 0.53, so
+# 0.45 let through 5.5 off-topic passages out of 7 and 0.50 lets through 1.9 (80 → 79 on-topic).
 
-# Soglia minima di similarità per includere un chunk nel contesto
+# Minimum similarity threshold to include a chunk in the context
 MIN_SIMILARITY = 0.50
 
-# Soglia di "confidenza" del retrieval: se anche il chunk migliore resta sotto
-# questo valore di similarità coseno, la risposta è probabilmente costruita su
-# documenti solo tematicamente vicini (es. bilanci per una domanda di servizio)
-# e non realmente pertinenti. Serve a loggare questi casi in gaps.jsonl per la
-# revisione — non altera la risposta.
+# Retrieval "confidence" threshold: if even the best chunk stays below
+# this cosine similarity value, the answer is probably built on
+# documents that are only thematically close (e.g. budgets for a service question)
+# and not really relevant. It is used to log these cases in gaps.jsonl for
+# review — it does not alter the answer.
 RETRIEVAL_CONFIDENCE = 0.52
 
-# Pesi della fusione RRF tra ricerca vettoriale e BM25 (somma 1)
+# RRF fusion weights between vector search and BM25 (sum 1)
 VECTOR_WEIGHT = 0.6
 BM25_WEIGHT = 0.4
 
-# Penalità dei brani di PDF nel riordino: a pertinenza simile passano davanti le
-# pagine del sito, scritte per i cittadini; il PDF resta tra i 7 se è davvero più
-# pertinente (moduli, regolamenti). L'80% dei brani viene da PDF e il sync del
-# 05/10/2026 ne ha aggiunti 49.503 dagli allegati delle schede (/s3/6115/: moduli
-# ma anche tesi, piani, tavole). Misura del 06/10/2026 sull'indice di 259.379 brani:
-# pagina giusta nei 7 79 → 81/100, MRR@7 0,663 → 0,748, nessuna domanda persa;
-# toglierli del tutto dava 80 e 0,726. I testi caricati a mano (inbox) sono
-# "document" e non vengono penalizzati.
+# PDF passage penalty in re-ranking: at similar relevance the site
+# pages, written for citizens, come first; the PDF stays among the 7 if it is really more
+# relevant (forms, regulations). 80% of passages come from PDFs and the sync of
+# 05/10/2026 added 49,503 from the attachments of the pages (/s3/6115/: forms
+# but also theses, plans, drawings). Measurement of 06/10/2026 on the 259,379-passage index:
+# correct page within the 7: 79 → 81/100, MRR@7 0.663 → 0.748, no question lost;
+# removing them entirely gave 80 and 0.726. Manually loaded texts (inbox) are
+# "document" and are not penalised.
 PDF_PENALTY = 0.04
 
-# Mappa keyword → ufficio competente — caricata da config/offices.json
+# Keyword → competent office map — loaded from config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "offices.json"
@@ -127,8 +127,8 @@ def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
         result = []
         for e in entries:
             url = SITE_URL.rstrip("/") + e["path"] if e.get("path") else e.get("url", "")
-            # Parole intere, come per i fatti noti: prima "cie" scattava dentro
-            # "società" o "specie" e "imposta" dentro "impostazioni".
+            # Whole words, as for known facts: before, "cie" matched inside
+            # "società" or "specie" and "imposta" inside "impostazioni".
             pattern = re.compile(r"\b(?:" + "|".join(re.escape(k.lower()) for k in e["keywords"]) + r")\b")
             result.append((pattern, e["name"], url))
         return result
@@ -140,16 +140,16 @@ _OFFICE_MAP = _load_office_map()
 
 
 def suggest_office(query: str) -> str | None:
-    """Suggerisce l'ufficio competente in base alle parole chiave della query."""
+    """Suggests the competent office based on the query keywords."""
     query_lower = query.lower()
     for pattern, office_name, office_url in _OFFICE_MAP:
         if pattern.search(query_lower):
             return f"Per questo argomento puoi contattare: **{office_name}** — {office_url}"
     return None
 
-# Sinonimi per espansione query — caricati da config/synonyms.json.
-# Il file è specifico per il dominio dell'organizzazione che usa il sistema.
-# Se il file non esiste, nessuna espansione viene applicata.
+# Synonyms for query expansion — loaded from config/synonyms.json.
+# The file is specific to the domain of the organisation using the system.
+# If the file does not exist, no expansion is applied.
 def _load_synonyms() -> dict[str, list[str]]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "synonyms.json"
@@ -166,8 +166,8 @@ _SYNONYMS = _load_synonyms()
 
 def expand_query(query: str) -> str:
     """
-    Espande la query con sinonimi del dominio municipale.
-    Restituisce la query originale + termini correlati.
+    Expands the query with municipal-domain synonyms.
+    Returns the original query + related terms.
     """
     query_lower = query.lower()
     expansions = []
@@ -181,11 +181,11 @@ def expand_query(query: str) -> str:
 
 def rerank(chunks: list[dict], query: str) -> list[dict]:
     """
-    Re-ranking leggero senza modello aggiuntivo:
-    - Boost se termini della query compaiono nel titolo
-    - Boost se la categoria è "servizio" (più utile per l'utente)
-    - Penalità per i brani di PDF (PDF_PENALTY)
-    - Penalità per chunk duplicati (stesso source + testo simile)
+    Lightweight re-ranking without an additional model:
+    - Boost if query terms appear in the title
+    - Boost if the category is "servizio" (more useful to the user)
+    - Penalty for PDF passages (PDF_PENALTY)
+    - Penalty for duplicate chunks (same source + similar text)
     """
     query_terms = set(re.findall(r"\w+", query.lower()))
 
@@ -195,19 +195,19 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
     for chunk in chunks:
         score = chunk["score"]
 
-        # Boost titolo
+        # Title boost
         title_terms = set(re.findall(r"\w+", chunk.get("title", "").lower()))
         title_overlap = len(query_terms & title_terms)
         score += title_overlap * 0.02
 
-        # Boost categoria servizio
+        # Service category boost
         if chunk.get("category") == "servizio":
             score += 0.01
 
         if chunk.get("doc_type") == "pdf":
             score -= PDF_PENALTY
 
-        # Penalità duplicati stessa fonte
+        # Same-source duplicate penalty
         src = chunk.get("source", "")
         if src in seen_sources:
             score -= 0.05 * seen_sources[src]
@@ -219,9 +219,9 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
     return [c for _, c in scored]
 
 
-# Fatti noti sempre disponibili, indipendenti dal retrieval.
-# Utile per informazioni di base che l'embedding non recupera bene
-# (indirizzi, orari, contatti istituzionali). Caricati da config/known_facts.json.
+# Known facts always available, independent of retrieval.
+# Useful for basic information that the embedding does not retrieve well
+# (addresses, opening hours, institutional contacts). Loaded from config/known_facts.json.
 def _load_known_facts() -> list[dict]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "known_facts.json"
@@ -231,10 +231,10 @@ def _load_known_facts() -> list[dict]:
         entries = _j.loads(f.read_text(encoding="utf-8"))
         result = []
         for e in entries:
-            # Precedenza esplicita: "source" (URL completo) ha priorità; altrimenti
-            # "source_path" relativo a SITE_URL; altrimenti nessuna fonte.
-            # (Prima era un'unica espressione con precedenza errata: i fatti con
-            #  solo "source" finivano con URL vuoto.)
+            # Explicit precedence: "source" (full URL) takes priority; otherwise
+            # "source_path" relative to SITE_URL; otherwise no source.
+            # (It used to be a single expression with wrong precedence: facts with
+            #  only "source" ended up with an empty URL.)
             if e.get("source"):
                 source = e["source"]
             elif e.get("source_path"):
@@ -261,7 +261,7 @@ _KNOWN_FACTS = _load_known_facts()
 
 
 def _inject_known_facts(query: str) -> list[dict]:
-    """Restituisce i fatti noti rilevanti per la query."""
+    """Returns the known facts relevant to the query."""
     q = set(re.findall(r"\w+", query.lower()))
     results = []
     for fact in _KNOWN_FACTS:
@@ -273,7 +273,7 @@ def _inject_known_facts(query: str) -> list[dict]:
 
 
 def _dedup_chunks(chunks: list[dict]) -> list[dict]:
-    """Rimuove chunk con testo identico, mantenendo il primo (score più alto)."""
+    """Removes chunks with identical text, keeping the first (highest score)."""
     seen_texts: set[str] = set()
     result = []
     for chunk in chunks:
@@ -286,7 +286,7 @@ def _dedup_chunks(chunks: list[dict]) -> list[dict]:
 
 def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
-    Recupera i chunk più rilevanti per la query.
+    Retrieves the most relevant chunks for the query.
     Pipeline: known facts → expand → hybrid search → dedup → filter → rerank
     """
     known = _inject_known_facts(query)
@@ -294,14 +294,14 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     expanded_query = expand_query(query)
     query_vec = embed_query(expanded_query)
 
-    # Rileva fallimento embedding (vettore zero) — usa BM25 puro
+    # Detect embedding failure (zero vector) — use pure BM25
     vec_is_zero = all(v == 0.0 for v in query_vec[:10])
     if vec_is_zero:
         log.warning("Embedding zero — fallback BM25 puro per retrieval")
         chunks = hybrid_search(query_vec, expanded_query, top_k=top_k * 3,
                                vector_weight=0.0, bm25_weight=1.0)
         chunks = _dedup_chunks(chunks)
-        # Soglia più bassa per BM25 puro (scale diverse da cosine similarity)
+        # Lower threshold for pure BM25 (different scale from cosine similarity)
         chunks = [c for c in chunks if c["score"] >= 0.005]
     else:
         chunks = hybrid_search(query_vec, expanded_query, top_k=top_k * 3,
@@ -310,19 +310,19 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         chunks = [c for c in chunks if c["score"] >= MIN_SIMILARITY]
     chunks = rerank(chunks, query)
 
-    # Anteponi i fatti noti evitando duplicati per source
+    # Prepend the known facts, avoiding duplicates by source
     known_sources = {k["source"] for k in known}
     chunks = [c for c in chunks if c.get("source") not in known_sources]
     return (known + chunks)[:top_k]
 
 
 def build_context_block(chunks: list[dict]) -> str:
-    """Formatta i chunk con metadati arricchiti per il prompt."""
+    """Formats the chunks with enriched metadata for the prompt."""
     if not chunks:
         return ""
     parts = []
     for i, chunk in enumerate(chunks, 1):
-        # Etichetta arricchita con metadati
+        # Label enriched with metadata
         label_parts = [f"Fonte {i}: {chunk.get('display_title') or chunk['title']}"]
         if chunk.get("category"):
             label_parts.append(f"tipo={chunk['category']}")
@@ -330,8 +330,8 @@ def build_context_block(chunks: list[dict]) -> str:
             label_parts.append(f"stato={chunk['service_status']}")
         if chunk.get("date"):
             label_parts.append(f"aggiornato={chunk['date']}")
-        # Ometti il link per i domini migrati (sarebbe morto): il LLM cita solo
-        # il titolo. L'URL originale resta nei metadati per eventuale rimappatura.
+        # Omit the link for migrated domains (it would be dead): the LLM cites only
+        # the title. The original URL stays in the metadata for possible remapping.
         source = chunk.get("source", "")
         if source and not is_migrated_source(source):
             label_parts.append(source)
@@ -348,26 +348,26 @@ def build_prompt(
     topic_query: str | None = None,
 ) -> list[dict]:
     """
-    Costruisce i messaggi per il LLM nel formato chat.
-    Supporta history conversazionale (lista di {"role", "content"}).
+    Builds the messages for the LLM in chat format.
+    Supports conversational history (list of {"role", "content"}).
 
-    topic_query: versione autonoma della domanda (vedi contextualize_query),
-                 usata solo per individuare l'ufficio competente; la DOMANDA
-                 mostrata al modello resta quella originale dell'utente.
+    topic_query: standalone version of the question (see contextualize_query),
+                 used only to identify the competent office; the QUESTION
+                 shown to the model stays the user's original one.
     """
     system = SYSTEM_PROMPT_IT if language == "it" else SYSTEM_PROMPT_EN
 
     office_hint = suggest_office(topic_query or query)
-    # Data di oggi: serve al modello per capire se scadenze e bandi sono già passati
+    # Today's date: lets the model tell whether deadlines and calls have already passed
     today = f"(Data di oggi: {now_local():%d/%m/%Y})\n" if language == "it" else f"(Today's date: {now_local():%Y-%m-%d})\n"
 
     if context:
-        # L'ufficio competente viene fornito anche con contesto presente, come
-        # ripiego: se i chunk recuperati sono fuori tema (es. una domanda di
-        # servizio che pesca documenti di bilancio), il modello deve poter
-        # indirizzare l'utente all'ufficio giusto invece di rispondere da
-        # documenti non pertinenti. È condizionale: se il contesto risponde
-        # davvero, il modello lo ignora.
+        # The competent office is provided even when context is present, as a
+        # fallback: if the retrieved chunks are off-topic (e.g. a service
+        # question that pulls in budget documents), the model must be able to
+        # direct the user to the right office instead of answering from
+        # irrelevant documents. It is conditional: if the context really
+        # answers, the model ignores it.
         office_text = (
             f"\n\n(Se il CONTESTO non risponde davvero alla DOMANDA, NON "
             f"rispondere usando quei documenti: dichiara che non hai "
@@ -390,9 +390,9 @@ def build_prompt(
 
     messages = [{"role": "system", "content": system}]
 
-    # Aggiungi storia conversazionale (max 3 turni)
+    # Add conversation history (max 3 turns)
     if history:
-        messages.extend(history[-6:])  # max 3 turni = 6 messaggi
+        messages.extend(history[-6:])  # max 3 turns = 6 messages
 
     messages.append({"role": "user", "content": user_content})
     return messages
@@ -400,8 +400,8 @@ def build_prompt(
 
 def detect_language(text: str) -> str:
     """
-    Rileva la lingua della query (euristica semplice).
-    Ritorna 'it' o 'en'.
+    Detects the query language (simple heuristic).
+    Returns 'it' or 'en'.
     """
     it_words = {"ciao", "come", "dove", "quando", "cosa", "chi", "perché",
                 "orario", "ufficio", "comune", "servizio", "documenti",
@@ -417,15 +417,15 @@ def detect_language(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Contestualizzazione della domanda per il retrieval
+# Contextualising the question for retrieval
 # ---------------------------------------------------------------------------
 #
-# Il retrieval lavora solo sul testo della domanda corrente: in un dialogo, un
-# follow-up come "ma quali sono i requisiti per avere il beneficio?" non
-# contiene più l'argomento ("sconto autobus") e pesca documenti fuori tema,
-# anche se il modello riceve la storia. Qui la domanda viene riscritta in forma
-# autonoma (solo quando c'è storia) e usata per ricerca, fatti noti e ufficio
-# competente; al modello arriva comunque la domanda originale + storia.
+# Retrieval works only on the current question's text: in a dialogue, a
+# follow-up such as "ma quali sono i requisiti per avere il beneficio?" no
+# longer contains the topic ("sconto autobus") and pulls in off-topic documents,
+# even though the model receives the history. Here the question is rewritten in standalone
+# form (only when there is history) and used for search, known facts and the competent
+# office; the model still gets the original question + history.
 
 _REWRITE_SYSTEM = (
     "Riscrivi l'ultimo messaggio dell'utente come una domanda autonoma, "
@@ -440,15 +440,15 @@ _REWRITE_SYSTEM = (
     "restituiscilo invariato. Rispondi SOLO con la domanda riscritta, "
     "su una riga, senza virgolette né commenti."
 )
-_REWRITE_MAX_TURN_CHARS = 600   # caratteri di ogni turno di storia inclusi nel prompt
-_REWRITE_MAX_LEN = 400          # oltre questa lunghezza la riscrittura è sospetta
+_REWRITE_MAX_TURN_CHARS = 600   # characters of each history turn included in the prompt
+_REWRITE_MAX_LEN = 400          # beyond this length the rewrite is suspect
 
 
 def _fallback_contextualize(query: str, history: list[dict]) -> str:
-    """Contestualizzazione senza modello: accoda l'ultima domanda dell'utente.
+    """Model-free contextualisation: appends the user's last question.
 
-    Meno precisa della riscrittura, ma porta nel retrieval le parole chiave
-    del turno precedente quando il modello non è raggiungibile."""
+    Less precise than the rewrite, but brings the keywords
+    of the previous turn into retrieval when the model is unreachable."""
     prev = next(
         (m.get("content", "") for m in reversed(history) if m.get("role") == "user"),
         "",
@@ -480,11 +480,11 @@ async def contextualize_query(
     history: list[dict] | None,
     uid: str | None = None,
 ) -> str:
-    """Restituisce la domanda in forma autonoma per il retrieval.
+    """Returns the question in standalone form for retrieval.
 
-    Senza storia (o con QUERY_REWRITE disattivo) restituisce la domanda
-    invariata. In caso di errore del modello usa il ripiego deterministico:
-    la funzione non deve mai far fallire la risposta."""
+    Without history (or with QUERY_REWRITE off) returns the question
+    unchanged. On a model error it uses the deterministic fallback:
+    the function must never make the answer fail."""
     if not history:
         return query
     if not QUERY_REWRITE:
@@ -505,7 +505,7 @@ async def contextualize_query(
 
 
 async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
-    """Chiamata breve e non in streaming per la riscrittura della domanda."""
+    """Short, non-streaming call for rewriting the question."""
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
@@ -526,11 +526,11 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Generazione con Ollama
+# Generation with Ollama
 # ---------------------------------------------------------------------------
 
 async def generate_ollama(messages: list[dict]) -> str:
-    """Chiama Ollama in modalità non-streaming e ritorna la risposta completa."""
+    """Calls Ollama in non-streaming mode and returns the complete answer."""
     payload = {
         "model": OLLAMA_MODEL,
         "messages": messages,
@@ -550,7 +550,7 @@ async def generate_ollama(messages: list[dict]) -> str:
 
 
 async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
-    """Chiama Ollama in streaming, yield di token progressivi. Ritenta una volta su 500."""
+    """Calls Ollama in streaming mode, yielding tokens progressively. Retries once on 500."""
     import asyncio as _asyncio
     payload = {
         "model": OLLAMA_MODEL,
@@ -591,13 +591,13 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
 
 
 # ---------------------------------------------------------------------------
-# Generazione con Claude API
+# Generation with the Claude API
 # ---------------------------------------------------------------------------
 
 async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
-    """Chiama Claude (API diretta o Bedrock) e ritorna la risposta completa.
+    """Calls Claude (direct API or Bedrock) and returns the complete answer.
 
-    uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
+    uid: opaque id of the user who sent the question (for the cost history)."""
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
@@ -623,9 +623,9 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
 
 
 async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGenerator[str, None]:
-    """Chiama Claude (API diretta o Bedrock) in streaming.
+    """Calls Claude (direct API or Bedrock) in streaming mode.
 
-    uid: id opaco dell'utente che ha inviato la domanda (per lo storico costi)."""
+    uid: opaque id of the user who sent the question (for the cost history)."""
     system_content = next(
         (m["content"] for m in messages if m["role"] == "system"), ""
     )
@@ -658,7 +658,7 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
 
 
 # ---------------------------------------------------------------------------
-# Cache risposte (in-memory, LRU semplice)
+# Answer cache (in-memory, simple LRU)
 # ---------------------------------------------------------------------------
 
 import hashlib as _hashlib
@@ -668,17 +668,17 @@ from collections import Counter as _Counter
 from collections import OrderedDict
 from pathlib import Path as _Path
 
-# Log query senza risposta per identificare gap di contenuto
+# Log of unanswered queries to identify content gaps
 _GAPS_LOG = _Path(__file__).parent.parent / "data" / "gaps.jsonl"
 
 
 def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None = None):
-    """Registra query con 0 chunk o recupero debole (senza dati personali).
+    """Records queries with 0 chunks or weak retrieval (without personal data).
 
-    weak=True indica chunk trovati ma con bassa pertinenza (sotto
-    RETRIEVAL_CONFIDENCE): casi che sfuggono al log a 0 chunk ma che spesso
-    producono risposte scadenti. rid: identificativo della domanda (vedi
-    api/datalog.py), serve a cancellarla su richiesta.
+    weak=True means chunks were found but with low relevance (below
+    RETRIEVAL_CONFIDENCE): cases that escape the 0-chunk log but often
+    produce poor answers. rid: question identifier (see
+    api/datalog.py), used to delete it on request.
     """
     try:
         _GAPS_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -695,7 +695,7 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
     except (OSError, TypeError, ValueError) as exc:
         log.debug("Log dei gap non scritto: %s", exc)
 
-_CACHE_MAX = 200  # max risposte cachate
+_CACHE_MAX = 200  # max cached answers
 _response_cache: OrderedDict = OrderedDict()
 
 _STATS_FILE = _Path(__file__).parent.parent / "data" / "stats.json"
@@ -705,27 +705,27 @@ _response_times: list[float] = []
 _query_freq: _Counter = _Counter()
 _hour_counts: list[int] = [0] * 24
 
-# Token tracking (solo per provider Claude)
+# Token tracking (Claude provider only)
 _token_in_total: int = 0
 _token_out_total: int = 0
 _token_cost_total: float = 0.0
-_token_history: list[dict] = []   # ultimi 100 record
+_token_history: list[dict] = []   # last 100 records
 _TOKEN_HISTORY_MAX = 100
 
-# Prezzi USD per milione di token (input, output), listino API Anthropic
+# USD prices per million tokens (input, output), Anthropic API price list
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-7":   (5.00, 25.00),
-    "claude-sonnet-5":    (2.00, 10.00),   # anche claude-sonnet-5-5
+    "claude-sonnet-5":    (2.00, 10.00),   # also claude-sonnet-5-5
     "claude-sonnet-4-6":  (3.00, 15.00),
     "claude-haiku-4-5":   (1.00,  5.00),
 }
-# Su Bedrock i profili geografici (eu., us., ...) costano circa il 10% in più
+# On Bedrock the geographic profiles (eu., us., ...) cost about 10% more
 _BEDROCK_GEO_PREFIXES = ("eu.", "us.", "jp.", "apac.", "au.", "ca.")
 _BEDROCK_GEO_MARKUP = 1.10
 
 
 def _cost_usd(in_tok: int, out_tok: int, model: str) -> float:
-    # Id Bedrock: "eu.anthropic.claude-sonnet-4-6" → "claude-sonnet-4-6" (stima)
+    # Bedrock id: "eu.anthropic.claude-sonnet-4-6" → "claude-sonnet-4-6" (estimate)
     markup = _BEDROCK_GEO_MARKUP if model.startswith(_BEDROCK_GEO_PREFIXES) else 1.0
     base = model.split("anthropic.", 1)[1] if "anthropic." in model else model
     for prefix, (p_in, p_out) in _MODEL_PRICING.items():
@@ -736,10 +736,10 @@ def _cost_usd(in_tok: int, out_tok: int, model: str) -> float:
 
 def _record_tokens(in_tok: int, out_tok: int, model: str,
                    uid: str | None = None) -> None:
-    """Registra token e costo di una chiamata al modello.
+    """Records tokens and cost of a model call.
 
-    uid: id opaco dell'utente (come in usage.jsonl). Il nome resta in
-    users.json e viene risolto solo nella dashboard (vista admin)."""
+    uid: opaque user id (as in usage.jsonl). The name stays in
+    users.json and is resolved only in the dashboard (admin view)."""
     global _token_in_total, _token_out_total, _token_cost_total
     cost = _cost_usd(in_tok, out_tok, model)
     _token_in_total  += in_tok
@@ -757,7 +757,7 @@ def _record_tokens(in_tok: int, out_tok: int, model: str,
     _token_history.append(entry)
     if len(_token_history) > _TOKEN_HISTORY_MAX:
         _token_history.pop(0)
-    _save_stats()  # persisti subito: per lo streaming i token arrivano dopo _save_stats() di answer()
+    _save_stats()  # persist immediately: for streaming the tokens arrive after answer()'s _save_stats()
 
 
 def _load_stats():
@@ -830,15 +830,15 @@ def _cache_key(query: str) -> str:
 
 
 def _freq_key(query: str) -> str:
-    """Forma della domanda nel contatore delle più frequenti (stats.json)."""
+    """Form of the question in the most-frequent counter (stats.json)."""
     return re.sub(r"\s+", " ", query.strip().lower().strip("?! "))
 
 
 def forget_queries(queries: list[str]) -> int:
-    """Toglie dalla memoria del processo le domande cancellate su richiesta
-    (POST /usage/forget): contatore delle domande più frequenti, che finisce in
-    stats.json, e cache delle risposte. Ritorna quante voci del contatore sono
-    state toccate."""
+    """Removes from the process memory the questions deleted on request
+    (POST /usage/forget): the most-frequent-questions counter, which ends up in
+    stats.json, and the answer cache. Returns how many counter entries were
+    touched."""
     touched = 0
     for q in queries:
         if not (q or "").strip():
@@ -872,7 +872,7 @@ def _cache_set(query: str, value):
 
 
 # ---------------------------------------------------------------------------
-# Interfaccia pubblica
+# Public interface
 # ---------------------------------------------------------------------------
 
 async def answer(
@@ -883,17 +883,17 @@ async def answer(
     rid: str | None = None,
 ):
     """
-    Risponde a una domanda usando RAG.
+    Answers a question using RAG.
 
-    Se stream=False: ritorna dict con risposta e fonti.
-    Se stream=True: ritorna (AsyncGenerator[str], fonti, lingua della risposta).
+    If stream=False: returns a dict with the answer and sources.
+    If stream=True: returns (AsyncGenerator[str], sources, answer language).
 
-    history: lista di {"role": "user"|"assistant", "content": str}
-             per mantenere il contesto conversazionale (max 3 turni).
-    uid:     id opaco dell'utente autenticato, registrato nello storico
-             token/costi (dashboard admin).
-    rid:     identificativo della domanda (vedi api/datalog.py). Il log
-             dell'API riporta solo questo, mai il testo della domanda.
+    history: list of {"role": "user"|"assistant", "content": str}
+             to keep the conversational context (max 3 turns).
+    uid:     opaque id of the authenticated user, recorded in the token/cost
+             history (admin dashboard).
+    rid:     question identifier (see api/datalog.py). The API log
+             reports only this, never the question text.
     """
     global _query_count
     query = query.strip()
@@ -903,8 +903,8 @@ async def answer(
     _hour_counts[now_local().hour] += 1
     log_rid = rid or "-"
 
-    # Saluti, ringraziamenti, complimenti e insulti: risposta fissa, senza
-    # ricerca né modello, fuori dalle lacune e dalle domande più frequenti.
+    # Greetings, thanks, compliments and insults: fixed answer, without
+    # search or model, kept out of the gaps and the most frequent questions.
     small = smalltalk.classify(query)
     if small:
         kind, language = small
@@ -919,7 +919,7 @@ async def answer(
 
     _query_freq[_freq_key(query)] += 1
 
-    # Cache solo per query senza history (conversazioni stateless)
+    # Cache only for queries without history (stateless conversations)
     use_cache = not history and not stream
     if use_cache:
         cached = _cache_get(query)
@@ -928,8 +928,8 @@ async def answer(
             return cached
 
     language = detect_language(query)
-    # Nei turni successivi al primo il retrieval usa la domanda resa autonoma
-    # (l'argomento del dialogo), non il solo testo del follow-up.
+    # In turns after the first, retrieval uses the standalone question
+    # (the dialogue topic), not just the follow-up text.
     retrieval_query = await contextualize_query(query, history, uid=uid)
     if retrieval_query != query:
         log.info("Domanda %s riscritta per la ricerca (%d -> %d caratteri)",
@@ -939,8 +939,8 @@ async def answer(
     messages = build_prompt(query, context, language, history=history,
                             topic_query=retrieval_query)
 
-    # Nascondi l'URL delle fonti su domini migrati: il link sarebbe morto, quindi
-    # la fonte viene mostrata solo per titolo (url vuoto).
+    # Hide the source URL on migrated domains: the link would be dead, so
+    # the source is shown by title only (empty url).
     sources = [
         {
             "title": c.get("display_title") or c["title"],
@@ -952,33 +952,33 @@ async def answer(
     seen = set()
     unique_sources = []
     for s in sources:
-        # Dedup per URL quando presente; per titolo quando il link è nascosto —
-        # i documenti "solo titolo" hanno url vuoto e non vanno collassati in uno solo.
-        # Lo stesso file con e senza www. (o http/https) conta una volta sola.
+        # Dedup by URL when present; by title when the link is hidden —
+        # "title-only" documents have an empty url and must not be collapsed into one.
+        # The same file with and without www. (or http/https) counts once.
         key = (re.sub(r"^https?://(?:www\.)?", "", s["url"]).rstrip("/")
                if s["url"] else f"title::{s['title']}")
         if key not in seen:
             seen.add(key)
             unique_sources.append(s)
 
-    # Solo l'identificativo: il testo resta nei file di data/, che hanno una
-    # scadenza e si possono ripulire su richiesta (il log dell'API no).
+    # Only the identifier: the text stays in the data/ files, which have an
+    # expiry and can be cleaned on request (the API log cannot).
     log.info("Domanda %s | %d caratteri | lang=%s | chunks=%d | provider=%s",
              log_rid, len(query), language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
         _log_gap(retrieval_query, 0, rid=rid)
     else:
-        # Recupero "debole": chunk trovati ma anche il migliore è sotto la
-        # soglia di confidenza (spesso documenti solo tematicamente vicini).
-        # Tracciali per far emergere i gap di contenuto altrimenti invisibili.
+        # "Weak" retrieval: chunks found but even the best is below the
+        # confidence threshold (often documents that are only thematically close).
+        # Track them to surface content gaps that would otherwise be invisible.
         top_score = max(c.get("score", 0.0) for c in chunks)
         if top_score < RETRIEVAL_CONFIDENCE:
             _log_gap(retrieval_query, len(chunks), weak=True, rid=rid)
 
     if stream:
         if not chunks:
-            # Nessun contesto trovato — bypassa il LLM con fallback affidabile
+            # No context found — bypass the LLM with a reliable fallback
             office_hint = suggest_office(retrieval_query)
             fallback = (
                 "Non ho trovato informazioni specifiche su questo argomento "

@@ -1,17 +1,17 @@
 """
-Elenca i feedback negativi con i dettagli segnalati dai colleghi (commento e
-link alle pagine con l'informazione corretta), così chi interviene sulla base
-di conoscenza — l'amministratore o un assistente — ha tutto in un colpo solo.
+Lists the negative feedback with the details reported by colleagues (comment and
+links to the pages with the correct information), so whoever works on the knowledge
+base — the administrator or an assistant — has everything in one go.
 
-Uso (sul server, dalla directory del progetto):
-    venv/bin/python -m scripts.feedback_open              # aperti, dal più recente
-    venv/bin/python -m scripts.feedback_open --details    # solo con commento o link
-    venv/bin/python -m scripts.feedback_open --all        # anche quelli già risolti
-    venv/bin/python -m scripts.feedback_open --json       # JSON (per script)
+Usage (on the server, from the project directory):
+    venv/bin/python -m scripts.feedback_open              # open ones, most recent first
+    venv/bin/python -m scripts.feedback_open --details    # only with comment or link
+    venv/bin/python -m scripts.feedback_open --all        # also those already resolved
+    venv/bin/python -m scripts.feedback_open --json       # JSON (for scripts)
     venv/bin/python -m scripts.feedback_open --limit 20
 
-Per marcare un feedback come risolto: bottone "✓ Risolto" nella dashboard
-(vista amministratore) oppure POST /feedback/resolve con {ts, question}.
+To mark a feedback as resolved: "✓ Risolto" button in the dashboard
+(administrator view) or POST /feedback/resolve with {ts, question}.
 """
 
 import argparse
@@ -52,7 +52,7 @@ def main(argv=None) -> int:
 
     items, open_count, total = fs.negative_open(fs.load_resolved(), limit=args.limit,
                                                 include_resolved=args.all)
-    items = list(reversed(items))  # dal più recente
+    items = list(reversed(items))  # most recent first
     if args.details:
         items = [e for e in items if e.get("comment") or e.get("urls")]
 

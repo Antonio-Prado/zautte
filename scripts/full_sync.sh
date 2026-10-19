@@ -1,10 +1,10 @@
 #!/bin/sh
-# Sync completo mensile del vector store.
-# Usa lo stesso lock dell'incrementale (incremental_sync.sh): senza lock i due
-# sync partivano in parallelo il lunedì successivo al 1° del mese e scrivevano
-# lo stesso store (3/08 e 7/09/2026). Se un altro sync è in corso aspetta fino
-# a 12 ore, poi rinuncia e lo segnala su syslog.
-# Riga in /etc/crontab:
+# Monthly full sync of the vector store.
+# Uses the same lock as the incremental sync (incremental_sync.sh): without the lock the two
+# syncs ran in parallel on the Monday following the 1st of the month and wrote
+# the same store (3/08 and 7/09/2026). If another sync is running it waits up
+# to 12 hours, then gives up and reports it on syslog.
+# Line in /etc/crontab:
 #   0 3 1 * * root /opt/chatbot/scripts/full_sync.sh
 
 LOCKFILE=/var/run/chatbot-sync.lock

@@ -1,16 +1,16 @@
 """
-Invio email (standard library smtplib).
+Email sending (standard library smtplib).
 
-Usato per recapitare le credenziali di accesso ai partecipanti del pilota.
+Used to deliver the access credentials to the pilot participants.
 Config via .env / config.settings:
-    SMTP_HOST, SMTP_PORT, SMTP_FROM   (obbligatori per inviare)
-    SMTP_USER, SMTP_PASSWORD          (opzionali: solo se il relay richiede auth)
-    SMTP_STARTTLS                     (opzionale: true per STARTTLS, porta 587)
-    SMTP_SSL                          (opzionale: true per TLS implicito, porta 465)
+    SMTP_HOST, SMTP_PORT, SMTP_FROM   (required to send)
+    SMTP_USER, SMTP_PASSWORD          (optional: only if the relay requires auth)
+    SMTP_STARTTLS                     (optional: true for STARTTLS, port 587)
+    SMTP_SSL                          (optional: true for implicit TLS, port 465)
 
-Relay interno dell'ente (destinatari del dominio dell'ente):
-    SMTP_HOST=mail.example.it  SMTP_PORT=25  (niente auth, niente TLS)
-SMTP autenticato (es. Carbonio):
+Organisation's internal relay (recipients in the organisation's domain):
+    SMTP_HOST=mail.example.it  SMTP_PORT=25  (no auth, no TLS)
+Authenticated SMTP (e.g. Carbonio):
     SMTP_HOST=<host> SMTP_PORT=465 SMTP_SSL=true SMTP_USER=... SMTP_PASSWORD=...
 """
 
@@ -37,8 +37,8 @@ def smtp_configured() -> bool:
 
 
 def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
-    """Invia un'email di testo. Solleva un'eccezione se l'invio fallisce.
-    `reply_to`: indirizzo a cui arrivano le risposte (il mittente resta SMTP_FROM)."""
+    """Sends a plain-text email. Raises an exception if sending fails.
+    `reply_to`: address where replies go (the sender stays SMTP_FROM)."""
     if not smtp_configured():
         raise RuntimeError("SMTP non configurato (SMTP_HOST/SMTP_FROM mancanti)")
 
@@ -66,7 +66,7 @@ def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
 
 
 def send_credentials(to: str, name: str, password: str, login_url: str) -> None:
-    """Recapita a un partecipante le credenziali di accesso al pilota."""
+    """Delivers the pilot access credentials to a participant."""
     subject = "Accesso a Zautte — assistente virtuale (pilota)"
     link = f"\nAccedi qui: {login_url}\n" if login_url else ""
     body = f"""Ciao {name},
@@ -86,8 +86,8 @@ Grazie per la collaborazione.
 
 
 def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[str, str]:
-    """Oggetto e corpo dell'email per una segnalazione (👎 con commento/link).
-    `entry` è la riga di data/feedback.jsonl."""
+    """Subject and body of the email for a report (👎 with comment/link).
+    `entry` is the row of data/feedback.jsonl."""
     user = entry.get("user") or "un collega"
     question = (entry.get("question") or "").strip()
     subject = f"Zautte — segnalazione di {user}: {question[:70]}"
@@ -116,15 +116,15 @@ def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[s
 
 
 def send_feedback_notification(to: str, entry: dict, dashboard_url: str = "") -> None:
-    """Avvisa l'amministratore di una nuova segnalazione."""
+    """Notifies the administrator of a new report."""
     subject, body = build_feedback_notification(entry, dashboard_url)
     send_email(to, subject, body)
 
 
 def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
                             login_url: str = "") -> tuple[str, str]:
-    """Oggetto e corpo dell'email di riscontro al collega che ha segnalato,
-    quando l'amministratore marca il feedback come risolto."""
+    """Subject and body of the acknowledgement email to the colleague who reported,
+    when the administrator marks the feedback as resolved."""
     question = (entry.get("question") or "").strip()
     subject = f"Zautte — la tua segnalazione è stata risolta: {question[:70]}"
     lines = [
@@ -152,13 +152,13 @@ def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
 
 def send_feedback_resolved(to: str, name: str, entry: dict, note: str = "",
                            login_url: str = "", reply_to: str = "") -> None:
-    """Email di riscontro al collega: la sua segnalazione è stata risolta."""
+    """Acknowledgement email to the colleague: their report has been resolved."""
     subject, body = build_feedback_resolved(entry, name, note, login_url)
     send_email(to, subject, body, reply_to=reply_to)
 
 
 def send_password_reset(to: str, name: str, password: str, login_url: str) -> None:
-    """Recapita una nuova password dopo una richiesta di reset."""
+    """Delivers a new password after a reset request."""
     subject = "Zautte — nuova password"
     link = f"\nAccedi qui: {login_url}\n" if login_url else ""
     body = f"""Ciao {name},

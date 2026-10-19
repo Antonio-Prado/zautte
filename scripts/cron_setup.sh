@@ -1,8 +1,8 @@
 #!/bin/sh
-# Configura i cron job per la sincronizzazione periodica su FreeBSD.
-# Eseguire come utente 'chatbot' (non root).
+# Set up the cron jobs for periodic synchronisation on FreeBSD.
+# Run as the 'chatbot' user (not root).
 #
-# Uso:
+# Usage:
 #   sh scripts/cron_setup.sh
 
 CHATBOT_DIR="/opt/chatbot"
@@ -10,11 +10,11 @@ VENV_PYTHON="${CHATBOT_DIR}/venv/bin/python"
 LOG_DIR="/var/log/chatbot"
 CRON_USER="chatbot"
 
-# Crea la directory dei log
+# Create the log directory
 mkdir -p "${LOG_DIR}"
 chown "${CRON_USER}" "${LOG_DIR}" 2>/dev/null || true
 
-# Funzione che aggiunge una riga al crontab solo se non esiste già
+# Function that adds a line to the crontab only if it does not already exist
 add_cron() {
     line="$1"
     crontab -u "${CRON_USER}" -l 2>/dev/null | grep -qF "${line}" && return
@@ -25,27 +25,27 @@ add_cron() {
 
 echo "Configurazione cron job per utente '${CRON_USER}'..."
 
-# --- Sync incrementale ogni lunedì alle 02:30 ---
-# Controlla modifiche al sito e indicizza documenti nuovi/aggiornati.
-# Il wrapper prende il lock /var/run/chatbot-sync.lock (skip se già occupato).
+# --- Incremental sync every Monday at 02:30 ---
+# Checks the site for changes and indexes new/updated documents.
+# The wrapper takes the /var/run/chatbot-sync.lock lock (skips if already held).
 add_cron "30 2 * * 1 ${CHATBOT_DIR}/scripts/incremental_sync.sh"
 
-# --- Sync completo il 1° di ogni mese alle 03:00 ---
-# Riscansiona tutto il sito (rileva pagine rimosse, aggiorna contenuti cambiati)
-# Non svuota l'indice: l'indice resta consultabile durante tutta la rielaborazione.
-# Il wrapper usa lo stesso lock dell'incrementale (aspetta fino a 12h).
+# --- Full sync on the 1st of every month at 03:00 ---
+# Rescans the whole site (detects removed pages, updates changed content).
+# Does not empty the index: the index stays searchable during the whole rebuild.
+# The wrapper uses the same lock as the incremental sync (waits up to 12h).
 add_cron "0 3 1 * * ${CHATBOT_DIR}/scripts/full_sync.sh"
 
-# --- Inbox ogni 30 minuti nelle ore lavorative (lun-ven 8-18) ---
-# Processa subito i documenti caricati manualmente
+# --- Inbox every 30 minutes during working hours (Mon-Fri 8-18) ---
+# Immediately processes manually uploaded documents
 add_cron "*/30 8-18 * * 1-5 cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.sync inbox >> ${LOG_DIR}/sync_inbox.log 2>&1"
 
-# --- Conservazione dei log degli utenti ogni giorno alle 02:15 ---
-# Elimina (o spoglia del testo) le voci di usage/gaps/feedback oltre i giorni
-# RETENTION_* configurati in .env (vedi config/settings.py).
+# --- User log retention every day at 02:15 ---
+# Deletes (or strips the text from) usage/gaps/feedback entries older than the
+# RETENTION_* days configured in .env (see config/settings.py).
 add_cron "15 2 * * * cd ${CHATBOT_DIR} && ${VENV_PYTHON} -m scripts.purge_logs >> ${LOG_DIR}/purge_logs.log 2>&1"
 
-# --- Rotazione log settimanale (domenica alle 04:00) ---
+# --- Weekly log rotation (Sunday at 04:00) ---
 add_cron "0 4 * * 0 find ${LOG_DIR} -name '*.log' -size +10M -exec sh -c 'mv \"\$1\" \"\$1.old\" && gzip \"\$1.old\"' _ {} \;"
 
 echo ""

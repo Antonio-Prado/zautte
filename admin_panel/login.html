@@ -42,8 +42,8 @@
     let _adminKey = null;
     try { _adminKey = localStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
 
-    // Il solo "gate" del nome: il resto (pannello, script, stili) arriva dal server
-    // solo se la chiave è valida; dopo troppi errori l'indirizzo viene bloccato (429).
+    // Only the name "gate": the rest (panel, scripts, styles) comes from the server
+    // only if the key is valid; after too many errors the address is blocked (429).
     function getAdminKey() { return _adminKey || ''; }
     function adminHeaders() { return _adminKey ? { 'X-Admin-Key': _adminKey } : {}; }
 

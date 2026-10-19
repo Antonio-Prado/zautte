@@ -1,21 +1,21 @@
 """
-Ricalcolo di tutti gli embedding del vector store con un altro modello di
-Ollama (passaggio da mxbai-embed-large a bge-m3, oppure un aggiornamento di
-Ollama che cambia i vettori), senza fermare il servizio.
+Recomputation of all the vector store embeddings with a different Ollama
+model (switch from mxbai-embed-large to bge-m3, or an Ollama update
+that changes the vectors), without stopping the service.
 
-Fasi:
-  build   calcola in una cache su disco i vettori dei testi dello store, in
-          parallelo alla produzione (che intanto usa il modello attuale).
-          I testi identici (stessa scheda indicizzata con più URL) si calcolano
-          una volta sola. Riprendibile: i blocchi già salvati non si ripetono.
-  status  dice quanti brani dello store attuale sono coperti dalla cache.
-  apply   a sync fermo, riscrive embeddings.npy con i vettori della cache e
-          calcola quelli dei brani aggiunti o cambiati dopo il build (ids e
-          metadata restano gli stessi). Il vecchio file viene copiato in --backup.
-          Subito dopo vanno cambiati OLLAMA_EMBED_MODEL nel .env e riavviata
-          l'API: le domande vanno vettorizzate con lo stesso modello dei brani.
+Phases:
+  build   computes on a disk cache the vectors of the store texts, in
+          parallel with production (which meanwhile uses the current model).
+          Identical texts (same page indexed under several URLs) are computed
+          only once. Resumable: blocks already saved are not repeated.
+  status  says how many passages of the current store are covered by the cache.
+  apply   with sync stopped, rewrites embeddings.npy with the cache vectors and
+          computes those of the passages added or changed after the build (ids and
+          metadata stay the same). The old file is copied to --backup.
+          Right after, OLLAMA_EMBED_MODEL must be changed in .env and the
+          API restarted: questions must be vectorised with the same model as the passages.
 
-Uso sul server (root):
+Usage on the server (root):
   cd /opt/chatbot
   nice venv/bin/python -m scripts.reembed build --model bge-m3 --cache /data/chatbot/reembed/bge-m3 \\
       --threads 12
@@ -43,25 +43,25 @@ from indexer import vector_store as vs
 
 log = logging.getLogger("reembed")
 
-PART_SIZE = 2048  # testi per blocco della cache: ~6 min con bge-m3 sulla CPU attuale
+PART_SIZE = 2048  # texts per cache block: ~6 min with bge-m3 on the current CPU
 
 
 def _key(text: str) -> str:
-    """Chiave della cache: il testo come lo riceve Ollama (dopo embedder._clean)."""
+    """Cache key: the text as Ollama receives it (after embedder._clean)."""
     return hashlib.sha1(embedder._clean(text).encode("utf-8")).hexdigest()
 
 
 def _embed(model: str, texts: list[str]) -> np.ndarray:
-    """Vettori normalizzati; righe a zero dove Ollama non ha risposto."""
-    embedder.OLLAMA_EMBED_MODEL = model  # letto a ogni richiesta dalle funzioni di embedder
+    """Normalised vectors; zero rows where Ollama did not answer."""
+    embedder.OLLAMA_EMBED_MODEL = model  # read on every request by the embedder functions
     arr = np.asarray(embedder.embed_texts(texts), dtype=np.float32)
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
     return np.divide(arr, norms, out=np.zeros_like(arr), where=norms > 0)
 
 
 def _parts(cache: Path) -> list[tuple[Path, Path]]:
-    """Blocchi completi della cache: (chiavi .json, vettori .npy). Il .json si
-    scrive per ultimo, quindi un blocco interrotto a metà viene ignorato."""
+    """Complete cache blocks: (.json keys, .npy vectors). The .json is
+    written last, so a block interrupted halfway is ignored."""
     return [(k, k.with_suffix(".npy")) for k in sorted(cache.glob("part_*.json"))
             if k.with_suffix(".npy").exists()]
 
@@ -86,7 +86,7 @@ def _load_cache(cache: Path) -> dict[str, np.ndarray]:
 
 
 def _save_part(cache: Path, keys: list[str], vecs: np.ndarray) -> None:
-    """Aggiunge un blocco alla cache (scrittura atomica, prima i vettori)."""
+    """Add a block to the cache (atomic write, vectors first)."""
     numbers = [int(k.stem.split("_")[1]) for k, _ in _parts(cache)]
     stem = cache / f"part_{max(numbers, default=0) + 1:05d}"
     vs._atomic_write_npy(stem.with_suffix(".npy"), vecs)
@@ -99,7 +99,7 @@ def _store_texts() -> list[str]:
 
 
 def _check_model(model: str) -> int:
-    """Verifica che Ollama risponda col modello e ne restituisce la dimensione."""
+    """Check that Ollama answers with the model and return its dimension."""
     vec = _embed(model, ["prova"])[0]
     if not np.any(vec):
         sys.exit(f"Ollama non calcola embedding con {model} (ollama pull {model}?)")
@@ -123,7 +123,7 @@ def build(model: str, cache: Path) -> None:
         block = todo[i:i + PART_SIZE]
         vecs = _embed(model, [t for _, t in block])
         ok = np.linalg.norm(vecs, axis=1) > 0
-        failed += int((~ok).sum())  # restano fuori dalla cache: li riprova apply
+        failed += int((~ok).sum())  # they stay out of the cache: apply retries them
         _save_part(cache, [k for (k, _), good in zip(block, ok, strict=True) if good], vecs[ok])
         n = i + len(block)
         rate = n / (time.time() - t0)
@@ -173,7 +173,7 @@ def apply(model: str, cache: Path, backup: Path) -> None:
         vec = vectors.get(k)
         if vec is not None:
             emb[i] = vec
-        # stesso flag di vector_store.upsert_chunks per i vettori zero
+        # same flag as vector_store.upsert_chunks for zero vectors
         zero = vec is None
         if zero != bool(meta[i].get("needs_reembedding")):
             flags_changed += 1
@@ -205,7 +205,7 @@ def main():
                         help="thread di Ollama (num_thread): meno dei core, per lasciare CPU all'API")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-    logging.getLogger("indexer.embedder").setLevel(logging.WARNING)  # una riga per batch da 16
+    logging.getLogger("indexer.embedder").setLevel(logging.WARNING)  # one line per batch of 16
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
     if args.mode != "status" and not args.model:

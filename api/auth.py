@@ -1,15 +1,15 @@
 """
-Autenticazione utenti di Zautte.
+Zautte user authentication.
 
-Login email + password per un gruppo ristretto (progetto pilota). Il token di
-sessione è STATELESS e firmato con HMAC-SHA256: qualsiasi worker uvicorn lo
-valida senza stato condiviso (in produzione girano due processi, IPv4 e IPv6,
-quindi un session-store su file darebbe race condition e login "persi").
+Email + password login for a restricted group (pilot project). The session
+token is STATELESS and signed with HMAC-SHA256: any uvicorn worker
+validates it without shared state (in production two processes ran, IPv4 and IPv6,
+so a file-based session store would cause race conditions and "lost" logins).
 
-Nessuna dipendenza esterna: solo standard library.
-Gli utenti sono provisioned in data/users.json (vedi scripts/adduser.py):
+No external dependencies: standard library only.
+Users are provisioned in data/users.json (see scripts/adduser.py):
     [{"id": "...", "name": "Mario Rossi", "email": "...", "pw_hash": "scrypt$..."}]
-La password non è mai salvata in chiaro: solo l'hash scrypt.
+The password is never stored in clear text: only the scrypt hash.
 """
 
 from __future__ import annotations
@@ -41,14 +41,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ---------------------------------------------------------------------------
 # Password hashing (scrypt, standard library)
 # ---------------------------------------------------------------------------
-_SCRYPT_N = 2 ** 14      # ~16 MB di memoria: sotto il maxmem di default (32 MB)
+_SCRYPT_N = 2 ** 14      # ~16 MB of memory: below the default maxmem (32 MB)
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SCRYPT_DKLEN = 32
 
 
 def hash_password(password: str) -> str:
-    """Ritorna una stringa auto-descrittiva 'scrypt$N$r$p$salt$hash' (base64)."""
+    """Returns a self-describing string 'scrypt$N$r$p$salt$hash' (base64)."""
     salt = secrets.token_bytes(16)
     dk = hashlib.scrypt(
         password.encode("utf-8"), salt=salt,
@@ -62,7 +62,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored: str) -> bool:
-    """Confronto in tempo costante contro un hash prodotto da hash_password()."""
+    """Constant-time comparison against a hash produced by hash_password()."""
     try:
         scheme, n, r, p, salt_b64, hash_b64 = stored.split("$")
         if scheme != "scrypt":
@@ -74,18 +74,18 @@ def verify_password(password: str, stored: str) -> bool:
             n=int(n), r=int(r), p=int(p), dklen=len(expected),
         )
         return hmac.compare_digest(dk, expected)
-    except (ValueError, TypeError):  # hash memorizzato malformato: fallisce chiuso
+    except (ValueError, TypeError):  # stored hash malformed: fail closed
         return False
 
 
-# Hash "esca" calcolato una volta all'import: verificando sempre la password
-# (anche quando l'email non esiste) i tempi di risposta non rivelano quali
-# email sono registrate.
+# "Decoy" hash computed once at import: by always verifying the password
+# (even when the email does not exist) the response times do not reveal which
+# emails are registered.
 _DUMMY_HASH = hash_password(secrets.token_hex(16))
 
 
 # ---------------------------------------------------------------------------
-# Token di sessione firmato (HMAC-SHA256, formato compatto tipo JWT)
+# Signed session token (HMAC-SHA256, compact JWT-like format)
 # ---------------------------------------------------------------------------
 def _b64url_encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
@@ -111,7 +111,7 @@ def create_token(uid: str, name: str) -> str:
 
 
 def verify_token(token: str) -> dict | None:
-    """Ritorna i claim se firma valida e non scaduto, altrimenti None."""
+    """Returns the claims if the signature is valid and not expired, otherwise None."""
     try:
         msg, sig = token.split(".", 1)
         if not hmac.compare_digest(sig, _sign(msg)):
@@ -120,12 +120,12 @@ def verify_token(token: str) -> dict | None:
         if int(claims.get("exp", 0)) < int(time.time()):
             return None
         return claims
-    except (ValueError, TypeError, AttributeError):  # token malformato
+    except (ValueError, TypeError, AttributeError):  # malformed token
         return None
 
 
 # ---------------------------------------------------------------------------
-# Store utenti (data/users.json)
+# User store (data/users.json)
 # ---------------------------------------------------------------------------
 def _load_users() -> list[dict]:
     if not USERS_FILE.exists():
@@ -138,7 +138,7 @@ def _load_users() -> list[dict]:
 
 
 def get_user_by_id(uid: str) -> dict | None:
-    """Utente (id, name, email) corrispondente all'id del token; None se non esiste."""
+    """User (id, name, email) matching the token id; None if it does not exist."""
     if not uid:
         return None
     for u in _load_users():
@@ -156,7 +156,7 @@ def _find_user_by_email(email: str) -> dict | None:
 
 
 def _update_user_password(email: str, new_password: str) -> bool:
-    """Aggiorna l'hash password dell'utente con l'email data. True se aggiornato."""
+    """Updates the password hash of the user with the given email. True if updated."""
     email = email.strip().lower()
     users = _load_users()
     changed = False
@@ -176,7 +176,7 @@ def _update_user_password(email: str, new_password: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Dependency: identità dell'utente della richiesta
+# Dependency: identity of the request's user
 # ---------------------------------------------------------------------------
 log = logging.getLogger(__name__)
 _bearer = HTTPBearer(auto_error=False)
@@ -186,9 +186,9 @@ async def require_user(
     cred: HTTPAuthorizationCredentials | None = Security(_bearer),
 ) -> dict:
     """
-    Dependency per proteggere gli endpoint utente.
-    - AUTH_ENABLED=false → autenticazione disattivata: identità 'anon'.
-    - AUTH_ENABLED=true  → richiede un token 'Authorization: Bearer <token>' valido.
+    Dependency to protect the user endpoints.
+    - AUTH_ENABLED=false → authentication disabled: identity 'anon'.
+    - AUTH_ENABLED=true  → requires a valid 'Authorization: Bearer <token>' token.
     """
     if not AUTH_ENABLED:
         return {"uid": "anon", "name": "anonimo"}
@@ -244,7 +244,7 @@ async def login(request: Request, req: LoginRequest):
 
 @router.get("/me")
 async def me(user: dict = Security(require_user)):
-    """Restituisce l'identità dell'utente autenticato."""
+    """Returns the identity of the authenticated user."""
     return {"uid": user.get("uid"), "name": user.get("name")}
 
 
@@ -255,11 +255,11 @@ class ForgotRequest(BaseModel):
 @router.post("/forgot")
 @limiter.limit("5/hour")
 async def forgot(request: Request, req: ForgotRequest):
-    """Reset password self-service: genera una nuova password e la invia via email.
+    """Self-service password reset: generates a new password and sends it by email.
 
-    La risposta è sempre identica, esista o meno l'indirizzo (anti-enumerazione).
-    Le password sono cifrate (scrypt): quella originale non è recuperabile, si può
-    solo reimpostare.
+    The response is always identical, whether or not the address exists (anti-enumeration).
+    Passwords are hashed (scrypt): the original cannot be recovered, it can
+    only be reset.
     """
     generic = {
         "ok": True,

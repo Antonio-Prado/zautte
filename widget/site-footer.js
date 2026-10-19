@@ -1,21 +1,21 @@
 /**
- * Zautte — footer comune a tutte le pagine (dashboard in ogni vista, pagina pilota,
- * "Come funziona"). Si include con:
+ * Zautte — footer shared by all pages (dashboard in every view, pilot page,
+ * "Come funziona"). Include it with:
  *
  *   <script src="./site-footer.js" defer></script>
  *
- * Mostra l'ultima release e l'ultimo commit su GitHub (letti dall'API pubblica a ogni
- * apertura della pagina; la release porta alla sua pagina, il commit sempre al
- * repository), il link all'accessibilità, l'indirizzo IP del visitatore come lo vede
- * l'API (GET /client-ip sullo stesso server dello script). Le installazioni che
- * vogliono altre righe (loghi, crediti) sostituiscono questo file con il proprio,
- * tramite INSTANCE_DIR.
+ * Shows the latest release and the latest commit on GitHub (read from the public API on
+ * every page load; the release links to its page, the commit always to the
+ * repository), the accessibility link, and the visitor's IP address as the API
+ * sees it (GET /client-ip on the same server as the script). Installations that
+ * want other rows (logos, credits) replace this file with their own,
+ * via INSTANCE_DIR.
  *
- * Accessibilità: le linee guida AgID chiedono il link alla dichiarazione di
- * accessibilità nel footer. Quando l'amministrazione l'ha pubblicata, il suo
- * indirizzo va nell'attributo data-accessibility del tag script e il link diventa
- * "Dichiarazione di accessibilità"; fino ad allora "Accessibilità" porta alla
- * sezione di come-funziona.html.
+ * Accessibility: the AgID guidelines require a link to the accessibility statement
+ * in the footer. Once the administration has published it, its address goes in the
+ * data-accessibility attribute of the script tag and the link becomes
+ * "Dichiarazione di accessibilità"; until then "Accessibilità" leads to the
+ * section of come-funziona.html.
  *
  *   <script src="./site-footer.js" data-accessibility="https://form.agid.gov.it/view/…" defer></script>
  */
@@ -25,20 +25,20 @@
   var REPO = "Antonio-Prado/zautte";
   var SCRIPT = document.currentScript;
   var BASE = (SCRIPT && SCRIPT.src) || location.href;
-  // Le pagine e l'API stanno sullo stesso server (widget/ servita da FastAPI)
+  // Pages and API live on the same server (widget/ served by FastAPI)
   var CLIENT_IP_URL = new URL("/client-ip", BASE).href;
   var STATEMENT = (SCRIPT && SCRIPT.getAttribute("data-accessibility")) || "";
   var A11Y_LINK = { href: new URL("come-funziona.html#accessibilita", BASE).href, text: "Accessibilità" };
   if (/^https:\/\//.test(STATEMENT)) {
     try {
-      // Solo indirizzi https://, con i caratteri non ammessi in un URL codificati
+      // Only https:// addresses, with the characters not allowed in a URL encoded
       A11Y_LINK = { href: encodeURI(decodeURI(STATEMENT)), text: "Dichiarazione di accessibilità" };
     } catch (e) {
-      // sequenza %xx non valida nell'indirizzo: resta il link ad «Accessibilità»
+      // invalid %xx sequence in the address: the «Accessibilità» link stays
     }
   }
 
-  // Data e ora del commit come YYYYMMDDhhmmss, nel fuso del visitatore
+  // Commit date and time as YYYYMMDDhhmmss, in the visitor's time zone
   function stamp(d) {
     var parts = {};
     new Intl.DateTimeFormat("it-IT", {
@@ -69,7 +69,7 @@
     a11y.href = A11Y_LINK.href;
     a11y.textContent = A11Y_LINK.text;
 
-    // Indirizzo IP del visitatore; se l'API non risponde resta nascosto
+    // Visitor's IP address; hidden if the API does not respond
     fetch(CLIENT_IP_URL, { cache: "no-store" })
       .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then(function (d) {
@@ -78,13 +78,13 @@
         var box = document.getElementById("zautte-client-ip");
         var link = box.querySelector("a");
         link.textContent = ip;
-        // Dati di instradamento (RIS) di RIPEstat, in una nuova scheda
+        // RIPEstat routing data (RIS), in a new tab
         link.href = "https://stat.ripe.net/" + encodeURIComponent(ip);
         box.hidden = false;
       })
-      .catch(function () { /* API non raggiungibile */ });
+      .catch(function () { /* API unreachable */ });
 
-    // Ultima release pubblicata; se non c'è o GitHub non risponde il riferimento resta nascosto
+    // Latest published release; hidden if there is none or GitHub does not respond
     fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {
       headers: { "Accept": "application/vnd.github+json" },
     })
@@ -99,9 +99,9 @@
         link.textContent = "Release " + tag;
         box.hidden = false;
       })
-      .catch(function () { /* GitHub non raggiungibile o limite di richieste */ });
+      .catch(function () { /* GitHub unreachable or rate limit reached */ });
 
-    // Ultimo commit su main; se GitHub non risponde il riferimento resta nascosto
+    // Latest commit on main; hidden if GitHub does not respond
     fetch("https://api.github.com/repos/" + REPO + "/commits/main", {
       headers: { "Accept": "application/vnd.github+json" },
     })
@@ -115,7 +115,7 @@
         link.textContent = "Ultimo commit " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
         box.hidden = false;
       })
-      .catch(function () { /* GitHub non raggiungibile o limite di richieste */ });
+      .catch(function () { /* GitHub unreachable or rate limit reached */ });
   }
 
   if (document.readyState === "loading") {

@@ -1,22 +1,22 @@
 """
-Cancella su richiesta le domande di un utente, o singole domande, da tutti i
-file di dati e dalla memoria dell'API in esecuzione, senza riavviarla.
+Delete on request a user's questions, or individual questions, from all the
+data files and from the memory of the running API, without restarting it.
 
-Uso (sul server, dalla directory del progetto; serve ADMIN_API_KEY nel .env):
+Usage (on the server, from the project directory; ADMIN_API_KEY is needed in .env):
     venv/bin/python -m scripts.forget --user m.rossi@example.it --last 1
     venv/bin/python -m scripts.forget --user <email o id> --last 5
-    venv/bin/python -m scripts.forget --user <email o id> --all   (anche id di utenti rimossi)
+    venv/bin/python -m scripts.forget --user <email o id> --all   (also ids of removed users)
     venv/bin/python -m scripts.forget --rid 3f9a0c1d2e4b [--rid ...]
-      --dry-run   mostra cosa verrebbe cancellato e si ferma
-      --yes       non chiede conferma
+      --dry-run   show what would be deleted and stop
+      --yes       do not ask for confirmation
 
-Passa da POST /usage/forget dell'API in esecuzione: mostra le domande trovate
-e, dopo la conferma, le toglie dai file e dalla memoria del processo. Il rid di una domanda si legge nel log dell'API (/var/log/chatbot.log), che
-non contiene il testo, e in usage.jsonl, answers.jsonl, gaps.jsonl e feedback.jsonl.
+It goes through POST /usage/forget of the running API: it shows the questions found
+and, after confirmation, removes them from the files and from the process memory. The rid of a question is read in the API log (/var/log/chatbot.log), which
+does not contain the text, and in usage.jsonl, answers.jsonl, gaps.jsonl and feedback.jsonl.
 
-Restano fuori: l'email di notifica di una segnalazione già inviata e, per le
-domande arrivate al modello, la copia tenuta dal fornitore (Anthropic: 30
-giorni con l'API diretta).
+Left out: the notification email of a report already sent and, for the
+questions that reached the model, the copy kept by the provider (Anthropic: 30
+days with the direct API).
 """
 
 import argparse
@@ -34,7 +34,7 @@ DEFAULT_API = "http://127.0.0.1:8000"
 
 
 def _find_user(user: str) -> tuple[str, str]:
-    """(id, nome) dell'utente indicato per email o per id."""
+    """(id, name) of the user given by email or by id."""
     try:
         users = json.loads(USERS_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -45,7 +45,7 @@ def _find_user(user: str) -> tuple[str, str]:
             return u["id"], u.get("name", "")
     if "@" in key:
         sys.exit(f"Utente non trovato in {USERS_FILE}: {user}")
-    # Id di un utente già rimosso (adduser --remove): le sue domande restano in usage.jsonl
+    # Id of an already removed user (adduser --remove): their questions remain in usage.jsonl
     print(f"Id {user} non presente in {USERS_FILE}: lo uso così com'è")
     return user.strip(), ""
 
@@ -107,8 +107,8 @@ def main() -> None:
             print("Annullato.")
             return
 
-        # Da qui la scelta è fissata a ciò che è stato mostrato (salvo --all):
-        # una domanda arrivata nel frattempo non viene presa al posto di un'altra.
+        # From here on the choice is fixed to what was shown (except --all):
+        # a question that arrived in the meantime is not taken in place of another.
         if selection.get("all"):
             fixed = selection
         else:

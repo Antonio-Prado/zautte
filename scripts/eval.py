@@ -1,14 +1,14 @@
 """
-Valutazione automatica della qualità del RAG.
+Automatic quality evaluation of the RAG.
 
-Esegue un set di domande di test e misura:
-  - chunk trovati (retrieval)
-  - presenza di parole chiave attese nella risposta
-  - tempo di risposta
+Runs a set of test questions and measures:
+  - chunks found (retrieval)
+  - presence of expected keywords in the answer
+  - response time
 
-Uso:
+Usage:
   venv/bin/python -m scripts.eval
-  venv/bin/python -m scripts.eval --no-llm   # solo retrieval, più veloce
+  venv/bin/python -m scripts.eval --no-llm   # retrieval only, faster
 """
 
 import argparse
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.rag import retrieve_context
 
 # ---------------------------------------------------------------------------
-# Set di domande di test con parole chiave attese nella risposta
+# Set of test questions with keywords expected in the answer
 # ---------------------------------------------------------------------------
 
 TEST_CASES = [
@@ -50,7 +50,7 @@ TEST_CASES = [
     {
         "question": "Quali sono gli orari della biblioteca?",
         "expected_keywords": ["biblioteca", "orari"],
-        "min_chunks": 0,  # potrebbe non essere indicizzata
+        "min_chunks": 0,  # might not be indexed
     },
     {
         "question": "Come si paga la TARI?",
@@ -76,7 +76,7 @@ TEST_CASES = [
 
 
 def eval_retrieval(question: str, min_chunks: int) -> tuple[int, float, bool]:
-    """Valuta solo il retrieval (senza LLM). Ritorna (n_chunks, tempo_ms, ok)."""
+    """Evaluate retrieval only (no LLM). Returns (n_chunks, time_ms, ok)."""
     t0 = time.perf_counter()
     chunks = retrieve_context(question)
     elapsed = (time.perf_counter() - t0) * 1000
@@ -85,7 +85,7 @@ def eval_retrieval(question: str, min_chunks: int) -> tuple[int, float, bool]:
 
 
 async def eval_full(question: str, expected_keywords: list[str], min_chunks: int) -> dict:
-    """Valuta retrieval + risposta LLM."""
+    """Evaluate retrieval + LLM answer."""
     from api.rag import answer
     t0 = time.perf_counter()
     result = await answer(question, stream=False)
@@ -142,7 +142,7 @@ async def main():
 
         results.append(r)
 
-    # Riepilogo
+    # Summary
     retrieval_ok = sum(1 for r in results if r["retrieval_ok"])
     print(f"\n{'='*60}")
     print(f"RETRIEVAL OK: {retrieval_ok}/{len(results)}")
@@ -153,7 +153,7 @@ async def main():
     print(f"TEMPO MEDIO: {avg_ms:.0f}ms")
     print(f"{'='*60}\n")
 
-    # Salva risultati
+    # Save results
     out = Path(__file__).parent.parent / "data" / "eval_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,17 +1,17 @@
 """
-Pulizia dell'indice esistente dopo l'aggiornamento dei filtri del crawler.
+Cleanup of the existing index after the crawler filters were updated.
 
-Lo script:
-  1. Legge data/crawl_cache/index.json e data/crawl_cache/crawl_state.json
-  2. Applica la stessa logica should_skip() del crawler aggiornato
-  3. Rimuove le entry con URL ora bloccati
-  4. Cancella i file .json e .pdf corrispondenti
-  5. Salva index.json e crawl_state.json puliti
+The script:
+  1. Reads data/crawl_cache/index.json and data/crawl_cache/crawl_state.json
+  2. Applies the same should_skip() logic as the updated crawler
+  3. Removes entries whose URLs are now blocked
+  4. Deletes the corresponding .json and .pdf files
+  5. Saves the cleaned index.json and crawl_state.json
 
-Uso:
+Usage:
   python scripts/cleanup_index.py [--dry-run]
 
-Con --dry-run mostra solo quante entry verrebbero rimosse senza modificare nulla.
+With --dry-run it only shows how many entries would be removed, without changing anything.
 """
 
 import argparse
@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 
 
 def should_skip(url: str) -> bool:
-    """Replica esatta della logica should_skip() del crawler aggiornato."""
+    """Exact replica of the updated crawler's should_skip() logic."""
     parsed = urlparse(url)
 
     if parsed.scheme not in ("http", "https"):
@@ -92,7 +92,7 @@ def cleanup(dry_run: bool = False):
     for entry in pdfs_in:
         (pdfs_drop if should_skip(entry["url"]) else pdfs_keep).append(entry)
 
-    # Conta gli URL nello state che verrebbero rimossi (incluse entry senza file)
+    # Count the URLs in the state that would be removed (including entries without a file)
     state_drop = {url for url in state if should_skip(url)}
 
     log.info(
@@ -107,12 +107,12 @@ def cleanup(dry_run: bool = False):
 
     if dry_run:
         log.info("\n[DRY-RUN] Nessuna modifica applicata.")
-        # Mostra un campione degli URL rimossi per categoria
+        # Show a sample of the removed URLs per category
         _show_sample("Pagine rimosse (campione)", [e["url"] for e in pages_drop])
         _show_sample("PDF rimossi (campione)", [e["url"] for e in pdfs_drop])
         return
 
-    # --- Cancella i file delle entry rimosse ---
+    # --- Delete the files of the removed entries ---
     files_deleted = 0
     for entry in pages_drop + pdfs_drop:
         fpath = Path(entry.get("file", ""))
@@ -122,13 +122,13 @@ def cleanup(dry_run: bool = False):
 
     log.info(f"\nFile eliminati dal disco: {files_deleted}")
 
-    # --- Salva index.json pulito ---
+    # --- Save the cleaned index.json ---
     cleaned_index = {"pages": pages_keep, "pdfs": pdfs_keep}
     with open(index_path, "w", encoding="utf-8") as f:
         json.dump(cleaned_index, f, ensure_ascii=False, indent=2)
     log.info(f"index.json aggiornato → {len(pages_keep)} pagine, {len(pdfs_keep)} PDF")
 
-    # --- Salva crawl_state.json pulito ---
+    # --- Save the cleaned crawl_state.json ---
     if state_path.exists():
         cleaned_state = {url: data for url, data in state.items() if url not in state_drop}
         with open(state_path, "w", encoding="utf-8") as f:

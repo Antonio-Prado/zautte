@@ -35,17 +35,17 @@ td:last-child { font-weight: 500; font-size: 0.9em; }
 .latency { font-size: 0.8em; color: #666; margin-left: 4px; }
 .refresh-note { font-size: 0.75em; color: #666; margin-top: 8px; text-align: right; }
 
-/* Metriche numeriche grandi */
+/* Large numeric metrics */
 .stats-row { display: flex; gap: 20px; flex-wrap: wrap; }
 .stat-item { flex: 1; min-width: 70px; }
 .stat-big { font-size: 1.5em; font-weight: bold; color: #003366; line-height: 1.1; }
 .stat-label { font-size: 0.78em; color: #666; margin-top: 2px; }
 
-/* Barra feedback */
+/* Feedback bar */
 .fb-bar { height: 7px; background: #eee; border-radius: 4px; margin-top: 8px; overflow: hidden; }
 .fb-bar-fill { height: 100%; background: #43a047; border-radius: 4px; transition: width .4s; }
 
-/* Ore di picco */
+/* Peak hours */
 .hours-chart { display: flex; align-items: flex-end; gap: 2px; height: 40px; margin-top: 4px; }
 .hour-bar {
   flex: 1;
@@ -72,7 +72,7 @@ td:last-child { font-weight: 500; font-size: 0.9em; }
 }
 .hours-labels { display: flex; justify-content: space-between; font-size: 0.7em; color: #666; margin-top: 2px; }
 
-/* Lista query */
+/* Query list */
 .query-list { list-style: none; padding: 0; margin: 0; }
 .query-list li {
   font-size: 0.83em;
@@ -88,11 +88,11 @@ td:last-child { font-weight: 500; font-size: 0.9em; }
 
 a.site-link { color: #003366; font-size: 0.85em; }
 
-/* Donut feedback */
+/* Feedback donut */
 .feedback-layout { display: flex; align-items: center; gap: 12px; }
 .feedback-stats { flex: 1; }
 
-/* Top query bar chart */
+/* Top queries bar chart */
 .qbar-item { margin-bottom: 6px; }
 .qbar-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.8em; margin-bottom: 2px; }
 .qbar-text { color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
@@ -100,7 +100,7 @@ a.site-link { color: #003366; font-size: 0.85em; }
 .qbar-track { height: 6px; background: #eef0ff; border-radius: 3px; overflow: hidden; }
 .qbar-fill { height: 100%; background: #5c7cfa; border-radius: 3px; transition: width .5s; }
 
-/* Cost daily chart */
+/* Daily cost chart */
 .cost-chart { display: flex; align-items: flex-end; gap: 8px; height: 50px; margin: 10px 0 4px; }
 .cost-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .cost-bar { width: 100%; background: #2e7d32; border-radius: 2px 2px 0 0; min-height: 2px; position: relative; transition: height .3s; }
@@ -139,7 +139,7 @@ a.site-link { color: #003366; font-size: 0.85em; }
 .progress-bar-fill.pdf  { background: #6a1b9a; }
 
 /* Changelog */
-/* Log messaggi: la domanda apre la risposta registrata */
+/* Message log: the question opens the recorded answer */
 .msg-answer summary { cursor: pointer; }
 .msg-answer summary::marker { color: #003366; }
 .msg-answer-text { white-space: pre-wrap; margin: 8px 0 4px 16px; padding: 8px 10px; background: #f6f8fb; border-left: 3px solid #003366; color: #333; }
@@ -174,7 +174,7 @@ a.site-link { color: #003366; font-size: 0.85em; }
 .cl-tag.perf   { background: #fff8e1; color: #8d4e00; }
 .cl-tag.data   { background: #e3f2fd; color: #1565c0; }
 
-/* Feedback negativi */
+/* Negative feedback */
 .neg-list { list-style: none; padding: 0; margin: 0; }
 .neg-list > li {
   display: flex; justify-content: space-between; align-items: flex-start;
@@ -185,7 +185,7 @@ a.site-link { color: #003366; font-size: 0.85em; }
 .neg-list > li.resolving { opacity: 0; pointer-events: none; }
 .neg-q { color: #c62828; flex: 1; min-width: 0; }
 .neg-ts { color: #666; font-size: 0.85em; white-space: nowrap; flex-shrink: 0; }
-/* Dettagli segnalati dal collega (commento + link) */
+/* Details reported by the colleague (comment + links) */
 .neg-main { flex: 1; min-width: 0; }
 .neg-meta { color: #666; font-size: 0.85em; margin-top: 2px; }
 .neg-comment {

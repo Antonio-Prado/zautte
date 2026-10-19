@@ -1,6 +1,6 @@
   <div class="grid" id="admin-grid">
 
-    <!-- Stato servizio -->
+    <!-- Service status -->
     <div class="card">
       <h2>Stato del servizio</h2>
       <table>
@@ -13,7 +13,7 @@
       <div class="refresh-note">auto-refresh 30s · <span id="last-update">—</span></div>
     </div>
 
-    <!-- Contenuto indicizzato -->
+    <!-- Indexed content -->
     <div class="card">
       <h2>Contenuto indicizzato</h2>
       <table>
@@ -24,7 +24,7 @@
       </table>
     </div>
 
-    <!-- Attività -->
+    <!-- Activity -->
     <div class="card">
       <h2>Attività (cumulativa)</h2>
       <div class="stats-row">
@@ -72,20 +72,20 @@
       </div>
     </div>
 
-    <!-- Ore di picco -->
+    <!-- Peak hours -->
     <div class="card">
       <h2>Domande per ora del giorno</h2>
       <div class="hours-chart" id="hours-chart"></div>
       <div class="hours-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
     </div>
 
-    <!-- Query più frequenti -->
+    <!-- Most frequent queries -->
     <div class="card">
       <h2>Query più frequenti (sessione)</h2>
       <div id="top-queries"><span style="color:#666;font-size:.85em">nessuna ancora</span></div>
     </div>
 
-    <!-- Feedback negativi -->
+    <!-- Negative feedback -->
     <div class="card wide">
       <h2>Domande con feedback negativo 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <ul class="neg-list" id="neg-fb-list">
@@ -93,7 +93,7 @@
       </ul>
     </div>
 
-    <!-- Utenti (progetto pilota, login attivo) -->
+    <!-- Users (pilot project, login enabled) -->
     <div class="card wide">
       <h2>Utenti (accessi con login) <span id="usage-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="usage-body">
@@ -102,7 +102,7 @@
       </div>
     </div>
 
-    <!-- Log messaggi utenti -->
+    <!-- User message log -->
     <div class="card wide">
       <h2>Log messaggi utenti <span id="msg-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
       <div id="msg-body" style="max-height:460px;overflow:auto">
@@ -110,7 +110,7 @@
       </div>
     </div>
 
-    <!-- Token & Costi API -->
+    <!-- API tokens & costs -->
     <div class="card wide">
       <h2>Token &amp; Costi API Anthropic</h2>
       <div class="stats-row" style="margin-bottom:12px">
@@ -156,7 +156,7 @@
       </table>
     </div>
 
-    <!-- Storico crawling -->
+    <!-- Crawl history -->
     <div class="card wide">
       <h2>Storico crawling &amp; indicizzazione</h2>
       <div id="crawl-progress-html" class="crawl-progress" style="display:none">

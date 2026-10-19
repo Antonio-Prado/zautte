@@ -1,14 +1,14 @@
 """
-Titoli leggibili per le fonti PDF.
+Readable titles for PDF sources.
 
-Il titolo salvato di un PDF è il /Title interno del file oppure, se manca, il nome
-del file in cache (percorso dell'URL + hash: «Engine_RAServeFile.php_f__Allegato_B.pdf_660…»).
-Molti /Title non dicono nulla («COMUNE DI ESEMPIO» su 182 file,
-«Layout 1», «Microsoft Word - …», «INDICE»). Il titolo da mostrare (fonti del widget,
-contesto del modello) si sceglie al volo: il /Title se è informativo, altrimenti il
-nome del file preso dall'URL, ripulito; se anche quello è generico, il titolo ricavato
-dall'inizio del documento (riga «Oggetto:» o prima riga dopo l'intestazione).
-L'indice salvato non cambia.
+The stored title of a PDF is the file's internal /Title or, if missing, the cached
+file name (URL path + hash: «Engine_RAServeFile.php_f__Allegato_B.pdf_660…»).
+Many /Title values say nothing («COMUNE DI ESEMPIO» on 182 files,
+«Layout 1», «Microsoft Word - …», «INDICE»). The title to display (widget sources,
+model context) is chosen on the fly: the /Title if informative, otherwise the
+file name taken from the URL, cleaned up; if that is generic too, the title derived
+from the start of the document («Oggetto:» line or first line after the header).
+The stored index does not change.
 """
 
 import re
@@ -16,7 +16,7 @@ from urllib.parse import unquote, urlparse
 
 from config.settings import SITE_NAME
 
-# Nome del file in cache del crawler: <percorso>_<md5 dell'URL, 12 cifre hex>
+# Crawler cache file name: <path>_<md5 of the URL, 12 hex digits>
 _CACHE_STEM = re.compile(r"_[0-9a-f]{12}$")
 _APP_PREFIX = re.compile(
     r"^(?:microsoft\s+(?:office\s+)?(?:word|excel|powerpoint)|libreoffice\s+\w+|openoffice\.org\s+\w+)\s*-\s*",
@@ -44,9 +44,9 @@ def _clean_filename(name: str) -> str:
     name = unquote(name).replace("+", " ").strip()
     name = _EXT.sub("", name)
     name = _COPY_MARK.sub("", name)
-    name = re.sub(r"^\d{1,2}[ _]+(?=[^\W\d_])", "", name)  # numero d'ordine: «9_Piano…»
+    name = re.sub(r"^\d{1,2}[ _]+(?=[^\W\d_])", "", name)  # sequence number: «9_Piano…»
     name = name.replace("_", " ")
-    name = re.sub(r"(?<!\d)-|-(?!\d)", " ", name)  # 2023-2025 resta con il trattino
+    name = re.sub(r"(?<!\d)-|-(?!\d)", " ", name)  # 2023-2025 keeps its hyphen
     name = re.sub(r"\s+", " ", name).strip(" .-")
     return name[:1].upper() + name[1:]
 
@@ -61,8 +61,8 @@ def _informative(title: str) -> bool:
 
 
 def title_from_url(url: str) -> str:
-    """Nome del file nell'URL, ripulito; se è generico («Determina.pdf») si aggiunge
-    la cartella più vicina che dice qualcosa: «Determina (Bandi ed Esiti)»."""
+    """File name in the URL, cleaned up; if generic («Determina.pdf») the nearest
+    meaningful folder is added: «Determina (Bandi ed Esiti)»."""
     parts = [p for p in urlparse(url).path.split("/") if p]
     if not parts:
         return ""
@@ -79,13 +79,13 @@ def title_from_url(url: str) -> str:
 
 
 def display_title(title: str, url: str, repeated: bool = False, link_text: str = "") -> str:
-    """Titolo da mostrare per un PDF.
+    """Title to display for a PDF.
 
-    `repeated`: lo stesso /Title compare su molti PDF diversi (intestazioni come
-    «Originale di Deliberazione della Giunta Comunale»): allora il nome del file,
-    se informativo, distingue meglio un documento dall'altro.
-    `link_text`: testo del link al PDF nelle pagine del sito (già scelto dal crawler);
-    vince sugli altri candidati se ha almeno tre parole o non è più corto di loro.
+    `repeated`: the same /Title appears on many different PDFs (headers like
+    «Originale di Deliberazione della Giunta Comunale»): then the file name,
+    if informative, tells one document from another better.
+    `link_text`: text of the link to the PDF in the site pages (already chosen by the crawler);
+    it wins over the other candidates if it has at least three words or is not shorter than them.
     """
     t = (title or "").strip()
     if _CACHE_STEM.search(t):
@@ -108,18 +108,18 @@ def display_title(title: str, url: str, repeated: bool = False, link_text: str =
 
 
 def _shorten(title: str) -> str:
-    """Taglia a parola intera i titoli più lunghi di _MAX_LEN caratteri."""
+    """Cut titles longer than _MAX_LEN characters at a word boundary."""
     if len(title) <= _MAX_LEN:
         return title
     return title[:_MAX_LEN].rsplit(" ", 1)[0].rstrip(" ,.;:-") + "…"
 
 
-# --- Titolo dal testo del PDF --------------------------------------------------------
-# Quando anche il nome del file è generico («Allegato B 2022», «DD 665-25», «Determina
-# (Bandi ed Esiti)») il titolo si cerca nell'inizio del documento (primo chunk): la riga
-# «Oggetto:» di determine e delibere, altrimenti la prima riga che non è intestazione.
+# --- Title from the PDF text ---------------------------------------------------------
+# When the file name is generic too («Allegato B 2022», «DD 665-25», «Determina
+# (Bandi ed Esiti)») the title is looked for at the start of the document (first chunk): the
+# «Oggetto:» line of determinations and resolutions, otherwise the first line that is not a header.
 
-# Parole che da sole non identificano un documento
+# Words that alone do not identify a document
 _WEAK_WORDS = {
     "allegato", "determina", "determinazione", "modulo", "avviso", "documento", "delibera",
     "deliberazione", "decreto", "modello", "domanda", "schema", "scheda", "file", "prot",
@@ -140,10 +140,10 @@ _BOILERPLATE = re.compile(
     r"il sottoscritto|^\s*indice\s*$|^\s*pag(?:ina|\.)?\s*\d|_{3,}|\.{4,})",
     re.IGNORECASE,
 )
-_SPACED = re.compile(r"^(?:\S ){4,}")  # intestazioni con le lettere spaziate: «S E T T O R E»
+_SPACED = re.compile(r"^(?:\S ){4,}")  # headers with spaced-out letters: «S E T T O R E»
 _CONNECTIVE_END = re.compile(r"\b(?:di|del|della|delle|dei|degli|e|ed|per|a|al|alla|in|con)\s*$", re.IGNORECASE)
 _KEEP_UPPER_SMALL = re.compile(r"^\(?[A-Z]{2,4}\)?[:,.]?$")
-# Sigle che restano maiuscole quando un oggetto tutto maiuscolo passa in minuscolo
+# Acronyms that stay uppercase when an all-caps subject is lowercased
 _ACRONYMS = {
     "PIAO", "PTPC", "PTPCT", "POR", "FESR", "FSE", "PNRR", "PON", "DUP", "PEG", "PDO", "MEPA",
     "SRL", "SPA", "SAS", "SNC", "CIIP", "ODV", "APS", "UE", "EU", "IMU", "TARI", "TASI", "SUAP",
@@ -151,7 +151,7 @@ _ACRONYMS = {
     "SPID", "CIE", "ANPR", "ZTL", "DPI", "FFP2", "LLPP", "DURC", "IVA", "ICT", "GDPR", "CDA",
     "DGR", "DGC", "DCC", "DPCM", "TUEL", "ERP", "ACR", "RUP", "PAGOPA", "IO",
 }
-# Riferimenti normativi e codici che allungano gli oggetti senza dire cosa si fa
+# Legal references and codes that lengthen subjects without saying what is being done
 _LAW = (r"(?:d\.?\s*lgs\.?|d\.?\s*l\.|d\.?\s*p\.?\s*r\.?|l\.|legge|l\.\s*r\.|reg\.?\s*\(?ue\)?)\s*"
         r"(?:\d{1,2}\s+[a-z]+\s+\d{4}\s*,?\s*)?(?:n\.?\s*)?\d+\s*(?:/\s*\d{2,4})?"
         r"(?:\s*e\s*(?:ss\.?\s*mm\.?\s*ii|s\.?\s*m\.?\s*i)\.?)?")
@@ -168,7 +168,7 @@ _TEXT_MAX_LINES = 30
 
 
 def is_weak(title: str) -> bool:
-    """Vero se il titolo non contiene parole che identificano il documento:
+    """True if the title contains no words that identify the document:
     «Allegato B 2022», «DD 665-25», «Determina (Bandi ed Esiti)»."""
     t = re.sub(r"\([^)]*\)", " ", title or "").lower()
     words = [w for w in re.findall(r"[^\W\d_]+", t) if len(w) >= 4 and w not in _WEAK_WORDS]
@@ -176,8 +176,8 @@ def is_weak(title: str) -> bool:
 
 
 def _tame_caps(s: str) -> str:
-    """Testo quasi tutto maiuscolo → minuscolo con l'iniziale maiuscola; restano maiuscole
-    le sigle brevi tra parentesi o seguite da «:» (PIAO, CIG) e i codici con cifre o punti."""
+    """Mostly-uppercase text → lowercase with initial capital; short acronyms in
+    parentheses or followed by «:» (PIAO, CIG) and codes with digits or dots stay uppercase."""
     letters = [c for c in s if c.isalpha()]
     if not letters or sum(c.isupper() for c in letters) / len(letters) < 0.7:
         return s
@@ -207,10 +207,10 @@ def _clean_subject(s: str) -> str:
     s = re.sub(r"\s+([,.;:])", r"\1", s)
     s = re.sub(r"([,.;:])(?:\s*[,.;:–-])+", r"\1", s)
     s = re.sub(r"\s+-\s*$|^\s*[-–,.;:]\s*", "", s.strip())
-    # participio rimasto senza il suo riferimento: «…, effettuata»
+    # participle left without its reference: «…, effettuata»
     s = re.sub(r',?\s*\b(?:effettuat|adottat|approvat|previst|redatt)[aoie]\s*[,.;:"”]*\s*$', "", s,
                flags=re.IGNORECASE)
-    if s.count('"') == 1:  # virgolette rimaste spaiate dopo i tagli
+    if s.count('"') == 1:  # quotes left unpaired after the cuts
         s = s.replace('"', "")
     return re.sub(r"\s+", " ", s).strip(" ,.;:-–")
 
@@ -221,14 +221,14 @@ def _tidy(s: str) -> str:
 
 
 def title_from_text(text: str, stored_title: str = "") -> str:
-    """Titolo ricavato dall'inizio del PDF (testo del primo chunk), o "" se non si trova."""
+    """Title derived from the start of the PDF (first chunk's text), or "" if not found."""
     if stored_title and text.startswith(stored_title + "\n\n"):
-        text = text[len(stored_title) + 2:]  # il chunker antepone il titolo salvato
+        text = text[len(stored_title) + 2:]  # the chunker prepends the stored title
     lines = [ln.strip() for ln in text.split("\n")[:_TEXT_MAX_LINES]]
     lines = [ln for ln in lines if ln]
     page = re.compile(r"^\[pagina \d+\]$", re.IGNORECASE)
 
-    # 1. «Oggetto: …» (determine, delibere, decreti), anche su più righe
+    # 1. «Oggetto: …» (determinations, resolutions, decrees), also over several lines
     for i, ln in enumerate(lines):
         m = _OGGETTO.match(ln)
         if not m:
@@ -243,11 +243,11 @@ def title_from_text(text: str, stored_title: str = "") -> str:
             return subject
         break
 
-    # 2. Prima riga che non è intestazione, unita alle righe brevi che la continuano
+    # 2. First line that is not a header, joined with the short lines that continue it
     #    («Piano Dettagliato» / «degli» / «Obiettivi» / «2020»)
     prev = ""
     for i, ln in enumerate(lines):
-        # coda di un'intestazione andata a capo: «… CONTROLLO DI» / «GESTIONE»
+        # tail of a header wrapped onto a new line: «… CONTROLLO DI» / «GESTIONE»
         tail = _BOILERPLATE.search(prev) and _CONNECTIVE_END.search(prev)
         prev = ln
         if (tail or page.match(ln) or _BOILERPLATE.search(ln) or _SPACED.match(ln) or ln.startswith("(")
@@ -265,9 +265,9 @@ def title_from_text(text: str, stored_title: str = "") -> str:
 
 
 def with_text_title(base: str, text_title: str) -> str:
-    """«Piano Dettagliato degli Obiettivi 2020 (Allegato B)»: il titolo dal testo (al più
-    _MAX_LEN caratteri), con il nome del file tra parentesi quando è breve: aiuta a
-    riconoscere l'atto sul sito («… (DD 665-25)»)."""
+    """«Piano Dettagliato degli Obiettivi 2020 (Allegato B)»: the title from the text (at most
+    _MAX_LEN characters), with the file name in parentheses when it is short: it helps
+    recognize the act on the site («… (DD 665-25)»)."""
     if not text_title:
         return base
     head = _shorten(text_title)
@@ -277,11 +277,11 @@ def with_text_title(base: str, text_title: str) -> str:
     return f"{head} ({ref})"
 
 
-# --- Testo del link che punta al PDF ---------------------------------------------------
-# Il crawler salva, per ogni PDF, il testo del link nelle pagine del sito
-# (data/crawl_cache/pdf_link_texts.json): è l'etichetta scelta dalla redazione per i
-# cittadini («Delibera di Giunta n. 75 del 12/05/2016 "Atto di indirizzo…"»), quindi è il
-# primo candidato per il titolo. Esclusi «PDF Scarica», «Leggi», le dimensioni del file.
+# --- Text of the link pointing to the PDF ----------------------------------------------
+# For each PDF the crawler saves the link text found in the site pages
+# (data/crawl_cache/pdf_link_texts.json): it is the label chosen by the editors for
+# citizens («Delibera di Giunta n. 75 del 12/05/2016 "Atto di indirizzo…"»), so it is the
+# first candidate for the title. Excluded: «PDF Scarica», «Leggi», file sizes.
 
 LINK_TEXTS_FILE = "pdf_link_texts.json"
 _LINK_NOISE = re.compile(
@@ -315,8 +315,8 @@ def clean_link_text(text: str) -> str:
 
 
 def best_link_text(texts) -> str:
-    """Tra i testi dei link allo stesso PDF sceglie il più descrittivo (il più lungo
-    dopo la pulizia; a parità, il più frequente)."""
+    """Among the texts of links to the same PDF, pick the most descriptive (the longest
+    after cleaning; on a tie, the most frequent)."""
     counts: dict[str, int] = {}
     for raw in texts:
         t = clean_link_text(raw)

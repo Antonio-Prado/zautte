@@ -1,20 +1,20 @@
 """
-Indicizzatore per documenti caricati manualmente nella cartella inbox.
+Indexer for documents manually uploaded to the inbox folder.
 
-Uso:
-    python -m scripts.inbox_indexer            # processa i file in data/inbox/
-    python -m scripts.inbox_indexer --watch    # rimane in ascolto (polling)
+Usage:
+    python -m scripts.inbox_indexer            # process the files in data/inbox/
+    python -m scripts.inbox_indexer --watch    # keep listening (polling)
 
-La cartella inbox accetta:
+The inbox folder accepts:
     - PDF  (.pdf)
-    - Word (.docx)  — richiede python-docx
-    - Testo (.txt)
+    - Word (.docx)  — requires python-docx
+    - Text (.txt)
 
-Ogni file processato viene spostato in data/inbox/processed/
-I file con errori vanno in data/inbox/errors/
+Each processed file is moved to data/inbox/processed/
+Files with errors go to data/inbox/errors/
 
-Metadati opzionali: crea un file .json con lo stesso nome del documento.
-Esempio: per "delibera_2024.pdf" crea "delibera_2024.json":
+Optional metadata: create a .json file with the same name as the document.
+Example: for "delibera_2024.pdf" create "delibera_2024.json":
     {
         "title": "Delibera n.15 del 2024",
         "source_url": "https://www.mioente.it/documenti/2024/15",
@@ -55,7 +55,7 @@ def ensure_dirs():
 
 
 def load_metadata(doc_path: Path) -> dict:
-    """Carica metadati opzionali dal file .json accanto al documento."""
+    """Load optional metadata from the .json file next to the document."""
     meta_path = doc_path.with_suffix(".json")
     if meta_path.exists():
         try:
@@ -67,7 +67,7 @@ def load_metadata(doc_path: Path) -> dict:
 
 
 def extract_text(doc_path: Path) -> str:
-    """Estrae il testo dal documento in base all'estensione."""
+    """Extract the text from the document based on its extension."""
     ext = doc_path.suffix.lower()
 
     if ext == ".pdf":
@@ -97,8 +97,8 @@ def extract_text(doc_path: Path) -> str:
 
 def process_file(doc_path: Path) -> bool:
     """
-    Processa un singolo file: estrae testo, chunka, indicizza.
-    Ritorna True se il processing è avvenuto con successo.
+    Process a single file: extract text, chunk, index.
+    Returns True if processing succeeded.
     """
     log.info(f"Processamento: {doc_path.name}")
 
@@ -119,10 +119,10 @@ def process_file(doc_path: Path) -> bool:
             source_url=source_url,
             title=title,
             doc_type="pdf" if doc_path.suffix.lower() == ".pdf" else "document",
-            # origin=inbox: il vector store non li rimuove come "stale" nei sync
-            # (non sono nel crawl) né li sostituisce con la pagina crawlata che
-            # ha lo stesso source_url. Senza questo marker ogni full sync li
-            # cancellava tutti (14/09/2026: zero documenti inbox nel VS).
+            # origin=inbox: the vector store does not remove them as "stale" in syncs
+            # (they are not in the crawl) nor replace them with the crawled page that
+            # has the same source_url. Without this marker every full sync
+            # deleted them all (14/09/2026: zero inbox documents in the VS).
             extra_metadata={"category": category, "filename": doc_path.name, "origin": "inbox"},
         )
 
@@ -143,8 +143,8 @@ def process_file(doc_path: Path) -> bool:
 
 def process_inbox() -> tuple[int, int]:
     """
-    Processa tutti i file supportati nella cartella inbox.
-    Ritorna (ok, errori).
+    Process all the supported files in the inbox folder.
+    Returns (ok, errors).
     """
     ensure_dirs()
 
@@ -180,7 +180,7 @@ def process_inbox() -> tuple[int, int]:
 
 
 def watch_inbox(interval_seconds: int = 60):
-    """Polling continuo della cartella inbox."""
+    """Continuous polling of the inbox folder."""
     log.info(f"Watch inbox attivo (ogni {interval_seconds}s). Ctrl+C per fermare.")
     try:
         while True:

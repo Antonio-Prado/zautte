@@ -1,13 +1,13 @@
 """
-Divisione dei testi in chunk ottimizzati per RAG.
+Splitting of texts into chunks optimized for RAG.
 
-Strategia:
-  1. Split semantico per paragrafo (\n\n) — mantiene unità di senso intere
-  2. Se un paragrafo supera MAX_PARAGRAPH_CHARS, lo taglia ulteriormente
-     con overlap per non perdere contesto ai bordi
-  3. Il titolo della pagina viene preposto ad ogni chunk per migliorare
-     il retrieval anche quando il testo non contiene parole chiave esplicite
-  4. Righe rumorose (navigazione, feedback, pulsanti) vengono rimosse
+Strategy:
+  1. Semantic split by paragraph (\n\n) — keeps whole units of meaning together
+  2. If a paragraph exceeds MAX_PARAGRAPH_CHARS, it is split further
+     with overlap so context is not lost at the edges
+  3. The page title is prepended to every chunk to improve retrieval
+     even when the text does not contain explicit keywords
+  4. Noisy lines (navigation, feedback, buttons) are removed
 """
 
 import re
@@ -19,10 +19,10 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import CHUNK_OVERLAP
 
-# Paragrafi più lunghi di questo vengono ulteriormente suddivisi
+# Paragraphs longer than this are split further
 MAX_PARAGRAPH_CHARS = 1200
 
-# Overlap aumentato per non spezzare concetti ai bordi
+# Increased overlap so concepts are not cut at the edges
 EFFECTIVE_OVERLAP = max(CHUNK_OVERLAP, 150)
 
 _NOISE_CHUNK_LINES = re.compile(
@@ -37,7 +37,7 @@ _NOISE_CHUNK_LINES = re.compile(
 
 
 def _clean_chunk(text: str) -> str:
-    """Rimuove righe rumorose dal testo di un chunk."""
+    """Remove noisy lines from a chunk's text."""
     lines = []
     for line in text.splitlines():
         line = line.strip()
@@ -50,7 +50,7 @@ def _clean_chunk(text: str) -> str:
 
 
 def _split_long_paragraph(text: str) -> list[str]:
-    """Suddivide un paragrafo lungo con overlap."""
+    """Split a long paragraph with overlap."""
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=MAX_PARAGRAPH_CHARS,
         chunk_overlap=EFFECTIVE_OVERLAP,
@@ -68,11 +68,11 @@ def chunk_document(
     extra_metadata: dict | None = None,
 ) -> list[dict]:
     """
-    Divide un documento in chunk, ognuno con i suoi metadati.
+    Split a document into chunks, each with its metadata.
 
-    Ritorna lista di dict:
+    Return a list of dicts:
     {
-        "text": str,        # titolo + testo del chunk
+        "text": str,        # title + chunk text
         "metadata": {
             "source": str,
             "title": str,
@@ -86,7 +86,7 @@ def chunk_document(
     if not text:
         return []
 
-    # --- Split semantico per paragrafo ---
+    # --- Semantic split by paragraph ---
     paragraphs = re.split(r"\n{2,}", text)
 
     raw_chunks: list[str] = []
@@ -97,7 +97,7 @@ def chunk_document(
         if len(para) <= MAX_PARAGRAPH_CHARS:
             raw_chunks.append(para)
         else:
-            # Paragrafo troppo lungo: suddividi con overlap
+            # Paragraph too long: split with overlap
             raw_chunks.extend(_split_long_paragraph(para))
 
     chunks = []
@@ -106,7 +106,7 @@ def chunk_document(
         if len(chunk_text) < 80:
             continue
 
-        # Prependi il titolo per migliorare il retrieval semantico
+        # Prepend the title to improve semantic retrieval
         titled_text = f"{title}\n\n{chunk_text}" if title else chunk_text
 
         metadata = {

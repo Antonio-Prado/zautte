@@ -1,9 +1,9 @@
 """
-Controlla che la versione sia la stessa in version.json, nell'ultima voce di CHANGELOG.md
-(la prima dopo [Unreleased]), in CITATION.cff e in publiccode.yml; con un argomento (il tag, es. v0.2.0)
-controlla anche che il tag coincida. Esce con 1 se qualcosa non torna.
+Checks that the version is the same in version.json, in the last entry of CHANGELOG.md
+(the first one after [Unreleased]), in CITATION.cff and in publiccode.yml; with an argument (the tag, e.g. v0.2.0)
+it also checks that the tag matches. Exits with 1 if something does not add up.
 
-Uso:  python scripts/check_version.py [vX.Y.Z]
+Usage:  python scripts/check_version.py [vX.Y.Z]
 """
 
 import json

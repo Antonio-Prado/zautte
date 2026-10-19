@@ -1,6 +1,6 @@
 """
-Configurazione centralizzata di Zautte.
-Modifica questo file per adattare il sistema al tuo ambiente.
+Centralized configuration for Zautte.
+Edit this file to adapt the system to your environment.
 """
 
 import datetime as _datetime
@@ -12,40 +12,40 @@ try:
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).parent.parent / ".env")
 except ImportError:
-    # python-dotenv è facoltativo: senza, valgono solo le variabili d'ambiente
+    # python-dotenv is optional: without it, only environment variables apply
     pass
 
 
 def now_local() -> _datetime.datetime:
-    """Ora corrente del server con fuso locale (timezone-aware).
-    Usata per tutti i timestamp registrati nei file di dati."""
+    """Current server time with local timezone (timezone-aware).
+    Used for all timestamps recorded in the data files."""
     return _datetime.datetime.now(_datetime.UTC).astimezone()
 
 
-# --- Percorsi ---
+# --- Paths ---
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 VECTOR_DB_DIR = DATA_DIR / "vectordb"
 DOCUMENTS_DIR = DATA_DIR / "documents"
 CRAWL_CACHE_DIR = DATA_DIR / "crawl_cache"
 
-# --- Personalizzazioni dell'ente ---
-# Cartella (fuori dal repository) con i file specifici dell'installazione: pagine e
-# immagini del widget (widget/), area riservata (admin_panel/) e file di config
-# (config/). I file qui sostituiscono quelli omonimi del repository; quelli che
-# mancano restano i file generici. Vuota = solo i file del repository.
+# --- Organization customizations ---
+# Folder (outside the repository) with the installation-specific files: widget
+# pages and images (widget/), restricted area (admin_panel/) and config files
+# (config/). Files here replace the same-named ones in the repository; those
+# that are missing stay the generic files. Empty = repository files only.
 INSTANCE_DIR = os.getenv("INSTANCE_DIR", "").strip()
 
-# --- Sito target ---
-# Obbligatori: impostare in .env
+# --- Target site ---
+# Required: set in .env
 SITE_URL  = os.getenv("SITE_URL", "")
 SITE_NAME = os.getenv("SITE_NAME", "")
 
 # --- Crawling ---
-CRAWL_MAX_PAGES = 0            # 0 = nessun limite
-CRAWL_DELAY_SECONDS = 0.3      # pausa tra richieste (~3 pagine/secondo)
-# Domini consentiti: lista separata da virgola in .env
-# Esempio: CRAWL_ALLOWED_DOMAINS=www.comune.example.it,trasparenza.comune.example.it
+CRAWL_MAX_PAGES = 0            # 0 = no limit
+CRAWL_DELAY_SECONDS = 0.3      # pause between requests (~3 pages/second)
+# Allowed domains: comma-separated list in .env
+# Example: CRAWL_ALLOWED_DOMAINS=www.comune.example.it,trasparenza.comune.example.it
 CRAWL_ALLOWED_DOMAINS = [
     d.strip()
     for d in os.getenv("CRAWL_ALLOWED_DOMAINS", "").split(",")
@@ -54,37 +54,37 @@ CRAWL_ALLOWED_DOMAINS = [
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",
-    "?page=",      # pagine di paginazione news
-    "/news?",      # news con parametri query
-    "/login/",     # area login
+    "?page=",      # news pagination pages
+    "/news?",      # news with query parameters
+    "/login/",     # login area
 ]
 
-# Profondità massima del path URL (segmenti separati da /) — limite globale.
+# Maximum URL path depth (segments separated by /) — global limit.
 CRAWL_MAX_PATH_DEPTH = 10
 
-# Limiti di profondità per dominio specifico (override del limite globale).
-# Formato: {"dominio.example.it": 5}
-# Utile quando un CMS genera URL molto profondi con contenuto duplicato.
+# Depth limits for specific domains (override the global limit).
+# Format: {"dominio.example.it": 5}
+# Useful when a CMS generates very deep URLs with duplicate content.
 CRAWL_DOMAIN_MAX_PATH_DEPTH: dict[str, int] = {}
 CRAWL_EXTRA_START_URLS: list[str] = []
-# Host diversi che servono gli stessi file (es. allegati del CMS anche su CDN/bucket):
-# [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. Il crawler
-# riscrive questi URL sull'host canonico, così un file si scarica e si indicizza una volta.
+# Different hosts serving the same files (e.g. CMS attachments also on a CDN/bucket):
+# [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. The crawler
+# rewrites these URLs onto the canonical host, so a file is downloaded and indexed once.
 CRAWL_URL_ALIASES: list[dict] = []
-# Etichetta «sezione» dei metadati dal nome dell'host, in ordine, vince la prima regola:
-# [{"host_contains": "suap", "section": "suap"}]. Senza regole valida SECTION_DEFAULT.
+# "Section" metadata label derived from the host name, in order, the first rule wins:
+# [{"host_contains": "suap", "section": "suap"}]. With no rules SECTION_DEFAULT applies.
 CRAWL_SECTION_RULES: list[dict] = []
 SECTION_DEFAULT = "sito_principale"
-# Pezzi di URL dei PDF da non scaricare (i PDF non passano da CRAWL_EXCLUDE_PATTERNS,
-# che contiene ".pdf" per tenerli fuori dalla navigazione delle pagine)
+# URL fragments of PDFs not to download (PDFs do not go through CRAWL_EXCLUDE_PATTERNS,
+# which contains ".pdf" to keep them out of page navigation)
 CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
-# Fonti delle notizie quasi in tempo reale (scripts/news_sync.py): chiave "news" di
+# Near-real-time news sources (scripts/news_sync.py): "news" key of
 # crawl_extra.json → {"wordpress_api": ".../wp-json/wp/v2", "rss": [...],
 # "attachment_hosts": [...], "section": "..."}
 NEWS_SOURCES: dict = {}
 
-# Override specifici per il sito — caricati da config/crawl_extra.json se presente.
-# Permette di aggiungere pattern di esclusione e depth limit senza modificare il codice.
+# Site-specific overrides — loaded from config/crawl_extra.json if present.
+# Allows adding exclusion patterns and depth limits without changing the code.
 try:
     import json as _json_settings
     _crawl_extra_path = Path(__file__).parent / "crawl_extra.json"
@@ -100,20 +100,20 @@ try:
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
-# --- Domini migrati / dismessi ---
-# Domini le cui risorse non sono più raggiungibili al vecchio indirizzo perché
-# il portale è stato sostituito da una nuova piattaforma che redirige tutto a
-# una landing generica (es. un portale di trasparenza sostituito da un nuovo fornitore).
-# I chunk già indicizzati da questi domini RESTANO nel vector store — il testo è
-# ancora valido e utile — ma:
-#   - il loro URL-fonte NON viene mostrato all'utente né passato al LLM: darebbe
-#     un link morto. Il documento viene citato solo per titolo/sezione.
-#   - il full sync NON li tratta come "stale": non vanno rimossi solo perché non
-#     più crawlabili (altrimenti si perderebbe gran parte della base di conoscenza).
-# Gli URL originali restano nei metadati: se in futuro il fornitore fornirà una
-# mappa di redirect stabile, si potranno rimappare. Lista separata da virgola in
-# .env: MIGRATED_DOMAINS=vecchio.example.it,nuovo.example.it/percorso-dismesso (un dominio o
-# un prefisso di percorso). Vuota = nessun dominio migrato.
+# --- Migrated / retired domains ---
+# Domains whose resources are no longer reachable at the old address because
+# the portal was replaced by a new platform that redirects everything to
+# a generic landing page (e.g. a transparency portal replaced by a new vendor).
+# Chunks already indexed from these domains STAY in the vector store — the text is
+# still valid and useful — but:
+#   - their source URL is NOT shown to the user nor passed to the LLM: it would be
+#     a dead link. The document is cited by title/section only.
+#   - the full sync does NOT treat them as "stale": they must not be removed just
+#     because they can no longer be crawled (otherwise much of the knowledge base would be lost).
+# The original URLs stay in the metadata: if the vendor later provides a stable
+# redirect map, they can be remapped. Comma-separated list in
+# .env: MIGRATED_DOMAINS=vecchio.example.it,nuovo.example.it/percorso-dismesso (a domain or
+# a path prefix). Empty = no migrated domains.
 MIGRATED_DOMAINS = [
     d.strip()
     for d in os.getenv("MIGRATED_DOMAINS", "").split(",")
@@ -122,87 +122,87 @@ MIGRATED_DOMAINS = [
 
 
 def is_migrated_source(url: str) -> bool:
-    """True se l'URL appartiene a un dominio migrato/dismesso (link non più valido)."""
+    """True if the URL belongs to a migrated/retired domain (link no longer valid)."""
     return bool(url) and any(d in url for d in MIGRATED_DOMAINS)
 
 
 # --- Chunking ---
-CHUNK_SIZE = 800               # caratteri per chunk
-CHUNK_OVERLAP = 100            # overlap tra chunk consecutivi
+CHUNK_SIZE = 800               # characters per chunk
+CHUNK_OVERLAP = 100            # overlap between consecutive chunks
 
 # --- Embedding ---
-# Generati da Ollama (stesso servizio del LLM, nessuna dipendenza aggiuntiva).
-# bge-m3: 1024 dim, multilingue, contesto 8192 token. Nella prova del 03/10/2026
-# su 100 domande la pagina giusta finiva tra i 7 brani passati al modello 75 volte
-# contro 62 di mxbai-embed-large (il modello precedente, addestrato sull'inglese).
-# Cambiare modello richiede di ricalcolare tutti i vettori: scripts/reembed.py.
+# Generated by Ollama (same service as the LLM, no additional dependency).
+# bge-m3: 1024 dim, multilingual, 8192-token context. In the 03/10/2026 test
+# on 100 questions the right page ended up among the 7 passages given to the model 75 times
+# versus 62 for mxbai-embed-large (the previous model, trained on English).
+# Changing the model requires recomputing all vectors: scripts/reembed.py.
 OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 EMBEDDING_DIMENSION = 1024
 
 # --- Vector Store ---
-# Implementazione numpy (puro Python, nessuna compilazione richiesta)
+# numpy implementation (pure Python, no compilation required)
 VECTOR_STORE_DIR = DATA_DIR / "vectorstore"
-RETRIEVAL_TOP_K = 7            # chunk da recuperare per ogni query
+RETRIEVAL_TOP_K = 7            # chunks to retrieve for each query
 
 # --- LLM ---
-# Scegli: "ollama" (locale, privacy totale), "claude" (API diretta Anthropic)
-# oppure "bedrock" (modelli Claude su AWS Bedrock, elaborazione in UE)
+# Choose: "ollama" (local, full privacy), "claude" (direct Anthropic API)
+# or "bedrock" (Claude models on AWS Bedrock, processing in the EU)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
-# Ollama (locale)
+# Ollama (local)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 
-# Claude API (richiede DPA con Anthropic per uso in PA)
+# Claude API (requires a DPA with Anthropic for use in public administration)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
-# Sforzo di ragionamento per i modelli che ragionano per default (Sonnet 5.x e
-# successivi): "low" tiene bassi tempi e costi, come serve a un assistente informativo.
+# Reasoning effort for models that reason by default (Sonnet 5.x and
+# later): "low" keeps latency and costs down, as an informational assistant needs.
 LLM_EFFORT = os.getenv("LLM_EFFORT", "low")
 
-# Riscrittura della domanda per il retrieval nei turni successivi al primo:
-# il retrieval usa solo il testo della domanda corrente, quindi un follow-up
-# come "quali sono i requisiti?" perde l'argomento del turno precedente.
-# Con QUERY_REWRITE attivo la domanda viene resa autonoma dal modello prima
-# della ricerca (solo quando c'è storia conversazionale). Il modello per la
-# riscrittura è per default lo stesso della risposta; se ne può indicare uno
-# più economico in .env (es. claude-haiku-4-5).
+# Question rewriting for retrieval in turns after the first:
+# retrieval uses only the text of the current question, so a follow-up
+# like "quali sono i requisiti?" loses the topic of the previous turn.
+# With QUERY_REWRITE on, the model makes the question self-contained before
+# the search (only when there is conversation history). The model for the
+# rewrite is by default the same as for the answer; a cheaper one can be
+# set in .env (e.g. claude-haiku-4-5).
 QUERY_REWRITE = os.getenv("QUERY_REWRITE", "true").strip().lower() in ("1", "true", "yes", "on")
 CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
 
-# Claude su AWS Bedrock (LLM_PROVIDER=bedrock; richiede `pip install "anthropic[bedrock]"`).
-# Il profilo di inferenza "eu." elabora le richieste solo in regioni AWS dell'UE;
-# chiamando da Milano (eu-south-1) le destinazioni sono Milano, Francoforte,
-# Parigi, Irlanda, Spagna e Stoccolma. Credenziali dalla catena standard AWS
-# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE o AWS_BEARER_TOKEN_BEDROCK).
+# Claude on AWS Bedrock (LLM_PROVIDER=bedrock; requires `pip install "anthropic[bedrock]"`).
+# The "eu." inference profile processes requests only in EU AWS regions;
+# calling from Milan (eu-south-1) the destinations are Milan, Frankfurt,
+# Paris, Ireland, Spain and Stockholm. Credentials from the standard AWS chain
+# (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE or AWS_BEARER_TOKEN_BEDROCK).
 BEDROCK_AWS_REGION = os.getenv("BEDROCK_AWS_REGION", "eu-south-1")
 BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-6")
 BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
 
-# --- Dati personali nelle domande (vedi api/pii.py) ---
-# Con PII_REDACTION attivo codice fiscale, IBAN, carte di pagamento, email e
-# telefoni vengono sostituiti da un segnaposto prima dell'invio al modello e
-# della registrazione nei log. PII_KEEP_EMAIL_DOMAINS: domini istituzionali le
-# cui email restano in chiaro (es. "comune.example.it,pec.example.it").
+# --- Personal data in questions (see api/pii.py) ---
+# With PII_REDACTION on, tax codes, IBANs, payment cards, emails and
+# phone numbers are replaced by a placeholder before being sent to the model and
+# before being written to the logs. PII_KEEP_EMAIL_DOMAINS: institutional domains whose
+# emails stay in clear (e.g. "comune.example.it,pec.example.it").
 PII_REDACTION = os.getenv("PII_REDACTION", "true").strip().lower() in ("1", "true", "yes", "on")
 PII_KEEP_EMAIL_DOMAINS = [
     d.strip().lower().lstrip("@") for d in os.getenv("PII_KEEP_EMAIL_DOMAINS", "").split(",") if d.strip()
 ]
-# Con PII_BLOCK attivo una domanda che contiene dati personali (quelli
-# riconosciuti da PII_REDACTION o una presentazione in prima persona, come
-# «mi chiamo ...») NON viene elaborata: niente ricerca, niente modello, niente
-# registrazione del testo, solo una risposta fissa che invita a riformulare.
+# With PII_BLOCK on, a question that contains personal data (those
+# recognized by PII_REDACTION or a first-person introduction, such as
+# «mi chiamo ...») is NOT processed: no search, no model, no
+# logging of the text, only a fixed answer inviting the user to rephrase.
 PII_BLOCK = os.getenv("PII_BLOCK", "true").strip().lower() in ("1", "true", "yes", "on")
 
-# --- Conservazione dei log (giorni; 0 = nessuna scadenza) ---
-# Applicata da scripts/purge_logs.py (cron giornaliero). Valori da concordare con
-# il DPO e riportare nell'informativa privacy.
-#   RETENTION_USAGE_TEXT_DAYS: testo delle domande in usage.jsonl (poi restano
-#                              solo data, utente e metriche) e risposte in
+# --- Log retention (days; 0 = no expiry) ---
+# Applied by scripts/purge_logs.py (daily cron). Values to be agreed with
+# the DPO and reported in the privacy notice.
+#   RETENTION_USAGE_TEXT_DAYS: question text in usage.jsonl (afterwards only
+#                              date, user and metrics remain) and answers in
 #                              answers.jsonl
-#   RETENTION_USAGE_DAYS:      voci di usage.jsonl
-#   RETENTION_GAPS_DAYS:       domande senza risposta in gaps.jsonl
-#   RETENTION_FEEDBACK_DAYS:   feedback (voto, domanda, commento, autore)
+#   RETENTION_USAGE_DAYS:      usage.jsonl entries
+#   RETENTION_GAPS_DAYS:       unanswered questions in gaps.jsonl
+#   RETENTION_FEEDBACK_DAYS:   feedback (vote, question, comment, author)
 RETENTION_USAGE_TEXT_DAYS = int(os.getenv("RETENTION_USAGE_TEXT_DAYS", "90"))
 RETENTION_USAGE_DAYS = int(os.getenv("RETENTION_USAGE_DAYS", "365"))
 RETENTION_GAPS_DAYS = int(os.getenv("RETENTION_GAPS_DAYS", "180"))
@@ -212,68 +212,68 @@ RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 API_CORS_ORIGINS = os.getenv("API_CORS_ORIGINS", "http://localhost:8000").split(",")
-# Proxy o bilanciatore davanti all'API: indirizzi o reti, separati da virgola, di
-# cui si accettano X-Forwarded-For e X-Forwarded-Proto, così i limiti per IP e il
-# log vedono il client vero e non il proxy. Mai "*": la porta 8000 risponde anche
-# alla rete interna e chiunque potrebbe scriversi l'header da solo.
+# Proxy or load balancer in front of the API: comma-separated addresses or networks
+# from which X-Forwarded-For and X-Forwarded-Proto are accepted, so per-IP limits and the
+# log see the real client and not the proxy. Never "*": port 8000 also answers
+# on the internal network and anyone could write the header themselves.
 FORWARDED_ALLOW_IPS = os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
-# API_DOCS=true pubblica la documentazione interattiva (/docs e /openapi.json):
-# utile in sviluppo, spenta di default perché in produzione mostrerebbe a
-# chiunque l'elenco completo degli endpoint e dei parametri.
+# API_DOCS=true publishes the interactive documentation (/docs and /openapi.json):
+# useful in development, off by default because in production it would show
+# anyone the complete list of endpoints and parameters.
 API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes", "on")
 
-# --- Autenticazione endpoint admin ---
-# Impostare in .env per proteggere /gaps e /stats
-# Lasciare vuoto per disabilitare l'autenticazione (solo in sviluppo)
+# --- Admin endpoint authentication ---
+# Set in .env to protect /gaps and /stats
+# Leave empty to disable authentication (development only)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
-# Tentativi errati consentiti per indirizzo: raggiunto il massimo l'indirizzo viene
-# bloccato (429) per ADMIN_LOCKOUT_SECONDS, anche con la chiave giusta.
+# Wrong attempts allowed per address: once the maximum is reached the address is
+# blocked (429) for ADMIN_LOCKOUT_SECONDS, even with the right key.
 ADMIN_MAX_ATTEMPTS = int(os.getenv("ADMIN_MAX_ATTEMPTS", "5"))
 ADMIN_LOCKOUT_SECONDS = int(os.getenv("ADMIN_LOCKOUT_SECONDS", "900"))
-# Indirizzo dell'area riservata (es. /nome). Solo nel .env: vuoto = area disattivata.
+# Address of the restricted area (e.g. /nome). Only in .env: empty = area disabled.
 ADMIN_PATH = ("/" + os.getenv("ADMIN_PATH", "").strip().strip("/")) if os.getenv("ADMIN_PATH", "").strip().strip("/") else ""
 
-# --- Autenticazione utenti (login email+password per pilota a gruppo ristretto) ---
-# AUTH_ENABLED=true attiva il gate su /chat, /chat/stream, /feedback: chi non
-# ha effettuato il login non può usare il bot. Serve per capire chi lo usa,
-# quando e quanto (vedi data/usage.jsonl e GET /usage/summary).
-# AUTH_SECRET: segreto per firmare i token di sessione (OBBLIGATORIO se attivo).
-#   Genera con:  python -c "import secrets; print(secrets.token_hex(32))"
-# Gli utenti si creano con:  python -m scripts.adduser --email ... --name "..."
+# --- User authentication (email+password login for a restricted-group pilot) ---
+# AUTH_ENABLED=true enables the gate on /chat, /chat/stream, /feedback: whoever has not
+# logged in cannot use the bot. It serves to understand who uses it,
+# when and how much (see data/usage.jsonl and GET /usage/summary).
+# AUTH_SECRET: secret used to sign session tokens (REQUIRED if enabled).
+#   Generate with:  python -c "import secrets; print(secrets.token_hex(32))"
+# Users are created with:  python -m scripts.adduser --email ... --name "..."
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 AUTH_SECRET = os.getenv("AUTH_SECRET", "")
 AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "30"))
-# users.json vive in data/ (già in .gitignore): credenziali fuori dal versionamento
+# users.json lives in data/ (already in .gitignore): credentials kept out of version control
 USERS_FILE = DATA_DIR / "users.json"
-# Domande al giorno per utente su /chat e /chat/stream (0 = nessun limite).
-# Giorno di calendario del server: a mezzanotte si riparte da zero. Con
-# AUTH_ENABLED=false si conta per indirizzo IP. Vedi api/quota.py.
+# Questions per day per user on /chat and /chat/stream (0 = no limit).
+# Server calendar day: at midnight the count restarts from zero. With
+# AUTH_ENABLED=false the count is per IP address. See api/quota.py.
 DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
 
-# --- Invio email (SMTP) — per recapitare le credenziali ai partecipanti ---
-# Relay interno dell'ente (destinatari del dominio dell'ente):
-#   SMTP_HOST=mail.example.it  SMTP_PORT=25  (senza auth né TLS)
-# SMTP_USER/PASSWORD e SMTP_STARTTLS servono solo se il relay li richiede.
+# --- Email sending (SMTP) — to deliver credentials to participants ---
+# Organization's internal relay (recipients in the organization's domain):
+#   SMTP_HOST=mail.example.it  SMTP_PORT=25  (no auth or TLS)
+# SMTP_USER/PASSWORD and SMTP_STARTTLS are needed only if the relay requires them.
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "25"))
 SMTP_FROM = os.getenv("SMTP_FROM", "")
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").strip().lower() in ("1", "true", "yes", "on")
-# SMTP_SSL=true: TLS implicito fin dalla connessione (porta 465, es. Carbonio);
-# alternativo a SMTP_STARTTLS (porta 587).
+# SMTP_SSL=true: implicit TLS from the start of the connection (port 465, e.g. Carbonio);
+# alternative to SMTP_STARTTLS (port 587).
 SMTP_SSL = os.getenv("SMTP_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
-# URL della pagina dove i partecipanti fanno il login (inserito nell'email)
+# URL of the page where participants log in (inserted in the email)
 PILOT_LOGIN_URL = os.getenv("PILOT_LOGIN_URL", "")
 
-# Indirizzo che riceve un'email per ogni segnalazione dal widget (👎 con
-# commento e/o link). Vuoto = nessuna notifica; la segnalazione resta
-# comunque visibile nella dashboard (vista amministratore).
+# Address that receives an email for every report from the widget (👎 with
+# comment and/or link). Empty = no notification; the report remains
+# visible in the dashboard anyway (administrator view).
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
 
-# --- Prompt di sistema ---
+# --- System prompts ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""
-# Chi contattare quando manca l'informazione ("il Comune di …" per i siti comunali)
+# Whom to contact when the information is missing ("il Comune di …" for municipal sites)
 _org_it = (f"il {SITE_NAME}" if SITE_NAME.lower().startswith("comune ") else SITE_NAME) or "l'ente"
 _org_en = SITE_NAME or "the organization"
 _contact_hint_it = f"contattare direttamente {_org_it}" + (f" o visitare {SITE_URL}" if SITE_URL else "")

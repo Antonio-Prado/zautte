@@ -1,13 +1,13 @@
 """
-Archivio dei feedback (pollice su/giù) con dettagli opzionali.
+Store of feedback (thumbs up/down) with optional details.
 
-data/feedback.jsonl: una riga JSON per feedback —
+data/feedback.jsonl: one JSON line per feedback —
   {id, ts, rating, question, answer_preview, uid, user, comment, urls, details_ts}
 
-`comment` e `urls` possono arrivare insieme al voto oppure dopo, tramite
-attach_details(): il collega mette 👎, poi compila il modulo nel widget con
-il motivo e i link alle pagine dove sta l'informazione corretta. Così non
-deve più scrivere email all'amministratore, che vede tutto in dashboard.
+`comment` and `urls` can arrive together with the vote or afterwards, through
+attach_details(): the colleague gives a 👎, then fills in the form in the widget with
+the reason and the links to the pages where the correct information is. This way they no longer
+have to write emails to the administrator, who sees everything in the dashboard.
 """
 
 import json
@@ -41,8 +41,8 @@ def clean_comment(comment: str | None) -> str:
 
 
 def clean_urls(urls) -> list[str]:
-    """Normalizza e filtra i link: solo http/https (aggiunge https:// se manca),
-    niente spazi o virgolette, niente duplicati, al massimo MAX_URLS."""
+    """Normalises and filters the links: only http/https (adds https:// if missing),
+    no spaces or quotes, no duplicates, at most MAX_URLS."""
     from urllib.parse import urlsplit
     out: list[str] = []
     for u in urls or []:
@@ -50,7 +50,7 @@ def clean_urls(urls) -> list[str]:
         if not u:
             continue
         if "://" not in u:
-            u = "https://" + u   # "www.comune.it/pagina" incollato senza schema
+            u = "https://" + u   # "www.comune.it/pagina" pasted without a scheme
         if len(u) > MAX_URL_LEN or not _URL_RE.match(u):
             continue
         try:
@@ -67,17 +67,17 @@ def clean_urls(urls) -> list[str]:
 
 
 def vote_key(entry: dict) -> str | None:
-    """Chiave «un voto per utente per risposta»: uid::rid. None per le voci
-    senza utente o senza rid (anonime o precedenti al 05/10/2026), che
-    restano una per riga."""
+    """«One vote per user per answer» key: uid::rid. None for entries
+    without a user or without rid (anonymous or before 05/10/2026), which
+    stay one per line."""
     uid, rid = entry.get("uid"), entry.get("rid")
     return f"{uid}::{rid}" if uid and rid else None
 
 
 def dedup(entries: list[dict]) -> list[dict]:
-    """Un solo voto per utente e risposta: se la stessa coppia uid::rid compare
-    più volte vale l'ULTIMA (cambio di idea o clic ripetuti sul pollice; fino
-    all'11/10/2026 ogni clic aggiungeva una riga). L'ordine resta quello del file."""
+    """One vote per user and answer: if the same uid::rid pair appears
+    several times the LAST one wins (change of mind or repeated clicks on the thumb; until
+    11/10/2026 every click added a line). The order stays that of the file."""
     last: dict[str, int] = {}
     for i, e in enumerate(entries):
         k = vote_key(e)
@@ -88,9 +88,9 @@ def dedup(entries: list[dict]) -> list[dict]:
 
 
 def append(entry: dict) -> dict:
-    """Registra un feedback e lo ritorna con il suo id. Se lo stesso utente ha
-    già votato la stessa risposta (uid::rid), il nuovo voto SOSTITUISCE il
-    vecchio nella sua riga, conservandone l'id; altrimenti viene aggiunto in coda."""
+    """Records a feedback and returns it with its id. If the same user has
+    already voted on the same answer (uid::rid), the new vote REPLACES the
+    old one in its line, keeping its id; otherwise it is appended at the end."""
     FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
     key = vote_key(entry)
     if key and FEEDBACK_FILE.exists():
@@ -125,15 +125,15 @@ def iter_entries() -> list[dict]:
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
-                # riga troncata o corrotta (es. scrittura interrotta): si salta
+                # truncated or corrupted line (e.g. interrupted write): skipped
                 pass
     return out
 
 
 def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | None:
-    """Allega commento e URL al feedback `fid`, solo se appartiene a `uid`.
-    Riscrive il file in modo atomico. Ritorna la voce aggiornata, oppure None
-    se non trovata o non sua."""
+    """Attaches comment and URLs to feedback `fid`, only if it belongs to `uid`.
+    Rewrites the file atomically. Returns the updated entry, or None
+    if not found or not theirs."""
     if not fid or not FEEDBACK_FILE.exists():
         return None
     found = None
@@ -164,7 +164,7 @@ def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | 
 
 
 def find_entry(ts: str, question: str) -> dict | None:
-    """Il feedback con quel timestamp e quella domanda (l'ultimo, se più di uno)."""
+    """The feedback with that timestamp and that question (the last one, if more than one)."""
     found = None
     q = (question or "")[:200]
     for e in iter_entries():
@@ -174,13 +174,13 @@ def find_entry(ts: str, question: str) -> dict | None:
 
 
 def resolved_key(ts: str, question: str) -> str:
-    """Chiave con cui un feedback negativo viene marcato risolto (le voci
-    precedenti al 14/09/2026 non hanno un id)."""
+    """Key by which a negative feedback is marked as resolved (entries
+    before 14/09/2026 have no id)."""
     return f"{ts}::{question[:200]}"
 
 
 def load_resolved() -> set[str]:
-    """Chiavi dei feedback negativi già marcati risolti dall'amministratore."""
+    """Keys of the negative feedback already marked as resolved by the administrator."""
     if not RESOLVED_FILE.exists():
         return set()
     try:
@@ -191,9 +191,9 @@ def load_resolved() -> set[str]:
 
 def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
                   include_resolved: bool = False) -> tuple[list[dict], int, int]:
-    """Feedback negativi con i dettagli segnalati (autore, commento, link).
-    Di default solo quelli non risolti; con include_resolved anche gli altri,
-    con il campo `resolved`. Ritorna (ultimi `limit`, negativi aperti, totali)."""
+    """Negative feedback with the reported details (author, comment, links).
+    By default only the unresolved ones; with include_resolved also the others,
+    with the `resolved` field. Returns (last `limit`, open negatives, totals)."""
     items = []
     total = 0
     open_count = 0

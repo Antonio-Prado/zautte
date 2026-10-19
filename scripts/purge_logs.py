@@ -1,22 +1,22 @@
 """
-Applica i tempi di conservazione ai log con dati degli utenti (data/).
+Applies the retention periods to the logs containing user data (data/).
 
-  usage.jsonl     → dopo RETENTION_USAGE_TEXT_DAYS toglie il testo della domanda,
-                    dopo RETENTION_USAGE_DAYS elimina la voce
-  answers.jsonl   → elimina le risposte più vecchie di RETENTION_USAGE_TEXT_DAYS
-                    (stessa scadenza del testo della domanda)
-  gaps.jsonl      → elimina le voci più vecchie di RETENTION_GAPS_DAYS
-  feedback.jsonl  → elimina le voci più vecchie di RETENTION_FEEDBACK_DAYS
-                    (e le relative marcature "risolto" in resolved_negative.json)
+  usage.jsonl     → after RETENTION_USAGE_TEXT_DAYS removes the question text,
+                    after RETENTION_USAGE_DAYS deletes the entry
+  answers.jsonl   → deletes answers older than RETENTION_USAGE_TEXT_DAYS
+                    (same expiry as the question text)
+  gaps.jsonl      → deletes entries older than RETENTION_GAPS_DAYS
+  feedback.jsonl  → deletes entries older than RETENTION_FEEDBACK_DAYS
+                    (and the related "risolto" marks in resolved_negative.json)
 
-Un valore 0 disattiva la scadenza corrispondente. Da lanciare ogni giorno via
-cron, con lo stesso utente del servizio oppure come root (i file riscritti
-mantengono proprietario e permessi):
+A value of 0 disables the corresponding expiry. To be run every day via
+cron, with the same user as the service or as root (rewritten files
+keep owner and permissions):
 
-    python -m scripts.purge_logs            # applica
-    python -m scripts.purge_logs --dry-run  # mostra solo cosa farebbe
+    python -m scripts.purge_logs            # apply
+    python -m scripts.purge_logs --dry-run  # only show what it would do
 
-Stampa solo conteggi, mai il contenuto delle voci.
+Prints only counts, never the content of the entries.
 """
 
 import argparse
@@ -86,7 +86,7 @@ def purge_gaps(dry_run: bool) -> int:
 def purge_feedback(dry_run: bool) -> tuple[int, int]:
     cut = _cutoff(RETENTION_FEEDBACK_DAYS)
     removed, _ = rewrite_jsonl(FEEDBACK_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
-    # Marcature "risolto": chiave "<ts del feedback>::<domanda>"
+    # "risolto" marks: key "<ts del feedback>::<domanda>"
     resolved_removed = (drop_resolved(lambda key: _older(key.split("::", 1)[0], cut), dry_run)
                         if cut is not None else 0)
     return removed, resolved_removed

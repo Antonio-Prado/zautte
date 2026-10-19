@@ -1,20 +1,20 @@
 """
-Controlla che i vettori calcolati da Ollama non cambino, prima e dopo un
-aggiornamento di Ollama (o di qualsiasi cosa tocchi gli embedding).
+Checks that the vectors computed by Ollama do not change, before and after an
+Ollama update (or anything that touches the embeddings).
 
-Prende 50 brani a caso dell'indice (seme fisso, solo vettori non nulli) e 10
-domande tipo, ne calcola i vettori con l'Ollama in esecuzione e li confronta
-(similarità del coseno). Vettori diversi da quelli dell'indice peggiorano la
-ricerca finché non si ricalcola tutto (scripts/reembed.py).
+It takes 50 random passages from the index (fixed seed, non-zero vectors only) and 10
+sample questions, computes their vectors with the running Ollama and compares them
+(cosine similarity). Vectors different from those in the index degrade the
+search until everything is recomputed (scripts/reembed.py).
 
-Uso (sul server, dalla directory del progetto):
-    venv/bin/python -m scripts.embed_check save    /percorso/prima.npz   # prima dell'aggiornamento
-    venv/bin/python -m scripts.embed_check compare /percorso/prima.npz   # dopo
+Usage (on the server, from the project directory):
+    venv/bin/python -m scripts.embed_check save    /path/prima.npz   # before the update
+    venv/bin/python -m scripts.embed_check compare /path/prima.npz   # after
 
-`save` stampa anche il confronto con i vettori dell'indice (deve essere 1,0 o
-quasi). `compare` esce con 2 se la similarità minima con il salvataggio è
-sotto 0,999. Il 6/10/2026, da Ollama 0.19.0 a 0.31.1 con bge-m3: minima
-0,999906, media 0,999982, domande identiche; nessun ricalcolo necessario.
+`save` also prints the comparison with the index vectors (it must be 1.0 or
+almost). `compare` exits with 2 if the minimum similarity with the saved file is
+below 0.999. On 6/10/2026, from Ollama 0.19.0 to 0.31.1 with bge-m3: minimum
+0.999906, mean 0.999982, identical questions; no recomputation needed.
 """
 
 import json

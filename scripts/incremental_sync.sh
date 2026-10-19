@@ -1,7 +1,7 @@
 #!/bin/sh
-# Aggiornamento incrementale notturno del vector store.
-# Il logging è gestito direttamente da sync.py (WatchedFileHandler).
-# Aggiungere a /etc/crontab:
+# Nightly incremental update of the vector store.
+# Logging is handled directly by sync.py (WatchedFileHandler).
+# Add to /etc/crontab:
 #   0 3 * * * root /opt/chatbot/scripts/incremental_sync.sh
 
 LOCKFILE=/var/run/chatbot-sync.lock

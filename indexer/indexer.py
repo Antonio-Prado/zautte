@@ -1,19 +1,19 @@
 """
-Indexer principale: legge l'output del crawler, estrae testo, genera
-embedding e popola il vector store. Può essere rieseguito (upsert idempotente).
+Main indexer: reads the crawler output, extracts text, generates
+embeddings and populates the vector store. Can be re-run (idempotent upsert).
 
-Per ogni documento si confrontano i chunk nuovi con quelli già nello store
-(stesso id e stesso testo, vettore non nullo): solo i chunk cambiati o mai
-embeddati passano da Ollama, gli altri aggiornano soltanto i metadati.
-I chunk di una sorgente che non compaiono più nella sua versione aggiornata
-vengono rimossi in blocco ai checkpoint. Le scritture su disco sono
-differite (vedi vector_store.deferred_saves): un salvataggio ogni
-CHECKPOINT_INTERVAL invece di due per documento.
+For each document the new chunks are compared with those already in the store
+(same id and same text, non-null vector): only changed or never-embedded
+chunks go through Ollama, the others only update the metadata.
+Chunks of a source that no longer appear in its updated version
+are removed in bulk at checkpoints. Disk writes are
+deferred (see vector_store.deferred_saves): one save every
+CHECKPOINT_INTERVAL instead of two per document.
 
-Uso:
-    python -m indexer.indexer              # indicizza tutto
-    python -m indexer.indexer --reset      # svuota e reindicizza
-    python -m indexer.indexer --stats      # mostra statistiche
+Usage:
+    python -m indexer.indexer              # index everything
+    python -m indexer.indexer --reset      # clear and reindex
+    python -m indexer.indexer --stats      # show statistics
 """
 
 import argparse
@@ -51,17 +51,17 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-BATCH_SIZE = 50  # chunk da embeddare per ogni chiamata a embed_texts
+BATCH_SIZE = 50  # chunks to embed per embed_texts call
 
 
 class _Batcher:
-    """Accumula i chunk in attesa di upsert e gli id stale da rimuovere.
-    L'embedding parte quando i chunk da embeddare raggiungono BATCH_SIZE;
-    rimozioni e salvataggio su disco avvengono ai checkpoint."""
+    """Accumulate chunks awaiting upsert and the stale ids to remove.
+    Embedding starts when the chunks to embed reach BATCH_SIZE;
+    removals and disk saves happen at checkpoints."""
 
     def __init__(self):
         self.chunks: list[dict] = []
-        self.flags: list[bool] = []      # True = il chunk va embeddato
+        self.flags: list[bool] = []      # True = the chunk must be embedded
         self.to_embed = 0
         self.stale_ids: set[str] = set()
         self.total_inserted = 0
@@ -76,7 +76,7 @@ class _Batcher:
             self.flush()
 
     def flush(self):
-        """Genera gli embedding mancanti e fa l'upsert di tutti i chunk pendenti."""
+        """Generate the missing embeddings and upsert all pending chunks."""
         if not self.chunks:
             return
         texts = [c["text"] for c, f in zip(self.chunks, self.flags) if f]
@@ -89,7 +89,7 @@ class _Batcher:
         self.chunks, self.flags, self.to_embed = [], [], 0
 
     def checkpoint(self, force: bool = False):
-        """Ai checkpoint: flush, rimozione in blocco degli id stale, scrittura su disco."""
+        """At checkpoints: flush, bulk removal of stale ids, write to disk."""
         if not force and not checkpoint_due():
             return
         self.flush()
@@ -104,7 +104,7 @@ class _Batcher:
 
 
 def load_index() -> dict:
-    """Carica l'indice prodotto dal crawler."""
+    """Load the index produced by the crawler."""
     index_path = CRAWL_CACHE_DIR / "index.json"
     if not index_path.exists():
         log.error(f"Indice crawler non trovato: {index_path}")
@@ -115,8 +115,8 @@ def load_index() -> dict:
 
 
 def _queue_document(batcher: _Batcher, chunks: list[dict], source: str) -> tuple[int, int]:
-    """Decide quali chunk del documento vanno embeddati e quali chunk già nello
-    store per la stessa sorgente sono diventati stale. Ritorna (da_embeddare, stale)."""
+    """Decide which chunks of the document must be embedded and which chunks already in the
+    store for the same source have become stale. Return (to_embed, stale)."""
     ids = [
         make_chunk_id(c["text"], c["metadata"].get("source", ""), c["metadata"].get("chunk_index", 0))
         for c in chunks
@@ -133,7 +133,7 @@ def _index_documents(
     make_chunks: Callable[[dict], list[dict] | None],
     skip_existing: bool,
 ) -> tuple[int, int]:
-    """Ciclo comune a pagine e PDF. Ritorna (documenti_ok, chunk_inseriti)."""
+    """Loop shared by pages and PDFs. Return (docs_ok, chunks_inserted)."""
     already_indexed = get_indexed_sources() if skip_existing else set()
     skipped = 0
     unchanged = 0
@@ -173,7 +173,7 @@ def _index_documents(
 
 
 def _page_chunks(page: dict) -> list[dict] | None:
-    """Legge il testo salvato dal crawler e lo spezza in chunk."""
+    """Read the text saved by the crawler and split it into chunks."""
     fpath = Path(page["file"])
     if not fpath.exists():
         log.warning(f"  File non trovato: {fpath}")
@@ -202,7 +202,7 @@ def _page_chunks(page: dict) -> list[dict] | None:
 
 
 def _pdf_chunks(pdf: dict) -> list[dict] | None:
-    """Estrae il testo dal PDF e lo spezza in chunk."""
+    """Extract the text from the PDF and split it into chunks."""
     fpath = Path(pdf["file"])
     if not fpath.exists():
         log.warning(f"  File non trovato: {fpath}")
@@ -229,18 +229,18 @@ def _pdf_chunks(pdf: dict) -> list[dict] | None:
 
 
 def index_pages(pages: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
-    """Indicizza le pagine HTML. Ritorna (documenti_ok, chunk_inseriti).
+    """Index the HTML pages. Return (docs_ok, chunks_inserted).
 
-    `replace_existing` è mantenuto per compatibilità: il confronto per chunk
-    (testo e vettore) vale in ogni modalità, quindi anche il sync full
-    riembedda solo ciò che è cambiato e rimuove i chunk stale della sorgente.
+    `replace_existing` is kept for compatibility: the per-chunk comparison
+    (text and vector) applies in every mode, so even the full sync
+    re-embeds only what changed and removes the source's stale chunks.
     """
     return _index_documents(pages, "HTML", _page_chunks, skip_existing)
 
 
 def index_pdfs(pdfs: list[dict], skip_existing: bool = False, replace_existing: bool = False) -> tuple[int, int]:
-    """Indicizza i documenti PDF. Ritorna (documenti_ok, chunk_inseriti).
-    Vedi index_pages per il significato di `replace_existing`."""
+    """Index the PDF documents. Return (docs_ok, chunks_inserted).
+    See index_pages for the meaning of `replace_existing`."""
     return _index_documents(pdfs, "PDF", _pdf_chunks, skip_existing)
 
 
@@ -276,7 +276,7 @@ def main():
     total_docs = 0
     total_chunks = 0
 
-    skip = not args.reset  # salta i già indicizzati a meno di --reset
+    skip = not args.reset  # skip those already indexed unless --reset
 
     if not args.only_pdf:
         docs, chunks = index_pages(pages, skip_existing=skip)

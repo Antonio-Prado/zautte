@@ -1,19 +1,19 @@
 """
-Limite giornaliero di domande (DAILY_QUESTION_LIMIT, default 20) su /chat e
+Daily question limit (DAILY_QUESTION_LIMIT, default 20) on /chat and
 /chat/stream.
 
-Si conta per utente autenticato (uid del token) e per giorno di calendario del
-server: a mezzanotte si riparte da zero. Con AUTH_ENABLED=false tutti sono
-«anon» e si conta per indirizzo IP del client (quello vero dietro il proxy, vedi
+It is counted per authenticated user (uid from the token) and per server calendar day:
+at midnight it restarts from zero. With AUTH_ENABLED=false everyone is
+«anon» and it is counted by client IP address (the real one behind the proxy, see
 FORWARDED_ALLOW_IPS).
 
-I contatori stanno in memoria: c'è un solo processo uvicorn (api/serve.py). Al
-primo uso si ricostruiscono da data/usage.jsonl, così un riavvio (deploy, fine
-di un sync) non regala domande; le domande per IP non sono in usage.jsonl e
-dopo un riavvio ripartono da zero.
+Counters are kept in memory: there is a single uvicorn process (api/serve.py). On
+first use they are rebuilt from data/usage.jsonl, so a restart (deploy, end
+of a sync) does not hand out free questions; per-IP questions are not in usage.jsonl and
+restart from zero after a restart.
 
-Una domanda si conta quando arriva, così chi ne manda molte insieme non supera
-il limite, e si restituisce se la risposta fallisce.
+A question is counted when it arrives, so someone sending many at once does not exceed
+the limit, and it is given back if the answer fails.
 """
 
 import datetime
@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 
 _USAGE_FILE = Path(__file__).parent.parent / "data" / "usage.jsonl"
 
-# Contatori del solo giorno corrente: {giorno ISO: {chiave: domande}}
+# Counters for the current day only: {ISO day: {key: questions}}
 _by_day: dict[str, dict[str, int]] = {}
 
 
@@ -36,8 +36,8 @@ def _today() -> str:
 
 
 def _load_today(day: str) -> dict[str, int]:
-    """Domande di oggi per utente, lette da usage.jsonl (una riga per domanda
-    con "ts" ISO nel fuso del server e "uid")."""
+    """Today's questions per user, read from usage.jsonl (one line per question
+    with ISO "ts" in the server timezone and "uid")."""
     counts: dict[str, int] = {}
     try:
         with open(_USAGE_FILE, encoding="utf-8") as fh:
@@ -52,15 +52,15 @@ def _load_today(day: str) -> dict[str, int]:
                     key = f"uid:{e['uid']}"
                     counts[key] = counts.get(key, 0) + 1
     except FileNotFoundError:
-        pass  # nessuna domanda registrata finora: si parte da zero
+        pass  # no question recorded so far: start from zero
     except OSError as e:
         log.warning("usage.jsonl non leggibile, contatori giornalieri da zero: %s", e)
     return counts
 
 
 def _current() -> dict[str, int]:
-    """Contatori del giorno corrente; al primo uso li legge da usage.jsonl, a
-    mezzanotte li azzera."""
+    """Counters for the current day; on first use it reads them from usage.jsonl, at
+    midnight it resets them."""
     day = _today()
     counts = _by_day.get(day)
     if counts is None:
@@ -71,7 +71,7 @@ def _current() -> dict[str, int]:
 
 
 def load() -> None:
-    """Legge i contatori di oggi; all'avvio dell'API, in un thread (I/O su file)."""
+    """Reads today's counters; at API startup, in a thread (file I/O)."""
     counts = _current()
     if counts:
         log.info("Domande di oggi ricostruite da usage.jsonl: %d utenti, %d domande",
@@ -86,7 +86,7 @@ def key_for(user: dict, client_ip: str) -> str:
 
 
 def take(key: str) -> bool:
-    """Conta una domanda; False se il limite di oggi è già raggiunto."""
+    """Counts a question; False if today's limit has already been reached."""
     if DAILY_QUESTION_LIMIT <= 0:
         return True
     counts = _current()
@@ -97,7 +97,7 @@ def take(key: str) -> bool:
 
 
 def give_back(key: str) -> None:
-    """Restituisce una domanda la cui risposta è fallita."""
+    """Gives back a question whose answer failed."""
     if DAILY_QUESTION_LIMIT <= 0:
         return
     counts = _current()

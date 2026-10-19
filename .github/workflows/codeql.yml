@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "30 3 * * 1"   # ogni lunedì alle 03:30 UTC
+    - cron: "30 3 * * 1"   # every Monday at 03:30 UTC
 
 jobs:
   analyze:
@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # python: API, indicizzazione, script; javascript-typescript: widget
-        # e script delle pagine HTML; actions: i workflow di questa cartella
+        # python: API, indexing, scripts; javascript-typescript: widget
+        # and scripts of the HTML pages; actions: the workflows in this folder
         language: [python, javascript-typescript, actions]
 
     steps:

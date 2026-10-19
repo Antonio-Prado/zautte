@@ -1,14 +1,14 @@
 # Secrets
 .env
 
-# Contenuti specifici di ogni ente (fatti noti, sinonimi, uffici, override del crawl):
-# non fanno parte del software, partire dai file *.example.json
+# Content specific to each organisation (known facts, synonyms, offices, crawl overrides):
+# not part of the software, start from the *.example.json files
 config/known_facts.json
 config/synonyms.json
 config/offices.json
 config/crawl_extra.json
 
-# Dati generati a runtime (non versionare)
+# Data generated at runtime (do not version)
 data/
 venv/
 __pycache__/
@@ -26,7 +26,7 @@ build/
 *.log
 logs/
 
-# Logo organizzazione (da sostituire con quello del proprio ente)
+# Organisation logo (replace with your own)
 widget/logo.png
 
 # macOS
@@ -43,6 +43,6 @@ widget/logo.png
 .coverage
 htmlcov/
 
-# Claude Code project settings (contengono comandi specifici del server)
+# Claude Code project settings (contain server-specific commands)
 .claude/
 node_modules/

@@ -1,15 +1,15 @@
 """
-Vector store basato su numpy — nessuna dipendenza esterna da compilare.
-Salva embedding e metadata su disco, esegue ricerca coseno in memoria.
+Numpy-based vector store — no external dependency to compile.
+Saves embeddings and metadata to disk, runs cosine search in memory.
 
-Supporta hybrid search: cosine similarity (vettori) + BM25 (keyword),
-combinati tramite Reciprocal Rank Fusion (RRF).
+Supports hybrid search: cosine similarity (vectors) + BM25 (keyword),
+combined through Reciprocal Rank Fusion (RRF).
 
-Salvataggio su disco: ogni modifica (upsert/rimozione) riscrive i tre file
-dello store (embeddings.npy, metadata.json, ids.json — oltre 1 GB con 240k
-chunk). Durante un'indicizzazione lunga usare `deferred_saves()`: le
-scritture vengono rinviate ai `checkpoint()` periodici e all'uscita dal
-blocco, invece di una riscrittura completa per ogni documento.
+Saving to disk: every change (upsert/removal) rewrites the three store
+files (embeddings.npy, metadata.json, ids.json — over 1 GB with 240k
+chunks). During a long indexing run use `deferred_saves()`: writes
+are postponed to the periodic `checkpoint()` calls and to the exit from the
+block, instead of a full rewrite for every document.
 """
 
 import hashlib
@@ -35,31 +35,31 @@ EMBEDDINGS_FILE = VECTOR_STORE_DIR / "embeddings.npy"
 METADATA_FILE   = VECTOR_STORE_DIR / "metadata.json"
 IDS_FILE        = VECTOR_STORE_DIR / "ids.json"
 
-CHECKPOINT_INTERVAL = 1800  # secondi tra due salvataggi in modalità deferred
+CHECKPOINT_INTERVAL = 1800  # seconds between two saves in deferred mode
 
-# Stato in memoria (caricato una volta sola)
+# In-memory state (loaded only once)
 _embeddings: np.ndarray | None = None   # shape (N, D)
 _metadata: list[dict] = []
 _ids: list[str] = []
 _id_to_idx: dict[str, int] = {}
-_bm25 = None          # indice BM25, ricostruito (lazy) quando il corpus cambia
-_bm25_dirty = False   # True se il corpus è cambiato dopo l'ultima costruzione
-_pdf_title_count: Counter | None = None  # /Title → n. di PDF che lo usano (lazy)
-_pdf_first_text: dict[str, str] = {}      # sorgente PDF → testo del primo chunk
-_pdf_display: dict[str, str] = {}         # sorgente PDF → titolo da mostrare (cache)
-_pdf_link_texts: dict[str, str] = {}      # sorgente PDF → testo del link (dal crawler)
+_bm25 = None          # BM25 index, rebuilt (lazily) when the corpus changes
+_bm25_dirty = False   # True if the corpus changed after the last build
+_pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (lazy)
+_pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
+_pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
+_pdf_link_texts: dict[str, str] = {}      # PDF source → link text (from the crawler)
 
-# Salvataggio differito (vedi deferred_saves / checkpoint)
+# Deferred saving (see deferred_saves / checkpoint)
 _deferred_depth = 0
-# Serializza le ricerche con reload(): lo scambio dello store in memoria non deve
-# avvenire a metà di una ricerca.
+# Serializes searches with reload(): swapping the in-memory store must not
+# happen in the middle of a search.
 _lock = threading.RLock()
-_dirty = False        # modifiche in memoria non ancora scritte su disco
+_dirty = False        # in-memory changes not yet written to disk
 _last_save_ts = 0.0
 
 
 def _read_from_disk() -> tuple[np.ndarray, list[dict], list[str]] | None:
-    """Legge i tre file dello store. None se mancano; eccezione se illeggibili."""
+    """Reads the three store files. None if missing; exception if unreadable."""
     if not (EMBEDDINGS_FILE.exists() and METADATA_FILE.exists() and IDS_FILE.exists()):
         return None
     embeddings = np.load(str(EMBEDDINGS_FILE))
@@ -95,12 +95,12 @@ def _ensure_loaded():
 
 
 def reload() -> dict:
-    """Ricarica lo store da disco mentre il processo continua a rispondere:
-    serve all'API per vedere i brani scritti da `scripts.sync news` senza il
-    riavvio (20-30 s di 502) che segue i sync settimanali. Il nuovo store e il
-    suo BM25 si costruiscono a parte e si scambiano sotto `_lock`, così nessuna
-    ricerca vede uno stato a metà. Se i file sono illeggibili resta quello
-    vecchio. Ritorna le statistiche con `reloaded` True/False."""
+    """Reloads the store from disk while the process keeps answering:
+    lets the API see the passages written by `scripts.sync news` without the
+    restart (20-30 s of 502) that follows the weekly syncs. The new store and
+    its BM25 are built separately and swapped under `_lock`, so no
+    search sees a half-built state. If the files are unreadable the old one
+    stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts
     try:
@@ -125,7 +125,7 @@ def reload() -> dict:
 
 def _reset_state():
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count
-    _embeddings = None  # dimensione determinata dal primo batch
+    _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
     _id_to_idx = {}
@@ -135,12 +135,12 @@ def _reset_state():
 
 
 def _tokenize(text: str) -> list[str]:
-    """Tokenizzazione semplice per BM25: lowercase, solo parole."""
+    """Simple tokenization for BM25: lowercase, words only."""
     return re.findall(r"[a-zàáâäèéêëìíîïòóôöùúûü]+", text.lower())
 
 
 def _make_bm25(metadata: list[dict]):
-    """Indice BM25 del corpus dato (None se vuoto o senza rank_bm25)."""
+    """BM25 index of the given corpus (None if empty or without rank_bm25)."""
     if not metadata:
         return None
     try:
@@ -153,31 +153,31 @@ def _make_bm25(metadata: list[dict]):
 
 
 def _build_bm25():
-    """Costruisce o ricostruisce l'indice BM25 dal corpus corrente."""
+    """Builds or rebuilds the BM25 index from the current corpus."""
     global _bm25, _bm25_dirty
     _bm25_dirty = False
     _bm25 = _make_bm25(_metadata)
 
 
 def _ensure_bm25():
-    """Ricostruisce BM25 solo se il corpus è cambiato dall'ultima costruzione.
-    La ricostruzione (tokenizzazione di tutto il corpus) è costosa: va fatta
-    una volta prima di una ricerca, non a ogni salvataggio."""
+    """Rebuilds BM25 only if the corpus changed since the last build.
+    Rebuilding (tokenizing the whole corpus) is expensive: do it
+    once before a search, not at every save."""
     if _bm25_dirty:
         _build_bm25()
 
 
 def _atomic_write_json(path: Path, data):
-    """Scrive JSON in modo atomico: prima su .tmp, poi rinomina."""
+    """Writes JSON atomically: first to .tmp, then rename."""
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
-    tmp.replace(path)  # atomico su tutti i filesystem POSIX
+    tmp.replace(path)  # atomic on all POSIX filesystems
 
 
 def _atomic_write_npy(path: Path, arr: np.ndarray):
-    """Scrive l'array in modo atomico. np.save su un file aperto non aggiunge
-    l'estensione .npy, quindi il nome temporaneo resta quello scelto qui."""
+    """Writes the array atomically. np.save on an open file does not add
+    the .npy extension, so the temporary name stays the one chosen here."""
     tmp = path.with_suffix(".tmp")
     with open(tmp, "wb") as f:
         np.save(f, arr)
@@ -196,8 +196,8 @@ def _write_to_disk():
 
 
 def _save():
-    """Persiste lo stato. Dentro `deferred_saves()` segna solo lo store come
-    modificato: la scrittura avviene al checkpoint o all'uscita dal blocco."""
+    """Persists the state. Inside `deferred_saves()` it only marks the store as
+    modified: the write happens at the checkpoint or on exit from the block."""
     global _dirty
     if _deferred_depth > 0:
         _dirty = True
@@ -207,8 +207,8 @@ def _save():
 
 @contextmanager
 def deferred_saves():
-    """Rinvia le scritture su disco per tutta la durata del blocco.
-    All'uscita (anche per eccezione) scrive se ci sono modifiche pendenti."""
+    """Postpones disk writes for the whole duration of the block.
+    On exit (even on exception) it writes if there are pending changes."""
     global _deferred_depth
     _deferred_depth += 1
     try:
@@ -220,13 +220,13 @@ def deferred_saves():
 
 
 def checkpoint_due() -> bool:
-    """True se è passato CHECKPOINT_INTERVAL dall'ultimo salvataggio."""
+    """True if CHECKPOINT_INTERVAL has elapsed since the last save."""
     return time.time() - _last_save_ts >= CHECKPOINT_INTERVAL
 
 
 def checkpoint(force: bool = False) -> bool:
-    """Scrive su disco le modifiche pendenti se `force` o se è scaduto
-    l'intervallo. Ritorna True se ha scritto."""
+    """Writes pending changes to disk if `force` or if the interval has
+    elapsed. Returns True if it wrote."""
     if not _dirty:
         return False
     if force or checkpoint_due():
@@ -242,12 +242,12 @@ def chunk_id(text: str, source: str, chunk_index: int) -> str:
 
 def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> int:
     """
-    Inserisce o aggiorna chunk nel vector store.
-    chunks: lista di {"text": str, "metadata": dict}
-    embeddings: un vettore per chunk. `None` significa "chunk già presente
-    con lo stesso testo": aggiorna solo i metadati, il vettore resta quello
-    in memoria (evita di richiamare Ollama per contenuti invariati).
-    Ritorna il numero di chunk inseriti o aggiornati con un nuovo vettore.
+    Inserts or updates chunks in the vector store.
+    chunks: list of {"text": str, "metadata": dict}
+    embeddings: one vector per chunk. `None` means "chunk already present
+    with the same text": only the metadata is updated, the vector stays the one
+    in memory (avoids calling Ollama again for unchanged content).
+    Returns the number of chunks inserted or updated with a new vector.
     """
     global _embeddings, _bm25_dirty, _pdf_title_count
 
@@ -264,7 +264,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     new_ids  = []
 
     for chunk, vec in zip(chunks, embeddings):
-        # Sanifica i metadati: bytes non è serializzabile in JSON
+        # Sanitize metadata: bytes is not JSON-serializable
         chunk["metadata"] = {
             k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
             for k, v in chunk["metadata"].items()
@@ -296,7 +296,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
             meta["needs_reembedding"] = True
 
         if cid in _id_to_idx:
-            # Aggiorna in place
+            # Update in place
             idx = _id_to_idx[cid]
             _embeddings[idx] = norm_vec
             _metadata[idx] = meta
@@ -333,9 +333,9 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
 
 
 def chunks_to_embed(chunks: list[dict], ids: list[str]) -> list[bool]:
-    """Per ogni chunk dice se serve (ri)calcolare l'embedding: id assente
-    nello store, testo diverso da quello memorizzato, oppure vettore zero
-    (embedding fallito in un sync precedente)."""
+    """For each chunk says whether the embedding must be (re)computed: id absent
+    from the store, text different from the stored one, or zero vector
+    (embedding failed in a previous sync)."""
     _ensure_loaded()
     flags = []
     for chunk, cid in zip(chunks, ids):
@@ -348,25 +348,25 @@ def chunks_to_embed(chunks: list[dict], ids: list[str]) -> list[bool]:
 
 
 def _is_inbox(meta: dict) -> bool:
-    """Chunk caricato a mano dall'inbox (scripts/inbox_indexer): va conservato
-    anche se la sua sorgente non compare nel crawl o viene ricrawlata.
-    `doc_type == "document"` copre i documenti inbox precedenti al marker."""
+    """Chunk loaded by hand from the inbox (scripts/inbox_indexer): it must be kept
+    even if its source does not appear in the crawl or is re-crawled.
+    `doc_type == "document"` covers inbox documents that predate the marker."""
     return meta.get("origin") == "inbox" or meta.get("doc_type") == "document"
 
 
 def _is_protected(meta: dict) -> bool:
-    """Chunk che il crawl non conosce e che i sync non devono togliere come
-    «stale»: documenti inbox e notizie del Bollettino indicizzate da
-    `scripts.news_sync` (origin=news; il loro dominio non è nel crawl). A
-    differenza dell'inbox, i chunk news restano sostituibili dal loro stesso
-    indicizzatore quando il testo cambia (vedi source_chunk_ids)."""
+    """Chunks that the crawl does not know and that syncs must not remove as
+    «stale»: inbox documents and Bollettino news indexed by
+    `scripts.news_sync` (origin=news; their domain is not in the crawl).
+    Unlike the inbox, news chunks remain replaceable by their own
+    indexer when the text changes (see source_chunk_ids)."""
     return _is_inbox(meta) or meta.get("origin") == "news"
 
 
 def source_chunk_ids(source: str, include_inbox: bool = False) -> set[str]:
-    """Ritorna gli id dei chunk attualmente nello store per una sorgente.
-    I chunk inbox sono esclusi di default: l'indexer li userebbe come "stale"
-    quando reindicizza la pagina crawlata con lo stesso URL."""
+    """Returns the ids of the chunks currently in the store for a source.
+    Inbox chunks are excluded by default: the indexer would treat them as "stale"
+    when it re-indexes the crawled page with the same URL."""
     _ensure_loaded()
     return {
         _ids[i] for i, m in enumerate(_metadata)
@@ -375,17 +375,17 @@ def source_chunk_ids(source: str, include_inbox: bool = False) -> set[str]:
 
 
 def inbox_sources() -> set[str]:
-    """Sorgenti dei chunk caricati dall'inbox."""
+    """Sources of the chunks loaded from the inbox."""
     _ensure_loaded()
     return {m.get("source", "") for m in _metadata if _is_inbox(m) and m.get("source")}
 
 
-# Un /Title usato da almeno tanti PDF diversi è un'intestazione, non un titolo
+# A /Title used by at least this many different PDFs is a header, not a title
 _REPEATED_TITLE_MIN = 5
 
 
 def _load_link_texts() -> dict[str, str]:
-    """Testi dei link ai PDF salvati dal crawler (vedi crawler.save_link_texts)."""
+    """Link texts pointing to PDFs saved by the crawler (see crawler.save_link_texts)."""
     path = CRAWL_CACHE_DIR / LINK_TEXTS_FILE
     try:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -395,8 +395,8 @@ def _load_link_texts() -> dict[str, str]:
 
 
 def _title(meta: dict) -> str:
-    """Titolo da mostrare: per i PDF del crawl uno leggibile (vedi indexer/titles.py).
-    Il riordino in api/rag.py usa ancora `title`, così la ricerca non cambia."""
+    """Title to display: for crawled PDFs a readable one (see indexer/titles.py).
+    The reranking in api/rag.py still uses `title`, so the search does not change."""
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts
     title = meta.get("title", "")
     if meta.get("doc_type") != "pdf" or _is_inbox(meta):
@@ -417,7 +417,7 @@ def _title(meta: dict) -> str:
         shown = display_title(title, source,
                               repeated=_pdf_title_count[title] >= _REPEATED_TITLE_MIN,
                               link_text=_pdf_link_texts.get(source, ""))
-        if is_weak(shown):  # «Allegato B 2022», «DD 665-25»: si cerca nel testo
+        if is_weak(shown):  # «Allegato B 2022», «DD 665-25»: look in the text
             shown = with_text_title(shown, title_from_text(_pdf_first_text.get(source, ""), title))
         _pdf_display[source] = shown
     return _pdf_display[source]
@@ -425,8 +425,8 @@ def _title(meta: dict) -> str:
 
 def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
-    Cerca i chunk più simili tramite cosine similarity.
-    Ritorna lista di {"text", "source", "title", "score"}.
+    Finds the most similar chunks via cosine similarity.
+    Returns a list of {"text", "source", "title", "score"}.
     """
     with _lock:
         return _search(query_embedding, top_k)
@@ -444,7 +444,7 @@ def _search(query_embedding: list[float], top_k: int) -> list[dict]:
     if n > 0:
         q = q / n
 
-    # Cosine similarity = dot product (vettori già normalizzati)
+    # Cosine similarity = dot product (vectors already normalized)
     scores = _embeddings @ q  # shape (N,)
 
     k = min(top_k, len(_ids))
@@ -474,9 +474,9 @@ def hybrid_search(
     bm25_weight: float = 0.4,
 ) -> list[dict]:
     """
-    Ricerca ibrida: combina cosine similarity e BM25 tramite weighted RRF.
+    Hybrid search: combines cosine similarity and BM25 via weighted RRF.
 
-    vector_weight + bm25_weight = 1.0 (raccomandato)
+    vector_weight + bm25_weight = 1.0 (recommended)
     """
     with _lock:
         return _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weight)
@@ -492,9 +492,9 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     _ensure_bm25()
 
     n_docs = len(_ids)
-    fetch_k = min(top_k * 20, n_docs)  # recupera più candidati per la fusione
+    fetch_k = min(top_k * 20, n_docs)  # fetch more candidates for the fusion
 
-    # --- Ricerca vettoriale ---
+    # --- Vector search ---
     q = np.array(query_embedding, dtype=np.float32)
     norm = np.linalg.norm(q)
     if norm > 0:
@@ -504,12 +504,12 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     vec_top = np.argpartition(vec_scores, -fetch_k)[-fetch_k:]
     vec_top = vec_top[np.argsort(vec_scores[vec_top])[::-1]]
 
-    # Rank vettoriale: posizione → score RRF
+    # Vector rank: position → RRF score
     vec_rrf = {}
     for rank, idx in enumerate(vec_top):
         vec_rrf[int(idx)] = 1.0 / (60 + rank + 1)
 
-    # --- Ricerca BM25 ---
+    # --- BM25 search ---
     bm25_rrf = {}
     if _bm25 is not None:
         tokens = _tokenize(query_text)
@@ -520,7 +520,7 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
             for rank, idx in enumerate(bm25_top):
                 bm25_rrf[int(idx)] = 1.0 / (60 + rank + 1)
 
-    # --- Fusione pesi ---
+    # --- Weighted fusion ---
     all_indices = set(vec_rrf) | set(bm25_rrf)
     fused = {}
     for idx in all_indices:
@@ -541,21 +541,21 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
             "display_title": _title(meta),
             "doc_type": meta.get("doc_type", ""),
             "category": meta.get("category", ""),
-            "date":     meta.get("date", ""),   # mostrata al modello (build_context_block)
-            "score":    float(vec_scores[idx]),  # score semantico per il filtro MIN_SIMILARITY
+            "date":     meta.get("date", ""),   # shown to the model (build_context_block)
+            "score":    float(vec_scores[idx]),  # semantic score for the MIN_SIMILARITY filter
         })
 
     return results
 
 
 def get_indexed_sources() -> set[str]:
-    """Ritorna il set di URL (source) già presenti nel vector store."""
+    """Returns the set of URLs (source) already present in the vector store."""
     _ensure_loaded()
     return {m.get("source", "") for m in _metadata if m.get("source")}
 
 
 def all_chunks_exist(chunk_ids: list[str]) -> bool:
-    """Ritorna True se tutti gli ID sono già presenti nel vector store."""
+    """Returns True if all the IDs are already present in the vector store."""
     _ensure_loaded()
     return bool(chunk_ids) and all(cid in _id_to_idx for cid in chunk_ids)
 
@@ -566,7 +566,7 @@ def is_bm25_active() -> bool:
 
 
 def get_top_doc() -> dict | None:
-    """Ritorna il documento con più chunk indicizzati."""
+    """Returns the document with the most indexed chunks."""
     if not _metadata:
         return None
     counts = Counter(m.get("source", "") for m in _metadata if m.get("source"))
@@ -595,7 +595,7 @@ def get_stats() -> dict:
 
 
 def _apply_keep(keep: list[int]):
-    """Riduce lo store alle righe in `keep` (indici ordinati) e riallinea gli indici."""
+    """Reduces the store to the rows in `keep` (sorted indices) and realigns the indices."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count
     _embeddings = _embeddings[keep]
     _metadata   = [_metadata[i] for i in keep]
@@ -606,10 +606,10 @@ def _apply_keep(keep: list[int]):
 
 
 def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
-    """Rimuove tutti i chunk le cui sorgenti non sono più nel crawl corrente.
-    I chunk inbox e news restano (keep_inbox): non provengono dal crawl, quindi
-    la loro assenza dal sito non significa che siano superati.
-    Ritorna il numero di chunk rimossi."""
+    """Removes all chunks whose sources are no longer in the current crawl.
+    Inbox and news chunks stay (keep_inbox): they do not come from the crawl, so
+    their absence from the site does not mean they are outdated.
+    Returns the number of chunks removed."""
     if not stale:
         return 0
     _ensure_loaded()
@@ -627,9 +627,9 @@ def remove_sources(stale: set[str], keep_inbox: bool = True) -> int:
 
 
 def remove_chunk_ids(chunk_ids: set[str]) -> int:
-    """Rimuove i chunk con gli id indicati (quelli assenti sono ignorati).
-    Usato per eliminare in blocco i chunk di una sorgente non più presenti
-    nella sua versione aggiornata. Ritorna il numero di chunk rimossi."""
+    """Removes the chunks with the given ids (missing ones are ignored).
+    Used to remove in bulk the chunks of a source that are no longer present
+    in its updated version. Returns the number of chunks removed."""
     if not chunk_ids:
         return 0
     _ensure_loaded()
@@ -650,8 +650,8 @@ def clear_collection():
 
 
 def get_zero_vector_chunks() -> list[dict]:
-    """Ritorna i chunk con vettore zero — controlla il vettore effettivo (non solo il flag),
-    così trova anche chunk salvati prima dell'introduzione del flag needs_reembedding."""
+    """Returns the chunks with a zero vector — checks the actual vector (not just the flag),
+    so it also finds chunks saved before the needs_reembedding flag was introduced."""
     _ensure_loaded()
     if _embeddings is None or len(_ids) == 0:
         return []
@@ -665,8 +665,8 @@ def get_zero_vector_chunks() -> list[dict]:
 
 
 def update_embeddings(updates: list[tuple[int, list[float]]]) -> int:
-    """Aggiorna embedding in place per una lista di (idx, vector).
-    Rimuove needs_reembedding se il vettore è valido. Ritorna il numero aggiornati."""
+    """Updates embeddings in place for a list of (idx, vector).
+    Removes needs_reembedding if the vector is valid. Returns the number updated."""
     _ensure_loaded()
     updated = 0
     for idx, vec in updates:

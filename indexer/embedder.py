@@ -1,21 +1,21 @@
 """
-Generazione embedding tramite Ollama (modello OLLAMA_EMBED_MODEL, in
-produzione bge-m3 dal 04/10/2026: contesto 8192 token, i brani non lo
-superano mai; prima mxbai-embed-large, contesto 512 token).
+Embedding generation through Ollama (model OLLAMA_EMBED_MODEL, in
+production bge-m3 since 04/10/2026: 8192-token context, passages never
+exceed it; before that mxbai-embed-large, 512-token context).
 
-Strategia: tenta prima il batch endpoint /api/embed (veloce quando funziona).
-Se restituisce 400, cade back su chiamate singole su /api/embed. Su errore 500
-riprova con backoff esponenziale prima di restituire un vettore zero.
+Strategy: first try the batch endpoint /api/embed (fast when it works).
+If it returns 400, fall back to single calls on /api/embed. On a 500 error
+retry with exponential backoff before returning a zero vector.
 
-Troncamento: Ollama 0.19 IGNORA `truncate: true` per mxbai-embed-large e
-risponde 400 "the input length exceeds the context length" (512 token) sia in
-batch sia in singolo; l'endpoint legacy /api/embeddings risponde 500 per lo
-stesso motivo. Ne restavano 5.861 chunk a vettore zero al 16/09/2026 (testi
-di 500-1500 caratteri ma densi di token: tabelle numeriche, PDF illeggibili).
-Il troncamento va quindi fatto lato client: su 400 "context length" il testo
-viene ritagliato a _CUT_STEPS caratteri in sequenza finché Ollama lo accetta
-(verificato sul server: 800 caratteri passano su tutti i campioni). Con bge-m3
-non serve, ma resta per i modelli a contesto corto.
+Truncation: Ollama 0.19 IGNORES `truncate: true` for mxbai-embed-large and
+answers 400 "the input length exceeds the context length" (512 tokens) both in
+batch and single mode; the legacy /api/embeddings endpoint answers 500 for the
+same reason. 5,861 chunks were left with a zero vector on 16/09/2026 (texts
+of 500-1500 characters but token-dense: numeric tables, unreadable PDFs).
+Truncation must therefore be done client-side: on a 400 "context length" the text
+is cut to _CUT_STEPS characters in sequence until Ollama accepts it
+(verified on the server: 800 characters pass on all samples). With bge-m3
+it is not needed, but it stays for short-context models.
 """
 
 import logging
@@ -33,24 +33,24 @@ from config.settings import EMBEDDING_DIMENSION, OLLAMA_BASE_URL, OLLAMA_EMBED_M
 
 log = logging.getLogger(__name__)
 
-BATCH_SIZE = 16          # batch più piccoli → meno tempo sprecato su 400
-CONCURRENCY = 1          # Ollama serializza comunque le richieste di embedding
-_MAX_CHARS  = 6000       # limite di sicurezza lato client (i chunk sono < 1500 ch)
-_CUT_STEPS  = (800, 500, 300)  # tagli progressivi quando Ollama rifiuta il testo
-                               # per il contesto del modello (512 token per mxbai)
+BATCH_SIZE = 16          # smaller batches → less time wasted on 400s
+CONCURRENCY = 1          # Ollama serializes embedding requests anyway
+_MAX_CHARS  = 6000       # client-side safety limit (chunks are < 1500 chars)
+_CUT_STEPS  = (800, 500, 300)  # progressive cuts when Ollama rejects the text
+                               # for the model context (512 tokens for mxbai)
 _CTX_ERROR  = "context length"
-MAX_RETRIES = 3          # tentativi totali prima di arrendersi con vettore zero
-BATCH_GIVE_UP = 3        # batch 400 consecutivi dopo i quali si usano solo singoli
+MAX_RETRIES = 3          # total attempts before giving up with a zero vector
+BATCH_GIVE_UP = 3        # consecutive batch 400s after which only single calls are used
 RETRY_BASE_DELAY = 1.0   # backoff: 1s, 2s, 4s (+ jitter)
-# Opzioni di Ollama aggiunte a ogni richiesta, es. {"num_thread": 12}. Con tutti i
-# core un calcolo lungo rallenta di decine di volte appena un altro processo ne usa
-# uno (un batch da 3 s superava i 120 s): scripts/reembed.py --threads lascia CPU
-# libera all'API. Vuoto = impostazioni di Ollama.
+# Ollama options added to every request, e.g. {"num_thread": 12}. With all
+# cores in use a long computation slows down tenfold as soon as another process takes
+# one (a 3 s batch exceeded 120 s): scripts/reembed.py --threads leaves CPU
+# free for the API. Empty = Ollama defaults.
 OLLAMA_OPTIONS: dict = {}
 
 
 def _body(**fields) -> dict:
-    """Corpo di una richiesta a Ollama: modello, campi dati e OLLAMA_OPTIONS."""
+    """Body of a request to Ollama: model, data fields and OLLAMA_OPTIONS."""
     body = {"model": OLLAMA_EMBED_MODEL, **fields}
     if OLLAMA_OPTIONS:
         body["options"] = OLLAMA_OPTIONS
@@ -65,19 +65,19 @@ _CTRL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 
 def _clean(text: str) -> str:
-    """Rimuove caratteri di controllo ASCII che causano 400 su /api/embed."""
+    """Remove ASCII control characters that cause 400 on /api/embed."""
     text = _CTRL_CHARS.sub(' ', text)
     return text[:_MAX_CHARS] if len(text) > _MAX_CHARS else text
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Genera embedding per una lista di testi tramite Ollama."""
+    """Generate embeddings for a list of texts through Ollama."""
     if not texts:
         return []
 
     all_embeddings = []
     total = len(texts)
-    batch_failures = 0   # 400 consecutivi del batch endpoint
+    batch_failures = 0   # consecutive 400s from the batch endpoint
 
     with httpx.Client(timeout=120.0) as client:
         for i in range(0, total, BATCH_SIZE):
@@ -86,8 +86,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             total_batches = (total + BATCH_SIZE - 1) // BATCH_SIZE
             log.info(f"  Embedding {batch_num}/{total_batches} ({len(batch)} testi)...")
             if batch_failures >= BATCH_GIVE_UP:
-                # Un batch rifiutato costa 30-50 s: se falliscono in serie (es.
-                # reembed dei chunk problematici) si passa ai singoli.
+                # A rejected batch costs 30-50 s: if they fail in a row (e.g.
+                # re-embedding of problematic chunks) switch to single calls.
                 vecs = _embed_parallel(client, batch)
             else:
                 vecs = _try_batch(client, batch)
@@ -107,7 +107,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 
 def embed_query(query: str) -> list[float]:
-    """Genera embedding per una singola query utente."""
+    """Generate an embedding for a single user query."""
     with httpx.Client(timeout=30.0) as client:
         result = _try_batch(client, [query])
         if result:
@@ -116,7 +116,7 @@ def embed_query(query: str) -> list[float]:
 
 
 def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | None:
-    """Tenta /api/embed con retry su 500. Ritorna None su 400 (fallback a singoli)."""
+    """Try /api/embed with retry on 500. Return None on 400 (fall back to single calls)."""
     for attempt in range(MAX_RETRIES + 1):
         try:
             resp = client.post(
@@ -126,8 +126,8 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
             if resp.status_code == 200:
                 return resp.json()["embeddings"]
             if resp.status_code == 400:
-                # Input non valido: fallback a singoli senza retry. Il corpo
-                # della risposta dice quale controllo di Ollama è scattato.
+                # Invalid input: fall back to single calls without retry. The response
+                # body says which Ollama check was triggered.
                 log.warning(f"  Batch Ollama 400: {resp.text[:200]!r}")
                 return None
             if attempt == MAX_RETRIES:
@@ -144,7 +144,7 @@ def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | No
 
 
 def _embed_parallel(client: httpx.Client, texts: list[str]) -> list[list[float]]:
-    """Chiama /api/embeddings in parallelo con CONCURRENCY thread."""
+    """Call /api/embeddings in parallel with CONCURRENCY threads."""
     results = [None] * len(texts)
 
     def _work(idx: int, text: str):
@@ -160,11 +160,11 @@ def _embed_parallel(client: httpx.Client, texts: list[str]) -> list[list[float]]
 
 
 def _embed_one(client: httpx.Client, text: str) -> list[float]:
-    """Singola chiamata a /api/embed con retry su 500. Se Ollama rifiuta il
-    testo perché supera il contesto del modello (400, il flag `truncate` non
-    basta) ritenta con tagli progressivi lato client (_CUT_STEPS). Per gli
-    altri 400 prova l'endpoint legacy /api/embeddings. Vettore zero solo se
-    tutto fallisce."""
+    """Single call to /api/embed with retry on 500. If Ollama rejects the
+    text because it exceeds the model context (400, the `truncate` flag is
+    not enough) retry with progressive client-side cuts (_CUT_STEPS). For the
+    other 400s try the legacy /api/embeddings endpoint. Zero vector only if
+    everything fails."""
     cleaned = _clean(text)
     lengths = [len(cleaned)] + [n for n in _CUT_STEPS if n < len(cleaned)]
     for n in lengths:
@@ -181,9 +181,9 @@ def _embed_one(client: httpx.Client, text: str) -> list[float]:
 
 def _embed_request(client: httpx.Client, text: str,
                    original: str) -> tuple[list[float] | None, bool]:
-    """Una richiesta a /api/embed con retry su 500. Ritorna (vettore, False) su
-    successo, (None, True) se il testo supera il contesto del modello, (vettore
-    legacy o zero, False) per gli altri 400, (None, False) se tutto fallisce."""
+    """One request to /api/embed with retry on 500. Return (vector, False) on
+    success, (None, True) if the text exceeds the model context, (legacy
+    or zero vector, False) for the other 400s, (None, False) if everything fails."""
     payload = _body(input=[text], truncate=True)
     for attempt in range(MAX_RETRIES + 1):
         status = "errore"
@@ -215,8 +215,8 @@ def _embed_request(client: httpx.Client, text: str,
 
 
 def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
-    """Ultimo tentativo su /api/embeddings per i 400 non dovuti al contesto.
-    Non tronca: oltre il contesto del modello risponde 500 (vettore zero)."""
+    """Last attempt on /api/embeddings for 400s not caused by the context.
+    It does not truncate: beyond the model context it answers 500 (zero vector)."""
     try:
         resp = client.post(
             f"{OLLAMA_BASE_URL}/api/embeddings",
@@ -231,7 +231,7 @@ def _embed_one_legacy(client: httpx.Client, text: str) -> list[float]:
 
 
 def check_ollama_embed() -> bool:
-    """Verifica che Ollama sia raggiungibile e il modello di embedding disponibile."""
+    """Check that Ollama is reachable and the embedding model is available."""
     try:
         with httpx.Client(timeout=10.0) as client:
             resp = client.post(

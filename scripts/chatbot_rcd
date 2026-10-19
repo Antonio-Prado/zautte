@@ -30,13 +30,13 @@ chatbot_start()
 
     rm -f /var/run/chatbot.maintenance
 
-    # Il .env lo carica python-dotenv (config/settings.py): esportarlo da qui con
-    # xargs spezzava i valori con spazi (SITE_NAME=Comune di … diventava «Comune»).
+    # .env is loaded by python-dotenv (config/settings.py): exporting it from here with
+    # xargs split values containing spaces (SITE_NAME=Comune di … became «Comune»).
 
     cd "${chatbot_dir}" || return 1
 
-    # -H: al SIGHUP di newsyslog (rotazione) daemon riapre il file di log,
-    # altrimenti continuerebbe a scrivere in quello appena archiviato.
+    # -H: on newsyslog SIGHUP (rotation) daemon reopens the log file,
+    # otherwise it would keep writing to the one just archived.
     /usr/sbin/daemon \
         -P "${pidfile}" \
         -H \

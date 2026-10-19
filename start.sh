@@ -11,13 +11,13 @@ cleanup() {
 
 trap cleanup INT TERM EXIT
 
-# Un solo processo per IPv4 e IPv6 (api/serve.py): con due processi, uno per
-# famiglia di indirizzi, vector store, cache e statistiche erano doppi e
-# data/stats.json veniva riscritto a turno da entrambi.
+# A single process for IPv4 and IPv6 (api/serve.py): with two processes, one per
+# address family, vector store, cache and statistics were duplicated and
+# data/stats.json was rewritten in turn by both.
 /opt/chatbot/venv/bin/python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000 &
 pid=$!
 
-# Resta vivo finché è vivo il server.
+# Stays alive as long as the server is alive.
 while kill -0 "${pid}" 2>/dev/null; do
     sleep 1
 done
