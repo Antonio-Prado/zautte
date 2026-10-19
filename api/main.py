@@ -21,7 +21,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -38,6 +38,7 @@ from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
+    ADMIN_PATH,
     API_CORS_ORIGINS,
     API_DOCS,
     BEDROCK_MODEL,
@@ -117,17 +118,29 @@ app = FastAPI(
 _panel_dir = Path(__file__).parent.parent / "admin_panel"
 
 
-@app.get("/admin/panel", include_in_schema=False)
-async def admin_panel(_: None = Security(require_admin)):
-    """HTML e JavaScript della vista amministratore (dashboard.html#admin): non
-    stanno nella pagina pubblica, si ricevono solo con una chiave admin valida."""
-    try:
-        html = (_panel_dir / "panel.html").read_text(encoding="utf-8")
-        js = (_panel_dir / "panel.js").read_text(encoding="utf-8")
-    except OSError as e:
-        log.error("Pannello admin non leggibile: %s", e)
-        raise HTTPException(status_code=500, detail="Pannello non disponibile")
-    return JSONResponse({"html": html, "js": js}, headers={"Cache-Control": "no-store"})
+if ADMIN_PATH:
+    # Indirizzo dell'area riservata: viene dal .env e non è scritto nel codice.
+    @app.get(ADMIN_PATH, include_in_schema=False)
+    async def area_page():
+        """Pagina con il solo modulo per la chiave. Il resto (pannello, script,
+        stili) si riceve da <indirizzo>/dati con una chiave valida."""
+        try:
+            html = (_panel_dir / "login.html").read_text(encoding="utf-8")
+        except OSError as e:
+            log.error("Pagina di accesso non leggibile: %s", e)
+            raise HTTPException(status_code=404, detail="Not Found")
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+    @app.get(ADMIN_PATH + "/dati", include_in_schema=False)
+    async def area_dati(_: None = Security(require_admin)):
+        """Stili, HTML e JavaScript dell'area riservata: non stanno in nessuna pagina
+        pubblica, si ricevono solo con una chiave valida (e con l'indirizzo non bloccato)."""
+        try:
+            parts = {k: (_panel_dir / ("panel." + k)).read_text(encoding="utf-8") for k in ("css", "html", "js")}
+        except OSError as e:
+            log.error("Pannello non leggibile: %s", e)
+            raise HTTPException(status_code=500, detail="Pannello non disponibile")
+        return JSONResponse(parts, headers={"Cache-Control": "no-store"})
 
 
 app.state.limiter = limiter

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Accesso riservato — Zautte</title>
+  <link rel="icon" href="/widget/zautte-favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/widget/dashboard.css?v=20261019a">
+  <style id="area-css"></style>
+  <style>
+    #key-form { width: 100%; max-width: 640px; margin: 10px 0 14px; padding: 14px 20px; background: #fff;
+      border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.06); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    #key-form label { flex-basis: 100%; font-weight: bold; color: #003366; }
+    #key-form input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid #99a; border-radius: 6px; font-size: 1em; }
+    #key-form button { background: #003366; color: #fff; border: 0; border-radius: 6px; padding: 9px 18px; font-size: 1em; cursor: pointer; }
+    #key-form button:disabled { opacity: .5; cursor: default; }
+    #key-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; color: #c62828; font-size: .9em; }
+  </style>
+</head>
+<body class="user-view">
+  <div class="page-head">
+    <h1><img class="brand-logo" src="/widget/zautte-logo.svg" alt="Zautte" width="160" height="36">Accesso riservato</h1>
+    <div id="session-box" style="display:none">
+      <span id="session-name"></span>
+      <button type="button" class="btn-logout" id="logout-btn">Esci</button>
+    </div>
+  </div>
+
+  <form id="key-form" autocomplete="off">
+    <label for="key-input">Chiave di accesso</label>
+    <input type="password" id="key-input" autocomplete="off" required>
+    <button type="submit" id="key-btn">Entra</button>
+    <p id="key-msg" role="alert"></p>
+  </form>
+
+  <div id="chat-area" style="display:none"></div>
+
+  <script>
+    const apiBase = window.location.origin;
+    const ADMIN_KEY_LS = 'zautte_admin_key';
+    let _adminKey = null;
+    try { _adminKey = localStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
+
+    // Il solo "gate" del nome: il resto (pannello, script, stili) arriva dal server
+    // solo se la chiave è valida; dopo troppi errori l'indirizzo viene bloccato (429).
+    function getAdminKey() { return _adminKey || ''; }
+    function adminHeaders() { return _adminKey ? { 'X-Admin-Key': _adminKey } : {}; }
+
+    let _keyError = '';
+    let _panel = null;
+    async function _validateAdminKey(key) {
+      _keyError = '';
+      try {
+        const r = await fetch(apiBase + location.pathname.replace(/\/+$/, '') + '/dati', { headers: { 'X-Admin-Key': key } });
+        if (r.status === 429) {
+          const m = Math.ceil((Number(r.headers.get('Retry-After')) || 0) / 60);
+          _keyError = 'Troppi tentativi: riprova tra ' + (m || 'qualche') + ' minuti.';
+          return false;
+        }
+        if (!r.ok) { _keyError = 'Chiave non valida.'; return false; }
+        _panel = await r.json();
+        return true;
+      } catch (_) { _keyError = 'Servizio non raggiungibile.'; return false; }
+    }
+
+    let _user = { loggedIn: false, name: '' };
+    let _statsStarted = false;
+    function updateSessionBox() {
+      const box = document.getElementById('session-box');
+      const name = document.getElementById('session-name');
+      const parts = [];
+      if (_user.loggedIn && _user.name) parts.push(_user.name);
+      if (_statsStarted) parts.push('amministratore');
+      name.textContent = parts.join(' · ');
+      box.style.display = (_user.loggedIn || _statsStarted) ? '' : 'none';
+    }
+
+    function startAdminView() {
+      if (_statsStarted || !_panel) return;
+      _statsStarted = true;
+      document.getElementById('key-form').style.display = 'none';
+      document.getElementById('area-css').textContent = _panel.css;
+      document.body.classList.replace('user-view', 'admin-view');
+      const chat = document.getElementById('chat-area');
+      chat.style.display = '';
+      chat.insertAdjacentHTML('beforebegin', _panel.html);
+      const grid = document.getElementById('admin-grid');
+      if (grid) grid.after(chat);
+      const s = document.createElement('script');
+      s.textContent = _panel.js;
+      document.body.appendChild(s);
+      _panel = null;
+      updateSessionBox();
+      window.zautteAdminBoot();
+      loadChat();
+    }
+
+    function loadChat() {
+      window.ChatbotConfig = {
+        apiUrl: window.location.origin, requireLogin: true, inline: '#chat-area', inlineHeight: '100%',
+        primaryColor: '#003366', title: 'Zautte', subtitle: '', lang: 'it', logoUrl: '/widget/zautte-icon.svg',
+        infoUrl: '/widget/come-funziona.html', position: 'right', contactEmail: '', suggestions: [],
+      };
+      const s = document.createElement('script');
+      s.src = '/widget/chatbot-widget.js?v=20261019a';
+      document.body.appendChild(s);
+    }
+
+    document.addEventListener('zautte:auth', function (e) {
+      _user = e.detail || { loggedIn: false, name: '' };
+      document.body.classList.toggle('logged-in', !!_user.loggedIn);
+      updateSessionBox();
+    });
+    document.getElementById('logout-btn').addEventListener('click', function () {
+      if (window.ZautteChatbot) window.ZautteChatbot.logout();
+      _adminKey = null;
+      try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+      location.replace(location.pathname);
+    });
+
+    document.getElementById('key-form').addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      const btn = document.getElementById('key-btn');
+      const msg = document.getElementById('key-msg');
+      const key = document.getElementById('key-input').value;
+      btn.disabled = true; msg.textContent = '';
+      if (await _validateAdminKey(key)) {
+        _adminKey = key;
+        try { localStorage.setItem(ADMIN_KEY_LS, key); } catch (_) {}
+        startAdminView();
+      } else {
+        msg.textContent = _keyError;
+        btn.disabled = false;
+      }
+    });
+
+    (async function init() {
+      if (_adminKey && await _validateAdminKey(_adminKey)) {
+        startAdminView();
+      } else {
+        _adminKey = null;
+        try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+      }
+    })();
+  </script>
+  <script src="/widget/site-footer.js?v=20261006d" defer></script>
+</body>
+</html>
