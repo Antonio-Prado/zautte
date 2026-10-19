@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Come funziona Zautte</title>
+  <meta name="description" content="Come funziona Zautte: da dove prende le risposte, cosa non fa, come tratta i dati e quanto è accessibile.">
+  <meta name="theme-color" content="#003366">
+  <link rel="icon" href="./zautte-favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./zautte-icon-180.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 32px 16px 64px;
+      background: #f5f5f5;
+      color: #333;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 24px 28px;
+    }
+    h1 { color: #003366; margin-top: 0; font-size: 1.6em; }
+    .brand-logo { display: block; height: 40px; width: auto; margin: 4px 0 20px; }
+    .back { margin: 0 0 16px; font-size: 0.95em; }
+    .back-end { margin: 16px 0 0; font-size: 0.95em; }
+    h2 { color: #003366; font-size: 1.1em; margin: 28px 0 8px; }
+    a { color: #003366; }
+    .lead { font-size: 1.05em; }
+    .note { color: #555; font-size: 0.9em; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; }
+  </style>
+</head>
+<body>
+<main>
+  <nav class="back" aria-label="Torna alla pagina principale">
+    <a href="./dashboard.html"><span aria-hidden="true">←</span> Torna a Zautte</a>
+  </nav>
+  <img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="177" height="40">
+  <h1>Come funziona Zautte</h1>
+  <p class="lead">
+    Zautte è un assistente virtuale per il sito di un ente. È un
+    <strong>sistema di intelligenza artificiale</strong>: le risposte sono scritte in
+    automatico da un programma, non da una persona. Il servizio è sperimentale.
+  </p>
+
+  <h2>Da dove prende le risposte</h2>
+  <p>
+    Quando scrivi una domanda, Zautte cerca le parti più pertinenti tra le pagine del sito
+    istituzionale dell'ente, i documenti pubblicati e alcune schede preparate dagli uffici.
+    Passa poi quei brani a un modello linguistico, scelto dall'ente, che scrive la risposta
+    usando solo quelle informazioni. Sotto ogni risposta
+    trovi le fonti usate, per controllarle.
+  </p>
+
+  <h2>Cosa non fa</h2>
+  <ul>
+    <li>Non prende decisioni e non avvia pratiche: per domande, istanze e certificati restano
+      competenti gli uffici dell'ente.</li>
+    <li>Le sue risposte non hanno valore ufficiale. Può sbagliare o dare informazioni
+      incomplete: verifica sempre le informazioni importanti nelle fonti indicate o con
+      l'ufficio competente.</li>
+    <li>Non conosce la tua situazione personale e non accede a banche dati o archivi
+      dell'ente che contengono dati personali.</li>
+  </ul>
+
+  <h2>I tuoi dati</h2>
+  <ul>
+    <li><strong>Non inserire dati personali</strong> nella chat (nomi, codice fiscale,
+      indirizzi, numeri di telefono, situazioni di salute…).</li>
+    <li>Prima di qualsiasi elaborazione, Zautte sostituisce automaticamente codice fiscale,
+      IBAN, numeri di carta, email e numeri di telefono con un segnaposto. Nomi e altri dati
+      scritti liberamente non possono essere riconosciuti in modo affidabile.</li>
+    <li>La domanda, già mascherata, gli ultimi messaggi della conversazione e i brani del sito
+      vengono inviati al fornitore del modello solo per generare la risposta, secondo le
+      condizioni indicate dall'ente.</li>
+    <li>L'ente può conservare le tue domande e le risposte di Zautte per migliorare il servizio:
+      i tempi di conservazione sono indicati nell'informativa sul trattamento dei dati personali.</li>
+    <li>Il commento che scrivi dopo un 👎 viene salvato così come lo scrivi, senza
+      mascheramento: non inserirvi dati personali.</li>
+  </ul>
+
+  <h2>Controllo umano</h2>
+  <p>
+    Con i pulsanti 👍 e 👎 sotto ogni risposta puoi segnalare se è stata utile. Le segnalazioni
+    vengono lette dal personale dell'ente, che corregge le informazioni mancanti o sbagliate.
+    La responsabilità del servizio resta in capo all'ente.
+  </p>
+
+  <h2 id="accessibilita">Accessibilità</h2>
+  <p>
+    La chat è pensata per essere usata anche solo da tastiera e con i lettori di schermo,
+    con l'obiettivo del livello AA delle linee guida WCAG 2.1 richiesto alle pubbliche
+    amministrazioni. Ogni modifica viene controllata in automatico; le prove con i lettori
+    di schermo e con persone con disabilità sono ancora da completare. Lo stato aggiornato è
+    nella <a href="https://github.com/Antonio-Prado/zautte/blob/main/ACCESSIBILITY.md">pagina
+    sull'accessibilità del progetto</a> (in inglese). Se incontri difficoltà, segnalale con
+    👎 e un commento sotto una risposta: ci aiuti a migliorarla.
+  </p>
+
+  <p class="note">
+    Riferimenti: Regolamento (UE) 2024/1689 sull'intelligenza artificiale (art. 50),
+    Legge 23 settembre 2025, n. 132 (art. 14).
+  </p>
+  <!-- anche in fondo: dal footer si arriva a #accessibilita, già vicino alla fine -->
+  <p class="back-end"><a href="./dashboard.html"><span aria-hidden="true">←</span> Torna a Zautte</a></p>
+</main>
+<script src="./site-footer.js?v=20261006d" defer></script>
+<script src="./matomo.js?v=20261006b" defer></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zautte — Assistente virtuale</title>
+  <meta name="description" content="Zautte: assistente virtuale che risponde alle domande sui servizi dell'ente citando le fonti ufficiali.">
+  <meta name="theme-color" content="#003366">
+  <link rel="icon" href="./zautte-favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./zautte-icon-180.png">
+  <link rel="stylesheet" href="./dashboard.css?v=20261019a">
+</head>
+<body class="user-view">
+  <div class="page-head">
+    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="160" height="36">Assistente virtuale</h1>
+    <div id="session-box" style="display:none">
+      <span id="session-name"></span>
+      <button type="button" class="btn-logout" id="logout-btn">Esci</button>
+    </div>
+  </div>
+  <div id="pilot-intro" style="max-width:640px;margin:10px 0 14px;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);line-height:1.5;color:#444">
+    <strong class="before-login" style="display:block;text-align:center;margin-bottom:6px">Accesso riservato a utenti autorizzati</strong>
+    <span class="before-login">Accedi con le credenziali che hai ricevuto e fai</span><span class="after-login" id="intro-greeting">Fai</span> le tue domande.
+    Usa 👍 / 👎 per darci un riscontro.<br>
+    Se metti 👎, sotto la risposta compare un modulo: scrivi cosa non va e incolla il link
+    della pagina dove si trova l'informazione corretta.
+  </div>
+
+  <div id="chat-area"></div>
+
+
+  <script>
+    let _user = { loggedIn: false, name: '' };
+    function updateSessionBox() {
+      const box = document.getElementById('session-box');
+      const name = document.getElementById('session-name');
+      if (!box || !name) return;
+      name.textContent = _user.loggedIn && _user.name ? _user.name : '';
+      box.style.display = _user.loggedIn ? '' : 'none';
+    }
+    document.addEventListener('zautte:auth', function (e) {
+      _user = e.detail || { loggedIn: false, name: '' };
+      document.body.classList.toggle('logged-in', !!_user.loggedIn);
+      const greeting = document.getElementById('intro-greeting');
+      if (greeting) greeting.textContent = _user.name ? 'Ciao ' + _user.name + ', fai' : 'Fai';
+      updateSessionBox();
+    });
+    document.getElementById('logout-btn').addEventListener('click', function () {
+      if (window.ZautteChatbot) window.ZautteChatbot.logout();
+    });
+  </script>
+
+  <script>
+    window.ChatbotConfig = {
+      apiUrl:        window.location.origin,
+      requireLogin:  true,
+      inline:        '#chat-area',
+      inlineHeight:  '100%',
+      primaryColor:  '#003366',
+      title:         'Zautte',
+      subtitle:      '',
+      welcomeIt:     'Ciao, mi chiamo Zautte! Sono un assistente virtuale: uso l\'intelligenza artificiale per aiutarti a trovare informazioni sui contenuti del sito istituzionale.',
+      contactEmail:  '',
+      infoUrl:       './come-funziona.html',
+      position:      'right',
+      lang:          'it',
+      logoUrl:      './zautte-icon.svg',
+      suggestions:  [
+        'Come posso contattare un ufficio?',
+        'Quali sono gli orari di apertura degli sportelli?',
+        'Dove trovo la modulistica?',
+      ],
+    };
+  </script>
+  <script src="./chatbot-widget.js?v=20261019a" defer></script>
+  <script src="./site-footer.js?v=20261006d" defer></script>
+  <script src="./matomo.js?v=20261006b" defer></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zautte — Assistente virtuale (prova)</title>
+  <meta name="description" content="Pagina di prova del widget Zautte.">
+  <meta name="theme-color" content="#003366">
+  <link rel="icon" href="./zautte-favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./zautte-icon-180.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0; min-height: 100vh; background: #f5f7fa; color: #223;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;
+    }
+    .card {
+      max-width: 560px; background: #fff; border-radius: 14px; padding: 40px 36px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.08); text-align: center;
+    }
+    .brand-logo { display: block; height: 44px; width: auto; margin: 0 auto 18px; }
+    h1 { font-size: 22px; margin: 0 0 8px; color: #003366; }
+    p { line-height: 1.55; color: #555; margin: 12px 0; }
+    .steps { text-align: left; margin: 22px auto 0; max-width: 420px; color: #444; }
+    .steps li { margin: 8px 0; }
+    .hint { font-size: 13px; color: #666; margin-top: 22px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1><img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="195" height="44">Assistente virtuale</h1>
+    <p>Pagina di prova del widget. Il servizio è riservato a utenti abilitati.</p>
+    <ol class="steps">
+      <li>Apri l'assistente dal pulsante in basso a destra.</li>
+      <li>Accedi con le <strong>credenziali ricevute via email</strong>.</li>
+      <li>Fai le tue domande e usa 👍 / 👎 per darci un riscontro.</li>
+    </ol>
+    <p class="hint">Non inserire dati personali nella chat. Servizio sperimentale.</p>
+  </main>
+
+  <script>
+    window.ChatbotConfig = {
+      apiUrl:       window.location.origin,
+      requireLogin: true,
+      primaryColor: '#003366',
+      title:        'Zautte',
+      subtitle:     '',
+      logoUrl:      './zautte-icon.svg',
+      infoUrl:      './come-funziona.html',
+      lang:         'it',
+      suggestions: [
+        'Come posso contattare un ufficio?',
+        'Quali sono gli orari di apertura degli sportelli?',
+      ],
+    };
+  </script>
+  <script src="./chatbot-widget.js?v=20261019a" defer></script>
+  <script src="./site-footer.js?v=20261006d" defer></script>
+  <script src="./matomo.js?v=20261006b" defer></script>
+</body>
+</html>
