@@ -181,6 +181,11 @@ PII_REDACTION = os.getenv("PII_REDACTION", "true").strip().lower() in ("1", "tru
 PII_KEEP_EMAIL_DOMAINS = [
     d.strip().lower().lstrip("@") for d in os.getenv("PII_KEEP_EMAIL_DOMAINS", "").split(",") if d.strip()
 ]
+# Con PII_BLOCK attivo una domanda che contiene dati personali (quelli
+# riconosciuti da PII_REDACTION o una presentazione in prima persona, come
+# «mi chiamo ...») NON viene elaborata: niente ricerca, niente modello, niente
+# registrazione del testo, solo una risposta fissa che invita a riformulare.
+PII_BLOCK = os.getenv("PII_BLOCK", "true").strip().lower() in ("1", "true", "yes", "on")
 
 # --- Conservazione dei log (giorni; 0 = nessuna scadenza) ---
 # Applicata da scripts/purge_logs.py (cron giornaliero). Valori da concordare con

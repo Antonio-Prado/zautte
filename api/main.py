@@ -34,7 +34,7 @@ from api import auth, quota
 from api.auth import require_user
 from api.datalog import forget
 from api.limiter import limiter
-from api.pii import redact, redact_history
+from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
     ADMIN_API_KEY,
@@ -214,6 +214,7 @@ class ChatResponse(BaseModel):
     sources: list[Source]
     language: str
     rid: str = ""
+    blocked: bool = False
 
 
 class ForgetRequest(BaseModel):
@@ -243,6 +244,17 @@ def _take_question(request: Request, user: dict) -> str:
             headers={"Retry-After": str(quota.seconds_to_midnight())},
         )
     return key
+
+
+def _blocked_for_pii(question: str) -> str | None:
+    """Se la domanda contiene dati personali (PII_BLOCK) restituisce l'rid con cui
+    è stata scartata: non si cerca, non si interroga il modello, non si
+    registra il testo e il limite giornaliero non viene toccato."""
+    if not contains_personal(question):
+        return None
+    rid = secrets.token_hex(6)
+    log.info("Domanda %s scartata: contiene dati personali", rid)
+    return rid
 
 
 def _new_rid() -> str:
@@ -890,6 +902,10 @@ async def chat(request: Request, req: ChatRequest,
     Attende la risposta intera prima di ritornare.
     """
     import time as _time
+    blocked = _blocked_for_pii(req.question)
+    if blocked:
+        return {"answer": BLOCK_MESSAGE, "sources": [], "language": "it",
+                "rid": blocked, "blocked": True}
     key = _take_question(request, user)
     try:
         # Dati personali riconoscibili mascherati prima del modello e dei log
@@ -925,6 +941,14 @@ async def chat_stream(request: Request, req: ChatRequest,
       data: {"sources": [...], "rid": "...", "language": "it"}\n\n  → fonti, identificativo della domanda, lingua
       data: {"done": true}\n\n          → fine stream
     """
+    blocked = _blocked_for_pii(req.question)
+    if blocked:
+        async def _blocked_stream():
+            yield f"data: {json.dumps({'token': BLOCK_MESSAGE}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'sources': [], 'rid': blocked, 'language': 'it', 'blocked': True})}\n\n"
+            yield 'data: {"done": true}\n\n'
+        return StreamingResponse(_blocked_stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
     key = _take_question(request, user)
     try:
         # Dati personali riconoscibili mascherati prima del modello e dei log

@@ -1528,6 +1528,7 @@
       let receivedSources = [];
       let receivedRid = "";
       let receivedLang = "";
+      let receivedBlocked = false;
       let firstToken = true;
 
       const reader = resp.body.getReader();
@@ -1563,6 +1564,7 @@
               receivedSources = payload.sources;
               receivedRid = payload.rid || "";
               receivedLang = payload.language || "";
+              receivedBlocked = !!payload.blocked;
             } else if (payload.error) {
               // Errore server: mostra messaggio e segna sentinel
               if (!fullText) {
@@ -1610,14 +1612,18 @@
         // La risposta viene annunciata una volta sola, completa
         const n = receivedSources.length;
         announce(plainText(fullText), receivedLang, n ? `${T.sources} ${n}` : "");
-        // Aggiorna history conversazionale (max 3 turni = 6 messaggi)
-        conversationHistory.push({ role: "user", content: question });
-        conversationHistory.push({ role: "assistant", content: fullText });
-        if (conversationHistory.length > 6) {
-          conversationHistory = conversationHistory.slice(-6);
+        // Domanda scartata perché contiene dati personali: non entra nella
+        // cronologia (non deve essere rinviata al server) e non si valuta
+        if (!receivedBlocked) {
+          // Aggiorna history conversazionale (max 3 turni = 6 messaggi)
+          conversationHistory.push({ role: "user", content: question });
+          conversationHistory.push({ role: "assistant", content: fullText });
+          if (conversationHistory.length > 6) {
+            conversationHistory = conversationHistory.slice(-6);
+          }
+          // Aggiungi pulsanti feedback
+          addFeedback(wrap, question, fullText, receivedRid);
         }
-        // Aggiungi pulsanti feedback
-        addFeedback(wrap, question, fullText, receivedRid);
       }
 
     } catch (err) {

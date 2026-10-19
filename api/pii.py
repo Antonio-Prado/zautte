@@ -12,11 +12,17 @@ di carta di pagamento (con verifica di Luhn), indirizzi email (tranne quelli dei
 domini istituzionali in PII_KEEP_EMAIL_DOMAINS) e numeri di telefono italiani.
 Nomi, indirizzi di residenza e altri dati in forma libera non sono riconoscibili
 in modo affidabile e restano: l'avviso nel widget resta necessario.
+
+Con PII_BLOCK la domanda che contiene dati personali (quelli riconosciuti sopra,
+oppure una presentazione in prima persona: nome, indirizzo di residenza, data
+e luogo di nascita) non viene proprio elaborata: contains_personal() la
+intercetta e l'API risponde con BLOCK_MESSAGE, senza invio al fornitore del
+modello e senza registrare il testo (parere del DPO del 19/10/2026).
 """
 
 import re
 
-from config.settings import PII_KEEP_EMAIL_DOMAINS, PII_REDACTION
+from config.settings import PII_BLOCK, PII_KEEP_EMAIL_DOMAINS, PII_REDACTION
 
 # Codice fiscale delle persone fisiche, anche in omocodia (cifre sostituite
 # dalle lettere LMNPQRSTUV).
@@ -109,3 +115,34 @@ def redact_history(history: list[dict] | None) -> list[dict] | None:
         {**m, "content": redact(m.get("content", ""))} if m.get("role") == "user" else m
         for m in history
     ]
+
+
+# Presentazioni in prima persona. I nomi propri richiedono l'iniziale maiuscola
+# (le parole che seguono «sono» sono spesso comuni: «sono residente», «sono
+# anziano»), per questo i pattern sono sensibili alle maiuscole.
+_NAME = r"[A-ZÀ-Ý][a-zà-ÿ']{1,}"
+_SELF_RE = re.compile(
+    r"(?i:\bmi chiamo|\bil mio nome è|\bil mio cognome è|\bme chiamo|\bmy name is|\bi am called)\s+" + _NAME
+    + r"|(?i:\bsono (?:il |la |lo )?(?:signor|signora|sig\.|sig\.ra|dott\.|dottor|dottoressa|ing\.)?)\s*" + _NAME + r"\s+" + _NAME
+    + r"|(?i:\b(?:abito|vivo|risiedo|sono residente|resido|domiciliat[oa]) (?:in|a) (?:via|viale|corso|piazza|largo|vicolo|contrada|strada)\b)[^.?!]{0,40}\d"
+    + r"|(?i:\bsono nat[oa] (?:a|il)\b)"
+)
+
+BLOCK_MESSAGE = (
+    "Per proteggere la tua privacy, in questa fase di sperimentazione Zautte non può "
+    "trattare dati personali (nome e cognome, codice fiscale, indirizzo di residenza, "
+    "email, telefono, IBAN, data e luogo di nascita). La tua domanda non è stata "
+    "elaborata né conservata.\n\n"
+    "Riformula la domanda senza questi dati: per esempio, invece di «Sono Mario Rossi e "
+    "abito in via Roma 5, come pago la TARI?» scrivi «Come pago la TARI?». "
+    "Per pratiche che riguardano la tua persona rivolgiti direttamente agli uffici del Comune."
+)
+
+
+def contains_personal(text: str) -> bool:
+    """True se il testo contiene dati personali riconoscibili o una
+    presentazione in prima persona (vedi PII_BLOCK). Sempre False con il blocco
+    spento."""
+    if not PII_BLOCK or not text:
+        return False
+    return redact(text) != text or bool(_SELF_RE.search(text))
