@@ -39,6 +39,11 @@ Open an issue using the **Feature request** template. Describe the use case clea
 | `widget/` | Self-contained JS/CSS chat widget |
 | `scripts/` | Sync orchestration, eval, inbox indexer |
 
+## Changes and releases
+
+- Add a line under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for every change to the code; maintainers turn it into a version (see [Releasing](docs/releasing.md)).
+- Keep what belongs to one organisation (pages, logos, known facts) out of the repository: it goes in the folder pointed to by `INSTANCE_DIR`, see [Configuration](docs/configuration.md).
+
 ## Code style
 
 - Python 3.11+, no external type stubs required

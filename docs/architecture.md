@@ -104,28 +104,30 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── feedback_store.py     # Feedback archive (votes, comments, links)
 │   ├── mailer.py             # Email notifications (credentials, reports)
 │   ├── limiter.py            # Rate limiting (slowapi)
+│   ├── admin_guard.py        # Admin key check with a lockout after repeated wrong keys
 │   └── quota.py              # Daily question limit per user
 │
 ├── widget/                   # served by the API under /widget/
 │   ├── chatbot-widget.js     # Chat widget (self-contained JS/CSS)
 │   ├── embed-snippet.html    # Snippet to paste into the site
-│   ├── dashboard.html        # Login + chat for pilot users; admin panel (#admin)
-│   ├── come-funziona.html    # Public "how it works" page (AI transparency)
-│   ├── pilot.html            # Pilot landing page
-│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, client IP, "Powered by")
-│   ├── matomo.js             # Page-view statistics on our Matomo (no cookies, never the questions)
+│   ├── dashboard.html        # Generic page: login + chat inside the page
+│   ├── dashboard.css         # Styles of the page
+│   ├── come-funziona.html    # Generic "how it works" page (AI transparency)
+│   ├── pilot.html            # Test page with the floating widget
+│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, accessibility link, client IP)
+│   ├── matomo.js             # Optional page-view statistics on your Matomo (no cookies, never the questions)
 │   ├── zautte-logo.svg       # Zautte logo (also used at the top of the README)
 │   ├── zautte-icon.svg       # "ZA" icon in the chat header
 │   ├── zautte-favicon.svg    # Favicon of the pages
 │   ├── zautte-icon-180.png   # apple-touch-icon
-│   ├── freebsd-logo.png      # "Served by" logo in the footer (official FreeBSD logo, scaled down)
-│   ├── ipv6-logo.svg         # World IPv6 Launch logo (Internet Society, CC BY 3.0) in the footer
-│   ├── vi-logo.svg           # "Made with vi" icon in the footer (our own)
-│   └── logo.png              # "Powered by" logo in the footer (not versioned: provide your own)
+│   └── manifest.webmanifest  # Web app manifest
+│
+├── admin_panel/              # restricted area: login.html is the page at ADMIN_PATH; panel.html/css/js are
+│                             # delivered by ADMIN_PATH/dati only with a valid key (changelog.html: optional, per installation)
 │
 ├── docs/                     # This documentation (index: docs/README.md)
 │   ├── architecture.md, installation.md, configuration.md, how-it-works.md,
-│   │   api.md, widget.md, operations.md, privacy-and-security.md
+│   │   api.md, widget.md, operations.md, privacy-and-security.md, releasing.md
 │   ├── images/               # Screenshots used in the README
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │

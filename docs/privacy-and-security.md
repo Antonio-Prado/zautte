@@ -37,7 +37,7 @@ Excess requests get `429`.
 
 ## Protected Admin Endpoints
 
-`/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/summary`, `/usage/messages` and `/crawl-history` require the `X-Admin-Key` header, and `/health` returns its detailed fields only with it. Set `ADMIN_API_KEY` in `.env` in production: if it is empty, admin authentication is disabled. `/docs` and `/openapi.json` exist only with `API_DOCS=true` (development); `/client-ip` is public and tells each caller only their own address (shown in the page footer).
+`/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/summary`, `/usage/messages` and `/crawl-history` require the `X-Admin-Key` header, and `/health` returns its detailed fields only with it. Set `ADMIN_API_KEY` in `.env` in production (after `ADMIN_MAX_ATTEMPTS` wrong keys the client address is locked out for `ADMIN_LOCKOUT_SECONDS`, see [API](api.md#admin-authentication)): if it is empty, admin authentication is disabled. `/docs` and `/openapi.json` exist only with `API_DOCS=true` (development); `/client-ip` is public and tells each caller only their own address (shown in the page footer).
 
 ## CORS
 

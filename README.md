@@ -28,7 +28,7 @@ It runs in production as a pilot for an Italian municipality (the **Comune di Sa
   &nbsp;
   <img src="docs/images/chat-mobile.png" alt="Zautte answering a question about the identity card, phone view" width="22.5%">
 </p>
-<p align="center"><sub>The pilot's interface is in Italian; the widget also speaks English.</sub></p>
+<p align="center"><sub>Screenshots of the reference installation, whose interface is in Italian; the widget also speaks English.</sub></p>
 
 ## Features
 
@@ -47,7 +47,7 @@ It runs in production as a pilot for an Italian municipality (the **Comune di Sa
 </tr>
 <tr>
 <td width="50%">🧠 <b>Your choice of LLM</b><br>Claude through the Anthropic API or AWS Bedrock (EU, Milan region), or a fully local model with Ollama.</td>
-<td width="50%">📊 <b>Admin dashboard</b><br>Service status, indexed content, activity, feedback, users, token costs, crawl history and changelog.</td>
+<td width="50%">📊 <b>Restricted admin area</b><br>Service status, indexed content, activity, feedback, users, token costs and crawl history, on an address of your choice (<code>ADMIN_PATH</code>) behind a key, with a lockout after repeated wrong keys.</td>
 </tr>
 </table>
 
@@ -98,7 +98,7 @@ New items from the municipal bulletin and the site's news feed are indexed withi
 <sub>Figures from October 2026. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3`.</sub>
 
 <details>
-<summary><b>Admin dashboard</b> (user questions, names and costs blurred)</summary>
+<summary><b>Admin area</b> of the reference installation (user questions, names and costs blurred)</summary>
 <br>
 <p align="center"><img src="docs/images/admin.png" alt="Admin dashboard: service status, indexed content, activity and feedback" width="80%"></p>
 </details>
@@ -113,7 +113,7 @@ cd /opt/chatbot
 sh scripts/setup_freebsd.sh            # as root: packages, virtualenv, requirements
 ollama pull bge-m3                     # embedding model, always local
 
-cp .env.example .env                   # set SITE_URL, SITE_NAME, LLM_PROVIDER, keys
+cp .env.example .env                   # set SITE_URL, SITE_NAME, LLM_PROVIDER, ADMIN_API_KEY, ADMIN_PATH, keys
 venv/bin/python -m scripts.sync full   # crawl the site and build the index
 venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
@@ -142,6 +142,7 @@ Then add the widget to your site's pages:
 | 💬 [Frontend Widget](docs/widget.md) | Embedding the chat, options, bundled pages |
 | 🛠️ [Operations](docs/operations.md) | Cron jobs, rc.d service, monitoring, troubleshooting, changing models |
 | 🛡️ [Privacy and Security](docs/privacy-and-security.md) | GDPR, what is stored, rate limits |
+| 🚀 [Releasing](docs/releasing.md) | Versions, [changelog](CHANGELOG.md), tags and releases |
 
 ## Built with
 

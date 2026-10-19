@@ -257,6 +257,10 @@ Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`,
 
 If `ADMIN_API_KEY` is empty, admin authentication is disabled (development only): all admin endpoints and the detailed `/health` are open to anyone.
 
+**Lockout.** A wrong key counts as a failed attempt for the client address. After `ADMIN_MAX_ATTEMPTS` (default 5) within `ADMIN_LOCKOUT_SECONDS` (default 900) that address gets `429` with `Retry-After`, even with the right key, on every admin endpoint and on `/health`. Counts are kept in memory (they restart with the service); localhost, used by the maintenance scripts, is never locked.
+
+**Restricted area.** With `ADMIN_PATH` set (for example `/area-riservata`), `GET <ADMIN_PATH>` serves a page that only asks for the key, and `GET <ADMIN_PATH>/dati` (admin key required) returns `{css, html, js}`: the panel, its script and its styles, which are in no public page. Without `ADMIN_PATH` the area is off. Unknown paths and methods answer with a plain HTML `404`/`405` page.
+
 ## User Authentication
 
 With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are stateless, signed with HMAC-SHA256 using `AUTH_SECRET`, and valid for `AUTH_TOKEN_TTL_DAYS` days (default 30). Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.

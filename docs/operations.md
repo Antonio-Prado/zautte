@@ -221,7 +221,7 @@ venv/bin/python -m scripts.feedback_open             # open 👎 reports
 venv/bin/python -m scripts.feedback_open --details   # only reports with a comment or links
 ```
 
-The same reports are in the admin view of the dashboard, with a "Resolve" button (`POST /feedback/resolve`).
+The same reports are in the restricted admin area, with a "Resolve" button (`POST /feedback/resolve`).
 
 ### Deleting questions on request
 

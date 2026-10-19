@@ -92,6 +92,12 @@ API_DOCS=false
 # /usage/{summary,messages}, /crawl-history and the detailed /health.
 # Leave empty to disable admin authentication (development only)
 ADMIN_API_KEY=your-secret-key-here
+# Address of the restricted admin area, e.g. /area-riservata (empty = the area is off; the path is
+# never written in the code)
+ADMIN_PATH=
+# Wrong admin keys allowed per address, and the lockout (429) once reached, in seconds
+ADMIN_MAX_ATTEMPTS=5
+ADMIN_LOCKOUT_SECONDS=900
 ```
 
 ## Key Parameters in `settings.py`
