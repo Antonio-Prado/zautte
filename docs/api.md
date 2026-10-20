@@ -30,7 +30,7 @@ Public liveness check. Without a valid `X-Admin-Key` it returns a minimal view:
 }
 ```
 
-With a valid `X-Admin-Key` (or when `ADMIN_API_KEY` is empty) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
+With a valid `X-Admin-Key` (or when `ADMIN_AUTH_DISABLED=true`) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
 
 ---
 
@@ -253,7 +253,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 
 Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`, `/admin/reload`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
 
-If `ADMIN_API_KEY` is empty, admin authentication is disabled (development only): all admin endpoints and the detailed `/health` are open to anyone.
+If `ADMIN_API_KEY` is empty, every admin request is refused (the detailed `/health` stays hidden). Only with `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone.
 
 **Lockout.** A wrong key counts as a failed attempt for the client address. After `ADMIN_MAX_ATTEMPTS` (default 5) within `ADMIN_LOCKOUT_SECONDS` (default 900) that address gets `429` with `Retry-After`, even with the right key, on every admin endpoint and on `/health`. Counts are kept in memory (they restart with the service); localhost, used by the maintenance scripts, is never locked.
 

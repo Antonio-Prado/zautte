@@ -14,7 +14,12 @@ import time
 
 from fastapi import HTTPException, Request
 
-from config.settings import ADMIN_API_KEY, ADMIN_LOCKOUT_SECONDS, ADMIN_MAX_ATTEMPTS
+from config.settings import (
+    ADMIN_API_KEY,
+    ADMIN_AUTH_DISABLED,
+    ADMIN_LOCKOUT_SECONDS,
+    ADMIN_MAX_ATTEMPTS,
+)
 
 _LOCAL = {"127.0.0.1", "::1"}
 _lock = threading.Lock()
@@ -52,7 +57,7 @@ def check_admin_key(request: Request, key: str | None) -> bool:
     """True if the key is valid. A key that is present but wrong is counted;
     with the address blocked it raises 429 (Retry-After in seconds)."""
     if not ADMIN_API_KEY:
-        return True  # authentication disabled (development)
+        return ADMIN_AUTH_DISABLED  # no key set: closed, unless explicitly disabled (development)
     ip = _ip(request)
     if ip in _LOCAL:
         return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())

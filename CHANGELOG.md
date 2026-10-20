@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+### Security
+- An empty `ADMIN_API_KEY` no longer opens the admin endpoints and the detailed `/health`: every admin
+  request is refused. Development setups that relied on the open mode must set `ADMIN_AUTH_DISABLED=true`.
+- The public `/health` returns only `status` and `uptime_seconds`; `llm_provider` and `hybrid_search`
+  moved to the admin view.
+
 ### Changed
 - The README screenshots have new file names (`zautte-chat-desktop.png`, `zautte-chat-phone.png`,
   `zautte-admin-area.png`), so that browsers and image caches show the new pictures.

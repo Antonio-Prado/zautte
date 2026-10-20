@@ -90,8 +90,10 @@ API_DOCS=false
 
 # Admin key (X-Admin-Key header) for /stats, /gaps, /feedback/{list,negative,resolve},
 # /usage/{summary,messages}, /crawl-history and the detailed /health.
-# Leave empty to disable admin authentication (development only)
+# With an empty key all admin requests are refused; set ADMIN_AUTH_DISABLED=true
+# to open them instead (development only)
 ADMIN_API_KEY=your-secret-key-here
+ADMIN_AUTH_DISABLED=false
 # Address of the restricted admin area, e.g. /area-riservata (empty = the area is off; the path is
 # never written in the code)
 ADMIN_PATH=
