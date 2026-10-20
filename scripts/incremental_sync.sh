@@ -2,9 +2,12 @@
 # Nightly incremental update of the vector store.
 # Logging is handled directly by sync.py (WatchedFileHandler).
 # Add to /etc/crontab:
-#   0 3 * * * root /opt/chatbot/scripts/incremental_sync.sh
+#   0 3 * * * zsync /opt/chatbot/scripts/incremental_sync.sh
 
-LOCKFILE=/var/run/chatbot-sync.lock
+CONTROL=/var/db/zautte-sync
+if [ -d "$CONTROL" ]; then LOCKFILE=$CONTROL/sync.lock; else LOCKFILE=/var/run/chatbot-sync.lock; fi
+# The unprivileged sync account reads the copy of .env without the API secrets, if there is one
+if [ "$(id -u)" != 0 ] && [ -r /opt/chatbot/.env.sync ]; then export ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync; fi
 
 cd /opt/chatbot
 lockf -t 0 "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.sync incremental

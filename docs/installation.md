@@ -33,7 +33,7 @@ cd /opt/chatbot
 sh scripts/setup_freebsd.sh
 ```
 
-The script installs the system packages (`python311`, git, curl, wget and the build tools above), creates the virtualenv, installs `requirements.txt` (with `orjson<=3.11.8` when Rust is older than 1.95), creates the `data/` directories and, if Ollama is already installed, pulls `bge-m3` and `llama3.1:8b`. Ollama itself must be installed separately.
+The script installs the system packages (`python311`, git, curl, wget and the build tools above), creates the virtualenv, installs `requirements-lock.txt` (with `orjson<=3.11.8` when Rust is older than 1.95), creates the `data/` directories and, if Ollama is already installed, pulls `bge-m3` and `llama3.1:8b`. Ollama itself must be installed separately.
 
 ## Manual Setup
 
@@ -45,7 +45,7 @@ python3.11 -m venv venv
 . venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.txt   # includes rank-bm25 for BM25 hybrid search
+pip install -r requirements-lock.txt   # exact versions (FreeBSD, Python 3.11); requirements.txt has the minimums, rank-bm25 included
 
 # Configure the environment
 cp .env.example .env

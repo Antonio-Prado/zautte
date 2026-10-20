@@ -33,7 +33,7 @@ python -m scripts.sync reembed
 python -m scripts.sync news [--backfill]
 ```
 
-Every mode except `news` ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. `news` instead asks the running API to reload the store from disk (`POST /admin/reload`, no restart, no 502). The sync log is `/var/log/chatbot-sync.log`.
+Every mode except `news` ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. `news` instead asks the running API to reload the store from disk (`POST /admin/reload`, no restart, no 502). The sync log is `/var/log/chatbot-sync.log`. Run as the unprivileged `zsync` account (see [Running the sync jobs without root](#running-the-sync-jobs-without-root)), the syncs leave the reload or restart to the watchdog.
 
 ### News in near real time (`scripts/news_sync.py`)
 
@@ -46,7 +46,7 @@ For every new or modified item it indexes the article (text prefixed with "Notiz
 
 `scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
-Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`) take the lock `/var/run/chatbot-sync.lock`. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
+Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
 lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.sync <mode>
@@ -54,17 +54,17 @@ lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.sync <mode>
 
 During long runs the vector store is saved to disk every 30 minutes (checkpoint) and at the end.
 
-### `/etc/crontab` (root) — production schedule
+### `/etc/crontab` — production schedule
 
-The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync kills the root-owned uvicorn processes), so in production they run from `/etc/crontab`:
+The sync jobs download and parse documents from the Internet, so they should not run as root: they run as the account `zsync` (see [Running the sync jobs without root](#running-the-sync-jobs-without-root)). The watchdog and the log rotation stay root. In production they run from `/etc/crontab`:
 
 ```
 # minute hour mday month wday who  command
 *        *    *    *     *    root /opt/chatbot/scripts/watchdog.sh
-0        2    *    *     *    root /opt/chatbot/scripts/backup_vectorstore.sh
-30       2    *    *     1    root /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
-0        3    1    *     *    root /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
-*/15     *    *    *     *    root /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
+0        2    *    *     *    zsync /opt/chatbot/scripts/backup_vectorstore.sh
+30       2    *    *     1    zsync /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
+0        3    1    *     *    zsync /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
+*/15     *    *    *     *    zsync /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
 
@@ -72,7 +72,7 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 
 | Schedule                       | Script                  | Description |
 |--------------------------------|-------------------------|-------------|
-| every minute                   | `watchdog.sh`           | Restarts the API if it is down or unresponsive |
+| every minute                   | `watchdog.sh`           | Restarts the API if it is down or unresponsive; reloads or restarts it when a sync asks for it |
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
@@ -177,7 +177,19 @@ find /data/chatbot/data -maxdepth 1 -type f -exec chown zautte:wheel {} +
 chgrp zautte /var/log/chatbot-sync.log                           # read by /crawl-history
 ```
 
-What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the folder `data/` itself belongs to root (group `zautte`, mode 1770) and has the sticky bit, so the account cannot rename or replace the root-owned folders inside it (`vectorstore`, `crawl_cache`, `documents`, `inbox`) that the root cron jobs write to. `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before touching them (`api/privdrop.py`). The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the cron jobs keep running as root. Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
+### Running the sync jobs without root
+
+`scripts/setup_sync_user.sh` (run once as root, idempotent) creates the account `zsync` and the group `zdata` (both the API account and `zsync` belong to it, so both can create files in `data/`; the sticky bit keeps each from touching the other's). `zsync` owns only what the sync writes: `vectorstore`, `crawl_cache`, `documents`, `inbox`, `backups`, `/var/log/chatbot/` and the sync log. It reads `.env.sync`, a copy of `.env` without `AUTH_SECRET`, `ADMIN_API_KEY`, `ADMIN_PATH` and the model provider keys (the wrappers select it with `ZAUTTE_ENV_FILE`), so a flaw in a PDF or Office parser reaches neither the API nor its secrets. Edit `.env.sync` again when `.env` changes (run the script again).
+
+Since `zsync` can neither signal the API nor use its admin key, `scripts/sync.py` leaves an empty request file (`reload` or `restart`) in `/var/db/zautte-sync/`; the root watchdog looks for it every minute, removes it, and reloads the index (`POST /admin/reload`) or runs `service chatbot restart`. The sync lock lives in the same folder. Start the manual syncs as that account, under the same lock:
+
+```sh
+su -m zsync -c 'cd /opt/chatbot && lockf -t 0 /var/db/zautte-sync/sync.lock venv/bin/python -m scripts.sync <mode>'
+```
+
+Change the user of the sync lines in `/etc/crontab` to `zsync` and put `zsync:zautte` on `chatbot-sync.log` in the newsyslog configuration (`scripts/newsyslog-chatbot.conf`). Run as root, `scripts.sync` still works the old way (it reloads or kills the API itself).
+
+What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the folder `data/` itself belongs to root (group `zautte`, mode 1770) and has the sticky bit, so the account cannot rename or replace the root-owned folders inside it (`vectorstore`, `crawl_cache`, `documents`, `inbox`) that the root cron jobs write to. `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before touching them (`api/privdrop.py`). The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the watchdog stays root. The sync jobs do not (see below). Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
 
 ### Log Rotation
 
