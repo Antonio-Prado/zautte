@@ -45,7 +45,7 @@ The API keeps no conversation state: turn history is managed client-side by the 
 
 | Component         | Technology                                           |
 |-------------------|------------------------------------------------------|
-| OS                | FreeBSD 15 (production: 15.1-RELEASE)                |
+| OS                | FreeBSD 15 (15.1-RELEASE tested)                |
 | Python            | 3.11+                                                |
 | Web scraping      | httpx + BeautifulSoup4/lxml                          |
 | PDF parsing       | pypdf (pure Python, no compilation)                  |
@@ -54,7 +54,7 @@ The API keeps no conversation state: turn history is managed client-side by the 
 | Embedding         | Ollama (`bge-m3`, 1024 dim, multilingual)            |
 | Vector store      | Custom in-memory store on numpy (no external database) |
 | Keyword search    | rank-bm25 (BM25Okapi)                                |
-| LLM               | Local Ollama (`llama3.1:8b` by default) or Claude via the Anthropic API or AWS Bedrock (`anthropic` SDK; production: Claude Sonnet 4.6) |
+| LLM               | Local Ollama (`llama3.1:8b` by default) or Claude via the Anthropic API or AWS Bedrock (`anthropic` SDK; default: Claude Sonnet 4.6) |
 | Backend           | FastAPI + uvicorn                                    |
 | Configuration     | python-dotenv (`.env`)                               |
 | Rate limiting     | slowapi                                              |
