@@ -65,6 +65,7 @@ from crawler.crawler import (
     should_skip,
     url_to_filename,
 )
+from crawler.netpolicy import get_limited, guard, url_allowed
 from indexer.chunker import chunk_document
 from indexer.indexer import _index_documents
 from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
@@ -109,7 +110,7 @@ def _digest(*parts: str) -> str:
 
 def _get(client: httpx.Client, url: str, **kw) -> httpx.Response | None:
     try:
-        resp = client.get(url, **kw)
+        resp = get_limited(client, url, **kw)
     except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
         # InvalidURL/ValueError (also IDNAError): malformed links in articles,
         # e.g. a host longer than 253 characters (2025 archive, 12/10/2026)
@@ -257,8 +258,7 @@ def _attachment_hosts() -> set[str]:
 
 
 def _host_ok(url: str, hosts: set[str]) -> bool:
-    netloc = urlparse(url).netloc.lower()
-    return any(h in netloc for h in hosts)
+    return url_allowed(url, hosts)
 
 
 def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str]]]:
@@ -428,9 +428,13 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
                 # a broken link or attachment must not stop the run (the article is already queued)
                 log.warning(f"  Article links not followed: {post['url']} — {e}")
 
+    hosts = _attachment_hosts()
     for feed in NEWS_SOURCES.get("rss", []):
         for item in rss_items(client, feed):
             if item["url"] in seen_urls or item["url"] in items:
+                continue
+            if not _host_ok(item["url"], hosts):
+                log.warning(f"  Feed item outside the allowed domains, skipped: {item['url'][:120]}")
                 continue
             doc, html = page_doc(client, item["url"], item["date"])
             if doc is None:
@@ -459,7 +463,11 @@ def run_news(backfill: bool = False) -> dict:
     state = load_state()
     if backfill:
         state = {"wp_cursor": "", "items": {}}
-    with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=30.0) as client:
+    # the sources named in crawl_extra.json are trusted; what they link to is not
+    trusted = {urlparse(u).hostname or "" for u in [NEWS_SOURCES.get("wordpress_api", ""),
+                                                    *NEWS_SOURCES.get("rss", [])] if u}
+    with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=30.0,
+                      event_hooks=guard(_attachment_hosts() | trusted)) as client:
         docs, new_state, counts = collect(client, state, backfill)
     if not docs:
         log.info("News: nothing new")

@@ -51,6 +51,11 @@ CRAWL_ALLOWED_DOMAINS = [
     for d in os.getenv("CRAWL_ALLOWED_DOMAINS", "").split(",")
     if d.strip()
 ]
+# Never fetch a host that resolves to a loopback, private or otherwise non-public address
+CRAWL_BLOCK_PRIVATE_IPS = os.getenv("CRAWL_BLOCK_PRIVATE_IPS", "true").strip().lower() in ("1", "true", "yes", "on")
+# Size limits of a single download, in MB (pages and feeds / PDFs and other attachments)
+CRAWL_MAX_PAGE_MB = int(os.getenv("CRAWL_MAX_PAGE_MB", "20"))
+CRAWL_MAX_FILE_MB = int(os.getenv("CRAWL_MAX_FILE_MB", "100"))
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",
