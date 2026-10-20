@@ -9,6 +9,23 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-20
+
+### Security
+- Downloads connect to the address that was checked, not to a second lookup of the name (the `Host` header and the
+  TLS name stay those of the site, so certificates are verified as usual): a name that changes its answer between the
+  check and the connection (DNS rebinding) reaches nothing. Redirects are followed by the code itself, one hop at a
+  time, each checked like the first request. This replaces the check made after the connection (0.6.3).
+- Compressed bodies are decoded in 1 MB steps and refused as soon as the decoded size passes the limit, so a tiny gzip
+  that expands to gigabytes no longer takes the memory; only gzip and deflate are accepted.
+- Sessions created before `auth_version` and invalidated by a password change stay invalidated (`pw_changed` is still
+  checked next to `auth_version`).
+- `/auth/login` checks the password in a worker thread, four at a time, so a burst of logins does not stall the API.
+- Deleting questions by `rid` clears only the conversations of the users who asked them (it cleared everybody's).
+- The statistics expire when the API starts and every six hours, not only when they are saved, and the activity view
+  never shows expired data.
+- With login enabled, `POST /feedback` needs the id of an answer that was given to the same user.
+
 ## [0.6.3] - 2026-10-20
 
 ### Security
@@ -255,7 +272,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/Antonio-Prado/zautte/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/Antonio-Prado/zautte/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/Antonio-Prado/zautte/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Antonio-Prado/zautte/compare/v0.6.0...v0.6.1

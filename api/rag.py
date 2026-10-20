@@ -785,6 +785,15 @@ def _load_stats():
         _token_history    = d.get("token_history", [])[-_TOKEN_HISTORY_MAX:]
     except (OSError, ValueError, TypeError, AttributeError) as e:
         log.warning(f"Could not load stats: {e}")
+        return
+    _expire_stats()
+
+
+def expire_and_save_stats() -> None:
+    """Applies RETENTION_STATS_DAYS and writes stats.json: called at startup and every few
+    hours, so the data expire also when nobody is asking questions."""
+    _expire_stats()
+    _save_stats()
 
 
 def _expire_stats():
@@ -828,6 +837,7 @@ def get_query_count() -> int:
 
 
 def get_activity_stats() -> dict:
+    _expire_stats()
     avg_ms = int(sum(_response_times) / len(_response_times) * 1000) if _response_times else None
     top_q = [(q, c) for q, c in _query_freq.most_common(5)]
     n = len(_token_history)

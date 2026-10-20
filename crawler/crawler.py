@@ -88,7 +88,7 @@ async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     the Apache limit (8 KB): from then on every request to the site, PDFs included,
     got 400 Bad Request. No crawled page requires cookies."""
     client.cookies.clear()
-    return await get_limited_async(client, url)
+    return await get_limited_async(client, url, CRAWL_ALLOWED_DOMAINS)
 
 
 def should_skip(url: str) -> bool:
