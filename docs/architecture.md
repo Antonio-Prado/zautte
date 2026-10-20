@@ -140,7 +140,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── eval.py               # RAG quality evaluation
 │   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
 │   ├── forget.py             # Deletes questions on request from logs and API memory
-│   ├── adduser.py            # Creates/updates/removes pilot users
+│   ├── adduser.py            # Creates/updates/removes pilot users (--send-email: invitation with a link, no password by email)
 │   ├── feedback_open.py      # Lists open negative feedback
 │   ├── cleanup_index.py      # Purges crawl-cache entries now excluded by the crawler filters
 │   ├── full_sync.sh          # Monthly full sync (zero downtime, sync lock)

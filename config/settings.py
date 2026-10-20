@@ -54,7 +54,8 @@ CRAWL_ALLOWED_DOMAINS = [
 # Never fetch a host that resolves to a loopback, private or otherwise non-public address
 CRAWL_BLOCK_PRIVATE_IPS = os.getenv("CRAWL_BLOCK_PRIVATE_IPS", "true").strip().lower() in ("1", "true", "yes", "on")
 # Allowed hosts that legitimately resolve to a private address (split-horizon DNS: the server
-# sees an internal address for one of its own sites). Comma-separated, exact hosts or domains.
+# sees an internal address for one of its own sites). Comma-separated EXACT host names:
+# the subdomains of a name listed here are not exempted.
 CRAWL_PRIVATE_OK_HOSTS = [
     d.strip().lower()
     for d in os.getenv("CRAWL_PRIVATE_OK_HOSTS", "").split(",")

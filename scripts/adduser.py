@@ -5,6 +5,9 @@ Usage:
     # create/update a user (password asked interactively, hidden)
     python -m scripts.adduser --email m.rossi@example.it --name "Mario Rossi"
 
+    # create the user and email them a single-use link to choose their own password
+    python -m scripts.adduser --email m.rossi@example.it --name "Mario Rossi" --send-email
+
     # non-interactive (e.g. from a script)
     python -m scripts.adduser --email ... --name "..." --password "..."
 
@@ -23,14 +26,14 @@ import getpass
 import json
 import secrets
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api.auth import hash_password
-from api.mailer import send_credentials, smtp_configured
-from config.settings import PILOT_LOGIN_URL, USERS_FILE
+from api.auth import create_reset_token, hash_password, reset_link, write_users
+from api.filelock import file_lock
+from api.mailer import send_invitation, smtp_configured
+from config.settings import USERS_FILE
 
 
 def _load() -> list[dict]:
@@ -43,25 +46,24 @@ def _load() -> list[dict]:
     return []
 
 
-def _save(users: list[dict]) -> None:
-    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    USERS_FILE.write_text(
-        json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description="Zautte user management")
     ap.add_argument("--email")
     ap.add_argument("--name")
-    ap.add_argument("--password", help="if omitted: generated (with --send-email) or prompted")
+    ap.add_argument("--password", help="if omitted: prompted (or, with --send-email, chosen by the user). "
+                    "Avoid it: the password stays in the shell history and in the process list")
     ap.add_argument("--send-email", action="store_true",
-                    help="deliver the credentials to the user via SMTP")
-    ap.add_argument("--login-url", help="override the login URL in the email")
+                    help="email the user a single-use link to choose the password (nothing secret is sent)")
+    ap.add_argument("--invite-hours", type=int, default=72, help="validity of that link (default 72)")
     ap.add_argument("--list", action="store_true", help="list users")
     ap.add_argument("--remove", metavar="EMAIL", help="remove a user")
     args = ap.parse_args()
 
+    with file_lock(USERS_FILE):
+        _run(args, ap)
+
+
+def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
     users = _load()
 
     if args.list:
@@ -77,7 +79,7 @@ def main() -> None:
         if len(kept) == len(users):
             print(f"User not found: {email}")
             sys.exit(1)
-        _save(kept)
+        write_users(kept)
         print(f"Removed: {email}")
         return
 
@@ -86,13 +88,13 @@ def main() -> None:
 
     email = args.email.strip().lower()
     if args.send_email and not smtp_configured():
-        print("SMTP not configured: the credentials cannot be delivered. No changes made.")
+        print("SMTP not configured: the invitation cannot be sent. No changes made.")
         sys.exit(1)
-    # Password: explicit, or generated (if --send-email), or interactive
+    # Password: explicit, or interactive; with --send-email nobody knows it (the user sets it)
     if args.password:
         password = args.password
     elif args.send_email:
-        password = secrets.token_urlsafe(12)  # generated, will be delivered by email
+        password = secrets.token_urlsafe(24)   # unknown to everybody: replaced through the emailed link
     else:
         password = getpass.getpass("Password: ")
     if len(password) < 8:
@@ -106,7 +108,7 @@ def main() -> None:
     if existing:
         existing["name"] = args.name
         existing["pw_hash"] = pw_hash
-        existing["pw_changed"] = int(time.time())  # older sessions stop working
+        existing["auth_version"] = int(existing.get("auth_version", 0)) + 1   # older sessions stop working
         print(f"Updated: {args.name} <{email}>")
     else:
         users.append({
@@ -116,17 +118,20 @@ def main() -> None:
             "pw_hash": pw_hash,
         })
         print(f"Created: {args.name} <{email}>")
-    _save(users)
+    write_users(users)
 
     if args.send_email:
-        # The password is never printed: if sending fails, rerun the command
-        # (without --password it generates a new one).
-        url = args.login_url or PILOT_LOGIN_URL
+        user = existing or users[-1]
+        link = reset_link(create_reset_token(user, minutes=args.invite_hours * 60))
+        if link is None:
+            print("  Set PUBLIC_BASE_URL (or PILOT_LOGIN_URL) in .env: without it no link can be built. "
+                  "The user was saved but not invited.")
+            sys.exit(1)
         try:
-            send_credentials(email, args.name, password, url)
-            print(f"  Email with the credentials sent to {email}")
+            send_invitation(email, args.name, link, args.invite_hours)
+            print(f"  Invitation with the link to choose the password sent to {email}")
         except Exception as e:  # noqa: BLE001
-            print(f"  Sending email FAILED ({e}): credentials not delivered. "
+            print(f"  Sending email FAILED ({e}): invitation not delivered. "
                   "Run the same command again to retry.")
             sys.exit(1)
 

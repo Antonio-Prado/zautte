@@ -16,6 +16,7 @@ One policy for every download made on behalf of a page, a feed or an attachment:
 
 import ipaddress
 import socket
+import time
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
@@ -72,25 +73,44 @@ def url_allowed(url: str, domains: Iterable[str]) -> bool:
     return host_allowed(host, domains)
 
 
-_public_cache: dict[str, bool] = {}
+_CACHE_SECONDS = 60
+_public_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _private_ok(host: str) -> bool:
+    """Hosts exempted from the private-address block: exact names, never their subdomains."""
+    return host.lower().rstrip(".") in CRAWL_PRIVATE_OK_HOSTS
 
 
 def resolves_public(host: str) -> bool:
-    """True if every address the host resolves to is a public one (cached per host)."""
-    if not CRAWL_BLOCK_PRIVATE_IPS:
+    """True if every address the host resolves to is a public one (cached for a minute)."""
+    if not CRAWL_BLOCK_PRIVATE_IPS or _private_ok(host):
         return True
     host = host.lower().rstrip(".")
-    if host_allowed(host, CRAWL_PRIVATE_OK_HOSTS):
-        return True
-    if host not in _public_cache:
+    now = time.monotonic()
+    cached = _public_cache.get(host)
+    if cached is None or now - cached[0] > _CACHE_SECONDS:
         try:
             infos = socket.getaddrinfo(host, None)
-            _public_cache[host] = bool(infos) and all(
+            ok = bool(infos) and all(
                 ipaddress.ip_address(i[4][0].split("%")[0]).is_global for i in infos
             )
         except (OSError, ValueError):
-            _public_cache[host] = False
-    return _public_cache[host]
+            ok = False
+        _public_cache[host] = cached = (now, ok)
+    return cached[1]
+
+
+def _check_peer(resp: httpx.Response) -> None:
+    """The address the connection really went to must be public too: the name could have
+    resolved elsewhere between the check and the connection (DNS rebinding). The request
+    has been sent by then, but nothing of what comes back is read."""
+    if not CRAWL_BLOCK_PRIVATE_IPS or _private_ok(resp.request.url.host):
+        return
+    stream = resp.extensions.get("network_stream")
+    addr = stream.get_extra_info("server_addr") if stream is not None else None
+    if addr and not ipaddress.ip_address(str(addr[0]).split("%")[0]).is_global:
+        raise BlockedURL(f"connected to a non-public address: {str(resp.url)[:200]}", request=resp.request)
 
 
 def _check(request: httpx.Request, domains: list[str]) -> None:
@@ -141,6 +161,7 @@ def _rebuilt(resp: httpx.Response, body: bytes) -> httpx.Response:
 async def get_limited_async(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """GET that stops reading when the body passes the limit (raises TooLarge)."""
     async with client.stream("GET", url) as resp:
+        _check_peer(resp)
         limit = _limit(str(resp.url), resp.headers.get("content-type", ""))
         if _declared(resp) > limit:
             raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
@@ -155,6 +176,7 @@ async def get_limited_async(client: httpx.AsyncClient, url: str) -> httpx.Respon
 def get_limited(client: httpx.Client, url: str, **kw) -> httpx.Response:
     """Synchronous version of get_limited_async."""
     with client.stream("GET", url, **kw) as resp:
+        _check_peer(resp)
         limit = _limit(str(resp.url), resp.headers.get("content-type", ""))
         if _declared(resp) > limit:
             raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
