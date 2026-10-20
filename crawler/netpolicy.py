@@ -21,7 +21,12 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from config.settings import CRAWL_BLOCK_PRIVATE_IPS, CRAWL_MAX_FILE_MB, CRAWL_MAX_PAGE_MB
+from config.settings import (
+    CRAWL_BLOCK_PRIVATE_IPS,
+    CRAWL_MAX_FILE_MB,
+    CRAWL_MAX_PAGE_MB,
+    CRAWL_PRIVATE_OK_HOSTS,
+)
 
 _DEFAULT_PORTS = {None, 80, 443}
 _FILE_TYPES = ("application/pdf", "application/octet-stream", "application/vnd",
@@ -75,6 +80,8 @@ def resolves_public(host: str) -> bool:
     if not CRAWL_BLOCK_PRIVATE_IPS:
         return True
     host = host.lower().rstrip(".")
+    if host_allowed(host, CRAWL_PRIVATE_OK_HOSTS):
+        return True
     if host not in _public_cache:
         try:
             infos = socket.getaddrinfo(host, None)
