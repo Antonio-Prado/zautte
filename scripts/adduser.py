@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.auth import create_reset_token, hash_password, reset_link, write_users
 from api.filelock import file_lock
 from api.mailer import send_invitation, smtp_configured
-from api.privdrop import drop_to_data_owner
+from api.privdrop import drop_to_service_user
 from config.settings import USERS_FILE
 
 
@@ -48,7 +48,7 @@ def _load() -> list[dict]:
 
 
 def main() -> None:
-    drop_to_data_owner(USERS_FILE.parent)
+    drop_to_service_user(USERS_FILE.parent)
     ap = argparse.ArgumentParser(description="Zautte user management")
     ap.add_argument("--email")
     ap.add_argument("--name")
@@ -92,6 +92,10 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
     if args.send_email and not smtp_configured():
         print("SMTP not configured: the invitation cannot be sent. No changes made.")
         sys.exit(1)
+    if args.send_email and reset_link("check") is None:
+        print("Set PUBLIC_BASE_URL (or PILOT_LOGIN_URL) in .env: without it no link can be built. "
+              "No changes made.")
+        sys.exit(1)
     # Password: explicit, or interactive; with --send-email nobody knows it (the user sets it)
     if args.password:
         password = args.password
@@ -103,21 +107,24 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
         print("The password must be at least 8 characters long.")
         sys.exit(1)
 
-    pw_hash = hash_password(password)
     existing = next(
         (u for u in users if u.get("email", "").strip().lower() == email), None
     )
     if existing:
         existing["name"] = args.name
-        existing["pw_hash"] = pw_hash
-        existing["auth_version"] = int(existing.get("auth_version", 0)) + 1   # older sessions stop working
-        print(f"Updated: {args.name} <{email}>")
+        if args.send_email:
+            # the password and the open sessions stay as they are until the user follows the link
+            print(f"Updated: {args.name} <{email}> (password unchanged until the link is used)")
+        else:
+            existing["pw_hash"] = hash_password(password)
+            existing["auth_version"] = int(existing.get("auth_version", 0)) + 1   # older sessions stop working
+            print(f"Updated: {args.name} <{email}>")
     else:
         users.append({
             "id": secrets.token_hex(8),
             "name": args.name,
             "email": email,
-            "pw_hash": pw_hash,
+            "pw_hash": hash_password(password),
         })
         print(f"Created: {args.name} <{email}>")
     write_users(users)

@@ -9,6 +9,24 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-10-21
+
+### Security
+- `purge_logs` and `adduser` started as root now become the service account for real: it is named by `SERVICE_USER`
+  (or, without it, is the owner of the existing data files), the groups are reset, and the script stops if it is still
+  root afterwards or can get root back. In 0.6.6 the switch did nothing when `data/` belonged to root.
+- A password reset link is checked again inside the lock of `users.json`, right before the write: two requests
+  with the same link can no longer both set a password.
+- `adduser --send-email` on an existing user no longer replaces the password or ends the open sessions: they change
+  only when the user follows the link. The public address for the link is checked before anything is saved.
+
+### Fixed
+- The question embedding (a blocking call to Ollama) runs in a worker thread, four at a time, so a slow embedding no
+  longer freezes the API, `/health` included.
+- The cached answers are dropped when the index is reloaded, so a removed or updated document is no longer served
+  from the cache.
+- `stats.json` is written atomically.
+
 ## [0.6.6] - 2026-10-21
 
 ### Security

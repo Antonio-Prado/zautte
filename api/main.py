@@ -622,8 +622,12 @@ async def admin_reload(_: None = Security(require_admin)):
     `scripts.sync news` after indexing the new news items. Response: the
     store statistics and `reloaded` (false if the files were unreadable and
     the previous version stays in memory)."""
+    from api.rag import clear_response_cache
     from indexer.vector_store import reload
-    return {"ok": True, **await asyncio.to_thread(reload)}
+    result = await asyncio.to_thread(reload)
+    if result.get("reloaded"):
+        clear_response_cache()   # cached answers may refer to passages the new index dropped
+    return {"ok": True, **result}
 
 
 @app.get("/stats")
