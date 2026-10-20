@@ -151,12 +151,30 @@ service chatbot restart  # restart
 service chatbot status   # status
 ```
 
-The `scripts/chatbot_rcd` script (runs as root):
+The `scripts/chatbot_rcd` script (runs as root, and starts the API as the user in `chatbot_user`, see [Running as an unprivileged user](#running-as-an-unprivileged-user)):
 - does not export `/opt/chatbot/.env`: `config/settings.py` loads it with `python-dotenv` when each process starts, so a `.env` change takes effect at the next API start (`service chatbot restart`, or the watchdog restart after a sync)
 - starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`, reopened on `SIGHUP` (`-H`) when newsyslog rotates it
 - `start.sh` runs one uvicorn process (`python -m api.serve api.main:app`, one worker) listening on port 8000 on both IPv4 `0.0.0.0` and IPv6 `::`; scripts that look for the API process (`scripts/sync.py`, `scripts/watchdog.sh`, this rc.d script) match `api.main:app`
 - `daemon` runs without `-r`: after a crash, or after a sync kills uvicorn, the watchdog restarts the service within a minute
 - `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `kill -0`
+
+### Running as an unprivileged user
+
+The API listens on the Internet, so it should not run as root. Create a dedicated account and tell the rc script to use it:
+
+```sh
+pw useradd zautte -d /nonexistent -s /usr/sbin/nologin -c "Zautte service"
+sysrc chatbot_user=zautte
+
+chown -R root:wheel /opt/chatbot && chmod -R go-w /opt/chatbot  # code: nobody but root can change it
+chown zautte:wheel /opt/chatbot/.env && chmod 600 /opt/chatbot/.env
+chmod 751 /data/chatbot                                          # let the account reach the data folder
+chown zautte:wheel /data/chatbot/data && chmod 1750 /data/chatbot/data
+find /data/chatbot/data -maxdepth 1 -type f -exec chown zautte:wheel {} +
+chgrp zautte /var/log/chatbot-sync.log                           # read by /crawl-history
+```
+
+What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the sticky bit on `data/` stops it from renaming or deleting what it does not own. The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the cron jobs keep running as root. Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
 
 ### Log Rotation
 

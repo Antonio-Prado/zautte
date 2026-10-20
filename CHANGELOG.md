@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-20
+
+### Security
+- The rc.d script can run the API as an unprivileged account: set `chatbot_user` in `/etc/rc.conf` and the
+  `daemon(8)` supervisor starts the process with `-u` (default `root`, so existing installations are
+  unchanged). New section "Running as an unprivileged user" in `docs/operations.md` with the account, the
+  ownership of code and data, and the group of the sync log (also in `newsyslog-chatbot.conf`).
+
 ## [0.5.2] - 2026-10-20
 
 ### Security
@@ -152,7 +160,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Antonio-Prado/zautte/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Antonio-Prado/zautte/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Antonio-Prado/zautte/compare/v0.4.3...v0.5.0
