@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-10-20
+
+### Security
+- One address policy for the crawler, the PDF links and the news sync (`crawler/netpolicy.py`): the host must be
+  an allowed domain or one of its subdomains (before, `CRAWL_ALLOWED_DOMAINS` was matched as a substring, so
+  `www.example.it.attacker.invalid` passed), with no credentials in the address (PDF links were not checked for
+  `@`), no IP literals, only default ports, and no host that resolves to a private address
+  (`CRAWL_BLOCK_PRIVATE_IPS`). Items of the RSS feeds are checked before they are downloaded.
+- Redirects are checked hop by hop, so a page on an allowed host can no longer lead the crawler, or the text
+  stored under its address, to another site.
+- Downloads are read in chunks and stop at `CRAWL_MAX_PAGE_MB` (pages, feeds; default 20) or
+  `CRAWL_MAX_FILE_MB` (PDFs and attachments; default 100); a larger body is skipped with a warning.
+
 ## [0.5.6] - 2026-10-20
 
 ### Security
@@ -193,7 +206,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.7...HEAD
+[0.5.7]: https://github.com/Antonio-Prado/zautte/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/Antonio-Prado/zautte/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...v0.5.4

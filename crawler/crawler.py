@@ -37,6 +37,7 @@ from config.settings import (
     SECTION_DEFAULT,
     SITE_URL,
 )
+from crawler.netpolicy import get_limited_async, guard_async, url_allowed
 from crawler.state import CrawlState, content_hash
 from indexer.titles import LINK_TEXTS_FILE, best_link_text
 
@@ -87,7 +88,7 @@ async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     the Apache limit (8 KB): from then on every request to the site, PDFs included,
     got 400 Bad Request. No crawled page requires cookies."""
     client.cookies.clear()
-    return await client.get(url)
+    return await get_limited_async(client, url)
 
 
 def should_skip(url: str) -> bool:
@@ -97,12 +98,9 @@ def should_skip(url: str) -> bool:
     if parsed.scheme not in ("http", "https"):
         return True
 
-    # Email addresses disguised as URLs (e.g. http://utente@dominio.it)
-    if "@" in parsed.netloc:
-        return True
-
-    # Domain not allowed
-    if not any(d in parsed.netloc for d in CRAWL_ALLOWED_DOMAINS):
+    # Protocol, credentials in the address (e.g. http://utente@dominio.it), IP literals,
+    # ports and domain: one policy for pages, PDFs and the news sync (crawler/netpolicy.py)
+    if not url_allowed(url, CRAWL_ALLOWED_DOMAINS):
         return True
 
     # Excluded patterns (extensions, forbidden paths, PHP scripts, etc.)
@@ -166,7 +164,7 @@ def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
         href = tag["href"].strip()
         if href.lower().endswith(".pdf"):
             absolute = canonical_url(urljoin(base_url, href))
-            if (any(d in urlparse(absolute).netloc for d in CRAWL_ALLOWED_DOMAINS)
+            if (url_allowed(absolute, CRAWL_ALLOWED_DOMAINS)
                     and not any(pat in absolute for pat in CRAWL_PDF_EXCLUDE_PATTERNS)):
                 text = tag.get_text(" ", strip=True) or (tag.get("title") or "").strip()
                 pdfs.append((absolute, text))
@@ -383,7 +381,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     skipped_pages = 0
 
     async with httpx.AsyncClient(
-        headers=headers, follow_redirects=True, timeout=30.0
+        headers=headers, follow_redirects=True, timeout=30.0,
+        event_hooks=guard_async(CRAWL_ALLOWED_DOMAINS),
     ) as client:
 
         while to_visit and (CRAWL_MAX_PAGES == 0 or len(visited) < CRAWL_MAX_PAGES):
