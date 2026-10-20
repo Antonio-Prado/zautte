@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-10-20
+
+### Security
+- A session is now refused when `users.json` is empty or cannot be read (the last good copy is used
+  while the file is unreadable, so a half-written file does not log everybody out).
+- The password reset link is built only from `PUBLIC_BASE_URL` (new) or the origin of `PILOT_LOGIN_URL`,
+  never from the `Host` header of the request (reset poisoning); without either, no link is sent.
+- `/auth/forgot` sends the email after the reply, so the reply takes the same time for registered and
+  unregistered addresses and a slow mail server cannot hold up the API.
+
 ## [0.5.3] - 2026-10-20
 
 ### Security
@@ -160,7 +170,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Antonio-Prado/zautte/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Antonio-Prado/zautte/compare/v0.5.0...v0.5.1
