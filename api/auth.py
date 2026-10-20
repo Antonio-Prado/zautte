@@ -28,7 +28,7 @@ import threading
 import time
 from urllib.parse import quote, urlsplit
 
-from fastapi import APIRouter, HTTPException, Request, Security
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Security
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
@@ -39,6 +39,7 @@ from config.settings import (
     AUTH_SECRET,
     AUTH_TOKEN_TTL_DAYS,
     PILOT_LOGIN_URL,
+    PUBLIC_BASE_URL,
     USERS_FILE,
 )
 
@@ -131,11 +132,9 @@ def verify_token(token: str) -> dict | None:
             return None
         if revocation_key(claims) in _revoked_keys():
             return None
-        users = _users_cached()
-        if users:  # an unreadable user file must not lock everybody out
-            user = next((u for u in users if u.get("id") == claims.get("uid")), None)
-            if user is None or int(claims.get("iat", 0)) < int(user.get("pw_changed", 0)):
-                return None
+        user = next((u for u in _users_cached() or [] if u.get("id") == claims.get("uid")), None)
+        if user is None or int(claims.get("iat", 0)) < int(user.get("pw_changed", 0)):
+            return None  # unknown user, empty or unreadable user file: closed
         return claims
     except (ValueError, TypeError, AttributeError):  # malformed token
         return None
@@ -146,8 +145,7 @@ def verify_token(token: str) -> dict | None:
 # ---------------------------------------------------------------------------
 _REVOKED_FILE = USERS_FILE.parent / "revoked_tokens.json"
 _revoked_lock = threading.Lock()
-_revoked: dict[str, int] = {}
-_revoked_mtime: float | None = None
+_revoked_state: dict = {"mtime": None, "keys": {}}
 
 
 def revocation_key(claims: dict) -> str:
@@ -158,19 +156,19 @@ def revocation_key(claims: dict) -> str:
 
 def _revoked_keys() -> dict[str, int]:
     """The revocation list, reloaded when the file changes."""
-    global _revoked, _revoked_mtime
+    st = _revoked_state
     try:
         mtime = os.stat(_REVOKED_FILE).st_mtime
     except OSError:
-        return _revoked
-    if mtime != _revoked_mtime:
+        return st["keys"]
+    if mtime != st["mtime"]:
         try:
             data = json.loads(_REVOKED_FILE.read_text(encoding="utf-8"))
-            _revoked = {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
-            _revoked_mtime = mtime
+            st["keys"] = {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
+            st["mtime"] = mtime
         except (OSError, ValueError, TypeError):
-            pass
-    return _revoked
+            log.warning("revoked_tokens.json cannot be read: keeping the previous list")
+    return st["keys"]
 
 
 def revoke_token(claims: dict) -> None:
@@ -189,29 +187,36 @@ def revoke_token(claims: dict) -> None:
 # ---------------------------------------------------------------------------
 # User store (data/users.json)
 # ---------------------------------------------------------------------------
-def _load_users() -> list[dict]:
-    if not USERS_FILE.exists():
-        return []
+def _read_users() -> list[dict] | None:
+    """The user list, or None if the file is missing or cannot be read."""
     try:
         data = json.loads(USERS_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
     except (OSError, ValueError):
-        return []
+        return None
+    return data if isinstance(data, list) else None
 
 
-_users_cache: tuple[float, list[dict]] | None = None
+def _load_users() -> list[dict]:
+    return _read_users() or []
 
 
-def _users_cached() -> list[dict]:
-    """The user list, reread only when users.json changes (checked on every request)."""
-    global _users_cache
+_users_state: dict = {"mtime": None, "users": None}
+
+
+def _users_cached() -> list[dict] | None:
+    """The user list, reread only when users.json changes (checked on every request).
+    If the file cannot be read, the last good copy is kept; with none, None."""
     try:
         mtime = os.stat(USERS_FILE).st_mtime
     except OSError:
-        return []
-    if _users_cache is None or _users_cache[0] != mtime:
-        _users_cache = (mtime, _load_users())
-    return _users_cache[1]
+        return None
+    if _users_state["mtime"] != mtime:
+        users = _read_users()
+        if users is None:
+            log.warning("users.json cannot be read: keeping the last good copy")
+            return _users_state["users"]
+        _users_state["mtime"], _users_state["users"] = mtime, users
+    return _users_state["users"]
 
 
 def get_user_by_id(uid: str) -> dict | None:
@@ -379,23 +384,44 @@ def _user_from_reset_token(token: str) -> dict | None:
         return None
 
 
-def _reset_link(request: Request, token: str) -> str:
-    """Absolute link to the reset page: on the origin of PILOT_LOGIN_URL if set,
-    otherwise on the one the request came to."""
-    parts = urlsplit(PILOT_LOGIN_URL) if PILOT_LOGIN_URL else None
-    base = f"{parts.scheme}://{parts.netloc}" if parts and parts.scheme and parts.netloc \
-        else str(request.base_url).rstrip("/")
+def _reset_link(token: str) -> str | None:
+    """Absolute link to the reset page, on the address the administrator configured
+    (PUBLIC_BASE_URL, or the origin of PILOT_LOGIN_URL). Never built from the Host
+    header of the request, which a caller can choose: None if nothing is configured."""
+    base = PUBLIC_BASE_URL.rstrip("/")
+    if not base and PILOT_LOGIN_URL:
+        parts = urlsplit(PILOT_LOGIN_URL)
+        if parts.scheme in ("http", "https") and parts.netloc:
+            base = f"{parts.scheme}://{parts.netloc}"
+    if not base:
+        return None
     return f"{base}/auth/reset?token={quote(token, safe='')}"
+
+
+def _send_reset_email(user: dict) -> None:
+    """Sends the reset link (in the background, so that the reply to the request
+    takes the same time whether or not the address is registered)."""
+    try:
+        from api.mailer import send_password_reset_link, smtp_configured
+        if not smtp_configured():
+            return
+        link = _reset_link(create_reset_token(user))
+        if link is None:
+            log.warning("Password reset link not sent: set PUBLIC_BASE_URL (or PILOT_LOGIN_URL)")
+            return
+        send_password_reset_link(user["email"], user.get("name", ""), link, _RESET_TTL_MINUTES)
+    except Exception:
+        log.warning("Password reset email not sent to %s", user.get("email"), exc_info=True)
 
 
 @router.post("/forgot")
 @limiter.limit("5/hour")
-async def forgot(request: Request, req: ForgotRequest):
+async def forgot(request: Request, req: ForgotRequest, background_tasks: BackgroundTasks):
     """Self-service password reset, step 1: emails a single-use link.
 
     Nothing changes until the link is used (otherwise anybody who knows an address
-    could lock that person out). The response is always identical, whether or not
-    the address exists (anti-enumeration).
+    could lock that person out). The response is always identical, and sent before
+    the mail is, whether or not the address exists (anti-enumeration).
     """
     generic = {
         "ok": True,
@@ -406,16 +432,7 @@ async def forgot(request: Request, req: ForgotRequest):
 
     user = _find_user_by_email(req.email)
     if user:
-        try:
-            from api.mailer import send_password_reset_link, smtp_configured
-            if smtp_configured():
-                send_password_reset_link(
-                    user["email"], user.get("name", ""),
-                    _reset_link(request, create_reset_token(user)), _RESET_TTL_MINUTES,
-                )
-        except Exception:
-            log.warning("Password reset email not sent to %s",
-                        user.get("email"), exc_info=True)
+        background_tasks.add_task(_send_reset_email, user)
     return generic
 
 

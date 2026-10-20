@@ -267,6 +267,9 @@ SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "false").strip().lower() in ("1", "tr
 SMTP_SSL = os.getenv("SMTP_SSL", "false").strip().lower() in ("1", "true", "yes", "on")
 # URL of the page where participants log in (inserted in the email)
 PILOT_LOGIN_URL = os.getenv("PILOT_LOGIN_URL", "")
+# Public address of the site (https://bot.example.it): used for the links in emails
+# (password reset). Empty = the origin of PILOT_LOGIN_URL.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 
 # Address that receives an email for every report from the widget (👎 with
 # comment and/or link). Empty = no notification; the report remains

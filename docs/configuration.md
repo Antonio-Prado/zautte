@@ -78,6 +78,9 @@ SMTP_STARTTLS=false
 SMTP_SSL=false
 # Login page URL included in the credential emails
 PILOT_LOGIN_URL=
+# Public address of the site, used for the links in emails (password reset).
+# Empty = the origin of PILOT_LOGIN_URL; if both are empty no reset link is sent.
+PUBLIC_BASE_URL=
 # Address notified of every report sent from the widget (empty = none)
 FEEDBACK_NOTIFY_EMAIL=
 
