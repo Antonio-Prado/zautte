@@ -10,8 +10,8 @@ Applies the retention periods to the logs containing user data (data/).
                     (and the related "risolto" marks in resolved_negative.json)
 
 A value of 0 disables the corresponding expiry. To be run every day via
-cron, with the same user as the service or as root (rewritten files
-keep owner and permissions):
+cron. Started as root it first switches to the owner of the data folder
+(api/privdrop.py), so root never writes where the service account controls:
 
     python -m scripts.purge_logs            # apply
     python -m scripts.purge_logs --dry-run  # only show what it would do
@@ -35,7 +35,9 @@ from api.datalog import (
     parse_ts,
     rewrite_jsonl,
 )
+from api.privdrop import drop_to_data_owner
 from config.settings import (
+    DATA_DIR,
     RETENTION_FEEDBACK_DAYS,
     RETENTION_GAPS_DAYS,
     RETENTION_USAGE_DAYS,
@@ -93,6 +95,7 @@ def purge_feedback(dry_run: bool) -> tuple[int, int]:
 
 
 def main() -> None:
+    drop_to_data_owner(DATA_DIR)
     parser = argparse.ArgumentParser(description="Apply the retention periods to the user logs")
     parser.add_argument("--dry-run", action="store_true", help="show the counts without modifying the files")
     args = parser.parse_args()

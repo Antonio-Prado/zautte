@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-10-21
+
+### Security
+- `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before reading or writing
+  anything (new `api/privdrop.py`), so root never works on files the service account controls.
+- The FreeBSD guide now gives the data folder to root (group `zautte`, mode 1770): with the sticky bit the service
+  account can still create and replace its own files but can no longer rename the root-owned folders (vector store,
+  crawl cache, documents, inbox) that the sync jobs write to. Before, owning the folder was enough to swap them.
+
 ## [0.6.5] - 2026-10-20
 
 ### Security

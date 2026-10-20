@@ -172,12 +172,12 @@ sysrc chatbot_user=zautte
 chown -R root:wheel /opt/chatbot && chmod -R go-w /opt/chatbot  # code: nobody but root can change it
 chown zautte:wheel /opt/chatbot/.env && chmod 600 /opt/chatbot/.env
 chmod 751 /data/chatbot                                          # let the account reach the data folder
-chown zautte:wheel /data/chatbot/data && chmod 1750 /data/chatbot/data
+chown root:zautte /data/chatbot/data && chmod 1770 /data/chatbot/data   # the account writes in it but, with the sticky bit, cannot rename or delete what root owns
 find /data/chatbot/data -maxdepth 1 -type f -exec chown zautte:wheel {} +
 chgrp zautte /var/log/chatbot-sync.log                           # read by /crawl-history
 ```
 
-What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the sticky bit on `data/` stops it from renaming or deleting what it does not own. The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the cron jobs keep running as root. Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
+What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the folder `data/` itself belongs to root (group `zautte`, mode 1770) and has the sticky bit, so the account cannot rename or replace the root-owned folders inside it (`vectorstore`, `crawl_cache`, `documents`, `inbox`) that the root cron jobs write to. `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before touching them (`api/privdrop.py`). The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the cron jobs keep running as root. Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
 
 ### Log Rotation
 
