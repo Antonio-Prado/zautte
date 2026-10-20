@@ -11,7 +11,9 @@ rcvar="chatbot_enable"
 desc="Zautte RAG chatbot"
 
 chatbot_dir="/opt/chatbot"
-chatbot_user="root"
+# User the API runs as: set chatbot_user="zautte" (or another dedicated account) in
+# /etc/rc.conf. The default, root, only keeps old installations working.
+: ${chatbot_user:=root}
 chatbot_logfile="/var/log/chatbot.log"
 pidfile="/var/run/${name}.pid"
 
@@ -37,7 +39,12 @@ chatbot_start()
 
     # -H: on newsyslog SIGHUP (rotation) daemon reopens the log file,
     # otherwise it would keep writing to the one just archived.
+    # -u: the supervisor stays root (it owns the pid file and the log); the API
+    # process runs as ${chatbot_user}.
+    _user_opt=""
+    [ "${chatbot_user}" != "root" ] && _user_opt="-u ${chatbot_user}"
     /usr/sbin/daemon \
+        ${_user_opt} \
         -P "${pidfile}" \
         -H \
         -o "${chatbot_logfile}" \
