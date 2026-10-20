@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import smalltalk
 from api.filelock import file_lock
+from api.safefile import write_text_atomic
 from config.settings import (
     ANTHROPIC_API_KEY,
     BEDROCK_AWS_REGION,
@@ -701,6 +702,7 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
 
 _CACHE_MAX = 200  # max cached answers
 _response_cache: OrderedDict = OrderedDict()
+_retrieval_slots = asyncio.Semaphore(4)   # concurrent retrievals (embedding requests to Ollama)
 
 _STATS_FILE = _Path(__file__).parent.parent / "data" / "stats.json"
 
@@ -814,8 +816,7 @@ def _save_stats():
     _expire_stats()
     try:
         _STATS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(_STATS_FILE, "w", encoding="utf-8") as f:
-            _json.dump({
+        write_text_atomic(_STATS_FILE, _json.dumps({
                 "query_count":      _query_count,
                 "response_times":   _response_times[-100:],
                 "query_freq":       dict(_query_freq.most_common(100)),
@@ -825,7 +826,7 @@ def _save_stats():
                 "token_out_total":  _token_out_total,
                 "token_cost_total": _token_cost_total,
                 "token_history":    _token_history[-_TOKEN_HISTORY_MAX:],
-            }, f)
+            }))
     except (OSError, TypeError, ValueError) as e:
         log.warning(f"Could not save stats: {e}")
 
@@ -886,6 +887,11 @@ def forget_queries(queries: list[str]) -> int:
     if touched:
         _save_stats()
     return touched
+
+
+def clear_response_cache() -> None:
+    """Forgets the cached answers: they may cite documents the new index no longer has."""
+    _response_cache.clear()
 
 
 def _cache_get(query: str):
@@ -968,7 +974,9 @@ async def answer(
     if retrieval_query != query:
         log.info("Question %s rewritten for retrieval (%d -> %d characters)",
                  log_rid, len(query), len(retrieval_query))
-    chunks = retrieve_context(retrieval_query)
+    # The query embedding is a blocking call to Ollama: a worker thread, at most a few at a time
+    async with _retrieval_slots:
+        chunks = await asyncio.to_thread(retrieve_context, retrieval_query)
     context = build_context_block(chunks)
     messages = build_prompt(query, context, language, history=history,
                             topic_query=retrieval_query)

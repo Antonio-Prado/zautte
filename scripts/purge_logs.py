@@ -35,7 +35,7 @@ from api.datalog import (
     parse_ts,
     rewrite_jsonl,
 )
-from api.privdrop import drop_to_data_owner
+from api.privdrop import drop_to_service_user
 from config.settings import (
     DATA_DIR,
     RETENTION_FEEDBACK_DAYS,
@@ -95,7 +95,7 @@ def purge_feedback(dry_run: bool) -> tuple[int, int]:
 
 
 def main() -> None:
-    drop_to_data_owner(DATA_DIR)
+    drop_to_service_user(DATA_DIR)
     parser = argparse.ArgumentParser(description="Apply the retention periods to the user logs")
     parser.add_argument("--dry-run", action="store_true", help="show the counts without modifying the files")
     args = parser.parse_args()

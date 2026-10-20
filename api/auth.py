@@ -252,26 +252,6 @@ def write_users(users: list[dict]) -> None:
     write_text_atomic(USERS_FILE, json.dumps(users, ensure_ascii=False, indent=2))
 
 
-def _update_user_password(email: str, new_password: str) -> bool:
-    """Updates the password hash of the user with the given email. True if updated.
-    The sessions opened with the old password stop working (auth_version)."""
-    email = email.strip().lower()
-    with file_lock(USERS_FILE):
-        users = _load_users()
-        changed = False
-        for u in users:
-            if u.get("email", "").strip().lower() == email:
-                u["pw_hash"] = hash_password(new_password)
-                u["auth_version"] = int(u.get("auth_version", 0)) + 1
-                changed = True
-        if changed:
-            try:
-                write_users(users)
-            except (OSError, TypeError, ValueError):
-                return False
-        return changed
-
-
 # ---------------------------------------------------------------------------
 # Dependency: identity of the request's user
 # ---------------------------------------------------------------------------
@@ -511,6 +491,27 @@ class ResetRequest(BaseModel):
     password: str = Field(..., max_length=200)
 
 
+def consume_reset_token(token: str, new_password: str) -> bool | None:
+    """Sets the password for a valid reset token. The token is checked again inside the
+    lock of users.json, right before the write: two requests with the same token cannot
+    both succeed. None = token not valid (any more); False = could not save."""
+    new_hash = hash_password(new_password)   # slow: done before taking the lock
+    with file_lock(USERS_FILE):
+        user = _user_from_reset_token(token)
+        if user is None:
+            return None
+        users = _load_users()
+        for u in users:
+            if u.get("id") == user["id"]:
+                u["pw_hash"] = new_hash
+                u["auth_version"] = int(u.get("auth_version", 0)) + 1
+        try:
+            write_users(users)
+        except (OSError, TypeError, ValueError):
+            return False
+        return True
+
+
 @router.post("/reset")
 @limiter.limit("10/hour")
 async def reset_password(request: Request, req: ResetRequest):
@@ -518,12 +519,15 @@ async def reset_password(request: Request, req: ResetRequest):
     the older sessions of the user end."""
     if not AUTH_ENABLED:
         raise HTTPException(status_code=400, detail="Autenticazione non attiva")
-    user = _user_from_reset_token(req.token)
-    if user is None:
+    if _user_from_reset_token(req.token) is None:
         raise HTTPException(status_code=400, detail="Il link non è valido o è scaduto.")
     if len(req.password) < _MIN_PASSWORD:
         raise HTTPException(status_code=400,
                             detail=f"La password deve avere almeno {_MIN_PASSWORD} caratteri.")
-    if not _update_user_password(user["email"], req.password):
+    async with _password_slots:
+        done = await asyncio.to_thread(consume_reset_token, req.token, req.password)
+    if done is None:
+        raise HTTPException(status_code=400, detail="Il link non è valido o è scaduto.")
+    if not done:
         raise HTTPException(status_code=500, detail="Impossibile salvare la password.")
     return {"ok": True}

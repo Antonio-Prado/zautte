@@ -70,6 +70,10 @@ RETENTION_GAPS_DAYS=180
 RETENTION_FEEDBACK_DAYS=365
 RETENTION_STATS_DAYS=90
 
+# Account the maintenance scripts (purge_logs, adduser) switch to when started as root.
+# Empty = the owner of the existing data files.
+SERVICE_USER=
+
 # Pilot login (email + password) and email delivery
 AUTH_ENABLED=false
 AUTH_SECRET=
@@ -124,6 +128,7 @@ ADMIN_LOCKOUT_SECONDS=900
 | `CRAWL_ALLOWED_DOMAINS`| *(from .env)*                  | Domains allowed during crawl: the domain itself and its subdomains, never a look-alike (`example.it.evil.org`) |
 | `CRAWL_BLOCK_PRIVATE_IPS` | `true`                      | Refuse hosts that resolve to loopback, private or reserved addresses |
 | `CRAWL_PRIVATE_OK_HOSTS` | *(empty)*                    | Exact host names (not their subdomains) that may resolve to a private address (split-horizon DNS) |
+| `SERVICE_USER` | *(empty)* | Account that `purge_logs` and `adduser` become when started as root (see [Operations](operations.md)); empty = owner of the existing data files; the script stops if it cannot be determined |
 | `CRAWL_MAX_PAGE_MB` / `CRAWL_MAX_FILE_MB` | `20` / `100` | Largest download accepted: pages and feeds / PDFs and other attachments |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
