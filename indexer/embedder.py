@@ -64,6 +64,11 @@ def _zero() -> list[float]:
 _CTRL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 
+def _preview(text: str, n: int) -> str:
+    """Single-line excerpt of a text for log messages (no line breaks)."""
+    return text[:n].replace("\r", " ").replace("\n", " ")
+
+
 def _clean(text: str) -> str:
     """Remove ASCII control characters that cause 400 on /api/embed."""
     text = _CTRL_CHARS.sub(' ', text)
@@ -171,11 +176,11 @@ def _embed_one(client: httpx.Client, text: str) -> list[float]:
         vec, too_long = _embed_request(client, cleaned[:n], text)
         if vec is not None:
             if n < len(cleaned):
-                log.info(f"  Text truncated to {n} characters to fit the model context: {text[:60]!r}")
+                log.info(f"  Text truncated to {n} characters to fit the model context: {_preview(text, 60)}")
             return vec
         if not too_long:
             return _zero()
-    log.warning(f"  Text exceeds the context even at {lengths[-1]} characters, zero vector: {text[:80]!r}")
+    log.warning(f"  Text exceeds the context even at {lengths[-1]} characters, zero vector: {_preview(text, 80)}")
     return _zero()
 
 
@@ -199,7 +204,7 @@ def _embed_request(client: httpx.Client, text: str,
             if resp.status_code == 400:
                 if _CTX_ERROR in resp.text:
                     return None, True
-                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — text: {original[:80]!r}")
+                log.warning(f"  /api/embed 400: {resp.text[:200]!r} — text: {_preview(original, 80)}")
                 return _embed_one_legacy(client, text), False
             if attempt == MAX_RETRIES:
                 log.warning(f"  Single embedding failed (HTTP {resp.status_code}), zero vector")
