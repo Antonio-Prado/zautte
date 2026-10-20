@@ -145,7 +145,11 @@ if ADMIN_PATH:
         except OSError as e:
             log.error("Login page not readable: %s", e)
             raise HTTPException(status_code=404, detail="Not Found")
-        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+        return HTMLResponse(html, headers={
+            "Cache-Control": "no-store",
+            # not embeddable in other pages, no <base> or plugin injection, forms only to us
+            "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'",
+        })
 
     @app.get(ADMIN_PATH + "/dati", include_in_schema=False)
     async def area_dati(_: None = Security(require_admin)):
@@ -159,6 +163,14 @@ if ADMIN_PATH:
             log.error("Dashboard not readable: %s", e)
             raise HTTPException(status_code=500, detail="Pannello non disponibile")
         return JSONResponse(parts, headers={"Cache-Control": "no-store"})
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    """Headers that apply to every response."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
 
 
 app.state.limiter = limiter

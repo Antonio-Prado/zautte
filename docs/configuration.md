@@ -66,7 +66,7 @@ RETENTION_STATS_DAYS=90
 # Pilot login (email + password) and email delivery
 AUTH_ENABLED=false
 AUTH_SECRET=
-AUTH_TOKEN_TTL_DAYS=30
+AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
 SMTP_HOST=

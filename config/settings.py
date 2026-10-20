@@ -247,7 +247,7 @@ ADMIN_PATH = ("/" + os.getenv("ADMIN_PATH", "").strip().strip("/")) if os.getenv
 # Users are created with:  python -m scripts.adduser --email ... --name "..."
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 AUTH_SECRET = os.getenv("AUTH_SECRET", "")
-AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "30"))
+AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "7"))
 # users.json lives in data/ (already in .gitignore): credentials kept out of version control
 USERS_FILE = DATA_DIR / "users.json"
 # Questions per day per user on /chat and /chat/stream (0 = no limit).
