@@ -19,10 +19,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html
 import json
 import logging
 import os
-import html
 import secrets
 import threading
 import time
@@ -436,7 +436,7 @@ _FORM = """<p>Scegli la nuova password di Zautte (almeno {min} caratteri).</p>
 <p id="m" role="alert" class="err"></p><button type="submit">Salva la password</button></form>
 {login}
 <script>
-const T = {token};
+const T = new URLSearchParams(location.search).get('token') || '';
 document.getElementById('f').addEventListener('submit', async (e) => {{
   e.preventDefault();
   const m = document.getElementById('m'), a = p1.value, b = p2.value;
@@ -471,8 +471,7 @@ async def reset_page(token: str = ""):
                      'Chiedine uno nuovo dalla pagina di accesso con «Password dimenticata?».</p>', 400)
     login = (f'<p id="go" hidden><a href="{html.escape(PILOT_LOGIN_URL, quote=True)}">Vai all\'accesso</a></p>'
              if PILOT_LOGIN_URL.startswith(("http://", "https://")) else "")
-    return _html(_FORM.format(min=_MIN_PASSWORD, login=login,
-                              token=json.dumps(token).replace("<", "\\u003c")))
+    return _html(_FORM.format(min=_MIN_PASSWORD, login=login))
 
 
 class ResetRequest(BaseModel):
