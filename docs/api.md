@@ -236,6 +236,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 |---|---|---|
 | `POST /auth/login` | public (10/min per IP) | Body `{"email", "password"}` → `{"token", "name", "expires_in"}`; `400` if `AUTH_ENABLED=false`, `401` on wrong credentials |
 | `POST /auth/forgot` | public (5/hour per IP) | Body `{"email"}`: sets a new random password and emails it (only if SMTP is configured; the password is changed anyway); always the same generic reply; `400` if `AUTH_ENABLED=false` |
+| `POST /auth/logout` | user | Revokes the token of the request (listed in `data/revoked_tokens.json` until it would have expired); the widget calls it when the user signs out |
 | `GET /auth/me` | user | Current user `{"uid", "name"}`; `401` if the token is missing or expired |
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |
 | `POST /feedback/resolve` | admin | Body `{"ts", "question", "note"?, "notify"?}`: marks a negative feedback as resolved and, unless `notify` is `false`, emails the reporter with the optional note |
@@ -261,7 +262,7 @@ If `ADMIN_API_KEY` is empty, every admin request is refused (the detailed `/heal
 
 ## User Authentication
 
-With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are stateless, signed with HMAC-SHA256 using `AUTH_SECRET`, and valid for `AUTH_TOKEN_TTL_DAYS` days (default 30). Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.
+With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are signed with HMAC-SHA256 using `AUTH_SECRET` and valid for `AUTH_TOKEN_TTL_DAYS` days (default 30). A token stops working earlier after `POST /auth/logout`, when its user is removed from `users.json`, or when that user's password changes (`pw_changed` in `users.json`, set by the password reset and by `adduser` on an existing user). Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.
 
 ## CORS
 

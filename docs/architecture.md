@@ -166,7 +166,8 @@ zautte/                       # deployed as /opt/chatbot
     ├── usage.jsonl           # Per-user usage (pilot users only)
     ├── answers.jsonl         # Answers given, by question id (pilot users only)
     ├── stats.json            # Query counters, the 100 most frequent questions, response times, token and cost history
-    └── users.json            # Pilot users (password stored as scrypt hash)
+    ├── users.json            # Pilot users (password stored as scrypt hash)
+    └── revoked_tokens.json   # Tokens ended by logout, until they expire
 ```
 
 ---
