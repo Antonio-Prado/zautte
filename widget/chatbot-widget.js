@@ -17,6 +17,7 @@
  *       contactEmail:  '',                                  // error-report email (optional)
  *       infoUrl:       '',                                  // "Come funziona" page (optional)
  *       loginSubtitle: '',                                  // text under the login title (optional)
+ *       applyNote:     '',                                  // note under the "Apply" label of the login form (optional)
  *       privacyUrl:    '',                                  // privacy notice (optional)
  *       lang:          'it',                                // default language ('it' | 'en')
  *       inline:        '#chat-area',                        // panel inside the page (optional)
@@ -50,6 +51,7 @@
       infoUrl: "",     // "Come funziona" page (transparency on the AI system)
       privacyUrl: "",  // personal data processing notice
       loginSubtitle: "",  // optional text under the login form title
+      applyNote: "",      // optional small note under the "Apply" label of the login form
       zIndex: 99999,
       suggestions: [],
       requireLogin: false,   // true = requires login (pilot project with a restricted group)
@@ -843,8 +845,14 @@
         ${T.forgot}
       </button>
       <span id="${WIDGET_ID}-apply" style="padding:4px;font-size:13px;color:${p};">${T.apply}</span>
-    </div>`;
+    </div>
+    <div id="${WIDGET_ID}-apply-note" style="display:none;margin-top:-6px;text-align:center;font-size:12px;line-height:1.35;color:#595959;"></div>`;
   panel.appendChild(loginEl);
+  if (cfg.applyNote) {
+    const noteEl = loginEl.querySelector(`#${WIDGET_ID}-apply-note`);
+    noteEl.textContent = cfg.applyNote;
+    noteEl.style.display = "";
+  }
 
   // Logout button (in the header, visible only when logged in)
   const logoutBtn = document.createElement("button");

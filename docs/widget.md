@@ -39,6 +39,7 @@ The `widget/embed-snippet.html` file contains a ready-to-paste snippet with more
 | `contactEmail`    | `''`                                 | Adds a "report an error" email link to the AI notice and footer |
 | `infoUrl`         | `''`                                 | "How it works" page linked in the AI notice and footer (e.g. `/widget/come-funziona.html`) |
 | `privacyUrl`      | `''`                                 | Privacy notice linked in the AI notice and footer |
+| `applyNote`       | `''`                                 | Small note under the "Apply" label of the login form (e.g. that applications are not open yet) |
 | `requireLogin`    | `false`                              | Show the email + password login before the chat (needs `AUTH_ENABLED=true`) |
 | `loginSubtitle`   | `''`                                 | Optional text under the login title |
 | `feedbackDetails` | `true`                               | After a 👎, show the comment/links form (`POST /feedback/detail`) |
