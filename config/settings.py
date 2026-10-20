@@ -238,7 +238,8 @@ RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
 RETENTION_STATS_DAYS = int(os.getenv("RETENTION_STATS_DAYS", "90"))
 
 # --- API Backend ---
-API_HOST = os.getenv("API_HOST", "127.0.0.1")
+# Comma-separated list of addresses the API listens on (api/serve.py). Local only by default.
+API_HOST = os.getenv("API_HOST", "127.0.0.1,::1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 API_CORS_ORIGINS = os.getenv("API_CORS_ORIGINS", "http://localhost:8000").split(",")
 # Proxy or load balancer in front of the API: comma-separated addresses or networks

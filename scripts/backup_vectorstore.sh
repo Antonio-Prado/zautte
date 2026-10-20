@@ -8,6 +8,7 @@ BACKUP_DIR=/opt/chatbot/data/backups
 LOG=/var/log/chatbot-sync.log
 KEEP=7  # days of backups to keep
 
+umask 077   # the archives hold the whole index: readable by the owner only
 mkdir -p "$BACKUP_DIR"
 
 DATE=$(date '+%Y%m%d_%H%M%S')

@@ -108,7 +108,16 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
+_MIN_SECRET = 16
+
+
+def auth_secret_ok() -> bool:
+    return len(AUTH_SECRET) >= _MIN_SECRET
+
+
 def _sign(msg: str) -> str:
+    if not auth_secret_ok():
+        raise ValueError("AUTH_SECRET is missing or too short")   # never sign or verify with a weak key
     sig = hmac.new(AUTH_SECRET.encode("utf-8"), msg.encode("ascii"), hashlib.sha256).digest()
     return _b64url_encode(sig)
 
@@ -390,7 +399,7 @@ def reset_link(token: str) -> str | None:
             base = f"{parts.scheme}://{parts.netloc}"
     if not base:
         return None
-    return f"{base}/auth/reset?token={quote(token, safe='')}"
+    return f"{base}/auth/reset#token={quote(token, safe='')}"
 
 
 def _send_reset_email(user: dict) -> None:
@@ -448,7 +457,11 @@ _FORM = """<p>Scegli la nuova password di Zautte (almeno {min} caratteri).</p>
 <p id="m" role="alert" class="err"></p><button type="submit">Salva la password</button></form>
 {login}
 <script>
-const T = new URLSearchParams(location.search).get('token') || '';
+// the token travels in the fragment, which browsers never send to servers or proxies
+// (links sent before 0.7.1 carried it in the query string: still accepted)
+const T = new URLSearchParams(location.hash.slice(1)).get('token')
+  || new URLSearchParams(location.search).get('token') || '';
+history.replaceState(null, '', location.pathname);
 document.getElementById('f').addEventListener('submit', async (e) => {{
   e.preventDefault();
   const m = document.getElementById('m'), a = p1.value, b = p2.value;
@@ -476,11 +489,11 @@ def _html(body: str, status: int = 200) -> HTMLResponse:
 
 
 @router.get("/reset", response_class=HTMLResponse)
-async def reset_page(token: str = ""):
-    """Password reset, step 2: the page where the new password is chosen."""
-    if not AUTH_ENABLED or _user_from_reset_token(token) is None:
-        return _html('<p class="err">Il link non è valido o è scaduto. '
-                     'Chiedine uno nuovo dalla pagina di accesso con «Password dimenticata?».</p>', 400)
+async def reset_page():
+    """Password reset, step 2: the page where the new password is chosen. The token is in
+    the fragment of the address (read by the page, checked when the password is sent)."""
+    if not AUTH_ENABLED:
+        return _html('<p class="err">Il link non è valido o è scaduto.</p>', 400)
     login = (f'<p id="go" hidden><a href="{html.escape(PILOT_LOGIN_URL, quote=True)}">Vai all\'accesso</a></p>'
              if PILOT_LOGIN_URL.startswith(("http://", "https://")) else "")
     return _html(_FORM.format(min=_MIN_PASSWORD, login=login))

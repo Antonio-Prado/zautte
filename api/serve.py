@@ -10,8 +10,9 @@ passed to a single server.
 
     python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000
 
-Without --host it listens locally only (127.0.0.1 and ::1): opening it to the whole
-network is an explicit choice of whoever starts it (start.sh in production).
+Without --host it listens on API_HOST (a comma-separated list, from .env; default 127.0.0.1
+and ::1, local only): opening it to the whole network is an explicit choice, made in .env
+(API_HOST=0.0.0.0,::) and restricted by the firewall to the proxy and the admin networks.
 
 The proxy addresses to trust for X-Forwarded-For (FORWARDED_ALLOW_IPS)
 are read from config.settings, i.e. also from .env: uvicorn alone only looks at
@@ -27,7 +28,7 @@ import socket
 
 import uvicorn
 
-from config.settings import FORWARDED_ALLOW_IPS
+from config.settings import API_HOST, API_PORT, FORWARDED_ALLOW_IPS
 
 
 def _listen(host: str, port: int) -> socket.socket:
@@ -45,11 +46,11 @@ def _listen(host: str, port: int) -> socket.socket:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Start the API on multiple addresses with a single process")
     parser.add_argument("app", nargs="?", default="api.main:app")
-    parser.add_argument("--host", action="append", help="repeatable (default: 127.0.0.1 and ::1)")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--host", action="append", help="repeatable (default: API_HOST, a comma-separated list)")
+    parser.add_argument("--port", type=int, default=API_PORT)
     args = parser.parse_args()
 
-    hosts = args.host or ["127.0.0.1", "::1"]
+    hosts = args.host or [h.strip() for h in API_HOST.split(",") if h.strip()]
     sockets = [_listen(h, args.port) for h in hosts]
     # Config also configures uvicorn's logging
     config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS)

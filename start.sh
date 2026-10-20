@@ -14,7 +14,7 @@ trap cleanup INT TERM EXIT
 # A single process for IPv4 and IPv6 (api/serve.py): with two processes, one per
 # address family, vector store, cache and statistics were duplicated and
 # data/stats.json was rewritten in turn by both.
-/opt/chatbot/venv/bin/python -m api.serve api.main:app --host 0.0.0.0 --host :: --port 8000 &
+/opt/chatbot/venv/bin/python -m api.serve api.main:app &
 pid=$!
 
 # Stays alive as long as the server is alive.

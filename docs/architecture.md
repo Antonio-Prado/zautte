@@ -71,7 +71,7 @@ zautte/                       # deployed as /opt/chatbot
 ├── .env.example              # Environment variable template
 ├── requirements.txt          # Python dependencies
 ├── pyproject.toml            # ruff configuration (Python 3.11)
-├── start.sh                  # Launcher run by the rc.d service (uvicorn on 0.0.0.0 and ::, port 8000)
+├── start.sh                  # Launcher run by the rc.d service (uvicorn on the addresses of API_HOST, port API_PORT)
 ├── LICENSE, CONTRIBUTING.md, SECURITY.md
 ├── .github/                  # CI (ruff lint), CodeQL, Dependabot, issue/PR templates
 │
