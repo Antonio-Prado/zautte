@@ -33,7 +33,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import ADMIN_API_KEY, API_PORT, is_migrated_source, now_local
+from config.settings import ADMIN_API_KEY, API_PORT, SYNC_CONTROL_DIR, is_migrated_source, now_local
 from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index
 from indexer.vector_store import (
@@ -194,14 +194,31 @@ async def run_sync(mode: str, backfill: bool = False):
     log.info(f"Completed at:         {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
     if mode == "news":
-        _reload_api()
+        _request_service("reload")
         if backfill:
             _notify(f"Zautte: archivio notizie indicizzato ({news['posts']} articoli)",
                     f"Modalità: news --backfill\nArticoli: {news['posts']}\nPagine: {news['pages']}\n"
                     f"Allegati: {news['attachments']}\nChunk inseriti: {news['chunks']}\n"
                     f"Chunk totali: {stats['total_chunks']}\nDurata: {elapsed:.0f}s")
     else:
-        _restart_api()
+        _request_service("restart")
+
+
+def _request_service(action: str) -> None:
+    """Gets the API to reload the store ("reload") or restart ("restart").
+
+    Run as root, it does it itself. Run as the unprivileged sync account it only leaves an
+    empty request file in SYNC_CONTROL_DIR, which the root watchdog (every minute) acts on:
+    the sync account can neither reach the API nor its admin key."""
+    if os.geteuid() == 0:
+        _reload_api() if action == "reload" else _restart_api()
+        return
+    try:
+        SYNC_CONTROL_DIR.mkdir(parents=True, exist_ok=True)
+        (SYNC_CONTROL_DIR / action).touch()
+        log.info(f"Request '{action}' left for the watchdog")
+    except OSError as e:
+        log.warning(f"Request '{action}' could not be left in {SYNC_CONTROL_DIR}: {e}")
 
 
 def _reload_api():

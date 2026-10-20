@@ -47,9 +47,9 @@ pip install --upgrade pip setuptools wheel
 # orjson 3.11.9 and later require Rust 1.95: with an older Rust, stay on 3.11.8
 if rustc --version 2>/dev/null | awk '{split($2, v, "."); exit !(v[1] == 1 && v[2] < 95)}'; then
     echo "orjson<=3.11.8" > /tmp/zautte-constraints.txt
-    pip install -r requirements.txt -c /tmp/zautte-constraints.txt
+    pip install -r requirements-lock.txt -c /tmp/zautte-constraints.txt
 else
-    pip install -r requirements.txt
+    pip install -r requirements-lock.txt
 fi
 
 echo "[4/5] Creating data directories..."

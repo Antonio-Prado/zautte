@@ -15,7 +15,10 @@ _FORBIDDEN_ENV_NAMES = {"PATH", "IFS", "ENV", "SHELL", "HOME", "USER", "LOGNAME"
 
 try:
     from dotenv import dotenv_values
-    for _k, _v in dotenv_values(Path(__file__).parent.parent / ".env").items():
+    # ZAUTTE_ENV_FILE: the unprivileged sync account reads a copy of .env without the secrets
+    # it does not need (see scripts/setup_sync_user.sh)
+    _env_file = os.environ.get("ZAUTTE_ENV_FILE") or Path(__file__).parent.parent / ".env"
+    for _k, _v in dotenv_values(_env_file).items():
         if (_v is not None and not _k.upper().startswith(_FORBIDDEN_ENV_PREFIX)
                 and _k.upper() not in _FORBIDDEN_ENV_NAMES and _k not in os.environ):
             os.environ[_k] = _v
@@ -33,6 +36,8 @@ def now_local() -> _datetime.datetime:
 # --- Paths ---
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
+# Where a sync job that is not root leaves its requests to the watchdog (reload / restart the API)
+SYNC_CONTROL_DIR = Path(os.getenv("SYNC_CONTROL_DIR", "/var/db/zautte-sync"))
 VECTOR_DB_DIR = DATA_DIR / "vectordb"
 DOCUMENTS_DIR = DATA_DIR / "documents"
 CRAWL_CACHE_DIR = DATA_DIR / "crawl_cache"

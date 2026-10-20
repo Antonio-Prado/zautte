@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-21
+
+### Security
+- The sync jobs (crawler, indexer, news) can run without root, as a dedicated account: new
+  `scripts/setup_sync_user.sh`. The account owns only the folders it writes and reads a copy of `.env` without
+  the API secrets (`ZAUTTE_ENV_FILE`), so a flaw in a PDF, Office or HTML parser no longer gives root. The jobs
+  cannot restart or reload the API themselves any more: they leave a request file in `SYNC_CONTROL_DIR`
+  (`/var/db/zautte-sync`) and the root watchdog acts on it (reload through `/admin/reload`, or
+  `service chatbot restart` instead of killing the process).
+- Dependencies are pinned to exact versions in `requirements-lock.txt` (generated with `pip freeze`; `requirements.txt` keeps
+  the minimum versions that Dependabot updates), and the installation guide installs from it.
+
 ## [0.6.7] - 2026-10-21
 
 ### Security

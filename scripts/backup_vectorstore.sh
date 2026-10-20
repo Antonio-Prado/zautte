@@ -1,7 +1,7 @@
 #!/bin/sh
 # Daily vector store backup.
 # Add to /etc/crontab:
-#   0 2 * * * root /opt/chatbot/scripts/backup_vectorstore.sh
+#   0 2 * * * zsync /opt/chatbot/scripts/backup_vectorstore.sh
 
 STORE=/opt/chatbot/data/vectorstore
 BACKUP_DIR=/opt/chatbot/data/backups
