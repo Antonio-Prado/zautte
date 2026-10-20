@@ -96,7 +96,7 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
             "/usage/summary": {"total_messages": 0, "total_users": 0, "total_registered": 0,
                                "total_active": 0, "users": [], "daily": []},
             "/usage/messages": {"messages": [], "total": 0},
-            "/health": {"status": "ok", "llm_provider": "claude", "hybrid_search": True, "uptime_seconds": 100,
+            "/health": {"status": "ok", "uptime_seconds": 100, "llm_provider": "claude", "hybrid_search": True,
                         "indexed_chunks": 1000, "unique_sources": 10, "doc_types": {"html": 5, "pdf": 5},
                         "llm_model": "m", "last_indexed": "05/10/2026 10:00", "queries_since_restart": 3,
                         "gaps_total": 1, "gaps_recent": [{"ts": "2026-10-05T10:00:00", "query": "q"}],
