@@ -15,6 +15,7 @@ import re
 import secrets
 from pathlib import Path
 
+from api.filelock import file_lock
 from config.settings import now_local
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -88,6 +89,11 @@ def dedup(entries: list[dict]) -> list[dict]:
 
 
 def append(entry: dict) -> dict:
+    with file_lock(FEEDBACK_FILE):
+        return _append(entry)
+
+
+def _append(entry: dict) -> dict:
     """Records a feedback and returns it with its id. If the same user has
     already voted on the same answer (uid::rid), the new vote REPLACES the
     old one in its line, keeping its id; otherwise it is appended at the end."""
@@ -131,6 +137,11 @@ def iter_entries() -> list[dict]:
 
 
 def attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | None:
+    with file_lock(FEEDBACK_FILE):
+        return _attach_details(fid, uid, comment, urls)
+
+
+def _attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict | None:
     """Attaches comment and URLs to feedback `fid`, only if it belongs to `uid`.
     Rewrites the file atomically. Returns the updated entry, or None
     if not found or not theirs."""

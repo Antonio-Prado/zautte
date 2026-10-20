@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-20
+
+### Security
+- The access log hides the value of `token=` and `key=` in the query string, so the password-reset token no
+  longer ends up in `chatbot.log` (kept for a year).
+- The extraction of a page drops what a visitor cannot see (`hidden` attribute, `display:none`,
+  `visibility:hidden`, `font-size:0`, `opacity:0`, text moved off-screen): it could carry instructions for the
+  model. `aria-hidden` is kept, since it hides decorations from screen readers, not from the eye.
+- Appending to and rewriting the data files (`usage`, `answers`, `gaps`, `feedback` `.jsonl`) takes a shared lock
+  (`api/filelock.py`, `<name>.lock` next to the file): a line written while `purge_logs` or `forget` rewrote the
+  file could be lost.
+- Every response to a request that carries `X-Admin-Key` or `Authorization` gets
+  `Cache-Control: private, no-store`.
+
 ## [0.6.1] - 2026-10-20
 
 ### Added
@@ -227,7 +241,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/Antonio-Prado/zautte/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Antonio-Prado/zautte/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Antonio-Prado/zautte/compare/v0.5.7...v0.6.0
 [0.5.7]: https://github.com/Antonio-Prado/zautte/compare/v0.5.6...v0.5.7

@@ -36,6 +36,7 @@ from api import auth, conversations, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
 from api.datalog import forget
+from api.filelock import file_lock
 from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
@@ -170,7 +171,26 @@ async def _security_headers(request: Request, call_next):
     """Headers that apply to every response."""
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    # Anything asked with a key or a token (statistics, messages, answers) is for that
+    # requester only: no proxy or browser cache may keep it
+    if request.headers.get("x-admin-key") or request.headers.get("authorization"):
+        response.headers.setdefault("Cache-Control", "private, no-store")
     return response
+
+
+class _MaskSecretsInAccessLog(logging.Filter):
+    """The password-reset link carries its token in the query string: uvicorn would
+    write it to the access log (kept for a year). Any `token=` / `key=` value is hidden."""
+    _SECRET = re.compile(r"([?&](?:token|key)=)[^&\s\"]+", re.IGNORECASE)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(self._SECRET.sub(r"\1[hidden]", a) if isinstance(a, str) else a
+                                for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_MaskSecretsInAccessLog())
 
 
 app.state.limiter = limiter
@@ -483,7 +503,7 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
             entry["response_ms"] = response_ms
         if rid:
             entry["rid"] = rid
-        with open(f, "a", encoding="utf-8") as fh:
+        with file_lock(f), open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as e:
         log.warning("Usage logging failed: %s", e)
@@ -516,7 +536,7 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
         }
         if partial:
             entry["partial"] = True
-        with open(f, "a", encoding="utf-8") as fh:
+        with file_lock(f), open(f, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as e:
         log.warning("Answer logging failed: %s", e)
