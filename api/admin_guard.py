@@ -25,6 +25,9 @@ _LOCAL = {"127.0.0.1", "::1"}
 _lock = threading.Lock()
 _failures: dict[str, list[float]] = {}   # ip -> times of recent errors
 _blocked_until: dict[str, float] = {}    # ip -> end of block
+_MAX_TRACKED = 10_000                    # entries kept in each table, whatever the traffic
+_SWEEP_EVERY = 60.0                      # seconds between the cleanups of expired entries
+_last_sweep = 0.0
 
 
 def _ip(request: Request) -> str:
@@ -48,9 +51,24 @@ def _register_failure(ip: str, now: float) -> None:
         _failures.pop(ip, None)
     else:
         _failures[ip] = recent
-    if len(_failures) > 10_000:  # does not grow without limit under a scan
-        for k in [k for k, v in _failures.items() if now - v[-1] >= ADMIN_LOCKOUT_SECONDS]:
-            del _failures[k]
+    _sweep(now)
+
+
+def _sweep(now: float, force: bool = False) -> None:
+    """Drops the expired entries (at most once a minute) and keeps each table under
+    _MAX_TRACKED, oldest first: a scan from many addresses cannot grow them without limit."""
+    global _last_sweep
+    if not force and now - _last_sweep < _SWEEP_EVERY and \
+            max(len(_failures), len(_blocked_until)) <= _MAX_TRACKED:
+        return
+    _last_sweep = now
+    for k in [k for k, v in _failures.items() if now - v[-1] >= ADMIN_LOCKOUT_SECONDS]:
+        del _failures[k]
+    for k in [k for k, until in _blocked_until.items() if until <= now]:
+        del _blocked_until[k]
+    for table in (_failures, _blocked_until):
+        for k in list(table)[:max(0, len(table) - _MAX_TRACKED)]:
+            del table[k]
 
 
 def check_admin_key(request: Request, key: str | None) -> bool:
@@ -63,6 +81,7 @@ def check_admin_key(request: Request, key: str | None) -> bool:
         return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())
     with _lock:
         now = time.monotonic()
+        _sweep(now)
         wait = _locked(ip, now)
         if wait:
             raise HTTPException(

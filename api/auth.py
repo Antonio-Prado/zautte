@@ -185,11 +185,9 @@ def revoke_token(claims: dict) -> None:
     with _revoked_lock:
         current = {k: v for k, v in _revoked_keys().items() if v > now}
         current[revocation_key(claims)] = int(claims.get("exp", now))
-        tmp = _REVOKED_FILE.with_suffix(".tmp")
+        from api.safefile import write_text_atomic
         _REVOKED_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp.write_text(json.dumps(current), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, _REVOKED_FILE)
+        write_text_atomic(_REVOKED_FILE, json.dumps(current))
 
 
 # ---------------------------------------------------------------------------
@@ -246,23 +244,12 @@ def _find_user_by_email(email: str) -> dict | None:
 
 
 def write_users(users: list[dict]) -> None:
-    """Writes users.json atomically (temporary file, fsync, rename), keeping owner and
-    permissions. The caller holds file_lock(USERS_FILE) for the whole read-modify-write."""
-    from api.datalog import replace_keeping_owner
+    """Writes users.json atomically (random temporary name, fsync, rename), keeping
+    owner and permissions. The caller holds file_lock(USERS_FILE) for the whole
+    read-modify-write."""
+    from api.safefile import write_text_atomic
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = USERS_FILE.with_name(USERS_FILE.name + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(json.dumps(users, ensure_ascii=False, indent=2))
-        f.flush()
-        os.fsync(f.fileno())
-    if USERS_FILE.exists():
-        replace_keeping_owner(USERS_FILE, tmp)
-    else:
-        os.chmod(tmp, 0o600)
-        if os.geteuid() == 0:   # created by root: same owner as the data folder
-            st = USERS_FILE.parent.stat()
-            os.chown(tmp, st.st_uid, st.st_gid)
-        tmp.replace(USERS_FILE)
+    write_text_atomic(USERS_FILE, json.dumps(users, ensure_ascii=False, indent=2))
 
 
 def _update_user_password(email: str, new_password: str) -> bool:

@@ -9,6 +9,23 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-10-20
+
+### Security
+- Maintenance scripts that run as root in the data folder (`purge_logs`, `forget`, `adduser`) no longer follow a
+  symbolic link planted there by the service account. Lock files are opened with `O_NOFOLLOW` and checked to be
+  regular files; a file is chowned only when this process has just created it, through its descriptor.
+- Temporary files for `users.json`, the feedback file, the resolved marks, the revoked tokens and the purge are
+  created exclusively with a random name (`mkstemp`); permissions and owner are set through the open descriptor, and a
+  target that is not a regular file is refused (new `api/safefile.py`).
+- A lock that cannot be taken now stops the operation (OSError) instead of going on without it.
+- The table of blocked addresses of the admin key check is swept once a minute and capped at 10,000 entries, so a
+  scan from many addresses (IPv6, for instance) cannot make it grow without limit.
+
+### Fixed
+- Writes to the usage, answer, gap and feedback files made from the request handlers run in a worker thread, so a
+  long rewrite of one of those files (which holds its lock) no longer freezes the whole API.
+
 ## [0.6.4] - 2026-10-20
 
 ### Security
