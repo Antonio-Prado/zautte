@@ -110,7 +110,7 @@ def _digest(*parts: str) -> str:
 
 def _get(client: httpx.Client, url: str, **kw) -> httpx.Response | None:
     try:
-        resp = get_limited(client, url, **kw)
+        resp = get_limited(client, url, _fetch_domains(), **kw)
     except (httpx.HTTPError, httpx.InvalidURL, ValueError) as e:
         # InvalidURL/ValueError (also IDNAError): malformed links in articles,
         # e.g. a host longer than 253 characters (2025 archive, 12/10/2026)
@@ -255,6 +255,14 @@ def _attachment_hosts() -> set[str]:
     for alias in CRAWL_URL_ALIASES:
         hosts.update(alias.get("hosts", []))
     return hosts
+
+
+def _fetch_domains() -> set[str]:
+    """Hosts the news sync may fetch from: the attachment hosts, and the sources named in
+    crawl_extra.json (trusted; what they link to is not, and must pass _attachment_hosts)."""
+    trusted = {urlparse(u).hostname or "" for u in [NEWS_SOURCES.get("wordpress_api", ""),
+                                                    *NEWS_SOURCES.get("rss", [])] if u}
+    return _attachment_hosts() | trusted
 
 
 def _host_ok(url: str, hosts: set[str]) -> bool:
@@ -463,11 +471,8 @@ def run_news(backfill: bool = False) -> dict:
     state = load_state()
     if backfill:
         state = {"wp_cursor": "", "items": {}}
-    # the sources named in crawl_extra.json are trusted; what they link to is not
-    trusted = {urlparse(u).hostname or "" for u in [NEWS_SOURCES.get("wordpress_api", ""),
-                                                    *NEWS_SOURCES.get("rss", [])] if u}
     with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=30.0,
-                      event_hooks=guard(_attachment_hosts() | trusted)) as client:
+                      event_hooks=guard(_fetch_domains())) as client:
         docs, new_state, counts = collect(client, state, backfill)
     if not docs:
         log.info("News: nothing new")

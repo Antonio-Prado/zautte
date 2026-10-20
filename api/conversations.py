@@ -52,7 +52,7 @@ def add_turn(uid: str, cid: str, question: str, answer: str) -> None:
     _expire(now)
 
 
-def forget(uid: str | None = None) -> None:
-    """Drops the conversations of a user, or all of them (deletion on request)."""
-    for key in [k for k in _store if uid is None or k[0] == uid]:
+def forget(uid: str) -> None:
+    """Drops the conversations of a user (deletion on request)."""
+    for key in [k for k in _store if k[0] == uid]:
         del _store[key]

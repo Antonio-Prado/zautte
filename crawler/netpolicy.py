@@ -8,17 +8,24 @@ One policy for every download made on behalf of a page, a feed or an attachment:
   substring: ``www.example.it.attacker.invalid`` is not ``www.example.it``);
 - no IP literals, and no host that resolves to a loopback, private or otherwise
   non-public address (CRAWL_BLOCK_PRIVATE_IPS);
-- every redirect is checked again, hop by hop, before it is followed;
-- the body is read in chunks and the download stops when it passes the limit
-  (CRAWL_MAX_PAGE_MB for pages and feeds, CRAWL_MAX_FILE_MB for PDFs and other
-  attachments).
+- the connection goes to the address that was just checked, not to a second lookup of
+  the name (the Host header and the TLS name stay those of the site, so certificates
+  are verified as usual): a name that changes its answer between the check and the
+  connection (DNS rebinding) gets nothing;
+- redirects are followed here, one hop at a time, each one checked like the first
+  request;
+- the body is read in chunks and decompressed in small steps: the download stops when
+  the decoded size passes the limit (CRAWL_MAX_PAGE_MB for pages and feeds,
+  CRAWL_MAX_FILE_MB for PDFs and other attachments), so a tiny gzip that expands to
+  gigabytes never takes the memory.
 """
 
 import ipaddress
 import socket
 import time
+import zlib
 from collections.abc import Iterable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -101,26 +108,17 @@ def resolves_public(host: str) -> bool:
     return cached[1]
 
 
-def _check_peer(resp: httpx.Response) -> None:
-    """The address the connection really went to must be public too: the name could have
-    resolved elsewhere between the check and the connection (DNS rebinding). The request
-    has been sent by then, but nothing of what comes back is read."""
-    if not CRAWL_BLOCK_PRIVATE_IPS or _private_ok(resp.request.url.host):
-        return
-    stream = resp.extensions.get("network_stream")
-    addr = stream.get_extra_info("server_addr") if stream is not None else None
-    if addr and not ipaddress.ip_address(str(addr[0]).split("%")[0]).is_global:
-        raise BlockedURL(f"connected to a non-public address: {str(resp.url)[:200]}", request=resp.request)
-
-
 def _check(request: httpx.Request, domains: list[str]) -> None:
+    """Safety net for any request that does not go through get_limited(): same rules."""
+    if request.extensions.get("zautte_host"):
+        return   # already validated and pinned by _pinned_request()
     url = str(request.url)
     if not url_allowed(url, domains) or not resolves_public(request.url.host):
         raise BlockedURL(f"address not allowed: {url[:200]}", request=request)
 
 
 def guard(domains: Iterable[str]) -> dict:
-    """`event_hooks` for httpx.Client: called for the first request and for every redirect."""
+    """`event_hooks` for httpx.Client."""
     allowed = list(domains)
     return {"request": [lambda request: _check(request, allowed)]}
 
@@ -133,6 +131,29 @@ def guard_async(domains: Iterable[str]) -> dict:
         _check(request, allowed)
 
     return {"request": [hook]}
+
+
+def _addresses(host: str) -> list[str]:
+    """The addresses to try for `host`, IPv4 first. All of them must be public (unless the
+    host is exempted): one internal answer among public ones refuses the host."""
+    infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    ips = []
+    for info in infos:
+        ip = info[4][0].split("%")[0]
+        if ip not in ips:
+            ips.append(ip)
+    if (CRAWL_BLOCK_PRIVATE_IPS and not _private_ok(host)
+            and (not ips or not all(ipaddress.ip_address(ip).is_global for ip in ips))):
+        raise OSError("non-public address")
+    return sorted(ips, key=lambda ip: ":" in ip)
+
+
+def _pinned_request(url: str, ip: str) -> tuple[str, dict, dict]:
+    """The same request aimed at `ip`: URL, headers and extensions for httpx."""
+    parts = urlsplit(url)
+    return (httpx.URL(url).copy_with(host=ip).__str__(),
+            {"Host": parts.hostname or "", "Accept-Encoding": "gzip, deflate"},
+            {"sni_hostname": parts.hostname or "", "zautte_host": parts.hostname or ""})
 
 
 def _limit(url: str, content_type: str) -> int:
@@ -150,39 +171,143 @@ def _declared(resp: httpx.Response) -> int:
         return 0
 
 
-def _rebuilt(resp: httpx.Response, body: bytes) -> httpx.Response:
-    """A normal, fully read response made from the streamed one (the body is already
-    decoded, so the encoding headers are dropped)."""
+_REDIRECTS = (301, 302, 303, 307, 308)
+_MAX_HOPS = 8
+_STEP = 1 << 20   # bytes of decoded data produced at a time
+
+
+class _Body:
+    """Accumulates a response body, decoding gzip/deflate in steps and stopping at `limit`."""
+
+    def __init__(self, resp: httpx.Response, limit: int):
+        self.limit, self.raw, self.out = limit, 0, bytearray()
+        self.request = resp.request
+        enc = resp.headers.get("content-encoding", "").lower().strip()
+        if enc in ("", "identity"):
+            self.dec = None
+        elif enc in ("gzip", "x-gzip"):
+            self.dec = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        elif enc == "deflate":
+            self.dec = zlib.decompressobj()
+        else:
+            raise httpx.DecodingError(f"unsupported Content-Encoding: {enc[:30]}", request=resp.request)
+
+    def _full(self) -> TooLarge:
+        return TooLarge(f"body over {self.limit // 1048576} MB", request=self.request)
+
+    def feed(self, chunk: bytes) -> None:
+        self.raw += len(chunk)
+        if self.raw > self.limit:
+            raise self._full()
+        if self.dec is None:
+            self.out += chunk
+            if len(self.out) > self.limit:
+                raise self._full()
+            return
+        data = chunk
+        try:
+            while True:
+                piece = self.dec.decompress(data, _STEP)
+                self.out += piece
+                if len(self.out) > self.limit:
+                    raise self._full()
+                data = self.dec.unconsumed_tail
+                if len(piece) < _STEP and not data:
+                    return
+        except zlib.error as e:
+            raise httpx.DecodingError(f"bad compressed body: {e}", request=self.request) from e
+
+    def result(self) -> bytes:
+        if self.dec is not None:
+            try:
+                self.out += self.dec.flush()
+            except zlib.error as e:
+                raise httpx.DecodingError(f"bad compressed body: {e}", request=self.request) from e
+            if len(self.out) > self.limit:
+                raise self._full()
+        return bytes(self.out)
+
+
+def _final(resp: httpx.Response, url: str, body: bytes) -> httpx.Response:
+    """A normal, fully read response for the original (not pinned) address."""
     headers = [(k, v) for k, v in resp.headers.multi_items()
                if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
-    return httpx.Response(resp.status_code, headers=headers, content=body, request=resp.request)
+    return httpx.Response(resp.status_code, headers=headers, content=body,
+                          request=httpx.Request("GET", url))
 
 
-async def get_limited_async(client: httpx.AsyncClient, url: str) -> httpx.Response:
-    """GET that stops reading when the body passes the limit (raises TooLarge)."""
-    async with client.stream("GET", url) as resp:
-        _check_peer(resp)
-        limit = _limit(str(resp.url), resp.headers.get("content-type", ""))
-        if _declared(resp) > limit:
-            raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
-        body = bytearray()
-        async for chunk in resp.aiter_bytes():
-            body += chunk
-            if len(body) > limit:
-                raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
-        return _rebuilt(resp, bytes(body))
+def _next_hop(resp: httpx.Response, url: str) -> str | None:
+    if resp.status_code in _REDIRECTS and resp.headers.get("location"):
+        return urljoin(url, resp.headers["location"])
+    return None
 
 
-def get_limited(client: httpx.Client, url: str, **kw) -> httpx.Response:
-    """Synchronous version of get_limited_async."""
-    with client.stream("GET", url, **kw) as resp:
-        _check_peer(resp)
-        limit = _limit(str(resp.url), resp.headers.get("content-type", ""))
-        if _declared(resp) > limit:
-            raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
-        body = bytearray()
-        for chunk in resp.iter_bytes():
-            body += chunk
-            if len(body) > limit:
-                raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
-        return _rebuilt(resp, bytes(body))
+def _plan(url: str, domains: list[str]) -> list[str]:
+    """Checks the address and returns the IPs to try (see the module docstring)."""
+    if not url_allowed(url, domains):
+        raise BlockedURL(f"address not allowed: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+    host = urlsplit(url).hostname or ""
+    try:
+        return _addresses(host)
+    except OSError as e:
+        raise BlockedURL(f"{host}: {e}", request=httpx.Request("GET", "http://invalid/")) from e
+
+
+def _limit_for(resp: httpx.Response, url: str) -> int:
+    limit = _limit(url, resp.headers.get("content-type", ""))
+    if _declared(resp) > limit:
+        raise TooLarge(f"body over {limit // 1048576} MB: {url[:200]}", request=resp.request)
+    return limit
+
+
+def get_limited(client: httpx.Client, url: str, domains: Iterable[str], **kw) -> httpx.Response:
+    """GET under the whole policy: checked address, pinned connection, redirects followed
+    one hop at a time, bounded download. Raises BlockedURL, TooLarge or an httpx error."""
+    allowed = list(domains)
+    for _ in range(_MAX_HOPS + 1):
+        last: Exception | None = None
+        for ip in _plan(url, allowed):
+            pinned, headers, ext = _pinned_request(url, ip)
+            try:
+                with client.stream("GET", pinned, headers=headers, extensions=ext,
+                                   follow_redirects=False, **kw) as resp:
+                    nxt = _next_hop(resp, url)
+                    if nxt is None:
+                        reader = _Body(resp, _limit_for(resp, url))
+                        for chunk in resp.iter_raw():
+                            reader.feed(chunk)
+                        return _final(resp, url, reader.result())
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                last = e   # try the next address of the host
+                continue
+            break
+        else:
+            raise last or BlockedURL(f"no address: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+        url = nxt
+    raise BlockedURL(f"too many redirects: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+
+
+async def get_limited_async(client: httpx.AsyncClient, url: str, domains: Iterable[str]) -> httpx.Response:
+    """Asynchronous version of get_limited."""
+    allowed = list(domains)
+    for _ in range(_MAX_HOPS + 1):
+        last: Exception | None = None
+        for ip in _plan(url, allowed):
+            pinned, headers, ext = _pinned_request(url, ip)
+            try:
+                async with client.stream("GET", pinned, headers=headers, extensions=ext,
+                                         follow_redirects=False) as resp:
+                    nxt = _next_hop(resp, url)
+                    if nxt is None:
+                        reader = _Body(resp, _limit_for(resp, url))
+                        async for chunk in resp.aiter_raw():
+                            reader.feed(chunk)
+                        return _final(resp, url, reader.result())
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                last = e
+                continue
+            break
+        else:
+            raise last or BlockedURL(f"no address: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+        url = nxt
+    raise BlockedURL(f"too many redirects: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))

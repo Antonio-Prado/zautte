@@ -16,6 +16,7 @@ The password is never stored in clear text: only the scrypt hash.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -92,6 +93,9 @@ def verify_password(password: str, stored: str) -> bool:
 # emails are registered.
 _DUMMY_HASH = hash_password(secrets.token_hex(16))
 
+# At most this many password checks at once, each in a worker thread (not in the event loop)
+_password_slots = asyncio.Semaphore(4)
+
 
 # ---------------------------------------------------------------------------
 # Signed session token (HMAC-SHA256, compact JWT-like format)
@@ -137,6 +141,8 @@ def verify_token(token: str) -> dict | None:
         user = next((u for u in _users_cached() or [] if u.get("id") == claims.get("uid")), None)
         if user is None or int(claims.get("av", 0)) != int(user.get("auth_version", 0)):
             return None  # unknown user, empty or unreadable user file, password changed: closed
+        if int(claims.get("iat", 0)) < int(user.get("pw_changed", 0)):
+            return None  # password changed before auth_version existed (users.json of old installations)
         return claims
     except (ValueError, TypeError, AttributeError):  # malformed token
         return None
@@ -334,7 +340,8 @@ async def login(request: Request, req: LoginRequest):
 
     user = _find_user_by_email(req.email)
     stored = user["pw_hash"] if user else _DUMMY_HASH
-    ok = verify_password(req.password, stored)
+    async with _password_slots:   # a few at a time: scrypt is deliberately heavy
+        ok = await asyncio.to_thread(verify_password, req.password, stored)
     if not user or not ok:
         raise HTTPException(status_code=401, detail="Email o password non validi")
 

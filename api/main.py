@@ -39,11 +39,18 @@ from api.datalog import forget
 from api.filelock import file_lock
 from api.limiter import limiter
 from api.pii import BLOCK_MESSAGE, contains_personal, redact
-from api.rag import answer, forget_queries, get_activity_stats, get_query_count
+from api.rag import (
+    answer,
+    expire_and_save_stats,
+    forget_queries,
+    get_activity_stats,
+    get_query_count,
+)
 from config.settings import (
     ADMIN_PATH,
     API_CORS_ORIGINS,
     API_DOCS,
+    AUTH_ENABLED,
     BEDROCK_MODEL,
     CLAUDE_MODEL,
     DAILY_QUESTION_LIMIT,
@@ -91,6 +98,13 @@ async def lifespan(app: FastAPI):
         log.exception("Error during startup")
     await asyncio.to_thread(quota.load)
 
+    async def _expire_stats_forever():
+        while True:
+            expire_and_save_stats()   # in the loop thread, where the counters are changed
+            await asyncio.sleep(6 * 3600)
+
+    stats_task = asyncio.create_task(_expire_stats_forever())
+
     # Graceful shutdown: waits for in-flight requests to complete
     shutdown_event = asyncio.Event()
 
@@ -102,6 +116,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    stats_task.cancel()
     if shutdown_event.is_set():
         await asyncio.sleep(2)  # window for streaming requests to complete
 
@@ -648,9 +663,12 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
     if req.rid and _RID_RE.fullmatch(req.rid):
         from api.datalog import answer_owner
         owner = await asyncio.to_thread(answer_owner, req.rid)
-        if owner and owner != entry["uid"]:
-            raise HTTPException(status_code=403, detail="Risposta di un altro utente")
+        # with login, the vote must be on an answer that was given to this user
+        if (owner and owner != entry["uid"]) or (AUTH_ENABLED and not owner):
+            raise HTTPException(status_code=403, detail="Risposta non trovata per questo utente")
         entry["rid"] = req.rid
+    elif AUTH_ENABLED:
+        raise HTTPException(status_code=400, detail="Identificativo della risposta mancante")
     comment = fs.clean_comment(req.comment)
     urls = fs.clean_urls(req.urls[:20])
     if comment:
@@ -937,12 +955,15 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
         raise HTTPException(status_code=400, detail="Indicare rids oppure uid con last, all o ts")
     # Synchronous on purpose: while it rewrites the files this process does not append
     # other lines (writes from the other process are recovered by rewrite_jsonl).
+    from api.datalog import answer_owner
+    owners = {req.uid} if req.uid else {answer_owner(r) for r in req.rids} - {None}
     result = forget(rids=req.rids, uid=req.uid, last=req.last, every=req.all, ts=req.ts,
                     dry_run=req.dry_run)
     memory = 0
     if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
-        conversations.forget(req.uid)   # the questions may still be in a conversation
+        for owner in owners:   # the questions may still be in the conversations of their authors
+            conversations.forget(owner)
         log.info("Deletion on request: questions %d, usage entries removed %d, answers %d, "
                  "gaps %d, feedback %d, from memory %d", len(result["questions"]),
                  result["usage"], result["answers"], result["gaps"], result["feedback"], memory)
