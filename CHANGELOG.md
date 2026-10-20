@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
+### Security
+- The server keeps the last turns of each conversation (`api/conversations.py`: in memory, two hours, tied to the
+  user, lost on restart). The widget no longer sends the history, only the conversation id (`cid`) that came with
+  the previous answer; the `history` field of `/chat` and `/chat/stream` is ignored. Before, nothing proved that a
+  message with the role "assistant" had been written by the assistant. Deleting on request clears the conversations.
+- Sources are links only when their address is `http(s)`; an inbox document whose `source_url` has another scheme
+  gets the default `file://` name instead.
+
+### Changed
+- `docs/privacy-and-security.md`: the index is one and public, with no per-document permissions; only public
+  documents belong in the inbox.
+- The masking of the bot's messages in the history (0.5.5) is gone with the history itself.
+
 ## [0.5.7] - 2026-10-20
 
 ### Security
@@ -206,7 +221,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.7...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Antonio-Prado/zautte/compare/v0.5.7...v0.6.0
 [0.5.7]: https://github.com/Antonio-Prado/zautte/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/Antonio-Prado/zautte/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...v0.5.5

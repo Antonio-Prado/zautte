@@ -12,7 +12,7 @@ Each question flows through this pipeline (`api/main.py`, then `answer()` in `ap
 User question
      │
      ▼
-1. redact()               — masks tax codes, IBANs, cards, emails, phones in the question and in the user turns of the history (api/pii.py)
+1. redact()               — masks tax codes, IBANs, cards, emails, phones in the question (api/pii.py)
      │                      and gives the question its id (rid)
      ▼
    smalltalk.classify()   — greetings, thanks, compliments, insults: fixed reply, stop here (api/smalltalk.py)

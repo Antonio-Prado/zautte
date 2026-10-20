@@ -112,6 +112,9 @@ def process_file(doc_path: Path) -> bool:
 
         title = meta.get("title") or doc_path.stem
         source_url = meta.get("source_url") or f"file://{doc_path.name}"
+        if not source_url.lower().startswith(("http://", "https://", "file://")):
+            log.warning(f"  source_url with an unexpected scheme replaced: {doc_path.name}")
+            source_url = f"file://{doc_path.name}"
         category = meta.get("category", "documento")
 
         chunks = chunk_document(

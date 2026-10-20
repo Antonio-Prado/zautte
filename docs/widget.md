@@ -50,7 +50,7 @@ The `widget/embed-snippet.html` file contains a ready-to-paste snippet with more
 ## Features
 
 - **SSE streaming** (`POST /chat/stream`): tokens arrive progressively and a cursor blinks during generation; if no token arrives within 10 seconds, a "Processing…" hint appears
-- **Conversation history**: the last 3 turns (6 messages) are kept in memory and sent with each request; reset by **New conversation** (↻ in the header) and at login
+- **Conversation history**: the last 3 turns are kept by the server, the widget only holds the conversation id it sends with each question; reset by **New conversation** (↻ in the header) and at login
 - **Sources** under each answer, as links (title only when the URL is hidden for migrated domains)
 - **Formatting**: the answer's Markdown becomes real HTML: paragraphs, headings (`#`/`##` → `h3`, `###` and deeper → `h4`), bulleted and numbered lists (nested too), quotes (`>`), separators (`---`) and `**bold**`; Markdown links, bare URLs and email addresses become links in a single pass (never nested); everything else is HTML-escaped
 - **Suggested questions** (`suggestions`): chips under the welcome message, removed at the first question

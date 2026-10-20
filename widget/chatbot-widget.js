@@ -766,7 +766,7 @@
 
   let isOpen = false;
   let isLoading = false;
-  let conversationHistory = [];  // max 3 turns
+  let conversationId = "";  // given by the server with each answer: it keeps the last turns itself
 
   // ---------------------------------------------------------------------------
   // Authentication (pilot project with a restricted group)
@@ -1162,7 +1162,7 @@
   // text (document on a migrated domain, whose link is no longer valid).
   function renderSource(s) {
     let el;
-    if (s.url) {
+    if (s.url && /^https?:\/\//i.test(s.url)) {   // never a javascript: or file: link
       el = document.createElement("a");
       el.href = s.url;
       el.target = "_blank";
@@ -1286,7 +1286,7 @@
 
   function clearChat() {
     messages.innerHTML = "";
-    conversationHistory = [];
+    conversationId = "";
     addMessage("bot", T.welcome, null);
     // Disclaimer under the welcome bubble, smaller font
     const disc = document.createElement("div");
@@ -1506,7 +1506,7 @@
       const resp = await fetch(`${cfg.apiUrl}/chat/stream`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ question, history: conversationHistory }),
+        body: JSON.stringify({ question, cid: conversationId || undefined }),
       });
 
       // Session expired/missing: go back to login without showing a generic error
@@ -1547,6 +1547,7 @@
       let fullText = "";
       let receivedSources = [];
       let receivedRid = "";
+      let receivedCid = "";
       let receivedLang = "";
       let receivedBlocked = false;
       let firstToken = true;
@@ -1583,6 +1584,7 @@
             } else if (payload.sources) {
               receivedSources = payload.sources;
               receivedRid = payload.rid || "";
+              receivedCid = payload.cid || "";
               receivedLang = payload.language || "";
               receivedBlocked = !!payload.blocked;
             } else if (payload.error) {
@@ -1635,12 +1637,8 @@
         // Question discarded because it contains personal data: it does not enter the
         // history (must not be sent to the server again) and is not rated
         if (!receivedBlocked) {
-          // Update conversation history (max 3 turns = 6 messages)
-          conversationHistory.push({ role: "user", content: question });
-          conversationHistory.push({ role: "assistant", content: fullText });
-          if (conversationHistory.length > 6) {
-            conversationHistory = conversationHistory.slice(-6);
-          }
+          // The server keeps the last turns: here only the conversation id
+          if (receivedCid) conversationId = receivedCid;
           // Add feedback buttons
           addFeedback(wrap, question, fullText, receivedRid);
         }
