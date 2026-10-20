@@ -514,8 +514,6 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
     expose them to anyone who knows the URL."""
     base = {
         "status": "ok",
-        "llm_provider": LLM_PROVIDER,
-        "hybrid_search": is_bm25_active(),
         "uptime_seconds": int((now_local() - _startup_time).total_seconds()),
     }
 
@@ -540,6 +538,8 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
     ]
 
     base.update({
+        "llm_provider": LLM_PROVIDER,
+        "hybrid_search": is_bm25_active(),
         "indexed_chunks": stats["total_chunks"],
         "unique_sources": stats["unique_sources"],
         "doc_types": stats["doc_types"],
