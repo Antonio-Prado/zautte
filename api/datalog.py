@@ -12,12 +12,12 @@ are matched by user, text and time.
 
 import datetime as dt
 import json
-import os
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from api.feedback_store import resolved_key
 from api.filelock import file_lock
+from api.safefile import atomic_file, require_regular, write_text_atomic
 from config.settings import DATA_DIR
 
 USAGE_FILE = DATA_DIR / "usage.jsonl"
@@ -39,15 +39,6 @@ def parse_ts(ts: str) -> dt.datetime | None:
     return t if t.tzinfo else t.astimezone()   # local time if naive
 
 
-def replace_keeping_owner(path: Path, tmp: Path) -> None:
-    """Replaces `path` with `tmp`, keeping owner and permissions."""
-    st = path.stat()
-    os.chmod(tmp, st.st_mode & 0o7777)
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        os.chown(tmp, st.st_uid, st.st_gid)
-    tmp.replace(path)
-
-
 def rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
                   dry_run: bool) -> tuple[int, int]:
     """Rewrites a JSONL file applying `transform` to each entry (None = delete).
@@ -63,6 +54,7 @@ def rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
 
 def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
                    dry_run: bool) -> tuple[int, int]:
+    require_regular(path)
     with open(path, encoding="utf-8") as f:
         content = f.read()
         size = f.tell()
@@ -89,14 +81,12 @@ def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
         out.append(line)
     if dry_run or not (removed or changed):
         return removed, changed
-    tmp = path.with_name(path.name + ".purge.tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
+    with atomic_file(path) as f:
         if out:
             f.write("\n".join(out) + "\n")
         with open(path, encoding="utf-8") as src:
             src.seek(size)
             f.write(src.read())   # lines appended during the rewrite
-    replace_keeping_owner(path, tmp)
     return removed, changed
 
 
@@ -114,9 +104,7 @@ def drop_resolved(drop: Callable[[str], bool], dry_run: bool) -> int:
     keep = [i for i in items if not (isinstance(i, dict) and drop(str(i.get("key", ""))))]
     removed = len(items) - len(keep)
     if removed and not dry_run:
-        tmp = RESOLVED_FILE.with_name(RESOLVED_FILE.name + ".purge.tmp")
-        tmp.write_text(json.dumps(keep, ensure_ascii=False, indent=2), encoding="utf-8")
-        replace_keeping_owner(RESOLVED_FILE, tmp)
+        write_text_atomic(RESOLVED_FILE, json.dumps(keep, ensure_ascii=False, indent=2))
     return removed
 
 

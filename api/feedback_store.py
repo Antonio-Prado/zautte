@@ -16,6 +16,7 @@ import secrets
 from pathlib import Path
 
 from api.filelock import file_lock
+from api.safefile import write_text_atomic
 from config.settings import now_local
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -109,9 +110,7 @@ def _append(entry: dict) -> dict:
             if vote_key(old) == key:
                 entry = {"id": old.get("id") or new_id(), **entry}
                 lines[i] = json.dumps(entry, ensure_ascii=False)
-                tmp = FEEDBACK_FILE.with_suffix(".tmp")
-                tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
-                tmp.replace(FEEDBACK_FILE)
+                write_text_atomic(FEEDBACK_FILE, "\n".join(lines) + "\n")
                 return entry
     entry = {"id": new_id(), **entry}
     with open(FEEDBACK_FILE, "a", encoding="utf-8") as f:
@@ -168,9 +167,7 @@ def _attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict |
         new_lines.append(line)
     if found is None:
         return None
-    tmp = FEEDBACK_FILE.with_suffix(".tmp")
-    tmp.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
-    tmp.replace(FEEDBACK_FILE)
+    write_text_atomic(FEEDBACK_FILE, "\n".join(new_lines) + "\n")
     return found
 
 

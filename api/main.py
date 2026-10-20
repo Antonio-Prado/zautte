@@ -46,6 +46,7 @@ from api.rag import (
     get_activity_stats,
     get_query_count,
 )
+from api.safefile import write_text_atomic
 from config.settings import (
     ADMIN_PATH,
     API_CORS_ORIGINS,
@@ -675,7 +676,7 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         entry["comment"] = comment
     if urls:
         entry["urls"] = urls
-    entry = fs.append(entry)
+    entry = await asyncio.to_thread(fs.append, entry)
     if req.rating == -1 and (comment or urls):
         background_tasks.add_task(_notify_feedback, entry)
     return {"ok": True, "id": entry["id"]}
@@ -693,7 +694,7 @@ async def feedback_detail(request: Request, req: FeedbackDetailRequest, backgrou
     urls = fs.clean_urls(req.urls[:20])
     if not comment and not urls:
         raise HTTPException(status_code=400, detail="Nessun dettaglio da salvare")
-    entry = fs.attach_details(req.id, user.get("uid", ""), comment, urls)
+    entry = await asyncio.to_thread(fs.attach_details, req.id, user.get("uid", ""), comment, urls)
     if entry is None:
         raise HTTPException(status_code=404, detail="Feedback non trovato")
     background_tasks.add_task(_notify_feedback, entry)
@@ -783,7 +784,7 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
     if notified_to:
         record["notified"] = notified_to
     existing.append(record)
-    f.write_text(_json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_text_atomic(f, _json.dumps(existing, ensure_ascii=False, indent=2))
     return {"ok": True, "notified": bool(notified_to)}
 
 
@@ -1066,9 +1067,10 @@ async def chat(request: Request, req: ChatRequest,
         result = await answer(question, stream=False, history=history,
                               uid=user.get("uid"), rid=rid)
         _lang = result.get("language") if isinstance(result, dict) else None
-        _log_usage(user.get("uid"), question, _lang,
-                   int((_time.monotonic() - _t0) * 1000), rid=rid)
-        _log_answer(user.get("uid"), rid, result.get("answer", ""), result.get("sources"))
+        await asyncio.to_thread(_log_usage, user.get("uid"), question, _lang,
+                                int((_time.monotonic() - _t0) * 1000), rid=rid)
+        await asyncio.to_thread(_log_answer, user.get("uid"), rid, result.get("answer", ""),
+                                result.get("sources"))
         conversations.add_turn(user.get("uid", ""), cid, question, result.get("answer", ""))
         return {**result, "rid": rid, "cid": cid}
     except ValueError as e:
@@ -1108,7 +1110,7 @@ async def chat_stream(request: Request, req: ChatRequest,
         rid = _new_rid()
         generator, sources, language = await answer(question, stream=True, history=history,
                                                     uid=user.get("uid"), rid=rid)
-        _log_usage(user.get("uid"), question, language, rid=rid)
+        await asyncio.to_thread(_log_usage, user.get("uid"), question, language, rid=rid)
     except ValueError as e:
         quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
@@ -1142,8 +1144,8 @@ async def chat_stream(request: Request, req: ChatRequest,
             finally:
                 # Even if interrupted (error, user gone): we record
                 # what was generated, marked as partial.
-                _log_answer(user.get("uid"), rid, "".join(parts), sources,
-                            partial=not completed)
+                await asyncio.to_thread(_log_answer, user.get("uid"), rid, "".join(parts),
+                                        sources, partial=not completed)
 
         task = _asyncio.create_task(_produce())
         try:

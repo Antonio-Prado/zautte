@@ -8,6 +8,7 @@ Retrieval pipeline:
   3. Re-ranking — title boost + duplicate penalty
 """
 
+import asyncio
 import logging
 import re
 import sys
@@ -1000,14 +1001,14 @@ async def answer(
              log_rid, len(query), language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
-        _log_gap(retrieval_query, 0, rid=rid)
+        await asyncio.to_thread(_log_gap, retrieval_query, 0, rid=rid)
     else:
         # "Weak" retrieval: chunks found but even the best is below the
         # confidence threshold (often documents that are only thematically close).
         # Track them to surface content gaps that would otherwise be invisible.
         top_score = max(c.get("score", 0.0) for c in chunks)
         if top_score < RETRIEVAL_CONFIDENCE:
-            _log_gap(retrieval_query, len(chunks), weak=True, rid=rid)
+            await asyncio.to_thread(_log_gap, retrieval_query, len(chunks), weak=True, rid=rid)
 
     if stream:
         if not chunks:
