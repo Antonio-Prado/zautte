@@ -6,7 +6,7 @@ Installing Zautte on FreeBSD, from the prerequisites to the first indexing.
 
 ## Prerequisites
 
-- FreeBSD 15 (production runs 15.1-RELEASE; 14.x should also work)
+- FreeBSD 15 (tested on 15.1-RELEASE; 14.x should also work)
 - Python 3.11+
 - Build tools: PyPI has no binary wheels for FreeBSD, so `pip` compiles numpy, lxml,
   pydantic-core, jiter and the other native packages. Install `rust`, `ninja`, `pkgconf`,

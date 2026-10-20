@@ -19,7 +19,7 @@
 
 Zautte is a **RAG** (Retrieval-Augmented Generation) assistant for public-sector and other content-heavy websites. It crawls the site's pages and PDFs, finds the passages relevant to each question and lets an LLM answer **from those passages only, citing its sources**. Personal data in questions is masked before it reaches the model or the logs.
 
-It runs in production as a pilot for an Italian municipality (the **Comune di San Benedetto del Tronto**), on a single FreeBSD server with no database and no containers. What belongs to one organisation (pages, logos, known facts, changelog) is kept outside this repository, see [Configuration](docs/configuration.md).
+It is built to run on a single FreeBSD server with no database and no containers. What belongs to one organisation (pages, logos, known facts, changelog) is kept outside this repository, see [Configuration](docs/configuration.md).
 
 **Why "Zautte"?** In the dialect of San Benedetto del Tronto, a *zautte* is a sea laborer, a dockworker. *Li zautte* are young, strong workers who, historically coordinated by a foreman known as *lu sbarzòcche*, unload the fish from the boats just back in port and carry it to the fish market.
 
@@ -100,7 +100,7 @@ sequenceDiagram
 
 New items from the configured news sources (for example a WordPress news site or an RSS feed) are indexed within 15 minutes, with their linked pages and attachments, and the API reloads the index without restarting. A question that contains personal data is not processed at all and the user is asked to rephrase it; any other question is masked, rewritten if it is a follow-up, expanded with synonyms and searched both by meaning and by keywords. The best chunks, plus curated "known facts" for topics the site covers poorly, go to the LLM with instructions to use nothing else. Questions the site cannot answer are logged for review. Details: [How it works](docs/how-it-works.md).
 
-## In production
+## Reference figures
 
 <table>
   <tr>
@@ -111,7 +111,7 @@ New items from the configured news sources (for example a WordPress news site or
   </tr>
 </table>
 
-<sub>Figures from October 2026. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3`.</sub>
+<sub>Figures from a reference installation. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3`.</sub>
 
 <details>
 <summary><b>Restricted admin area</b> (invented data)</summary>

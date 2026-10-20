@@ -8,7 +8,7 @@
 
 name="chatbot"
 rcvar="chatbot_enable"
-desc="Chatbot RAG Comune SBT"
+desc="Zautte RAG chatbot"
 
 chatbot_dir="/opt/chatbot"
 chatbot_user="root"
