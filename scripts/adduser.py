@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.auth import create_reset_token, hash_password, reset_link, write_users
 from api.filelock import file_lock
 from api.mailer import send_invitation, smtp_configured
+from api.privdrop import drop_to_data_owner
 from config.settings import USERS_FILE
 
 
@@ -47,6 +48,7 @@ def _load() -> list[dict]:
 
 
 def main() -> None:
+    drop_to_data_owner(USERS_FILE.parent)
     ap = argparse.ArgumentParser(description="Zautte user management")
     ap.add_argument("--email")
     ap.add_argument("--name")
