@@ -25,9 +25,6 @@ pw usershow $SYNC_USER >/dev/null 2>&1 || pw useradd $SYNC_USER -d $CONTROL -s /
 pw groupmod $SHARED_GROUP -m $SYNC_USER,$APP_USER
 chown $SYNC_USER:$SYNC_USER $CONTROL && chmod 755 $CONTROL
 
-# data/: root's, shared group, sticky bit: each account can only rename or delete what it owns
-chown root:$SHARED_GROUP $DATA && chmod 1770 $DATA
-
 # What the sync jobs write
 for d in vectorstore crawl_cache documents inbox backups; do
     [ -d "$DATA/$d" ] && chown -R $SYNC_USER:$SYNC_USER "$DATA/$d"
@@ -38,6 +35,11 @@ touch /var/log/chatbot-sync.log && chown $SYNC_USER:$APP_USER /var/log/chatbot-s
 # A copy of .env for the sync account, without the secrets of the API and the admin area
 grep -v -E '^(AUTH_SECRET|ADMIN_API_KEY|ADMIN_PATH|ANTHROPIC_[A-Z_]*|AWS_[A-Z_]*|CLAUDE_API_KEY)=' $APP/.env > $APP/.env.sync
 chown root:$SYNC_USER $APP/.env.sync && chmod 640 $APP/.env.sync
+
+# Last, so that the API (restart it afterwards: it must pick up the new group) is not left
+# without write access in data/ during the long chown above.
+# data/: root's, shared group, sticky bit: each account can only rename or delete what it owns
+chown root:$SHARED_GROUP $DATA && chmod 1770 $DATA
 
 echo "done. Now: sed the sync lines of /etc/crontab from root to $SYNC_USER, and set"
 echo "'root:$SYNC_USER' -> '$SYNC_USER:$APP_USER' for chatbot-sync.log in /etc/newsyslog.conf.d/chatbot.conf."

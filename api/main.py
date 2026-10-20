@@ -87,6 +87,9 @@ async def require_admin(request: Request, key: str | None = Security(_api_key_he
 async def lifespan(app: FastAPI):
     import signal
 
+    from api.auth import auth_secret_ok
+    if AUTH_ENABLED and not auth_secret_ok():
+        raise RuntimeError("AUTH_ENABLED=true needs AUTH_SECRET of at least 16 characters: refusing to start")
     log.info("Starting chatbot...")
     try:
         from indexer.embedder import check_ollama_embed

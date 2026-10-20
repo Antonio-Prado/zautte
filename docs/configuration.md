@@ -96,7 +96,9 @@ PUBLIC_BASE_URL=
 # Address notified of every report sent from the widget (empty = none)
 FEEDBACK_NOTIFY_EMAIL=
 
-# Backend (bind address and port are set in start.sh; API_HOST/API_PORT are not used)
+# Backend: addresses the API listens on (comma-separated; 0.0.0.0,:: = all interfaces, then restrict port 8000 with the firewall) and port
+API_HOST=127.0.0.1,::1
+API_PORT=8000
 API_CORS_ORIGINS=https://www.your-site.com
 # Proxy/load balancer whose X-Forwarded-For is trusted (addresses or networks, comma-separated; never *)
 FORWARDED_ALLOW_IPS=127.0.0.1,::1

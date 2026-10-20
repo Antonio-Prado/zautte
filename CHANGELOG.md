@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-21
+
+### Security
+- The API listens on `API_HOST` (comma-separated, default local only `127.0.0.1,::1`) and `API_PORT`; `start.sh` no
+  longer forces `0.0.0.0` and `::`. An installation that wants the proxy to reach it sets `API_HOST=0.0.0.0,::` in
+  `.env` and restricts the port with the firewall.
+- With `AUTH_ENABLED=true`, an `AUTH_SECRET` shorter than 16 characters stops the API from starting, and tokens are
+  never signed or verified with a weak key.
+- The password reset link carries the token in the fragment (`/auth/reset#token=...`), which browsers do not send
+  to servers or proxies, so it cannot end up in their access logs; links sent before still work.
+- `PII_BLOCK` no longer depends on `PII_REDACTION` and also stops a person's address at an institutional domain
+  (`name.surname@`), while office addresses (`protocollo@`, `ufficio.tributi@`) still pass.
+- The vector store backups are created readable by their owner only.
+
 ## [0.7.0] - 2026-10-21
 
 ### Security

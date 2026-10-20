@@ -46,7 +46,7 @@ _CARD_RE = re.compile(r"(?<![\d.,/])\d(?:[ -]?\d){12,18}(?![\d.,/])")
 # the @, 63 per domain label): no costly backtracking on deliberately
 # crafted text (e.g. long runs of "+").
 _EMAIL_RE = re.compile(
-    r"(?<![\w.+-])[\w.+-]{1,64}@([A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24})"
+    r"(?<![\w.+-])([\w.+-]{1,64})@([A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24})"
 )
 
 # Italian phone: optional international prefix, then mobile (3xx) or
@@ -87,9 +87,33 @@ def _phone_ok(candidate: str) -> bool:
     return 9 <= len(national) <= 11
 
 
+_ROLE_WORDS = {
+    "ufficio", "uff", "urp", "protocollo", "pec", "info", "segreteria", "servizio", "servizi", "settore",
+    "tributi", "anagrafe", "stato", "civile", "polizia", "municipale", "sindaco", "giunta", "comune",
+    "ragioneria", "personale", "cultura", "scuola", "sociale", "turismo", "suap", "urbanistica", "lavori",
+    "pubblici", "ambiente", "sport", "biblioteca", "elettorale", "contratti", "economato", "avvocatura",
+    "segretario", "generale", "dirigente", "area", "direzione", "staff", "gabinetto", "stampa", "cimitero",
+}
+
+
 def _email_kept(domain: str) -> bool:
     domain = domain.lower()
     return any(domain == d or domain.endswith("." + d) for d in PII_KEEP_EMAIL_DOMAINS)
+
+
+def _personal_mailbox(local: str) -> bool:
+    """name.surname@ style: the address of a person, not of an office."""
+    parts = [p for p in re.split(r"[._-]", local.lower()) if p]
+    return len(parts) >= 2 and all(p.isalpha() for p in parts) and not (set(parts) & _ROLE_WORDS)
+
+
+def _mask(text: str, keep_institutional: bool) -> str:
+    text = _CF_RE.sub("[codice fiscale]", text)
+    text = _IBAN_RE.sub(lambda m: "[IBAN]" if _iban_ok(m.group(0)) else m.group(0), text)
+    text = _CARD_RE.sub(lambda m: "[carta di pagamento]" if _luhn_ok(m.group(0)) else m.group(0), text)
+    text = _EMAIL_RE.sub(
+        lambda m: m.group(0) if keep_institutional and _email_kept(m.group(2)) else "[email]", text)
+    return _PHONE_RE.sub(lambda m: "[telefono]" if _phone_ok(m.group(0)) else m.group(0), text)
 
 
 def redact(text: str) -> str:
@@ -97,12 +121,7 @@ def redact(text: str) -> str:
     With PII_REDACTION off it returns the text unchanged."""
     if not PII_REDACTION or not text:
         return text
-    text = _CF_RE.sub("[codice fiscale]", text)
-    text = _IBAN_RE.sub(lambda m: "[IBAN]" if _iban_ok(m.group(0)) else m.group(0), text)
-    text = _CARD_RE.sub(lambda m: "[carta di pagamento]" if _luhn_ok(m.group(0)) else m.group(0), text)
-    text = _EMAIL_RE.sub(lambda m: m.group(0) if _email_kept(m.group(1)) else "[email]", text)
-    text = _PHONE_RE.sub(lambda m: "[telefono]" if _phone_ok(m.group(0)) else m.group(0), text)
-    return text
+    return _mask(text, keep_institutional=True)
 
 
 # First-person introductions. Proper names require an initial capital
@@ -133,4 +152,10 @@ def contains_personal(text: str) -> bool:
     off."""
     if not PII_BLOCK or not text:
         return False
-    return redact(text) != text or bool(_SELF_RE.search(text))
+    # Detection does not depend on PII_REDACTION, and an institutional address counts when it is a
+    # person's (name.surname@), not an office's
+    if _mask(text, keep_institutional=False) != text and (
+            _mask(text, keep_institutional=True) != text
+            or any(_personal_mailbox(m.group(1)) and _email_kept(m.group(2)) for m in _EMAIL_RE.finditer(text))):
+        return True
+    return bool(_SELF_RE.search(text))
