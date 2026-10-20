@@ -611,6 +611,10 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         "user": user.get("name", ""),
     }
     if req.rid and _RID_RE.fullmatch(req.rid):
+        from api.datalog import answer_owner
+        owner = await asyncio.to_thread(answer_owner, req.rid)
+        if owner and owner != entry["uid"]:
+            raise HTTPException(status_code=403, detail="Risposta di un altro utente")
         entry["rid"] = req.rid
     comment = fs.clean_comment(req.comment)
     urls = fs.clean_urls(req.urls[:20])

@@ -61,6 +61,7 @@ RETENTION_USAGE_TEXT_DAYS=90
 RETENTION_USAGE_DAYS=365
 RETENTION_GAPS_DAYS=180
 RETENTION_FEEDBACK_DAYS=365
+RETENTION_STATS_DAYS=90
 
 # Pilot login (email + password) and email delivery
 AUTH_ENABLED=false
@@ -136,7 +137,7 @@ ADMIN_LOCKOUT_SECONDS=900
 | `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
 | `BEDROCK_REWRITE_MODEL`| `BEDROCK_MODEL`                | Model used to rewrite follow-up questions (`bedrock` provider) |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
-| `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365`   | Retention of question text, usage, gaps, feedback    |
+| `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365` / `90` | Retention of question text, usage, gaps, feedback, and of the most frequent questions and per-user token records in `stats.json` (applied by the API itself) |
 
 Constants in `api/rag.py`, calibrated for `bge-m3`:
 

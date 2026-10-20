@@ -114,6 +114,14 @@ def drop_resolved(drop: Callable[[str], bool], dry_run: bool) -> int:
     return removed
 
 
+def answer_owner(rid: str) -> str | None:
+    """User id the answer `rid` was given to (from answers.jsonl); None if unknown."""
+    for e in _read_jsonl(ANSWERS_FILE):
+        if e.get("rid") == rid:
+            return e.get("uid")
+    return None
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
