@@ -252,7 +252,10 @@ def write_users(users: list[dict]) -> None:
     if USERS_FILE.exists():
         replace_keeping_owner(USERS_FILE, tmp)
     else:
-        os.chmod(tmp, 0o640)
+        os.chmod(tmp, 0o600)
+        if os.geteuid() == 0:   # created by root: same owner as the data folder
+            st = USERS_FILE.parent.stat()
+            os.chown(tmp, st.st_uid, st.st_gid)
         tmp.replace(USERS_FILE)
 
 
