@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-10-20
+
+### Security
+- The conversation history sent by the client is masked in the bot's messages too (tax code, IBAN and
+  payment card; emails and phone numbers stay, being those of the offices), not only in the user's.
+- The most frequent questions and the per-user token records in `stats.json` now expire after
+  `RETENTION_STATS_DAYS` (default 90; 0 = never), applied by the API every time it saves the statistics.
+- `POST /feedback` refuses (403) a vote on an answer that was given to another user.
+
+### Changed
+- `docs/operations.md`: the `purge_logs` line is in the production crontab example, commented out until
+  the retention periods are agreed with the data protection officer.
+
 ## [0.5.4] - 2026-10-20
 
 ### Security
@@ -170,7 +183,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/Antonio-Prado/zautte/compare/v0.5.1...v0.5.2

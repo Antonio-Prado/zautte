@@ -65,7 +65,10 @@ The sync wrappers need root (lock in `/var/run`, root-owned log, and every sync 
 30       2    *    *     1    root /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
 0        3    1    *     *    root /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    root /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
+#15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
+
+The last line is commented out on purpose: `purge_logs` deletes data for good, so turn it on (and try `--dry-run` first) only when the retention periods (`RETENTION_*_DAYS`) have been agreed with the data protection officer and written in the privacy notice. Until then nothing is deleted automatically (the statistics expire by themselves, see `RETENTION_STATS_DAYS`).
 
 | Schedule                       | Script                  | Description |
 |--------------------------------|-------------------------|-------------|

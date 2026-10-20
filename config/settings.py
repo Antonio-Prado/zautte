@@ -207,6 +207,9 @@ RETENTION_USAGE_TEXT_DAYS = int(os.getenv("RETENTION_USAGE_TEXT_DAYS", "90"))
 RETENTION_USAGE_DAYS = int(os.getenv("RETENTION_USAGE_DAYS", "365"))
 RETENTION_GAPS_DAYS = int(os.getenv("RETENTION_GAPS_DAYS", "180"))
 RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
+# RETENTION_STATS_DAYS: most frequent questions and per-user token records in stats.json
+# (applied by the API itself every time the statistics are saved)
+RETENTION_STATS_DAYS = int(os.getenv("RETENTION_STATS_DAYS", "90"))
 
 # --- API Backend ---
 API_HOST = os.getenv("API_HOST", "127.0.0.1")

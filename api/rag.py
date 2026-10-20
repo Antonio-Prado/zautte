@@ -31,6 +31,7 @@ from config.settings import (
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
     QUERY_REWRITE,
+    RETENTION_STATS_DAYS,
     RETRIEVAL_TOP_K,
     SITE_URL,
     SYSTEM_PROMPT_EN,
@@ -666,6 +667,7 @@ import json as _json
 import time as _time
 from collections import Counter as _Counter
 from collections import OrderedDict
+from datetime import timedelta as _timedelta
 from pathlib import Path as _Path
 
 # Log of unanswered queries to identify content gaps
@@ -703,6 +705,7 @@ _STATS_FILE = _Path(__file__).parent.parent / "data" / "stats.json"
 _query_count: int = 0
 _response_times: list[float] = []
 _query_freq: _Counter = _Counter()
+_query_seen: dict[str, float] = {}   # question -> when it was last asked (for RETENTION_STATS_DAYS)
 _hour_counts: list[int] = [0] * 24
 
 # Token tracking (Claude provider only)
@@ -771,6 +774,8 @@ def _load_stats():
         _query_count    = d.get("query_count", 0)
         _response_times = d.get("response_times", [])[-100:]
         _query_freq     = _Counter(d.get("query_freq", {}))
+        now = _time.time()   # questions saved before the dates existed start their retention now
+        _query_seen.update({k: d.get("query_seen", {}).get(k, now) for k in _query_freq})
         hc = d.get("hour_counts", [0] * 24)
         _hour_counts    = (hc + [0] * 24)[:24]
         _token_in_total   = d.get("token_in_total", 0)
@@ -781,7 +786,21 @@ def _load_stats():
         log.warning(f"Could not load stats: {e}")
 
 
+def _expire_stats():
+    """Drops the questions and the per-user token records older than RETENTION_STATS_DAYS
+    (stats.json keeps the text of the most frequent questions and the user ids)."""
+    if RETENTION_STATS_DAYS <= 0:
+        return
+    limit = _time.time() - RETENTION_STATS_DAYS * 86400
+    for key in [k for k in _query_freq if _query_seen.get(k, limit + 1) < limit]:
+        del _query_freq[key]
+        _query_seen.pop(key, None)
+    cutoff = (now_local() - _timedelta(days=RETENTION_STATS_DAYS)).isoformat(timespec="seconds")
+    _token_history[:] = [e for e in _token_history if str(e.get("ts", "")) >= cutoff]
+
+
 def _save_stats():
+    _expire_stats()
     try:
         _STATS_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(_STATS_FILE, "w", encoding="utf-8") as f:
@@ -789,6 +808,7 @@ def _save_stats():
                 "query_count":      _query_count,
                 "response_times":   _response_times[-100:],
                 "query_freq":       dict(_query_freq.most_common(100)),
+                "query_seen":       {k: _query_seen[k] for k in dict(_query_freq.most_common(100)) if k in _query_seen},
                 "hour_counts":      _hour_counts,
                 "token_in_total":   _token_in_total,
                 "token_out_total":  _token_out_total,
@@ -848,6 +868,7 @@ def forget_queries(queries: list[str]) -> int:
             _query_freq[key] -= 1
             if _query_freq[key] <= 0:
                 del _query_freq[key]
+                _query_seen.pop(key, None)
             touched += 1
         _response_cache.pop(_cache_key(q.strip()), None)
     if touched:
@@ -918,6 +939,7 @@ async def answer(
         return {"answer": text, "sources": [], "language": language}
 
     _query_freq[_freq_key(query)] += 1
+    _query_seen[_freq_key(query)] = _time.time()
 
     # Cache only for queries without history (stateless conversations)
     use_cache = not history and not stream
