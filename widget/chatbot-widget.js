@@ -131,8 +131,8 @@
     apply: isItalian ? "Candidatura" : "Apply as a volunteer",
     forgotNoEmail: isItalian ? "Inserisci prima la tua email qui sopra." : "Enter your email above first.",
     forgotSent: isItalian
-      ? "Se l'indirizzo è registrato, riceverai una nuova password via email."
-      : "If the address is registered, you'll receive a new password by email.",
+      ? "Se l'indirizzo è registrato, riceverai un'email con il link per scegliere una nuova password."
+      : "If the address is registered, you'll receive an email with a link to choose a new password.",
     forgotSending: isItalian ? "Invio in corso…" : "Sending…",
     fbWhy: isItalian
       ? "Cosa non va nella risposta? Se conosci la pagina con l'informazione corretta, incolla qui il link."

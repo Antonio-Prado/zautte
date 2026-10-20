@@ -31,7 +31,7 @@ Questions (`/chat` and `/chat/stream`, one counter for both): **`DAILY_QUESTION_
 The other limits use slowapi (`api/limiter.py`), per client IP, with counters in memory that reset on every restart:
 
 - `/feedback` and `/feedback/detail`: **60 requests/hour**
-- `/auth/login`: **10/minute**; `/auth/forgot`: **5/hour**
+- `/auth/login`: **10/minute**; `/auth/forgot`: **5/hour**; `/auth/reset`: **10/hour**
 
 Excess requests get `429`.
 

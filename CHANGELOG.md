@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-20
+
+### Security
+- "Forgot password" no longer changes the password straight away: it emails a single-use link (30 minutes)
+  to a page where the person chooses the new password, and the password changes only when the link is
+  used. Before, anybody who knew an address could lock that person out by requesting resets. New
+  endpoints `GET /auth/reset` and `POST /auth/reset`; the reset email no longer contains a password.
+
 ## [0.5.1] - 2026-10-20
 
 ### Security
@@ -144,7 +152,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/Antonio-Prado/zautte/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Antonio-Prado/zautte/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Antonio-Prado/zautte/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/Antonio-Prado/zautte/compare/v0.4.2...v0.4.3
