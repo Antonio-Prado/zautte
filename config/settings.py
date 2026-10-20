@@ -224,8 +224,10 @@ API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes"
 
 # --- Admin endpoint authentication ---
 # Set in .env to protect /gaps and /stats
-# Leave empty to disable authentication (development only)
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+# With an empty ADMIN_API_KEY every admin request is refused, unless this is true
+# (development ONLY: it opens all admin endpoints and the detailed /health to anyone)
+ADMIN_AUTH_DISABLED = os.getenv("ADMIN_AUTH_DISABLED", "false").lower() == "true"
 # Wrong attempts allowed per address: once the maximum is reached the address is
 # blocked (429) for ADMIN_LOCKOUT_SECONDS, even with the right key.
 ADMIN_MAX_ATTEMPTS = int(os.getenv("ADMIN_MAX_ATTEMPTS", "5"))
