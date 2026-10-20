@@ -105,29 +105,6 @@ def redact(text: str) -> str:
     return text
 
 
-def redact_strict(text: str) -> str:
-    """Only the identifiers that no public answer contains (tax code, IBAN, payment
-    card): emails and phone numbers stay, being those of the offices."""
-    if not PII_REDACTION or not text:
-        return text
-    text = _CF_RE.sub("[codice fiscale]", text)
-    text = _IBAN_RE.sub(lambda m: "[IBAN]" if _iban_ok(m.group(0)) else m.group(0), text)
-    return _CARD_RE.sub(lambda m: "[carta di pagamento]" if _luhn_ok(m.group(0)) else m.group(0), text)
-
-
-def redact_history(history: list[dict] | None) -> list[dict] | None:
-    """Masks the history sent by the client. The user's messages fully; the bot's
-    answers only in the identifiers (see redact_strict), because they contain public
-    office contact details that the model needs to answer the following questions,
-    and because the client could put anything in a message with the bot's role."""
-    if not history:
-        return history
-    return [
-        {**m, "content": (redact if m.get("role") == "user" else redact_strict)(m.get("content", ""))}
-        for m in history
-    ]
-
-
 # First-person introductions. Proper names require an initial capital
 # (the words following «sono» are often common words: «sono residente», «sono
 # anziano»), hence the patterns are case-sensitive.

@@ -32,12 +32,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import auth, quota
+from api import auth, conversations, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
 from api.datalog import forget
 from api.limiter import limiter
-from api.pii import BLOCK_MESSAGE, contains_personal, redact, redact_history
+from api.pii import BLOCK_MESSAGE, contains_personal, redact
 from api.rag import answer, forget_queries, get_activity_stats, get_query_count
 from config.settings import (
     ADMIN_PATH,
@@ -298,8 +298,10 @@ class ChatRequest(BaseModel):
     history: list[HistoryMessage] = Field(
         default=[],
         max_length=6,
-        description="Ultimi 3 turni di conversazione (opzionale)"
+        description="Ignorata: la cronologia la tiene il server (campo cid)"
     )
+    cid: str = Field(default="", max_length=32,
+                     description="Identificativo di conversazione ricevuto con la risposta precedente")
 
 
 class Source(BaseModel):
@@ -313,6 +315,7 @@ class ChatResponse(BaseModel):
     sources: list[Source]
     language: str
     rid: str = ""
+    cid: str = ""
     blocked: bool = False
 
 
@@ -919,6 +922,7 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
     memory = 0
     if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
+        conversations.forget(req.uid)   # the questions may still be in a conversation
         log.info("Deletion on request: questions %d, usage entries removed %d, answers %d, "
                  "gaps %d, feedback %d, from memory %d", len(result["questions"]),
                  result["usage"], result["answers"], result["gaps"], result["feedback"], memory)
@@ -1015,7 +1019,7 @@ async def chat(request: Request, req: ChatRequest,
     try:
         # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
-        history = redact_history([m.model_dump() for m in req.history]) if req.history else None
+        cid, history = conversations.resolve(user.get("uid", ""), req.cid)
         rid = _new_rid()
         _t0 = _time.monotonic()
         result = await answer(question, stream=False, history=history,
@@ -1024,7 +1028,8 @@ async def chat(request: Request, req: ChatRequest,
         _log_usage(user.get("uid"), question, _lang,
                    int((_time.monotonic() - _t0) * 1000), rid=rid)
         _log_answer(user.get("uid"), rid, result.get("answer", ""), result.get("sources"))
-        return {**result, "rid": rid}
+        conversations.add_turn(user.get("uid", ""), cid, question, result.get("answer", ""))
+        return {**result, "rid": rid, "cid": cid}
     except ValueError as e:
         quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
@@ -1058,7 +1063,7 @@ async def chat_stream(request: Request, req: ChatRequest,
     try:
         # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
-        history = redact_history([m.model_dump() for m in req.history]) if req.history else None
+        cid, history = conversations.resolve(user.get("uid", ""), req.cid)
         rid = _new_rid()
         generator, sources, language = await answer(question, stream=True, history=history,
                                                     uid=user.get("uid"), rid=rid)
@@ -1086,6 +1091,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                     parts.append(token)
                     await queue.put(("token", token))
                 completed = True
+                conversations.add_turn(user.get("uid", ""), cid, question, "".join(parts))
                 await queue.put(("sources", None))
                 await queue.put(("done", None))
             except Exception as exc:
@@ -1113,7 +1119,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                     sources_data = json.dumps(
                         {"sources": [s.__dict__ if hasattr(s, '__dict__') else s
                                      for s in sources],
-                         "rid": rid, "language": language},
+                         "rid": rid, "cid": cid, "language": language},
                         ensure_ascii=False,
                     )
                     yield f"data: {sources_data}\n\n"

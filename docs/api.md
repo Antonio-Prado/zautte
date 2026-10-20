@@ -53,18 +53,15 @@ Complete response (non-streaming). Waits for the full response before replying.
 **Request:**
 ```json
 {
-  "question": "How do I apply for an identity card?",
-  "history": [
-    {"role": "user", "content": "Where is the registry office?"},
-    {"role": "assistant", "content": "The registry office is located at..."}
-  ]
+  "question": "And how much does it cost?",
+  "cid": "9f1c2b7a4d3e8a10"
 }
 ```
 
 - `question`: string 1–1000 characters
-- `history`: optional, max 6 messages (3 turns); each `{role: "user"|"assistant", content}`, with `content` truncated to 2000 characters
+- `cid`: optional conversation id, the one returned with the previous answer. The server keeps the last 3 turns of each conversation in memory (two hours, lost on restart, tied to the user) and uses them as context; a missing, expired or foreign id starts a new conversation. The old `history` field is still accepted but ignored: the client cannot decide what the assistant "said"
 - **Authentication**: with `AUTH_ENABLED=true`, `Authorization: Bearer <token>` (from `POST /auth/login`) is required; otherwise `401`
-- Personal data recognizable in `question` and in the user messages of `history` is masked before reaching the model and the logs (`api/pii.py`); assistant messages are passed unchanged
+- Personal data recognizable in `question` is masked before reaching the model, the logs and the conversation memory (`api/pii.py`)
 
 **Response:**
 ```json
