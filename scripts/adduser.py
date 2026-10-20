@@ -23,6 +23,7 @@ import getpass
 import json
 import secrets
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -105,6 +106,7 @@ def main() -> None:
     if existing:
         existing["name"] = args.name
         existing["pw_hash"] = pw_hash
+        existing["pw_changed"] = int(time.time())  # older sessions stop working
         print(f"Updated: {args.name} <{email}>")
     else:
         users.append({

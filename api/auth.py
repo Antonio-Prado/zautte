@@ -7,6 +7,8 @@ validates it without shared state (in production two processes ran, IPv4 and IPv
 so a file-based session store would cause race conditions and "lost" logins).
 
 No external dependencies: standard library only.
+Logout revokes the token (data/revoked_tokens.json) and a password change ends the
+older sessions of that user (pw_changed in users.json).
 Users are provisioned in data/users.json (see scripts/adduser.py):
     [{"id": "...", "name": "Mario Rossi", "email": "...", "pw_hash": "scrypt$..."}]
 The password is never stored in clear text: only the scrypt hash.
@@ -19,7 +21,9 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import secrets
+import threading
 import time
 
 from fastapi import APIRouter, HTTPException, Request, Security
@@ -101,9 +105,10 @@ def _sign(msg: str) -> str:
 
 
 def create_token(uid: str, name: str) -> str:
-    exp = int(time.time()) + AUTH_TOKEN_TTL_DAYS * 86400
+    now = int(time.time())
+    exp = now + AUTH_TOKEN_TTL_DAYS * 86400
     payload = json.dumps(
-        {"uid": uid, "name": name, "exp": exp},
+        {"uid": uid, "name": name, "iat": now, "exp": exp, "jti": secrets.token_hex(8)},
         separators=(",", ":"), ensure_ascii=False,
     ).encode("utf-8")
     msg = _b64url_encode(payload)
@@ -111,7 +116,9 @@ def create_token(uid: str, name: str) -> str:
 
 
 def verify_token(token: str) -> dict | None:
-    """Returns the claims if the signature is valid and not expired, otherwise None."""
+    """Returns the claims if the signature is valid, the token is not expired or
+    revoked (logout), the user still exists and the password has not been
+    changed since the token was issued; otherwise None."""
     try:
         msg, sig = token.split(".", 1)
         if not hmac.compare_digest(sig, _sign(msg)):
@@ -119,9 +126,61 @@ def verify_token(token: str) -> dict | None:
         claims = json.loads(_b64url_decode(msg))
         if int(claims.get("exp", 0)) < int(time.time()):
             return None
+        if revocation_key(claims) in _revoked_keys():
+            return None
+        users = _users_cached()
+        if users:  # an unreadable user file must not lock everybody out
+            user = next((u for u in users if u.get("id") == claims.get("uid")), None)
+            if user is None or int(claims.get("iat", 0)) < int(user.get("pw_changed", 0)):
+                return None
         return claims
     except (ValueError, TypeError, AttributeError):  # malformed token
         return None
+
+
+# ---------------------------------------------------------------------------
+# Revoked tokens (logout): data/revoked_tokens.json, {key: exp}
+# ---------------------------------------------------------------------------
+_REVOKED_FILE = USERS_FILE.parent / "revoked_tokens.json"
+_revoked_lock = threading.Lock()
+_revoked: dict[str, int] = {}
+_revoked_mtime: float | None = None
+
+
+def revocation_key(claims: dict) -> str:
+    """Identifier of a token in the revocation list (tokens issued before the
+    jti claim existed are identified by user and expiry)."""
+    return str(claims.get("jti") or f"{claims.get('uid')}:{claims.get('exp')}")
+
+
+def _revoked_keys() -> dict[str, int]:
+    """The revocation list, reloaded when the file changes."""
+    global _revoked, _revoked_mtime
+    try:
+        mtime = os.stat(_REVOKED_FILE).st_mtime
+    except OSError:
+        return _revoked
+    if mtime != _revoked_mtime:
+        try:
+            data = json.loads(_REVOKED_FILE.read_text(encoding="utf-8"))
+            _revoked = {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
+            _revoked_mtime = mtime
+        except (OSError, ValueError, TypeError):
+            pass
+    return _revoked
+
+
+def revoke_token(claims: dict) -> None:
+    """Adds the token to the revocation list until its natural expiry."""
+    now = int(time.time())
+    with _revoked_lock:
+        current = {k: v for k, v in _revoked_keys().items() if v > now}
+        current[revocation_key(claims)] = int(claims.get("exp", now))
+        tmp = _REVOKED_FILE.with_suffix(".tmp")
+        _REVOKED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps(current), encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, _REVOKED_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +194,21 @@ def _load_users() -> list[dict]:
         return data if isinstance(data, list) else []
     except (OSError, ValueError):
         return []
+
+
+_users_cache: tuple[float, list[dict]] | None = None
+
+
+def _users_cached() -> list[dict]:
+    """The user list, reread only when users.json changes (checked on every request)."""
+    global _users_cache
+    try:
+        mtime = os.stat(USERS_FILE).st_mtime
+    except OSError:
+        return []
+    if _users_cache is None or _users_cache[0] != mtime:
+        _users_cache = (mtime, _load_users())
+    return _users_cache[1]
 
 
 def get_user_by_id(uid: str) -> dict | None:
@@ -163,6 +237,7 @@ def _update_user_password(email: str, new_password: str) -> bool:
     for u in users:
         if u.get("email", "").strip().lower() == email:
             u["pw_hash"] = hash_password(new_password)
+            u["pw_changed"] = int(time.time())  # older sessions stop working
             changed = True
     if changed:
         try:
@@ -240,6 +315,14 @@ async def login(request: Request, req: LoginRequest):
         name=user.get("name", ""),
         expires_in=AUTH_TOKEN_TTL_DAYS * 86400,
     )
+
+
+@router.post("/logout")
+async def logout(user: dict = Security(require_user)):
+    """Ends the session: this token stops working even before it expires."""
+    if user.get("exp"):
+        revoke_token(user)
+    return {"ok": True}
 
 
 @router.get("/me")
