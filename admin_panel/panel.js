@@ -36,7 +36,7 @@
             const td = d.top_doc;
             document.getElementById('top-doc').innerHTML =
               '<a href="'+_esc(td.source)+'" target="_blank" style="color:#003366;font-size:.9em">'+_esc(td.title||td.source.split('/').pop())+'</a>'
-              +' <span style="color:#666;font-size:.8em">('+td.chunks+' chunk)</span>';
+              +' <span style="color:#666;font-size:.8em">('+_esc(td.chunks)+' chunk)</span>';
           }
 
           const q = d.queries_since_restart ?? 0;
@@ -69,7 +69,7 @@
             const maxC = Math.max(...tq.map(([,c]) => c), 1);
             qDiv.innerHTML = tq.map(([q,c]) =>
               '<div class="qbar-item">' +
-              '<div class="qbar-header"><span class="qbar-text">'+q+'</span><span class="qbar-count">×'+c+'</span></div>' +
+              '<div class="qbar-header"><span class="qbar-text">'+_esc(q)+'</span><span class="qbar-count">×'+_esc(c)+'</span></div>' +
               '<div class="qbar-track"><div class="qbar-fill" style="width:'+Math.round(c/maxC*100)+'%"></div></div>' +
               '</div>'
             ).join('');
@@ -119,7 +119,7 @@
             const maxCost = Math.max(...hist.map(e => e.cost || 0), 0.001);
             document.getElementById('cost-chart').innerHTML = hist.map(e => {
               const h = Math.max(2, Math.round((e.cost || 0) / maxCost * 46));
-              const lbl = (e.ts || '').replace(/T.*/,'').slice(5);
+              const lbl = _esc((e.ts || '').replace(/T.*/,'').slice(5));
               return '<div class="cost-bar-col">' +
                 '<div class="cost-bar" style="height:'+h+'px" data-tip="'+lbl+' — $'+(e.cost||0).toFixed(4)+'"></div>' +
                 '<div class="cost-bar-lbl">'+lbl+'</div>' +
@@ -131,9 +131,9 @@
           if (hist.length) {
             tbody.innerHTML = [...hist].reverse().map(e =>
               '<tr>' +
-              '<td>' + (e.ts || '').replace('T',' ').slice(0, 19) + '</td>' +
+              '<td>' + _esc((e.ts || '').replace('T',' ').slice(0, 19)) + '</td>' +
               '<td>' + (e.user ? _esc(e.user) : '<span style="color:#666">—</span>') + '</td>' +
-              '<td style="color:#666">' + (e.model || '').replace('claude-','') + '</td>' +
+              '<td style="color:#666">' + _esc((e.model || '').replace('claude-','')) + '</td>' +
               '<td>' + fmtNum(e.in) + '</td>' +
               '<td>' + fmtNum(e.out) + '</td>' +
               '<td>$' + (e.cost || 0).toFixed(5) + '</td>' +
@@ -182,8 +182,8 @@
               else if (e.type === 'crawl_end') dotClass = 'crawl';
               return '<li>' +
                 '<div class="tl-dot ' + dotClass + '"></div>' +
-                '<span class="tl-ts">' + e.ts + '</span>' +
-                '<span class="tl-label">' + (e.label || e.type) + '</span>' +
+                '<span class="tl-ts">' + _esc(e.ts) + '</span>' +
+                '<span class="tl-label">' + _esc(e.label || e.type) + '</span>' +
                 '</li>';
             }).join('');
           } else {
@@ -368,10 +368,10 @@
             const last = u.last_seen ? u.last_seen.replace('T', ' ').slice(0, 16) : 'never';
             const dim = u.messages ? '' : 'color:#666;';
             html += '<tr style="border-bottom:1px solid #f3f3f3;' + dim + '">'
-              + '<td style="padding:6px 8px">' + String(u.name || '').replace(/</g, '&lt;') + '</td>'
-              + '<td style="padding:6px 8px;text-align:right">' + u.messages + '</td>'
-              + '<td style="padding:6px 8px;text-align:right">' + u.active_days + '</td>'
-              + '<td style="padding:6px 8px;color:#666">' + last + '</td></tr>';
+              + '<td style="padding:6px 8px">' + _esc(u.name) + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + _esc(u.messages) + '</td>'
+              + '<td style="padding:6px 8px;text-align:right">' + _esc(u.active_days) + '</td>'
+              + '<td style="padding:6px 8px;color:#666">' + _esc(last) + '</td></tr>';
           });
           html += '</tbody></table>';
           body.innerHTML = html;
