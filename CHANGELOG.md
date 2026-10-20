@@ -9,6 +9,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-20
+
 ### Security
 - An empty `ADMIN_API_KEY` no longer opens the admin endpoints and the detailed `/health`: every admin
   request is refused. Development setups that relied on the open mode must set `ADMIN_AUTH_DISABLED=true`.
@@ -16,6 +18,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   moved to the admin view.
 
 ### Changed
+- The documentation no longer states which model, OS release or dated changes the reference installation uses,
+  and the README no longer names the municipality running it.
 - The README screenshots have new file names (`zautte-chat-desktop.png`, `zautte-chat-phone.png`,
   `zautte-admin-area.png`), so that browsers and image caches show the new pictures.
 
@@ -119,7 +123,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Antonio-Prado/zautte/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Antonio-Prado/zautte/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Antonio-Prado/zautte/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Antonio-Prado/zautte/compare/v0.3.1...v0.3.2
