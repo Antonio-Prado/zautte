@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from api.feedback_store import resolved_key
+from api.filelock import file_lock
 from config.settings import DATA_DIR
 
 USAGE_FILE = DATA_DIR / "usage.jsonl"
@@ -52,11 +53,16 @@ def rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
     """Rewrites a JSONL file applying `transform` to each entry (None = delete).
     Returns (entries deleted, entries modified). Non-JSON lines are kept.
 
-    The API keeps appending lines while the file is being rewritten: before
-    the replacement the lines that arrived in the meantime are appended, so the
-    window in which a write can be lost shrinks to a few moments."""
+    The API appends lines to the same files: the whole read-and-replace happens under
+    the lock of the file (api/filelock.py), so no line can arrive in between and be lost."""
     if not path.exists():
         return 0, 0
+    with file_lock(path):
+        return _rewrite_jsonl(path, transform, dry_run)
+
+
+def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
+                   dry_run: bool) -> tuple[int, int]:
     with open(path, encoding="utf-8") as f:
         content = f.read()
         size = f.tell()

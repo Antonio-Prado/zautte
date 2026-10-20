@@ -202,8 +202,27 @@ _NOISE_LINES = re.compile(
 )
 
 
+# Text that a visitor cannot see but the extraction would read: it could carry instructions
+# for the model (indirect prompt injection). aria-hidden is not here on purpose: it hides
+# a decorative element from screen readers, not from the eye.
+_INVISIBLE_STYLE = re.compile(
+    r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?![.\d])|opacity\s*:\s*0(?![.\d])|"
+    r"(?:left|top|text-indent)\s*:\s*-\d{4,}",
+    re.IGNORECASE,
+)
+
+
+def _drop_invisible(soup: BeautifulSoup) -> None:
+    for tag in soup.find_all(True):
+        if tag.decomposed:
+            continue   # inside an element that was already removed
+        if tag.has_attr("hidden") or _INVISIBLE_STYLE.search(tag.get("style") or ""):
+            tag.decompose()
+
+
 def clean_text(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
+    _drop_invisible(soup)
 
     # Remove useless tags
     for tag in soup.find_all(["script", "style", "nav", "header", "footer",

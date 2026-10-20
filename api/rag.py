@@ -19,6 +19,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import smalltalk
+from api.filelock import file_lock
 from config.settings import (
     ANTHROPIC_API_KEY,
     BEDROCK_AWS_REGION,
@@ -692,7 +693,7 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
         }
         if rid:
             entry["rid"] = rid
-        with open(_GAPS_LOG, "a", encoding="utf-8") as f:
+        with file_lock(_GAPS_LOG), open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
     except (OSError, TypeError, ValueError) as exc:
         log.debug("Gap log not written: %s", exc)
