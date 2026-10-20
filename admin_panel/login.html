@@ -40,7 +40,9 @@
     const apiBase = window.location.origin;
     const ADMIN_KEY_LS = 'zautte_admin_key';
     let _adminKey = null;
-    try { _adminKey = localStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
+    // The key lives only as long as the tab (sessionStorage): an old copy left in localStorage is removed.
+    try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+    try { _adminKey = sessionStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
 
     // Only the name "gate": the rest (panel, scripts, styles) comes from the server
     // only if the key is valid; after too many errors the address is blocked (429).
@@ -115,7 +117,7 @@
     document.getElementById('logout-btn').addEventListener('click', function () {
       if (window.ZautteChatbot) window.ZautteChatbot.logout();
       _adminKey = null;
-      try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+      try { sessionStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
       location.replace(location.pathname);
     });
 
@@ -127,7 +129,7 @@
       btn.disabled = true; msg.textContent = '';
       if (await _validateAdminKey(key)) {
         _adminKey = key;
-        try { localStorage.setItem(ADMIN_KEY_LS, key); } catch (_) {}
+        try { sessionStorage.setItem(ADMIN_KEY_LS, key); } catch (_) {}
         startAdminView();
       } else {
         msg.textContent = _keyError;
@@ -140,7 +142,7 @@
         startAdminView();
       } else {
         _adminKey = null;
-        try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+        try { sessionStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
       }
     })();
   </script>

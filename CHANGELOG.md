@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-10-20
+
+### Security
+- Login tokens last 7 days by default (`AUTH_TOKEN_TTL_DAYS`, was 30): people sign in again once a week.
+  Installations that set the variable keep their value.
+- The restricted area keeps the admin key in `sessionStorage` (gone when the tab closes) instead of
+  `localStorage`, and removes any copy left there. The key has to be typed again in each new tab.
+- The restricted-area page sends a `Content-Security-Policy` that forbids framing it, `<base>` and plugins,
+  and every response carries `X-Content-Type-Options: nosniff`.
+
 ## [0.5.5] - 2026-10-20
 
 ### Security
@@ -183,7 +193,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/Antonio-Prado/zautte/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/Antonio-Prado/zautte/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/Antonio-Prado/zautte/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/Antonio-Prado/zautte/compare/v0.5.2...v0.5.3

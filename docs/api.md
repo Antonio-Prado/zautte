@@ -264,7 +264,7 @@ If `ADMIN_API_KEY` is empty, every admin request is refused (the detailed `/heal
 
 ## User Authentication
 
-With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are signed with HMAC-SHA256 using `AUTH_SECRET` and valid for `AUTH_TOKEN_TTL_DAYS` days (default 30). A token stops working earlier after `POST /auth/logout`, when its user is removed from `users.json`, or when that user's password changes (`pw_changed` in `users.json`, set by the password reset and by `adduser` on an existing user). Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.
+With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are signed with HMAC-SHA256 using `AUTH_SECRET` and valid for `AUTH_TOKEN_TTL_DAYS` days (default 7). A token stops working earlier after `POST /auth/logout`, when its user is removed from `users.json`, or when that user's password changes (`pw_changed` in `users.json`, set by the password reset and by `adduser` on an existing user). Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.
 
 ## CORS
 
