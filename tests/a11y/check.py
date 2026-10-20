@@ -286,7 +286,7 @@ def main() -> int:
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})
-        page.add_init_script("localStorage.setItem('zautte_admin_key', 'k')")
+        page.add_init_script("sessionStorage.setItem('zautte_admin_key', 'k')")
         mock_api(page, base)
         page.goto(base + "/admin_panel/login.html")
         page.wait_for_selector("#admin-grid", state="visible")
