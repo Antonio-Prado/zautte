@@ -8,7 +8,7 @@ so a file-based session store would cause race conditions and "lost" logins).
 
 No external dependencies: standard library only.
 Logout revokes the token (data/revoked_tokens.json) and a password change ends the
-older sessions of that user (pw_changed in users.json).
+older sessions of that user (auth_version in users.json, repeated in the token).
 Users are provisioned in data/users.json (see scripts/adduser.py):
     [{"id": "...", "name": "Mario Rossi", "email": "...", "pw_hash": "scrypt$..."}]
 The password is never stored in clear text: only the scrypt hash.
@@ -33,6 +33,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from api.filelock import file_lock
 from api.limiter import limiter
 from config.settings import (
     AUTH_ENABLED,
@@ -108,11 +109,12 @@ def _sign(msg: str) -> str:
     return _b64url_encode(sig)
 
 
-def create_token(uid: str, name: str) -> str:
+def create_token(uid: str, name: str, auth_version: int = 0) -> str:
     now = int(time.time())
     exp = now + AUTH_TOKEN_TTL_DAYS * 86400
     payload = json.dumps(
-        {"uid": uid, "name": name, "iat": now, "exp": exp, "jti": secrets.token_hex(8)},
+        {"uid": uid, "name": name, "iat": now, "exp": exp, "jti": secrets.token_hex(8),
+         "av": auth_version},
         separators=(",", ":"), ensure_ascii=False,
     ).encode("utf-8")
     msg = _b64url_encode(payload)
@@ -133,8 +135,8 @@ def verify_token(token: str) -> dict | None:
         if revocation_key(claims) in _revoked_keys():
             return None
         user = next((u for u in _users_cached() or [] if u.get("id") == claims.get("uid")), None)
-        if user is None or int(claims.get("iat", 0)) < int(user.get("pw_changed", 0)):
-            return None  # unknown user, empty or unreadable user file: closed
+        if user is None or int(claims.get("av", 0)) != int(user.get("auth_version", 0)):
+            return None  # unknown user, empty or unreadable user file, password changed: closed
         return claims
     except (ValueError, TypeError, AttributeError):  # malformed token
         return None
@@ -237,25 +239,44 @@ def _find_user_by_email(email: str) -> dict | None:
     return None
 
 
+def write_users(users: list[dict]) -> None:
+    """Writes users.json atomically (temporary file, fsync, rename), keeping owner and
+    permissions. The caller holds file_lock(USERS_FILE) for the whole read-modify-write."""
+    from api.datalog import replace_keeping_owner
+    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = USERS_FILE.with_name(USERS_FILE.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(json.dumps(users, ensure_ascii=False, indent=2))
+        f.flush()
+        os.fsync(f.fileno())
+    if USERS_FILE.exists():
+        replace_keeping_owner(USERS_FILE, tmp)
+    else:
+        os.chmod(tmp, 0o600)
+        if os.geteuid() == 0:   # created by root: same owner as the data folder
+            st = USERS_FILE.parent.stat()
+            os.chown(tmp, st.st_uid, st.st_gid)
+        tmp.replace(USERS_FILE)
+
+
 def _update_user_password(email: str, new_password: str) -> bool:
-    """Updates the password hash of the user with the given email. True if updated."""
+    """Updates the password hash of the user with the given email. True if updated.
+    The sessions opened with the old password stop working (auth_version)."""
     email = email.strip().lower()
-    users = _load_users()
-    changed = False
-    for u in users:
-        if u.get("email", "").strip().lower() == email:
-            u["pw_hash"] = hash_password(new_password)
-            u["pw_changed"] = int(time.time())  # older sessions stop working
-            changed = True
-    if changed:
-        try:
-            USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-            USERS_FILE.write_text(
-                json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-        except (OSError, TypeError, ValueError):
-            return False
-    return changed
+    with file_lock(USERS_FILE):
+        users = _load_users()
+        changed = False
+        for u in users:
+            if u.get("email", "").strip().lower() == email:
+                u["pw_hash"] = hash_password(new_password)
+                u["auth_version"] = int(u.get("auth_version", 0)) + 1
+                changed = True
+        if changed:
+            try:
+                write_users(users)
+            except (OSError, TypeError, ValueError):
+                return False
+        return changed
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +338,7 @@ async def login(request: Request, req: LoginRequest):
     if not user or not ok:
         raise HTTPException(status_code=401, detail="Email o password non validi")
 
-    token = create_token(user["id"], user.get("name", user["email"]))
+    token = create_token(user["id"], user.get("name", user["email"]), int(user.get("auth_version", 0)))
     return LoginResponse(
         token=token,
         name=user.get("name", ""),
@@ -356,12 +377,12 @@ def _fingerprint(user: dict) -> str:
     return hashlib.sha256(user.get("pw_hash", "").encode("utf-8")).hexdigest()[:16]
 
 
-def create_reset_token(user: dict) -> str:
+def create_reset_token(user: dict, minutes: int = _RESET_TTL_MINUTES) -> str:
     """Token of the password reset link. It carries a fingerprint of the current
     password hash, so it stops working as soon as the password changes (one use)."""
     payload = json.dumps(
         {"uid": user["id"], "f": _fingerprint(user),
-         "exp": int(time.time()) + _RESET_TTL_MINUTES * 60},
+         "exp": int(time.time()) + minutes * 60},
         separators=(",", ":"),
     ).encode("utf-8")
     msg = _b64url_encode(payload)
@@ -384,7 +405,7 @@ def _user_from_reset_token(token: str) -> dict | None:
         return None
 
 
-def _reset_link(token: str) -> str | None:
+def reset_link(token: str) -> str | None:
     """Absolute link to the reset page, on the address the administrator configured
     (PUBLIC_BASE_URL, or the origin of PILOT_LOGIN_URL). Never built from the Host
     header of the request, which a caller can choose: None if nothing is configured."""
@@ -405,7 +426,7 @@ def _send_reset_email(user: dict) -> None:
         from api.mailer import send_password_reset_link, smtp_configured
         if not smtp_configured():
             return
-        link = _reset_link(create_reset_token(user))
+        link = reset_link(create_reset_token(user))
         if link is None:
             log.warning("Password reset link not sent: set PUBLIC_BASE_URL (or PILOT_LOGIN_URL)")
             return

@@ -123,7 +123,7 @@ ADMIN_LOCKOUT_SECONDS=900
 | `CRAWL_DELAY_SECONDS`  | `0.3`                          | Pause between requests (~3 pages/s)                  |
 | `CRAWL_ALLOWED_DOMAINS`| *(from .env)*                  | Domains allowed during crawl: the domain itself and its subdomains, never a look-alike (`example.it.evil.org`) |
 | `CRAWL_BLOCK_PRIVATE_IPS` | `true`                      | Refuse hosts that resolve to loopback, private or reserved addresses |
-| `CRAWL_PRIVATE_OK_HOSTS` | *(empty)*                    | Allowed hosts that may resolve to a private address (split-horizon DNS) |
+| `CRAWL_PRIVATE_OK_HOSTS` | *(empty)*                    | Exact host names (not their subdomains) that may resolve to a private address (split-horizon DNS) |
 | `CRAWL_MAX_PAGE_MB` / `CRAWL_MAX_FILE_MB` | `20` / `100` | Largest download accepted: pages and feeds / PDFs and other attachments |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |

@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-20
+
+### Security
+- `adduser --send-email` no longer emails a password: it creates the user with a password nobody knows and sends a
+  single-use link (valid `--invite-hours`, default 72) to choose it. Needs `PUBLIC_BASE_URL` or `PILOT_LOGIN_URL`.
+  `--password` is documented as something to avoid (shell history, process list).
+- Sessions end when the password changes through a version counter (`auth_version` in `users.json`, repeated in the
+  token) instead of comparing timestamps: a token issued in the same second as the change is now refused too.
+- `users.json` is written atomically (temporary file, fsync, rename) and every change is made under a file lock.
+- The network policy of the crawler also checks the address the connection really went to (a name that resolved to
+  a public address at the check and to an internal one at the connection is refused before anything is read), caches
+  the DNS answer for a minute only, and `CRAWL_PRIVATE_OK_HOSTS` matches exact host names, not subdomains.
+- Removed the now unused `send_credentials` mail.
+
 ## [0.6.2] - 2026-10-20
 
 ### Security
@@ -241,7 +255,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/Antonio-Prado/zautte/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/Antonio-Prado/zautte/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Antonio-Prado/zautte/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Antonio-Prado/zautte/compare/v0.5.7...v0.6.0

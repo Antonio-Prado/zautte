@@ -65,19 +65,18 @@ def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
         s.send_message(msg)
 
 
-def send_credentials(to: str, name: str, password: str, login_url: str) -> None:
-    """Delivers the pilot access credentials to a participant."""
+def send_invitation(to: str, name: str, link: str, hours: int) -> None:
+    """Invites a participant: a single-use link to choose the password (no password is
+    ever sent by email)."""
     subject = "Accesso a Zautte — assistente virtuale (pilota)"
-    link = f"\nAccedi qui: {login_url}\n" if login_url else ""
     body = f"""Ciao {name},
 
-sei stato abilitato a testare Zautte, l'assistente virtuale.
-{link}
-Le tue credenziali:
-  Email:    {to}
-  Password: {password}
+sei stato abilitato a testare Zautte, l'assistente virtuale. Per iniziare scegli la tua password da questo link:
 
-Ti chiediamo di non condividere queste credenziali con altri.
+  {link}
+
+Il link vale {hours} ore e si può usare una sola volta; se scade, dal pulsante «Password dimenticata?» della pagina di accesso ne ottieni uno nuovo.
+Ti chiediamo di non condividere le tue credenziali con altri.
 Per qualsiasi problema puoi rispondere a questa email.
 
 Grazie per la collaborazione.
