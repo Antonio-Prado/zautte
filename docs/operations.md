@@ -170,7 +170,7 @@ pw useradd zautte -d /nonexistent -s /usr/sbin/nologin -c "Zautte service"
 sysrc chatbot_user=zautte
 
 chown -R root:wheel /opt/chatbot && chmod -R go-w /opt/chatbot  # code: nobody but root can change it
-chown zautte:wheel /opt/chatbot/.env && chmod 600 /opt/chatbot/.env
+chown root:zautte /opt/chatbot/.env && chmod 640 /opt/chatbot/.env   # read by the service, changed only by root
 chmod 751 /data/chatbot                                          # let the account reach the data folder
 chown root:zautte /data/chatbot/data && chmod 1770 /data/chatbot/data   # the account writes in it but, with the sticky bit, cannot rename or delete what root owns
 find /data/chatbot/data -maxdepth 1 -type f -exec chown zautte:wheel {} +

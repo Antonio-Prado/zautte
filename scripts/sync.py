@@ -234,8 +234,9 @@ def _restart_api():
     """Send SIGKILL to the API process: the watchdog will relaunch it and load the updated VS."""
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "api.main:app"],
-            capture_output=True, text=True, check=False
+            ["/usr/bin/pgrep", "-f", "api.main:app"],
+            capture_output=True, text=True, check=False,
+            env={"PATH": "/usr/bin:/bin"},   # not the environment inherited from .env
         )
         pids = [int(p) for p in result.stdout.split() if p.strip()]
         if not pids:

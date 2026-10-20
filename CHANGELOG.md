@@ -12,6 +12,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 ## [0.6.6] - 2026-10-21
 
 ### Security
+- A `.env` file can no longer set variables that steer the dynamic loader, the interpreter or the lookup of programs
+  (`LD_*`, `PYTHON*`, `PATH`, ...), and the sync jobs start `pgrep` by its full path with a fixed environment. The guide
+  now gives `.env` to `root:zautte`, mode 640: the service account reads it but cannot change what the root jobs load.
+- An ODT/DOCX attachment whose XML expands to more than 50 MB is refused before it is read (a small zip could expand
+  to gigabytes).
 - `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before reading or writing
   anything (new `api/privdrop.py`), so root never works on files the service account controls.
 - The FreeBSD guide now gives the data folder to root (group `zautte`, mode 1770): with the sticky bit the service

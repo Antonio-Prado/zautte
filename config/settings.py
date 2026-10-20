@@ -8,9 +8,17 @@ import logging
 import os
 from pathlib import Path
 
+# Names a .env file must never set: they steer the dynamic loader, the interpreter or the
+# lookup of programs, and the sync jobs (root) start other programs.
+_FORBIDDEN_ENV_PREFIX = ("LD_", "DYLD_", "PYTHON", "SSL_CERT", "REQUESTS_CA", "CURL_CA", "BASH_", "MALLOC_")
+_FORBIDDEN_ENV_NAMES = {"PATH", "IFS", "ENV", "SHELL", "HOME", "USER", "LOGNAME", "TMPDIR"}
+
 try:
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent.parent / ".env")
+    from dotenv import dotenv_values
+    for _k, _v in dotenv_values(Path(__file__).parent.parent / ".env").items():
+        if (_v is not None and not _k.upper().startswith(_FORBIDDEN_ENV_PREFIX)
+                and _k.upper() not in _FORBIDDEN_ENV_NAMES and _k not in os.environ):
+            os.environ[_k] = _v
 except ImportError:
     # python-dotenv is optional: without it, only environment variables apply
     pass

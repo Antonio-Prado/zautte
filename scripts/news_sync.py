@@ -229,6 +229,9 @@ def date_it(iso: str) -> str:
         return iso
 
 
+_MAX_OFFICE_XML = 50 * 1024 * 1024   # decoded size of the XML inside an ODT/DOCX
+
+
 def office_text(path: Path) -> str:
     """Text of an ODT or DOCX (paragraphs), reading the XML inside the zip package."""
     ext = path.suffix.lower()
@@ -240,7 +243,13 @@ def office_text(path: Path) -> str:
         tags = {"{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"}
     try:
         with zipfile.ZipFile(path) as z:
-            root = ET.fromstring(z.read(inner))
+            if z.getinfo(inner).file_size > _MAX_OFFICE_XML:
+                raise OSError(f"{inner} expands to more than {_MAX_OFFICE_XML >> 20} MB")
+            with z.open(inner) as fh:
+                data = fh.read(_MAX_OFFICE_XML + 1)   # the declared size can lie: count what comes out
+        if len(data) > _MAX_OFFICE_XML:
+            raise OSError(f"{inner} expands to more than {_MAX_OFFICE_XML >> 20} MB")
+        root = ET.fromstring(data)
     except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError) as e:
         log.warning(f"  Document unreadable {path.name}: {e}")
         return ""
