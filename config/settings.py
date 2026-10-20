@@ -53,6 +53,13 @@ CRAWL_ALLOWED_DOMAINS = [
 ]
 # Never fetch a host that resolves to a loopback, private or otherwise non-public address
 CRAWL_BLOCK_PRIVATE_IPS = os.getenv("CRAWL_BLOCK_PRIVATE_IPS", "true").strip().lower() in ("1", "true", "yes", "on")
+# Allowed hosts that legitimately resolve to a private address (split-horizon DNS: the server
+# sees an internal address for one of its own sites). Comma-separated, exact hosts or domains.
+CRAWL_PRIVATE_OK_HOSTS = [
+    d.strip().lower()
+    for d in os.getenv("CRAWL_PRIVATE_OK_HOSTS", "").split(",")
+    if d.strip()
+]
 # Size limits of a single download, in MB (pages and feeds / PDFs and other attachments)
 CRAWL_MAX_PAGE_MB = int(os.getenv("CRAWL_MAX_PAGE_MB", "20"))
 CRAWL_MAX_FILE_MB = int(os.getenv("CRAWL_MAX_FILE_MB", "100"))
