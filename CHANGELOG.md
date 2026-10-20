@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-20
+
+### Security
+- Admin panel: the most frequent questions, the crawl timeline, the token table and the user table were
+  inserted into the page without HTML escaping, so a question containing markup could run script in the
+  administrator's browser (stored XSS). All values are now escaped.
+
 ## [0.4.2] - 2026-10-20
 
 ### Security
@@ -123,7 +130,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - First release (pilot project): crawler, embeddings with `bge-m3`, hybrid search, answers with
   cited sources, login, feedback, accessibility checks.
 
-[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Antonio-Prado/zautte/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/Antonio-Prado/zautte/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Antonio-Prado/zautte/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Antonio-Prado/zautte/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Antonio-Prado/zautte/compare/v0.3.2...v0.4.0
