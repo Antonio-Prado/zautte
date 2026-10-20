@@ -235,7 +235,9 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | Endpoint | Access | Description |
 |---|---|---|
 | `POST /auth/login` | public (10/min per IP) | Body `{"email", "password"}` → `{"token", "name", "expires_in"}`; `400` if `AUTH_ENABLED=false`, `401` on wrong credentials |
-| `POST /auth/forgot` | public (5/hour per IP) | Body `{"email"}`: sets a new random password and emails it (only if SMTP is configured; the password is changed anyway); always the same generic reply; `400` if `AUTH_ENABLED=false` |
+| `POST /auth/forgot` | public (5/hour per IP) | Body `{"email"}`: emails a single-use link (valid 30 minutes) to choose a new password, only if SMTP is configured; the password is NOT changed until the link is used; always the same generic reply; `400` if `AUTH_ENABLED=false` |
+| `GET /auth/reset?token=` | public | The page where the new password is chosen (at least 10 characters); `400` if the link is invalid, expired or already used |
+| `POST /auth/reset` | public (10/hour per IP) | Body `{"token", "password"}`: sets the password, ends the user's older sessions and makes the link useless |
 | `POST /auth/logout` | user | Revokes the token of the request (listed in `data/revoked_tokens.json` until it would have expired); the widget calls it when the user signs out |
 | `GET /auth/me` | user | Current user `{"uid", "name"}`; `401` if the token is missing or expired |
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |

@@ -157,18 +157,16 @@ def send_feedback_resolved(to: str, name: str, entry: dict, note: str = "",
     send_email(to, subject, body, reply_to=reply_to)
 
 
-def send_password_reset(to: str, name: str, password: str, login_url: str) -> None:
-    """Delivers a new password after a reset request."""
-    subject = "Zautte — nuova password"
-    link = f"\nAccedi qui: {login_url}\n" if login_url else ""
+def send_password_reset_link(to: str, name: str, link: str, minutes: int) -> None:
+    """Sends the link to choose a new password (nothing changes until it is used)."""
+    subject = "Zautte — scegli una nuova password"
     body = f"""Ciao {name},
 
-hai richiesto il reset della password per Zautte. Ecco la nuova password:
-{link}
-  Email:    {to}
-  Password: {password}
+hai chiesto di reimpostare la password di Zautte. Per sceglierne una nuova apri questo link:
 
-Puoi accedere subito con questa password.
-Se NON hai richiesto tu il reset, avvisa l'amministratore.
+  {link}
+
+Il link vale {minutes} minuti e si può usare una sola volta. Finché non lo usi, la tua password attuale resta valida.
+Se NON hai fatto tu la richiesta, ignora questa email: non succede nulla.
 """
     send_email(to, subject, body)

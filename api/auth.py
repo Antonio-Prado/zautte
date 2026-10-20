@@ -19,14 +19,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html
 import json
 import logging
 import os
 import secrets
 import threading
 import time
+from urllib.parse import quote, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, Security
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -335,33 +338,160 @@ class ForgotRequest(BaseModel):
     email: str = Field(..., max_length=200)
 
 
+_RESET_TTL_MINUTES = 30
+
+
+def _reset_signature(msg: str) -> str:
+    """Signature of the reset links: a different input from the session tokens, so
+    one kind can never pass for the other."""
+    return _sign("reset:" + msg)
+
+
+def _fingerprint(user: dict) -> str:
+    return hashlib.sha256(user.get("pw_hash", "").encode("utf-8")).hexdigest()[:16]
+
+
+def create_reset_token(user: dict) -> str:
+    """Token of the password reset link. It carries a fingerprint of the current
+    password hash, so it stops working as soon as the password changes (one use)."""
+    payload = json.dumps(
+        {"uid": user["id"], "f": _fingerprint(user),
+         "exp": int(time.time()) + _RESET_TTL_MINUTES * 60},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    msg = _b64url_encode(payload)
+    return f"{msg}.{_reset_signature(msg)}"
+
+
+def _user_from_reset_token(token: str) -> dict | None:
+    try:
+        msg, sig = token.split(".", 1)
+        if not hmac.compare_digest(sig, _reset_signature(msg)):
+            return None
+        claims = json.loads(_b64url_decode(msg))
+        if int(claims.get("exp", 0)) < int(time.time()):
+            return None
+        user = next((u for u in _load_users() if u.get("id") == claims.get("uid")), None)
+        if user is None or not hmac.compare_digest(str(claims.get("f", "")), _fingerprint(user)):
+            return None
+        return user
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def _reset_link(request: Request, token: str) -> str:
+    """Absolute link to the reset page: on the origin of PILOT_LOGIN_URL if set,
+    otherwise on the one the request came to."""
+    parts = urlsplit(PILOT_LOGIN_URL) if PILOT_LOGIN_URL else None
+    base = f"{parts.scheme}://{parts.netloc}" if parts and parts.scheme and parts.netloc \
+        else str(request.base_url).rstrip("/")
+    return f"{base}/auth/reset?token={quote(token, safe='')}"
+
+
 @router.post("/forgot")
 @limiter.limit("5/hour")
 async def forgot(request: Request, req: ForgotRequest):
-    """Self-service password reset: generates a new password and sends it by email.
+    """Self-service password reset, step 1: emails a single-use link.
 
-    The response is always identical, whether or not the address exists (anti-enumeration).
-    Passwords are hashed (scrypt): the original cannot be recovered, it can
-    only be reset.
+    Nothing changes until the link is used (otherwise anybody who knows an address
+    could lock that person out). The response is always identical, whether or not
+    the address exists (anti-enumeration).
     """
     generic = {
         "ok": True,
-        "message": "Se l'indirizzo è registrato, riceverai una nuova password via email.",
+        "message": "Se l'indirizzo è registrato, riceverai un'email con il link per scegliere una nuova password.",
     }
     if not AUTH_ENABLED:
         raise HTTPException(status_code=400, detail="Autenticazione non attiva")
 
     user = _find_user_by_email(req.email)
     if user:
-        new_pw = secrets.token_urlsafe(12)
-        if _update_user_password(user["email"], new_pw):
-            try:
-                from api.mailer import send_password_reset, smtp_configured
-                if smtp_configured():
-                    send_password_reset(
-                        user["email"], user.get("name", ""), new_pw, PILOT_LOGIN_URL
-                    )
-            except Exception:
-                log.warning("Password reset email not sent to %s",
-                            user.get("email"), exc_info=True)
+        try:
+            from api.mailer import send_password_reset_link, smtp_configured
+            if smtp_configured():
+                send_password_reset_link(
+                    user["email"], user.get("name", ""),
+                    _reset_link(request, create_reset_token(user)), _RESET_TTL_MINUTES,
+                )
+        except Exception:
+            log.warning("Password reset email not sent to %s",
+                        user.get("email"), exc_info=True)
     return generic
+
+
+_PAGE = """<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<title>Zautte — nuova password</title>
+<style>body{{font:16px/1.5 system-ui,sans-serif;max-width:26rem;margin:12vh auto;padding:0 16px;color:#1a1a1a}}
+label{{display:block;margin-top:14px}}input{{width:100%;box-sizing:border-box;padding:10px;font-size:16px;margin-top:4px}}
+button{{margin-top:18px;padding:11px 16px;font-size:16px;background:#003366;color:#fff;border:0;border-radius:8px;cursor:pointer}}
+.err{{color:#b3261e}}.ok{{color:#1b5e20}}</style></head>
+<body><main><h1>Nuova password</h1>{body}</main></body></html>"""
+
+_FORM = """<p>Scegli la nuova password di Zautte (almeno {min} caratteri).</p>
+<form id="f"><label>Nuova password<input id="p1" type="password" autocomplete="new-password" minlength="{min}" required></label>
+<label>Ripetila<input id="p2" type="password" autocomplete="new-password" minlength="{min}" required></label>
+<p id="m" role="alert" class="err"></p><button type="submit">Salva la password</button></form>
+{login}
+<script>
+const T = new URLSearchParams(location.search).get('token') || '';
+document.getElementById('f').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const m = document.getElementById('m'), a = p1.value, b = p2.value;
+  if (a !== b) {{ m.textContent = 'Le due password non coincidono.'; return; }}
+  const r = await fetch('/auth/reset', {{method: 'POST', headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{token: T, password: a}})}});
+  if (r.ok) {{
+    document.getElementById('f').hidden = true;
+    document.querySelector('h1').textContent = 'Password aggiornata';
+    m.className = 'ok'; m.textContent = 'Ora puoi accedere con la nuova password.';
+    const go = document.getElementById('go'); if (go) go.hidden = false;
+  }} else {{
+    const d = await r.json().catch(() => ({{}}));
+    m.textContent = d.detail || 'Errore. Riprova.';
+  }}
+}});
+</script>"""
+
+_MIN_PASSWORD = 10
+
+
+def _html(body: str, status: int = 200) -> HTMLResponse:
+    return HTMLResponse(_PAGE.format(body=body), status_code=status,
+                        headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+
+
+@router.get("/reset", response_class=HTMLResponse)
+async def reset_page(token: str = ""):
+    """Password reset, step 2: the page where the new password is chosen."""
+    if not AUTH_ENABLED or _user_from_reset_token(token) is None:
+        return _html('<p class="err">Il link non è valido o è scaduto. '
+                     'Chiedine uno nuovo dalla pagina di accesso con «Password dimenticata?».</p>', 400)
+    login = (f'<p id="go" hidden><a href="{html.escape(PILOT_LOGIN_URL, quote=True)}">Vai all\'accesso</a></p>'
+             if PILOT_LOGIN_URL.startswith(("http://", "https://")) else "")
+    return _html(_FORM.format(min=_MIN_PASSWORD, login=login))
+
+
+class ResetRequest(BaseModel):
+    token: str = Field(..., max_length=2000)
+    password: str = Field(..., max_length=200)
+
+
+@router.post("/reset")
+@limiter.limit("10/hour")
+async def reset_password(request: Request, req: ResetRequest):
+    """Password reset, step 3: sets the chosen password; the link stops working and
+    the older sessions of the user end."""
+    if not AUTH_ENABLED:
+        raise HTTPException(status_code=400, detail="Autenticazione non attiva")
+    user = _user_from_reset_token(req.token)
+    if user is None:
+        raise HTTPException(status_code=400, detail="Il link non è valido o è scaduto.")
+    if len(req.password) < _MIN_PASSWORD:
+        raise HTTPException(status_code=400,
+                            detail=f"La password deve avere almeno {_MIN_PASSWORD} caratteri.")
+    if not _update_user_password(user["email"], req.password):
+        raise HTTPException(status_code=500, detail="Impossibile salvare la password.")
+    return {"ok": True}
