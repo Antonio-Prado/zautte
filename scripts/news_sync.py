@@ -63,6 +63,7 @@ from crawler.crawler import (
     PDF_MAGIC,
     canonical_url,
     clean_text,
+    drop_invisible,
     extract_metadata,
     extract_title,
     save_link_texts,
@@ -209,6 +210,7 @@ def html_to_text(html: str) -> str:
     """Article text as paragraphs (one block per p/h/li/td), without the sharing
     widgets and related articles that WordPress appends to the content."""
     soup = BeautifulSoup(html, "lxml")
+    drop_invisible(soup)
     for tag in soup.find_all(["script", "style", "iframe", "noscript", "form"]):
         tag.decompose()
     for tag in soup.find_all(class_=re.compile(r"share|sharedaddy|related|jp-|social|wp-block-embed", re.IGNORECASE)):
@@ -257,8 +259,47 @@ def office_text(path: Path) -> str:
     except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError) as e:
         log.warning(f"  Document unreadable {path.name}: {e}")
         return ""
-    paras = ["".join(el.itertext()).strip() for el in root.iter() if el.tag in tags]
+    if ext == ".odt":
+        _drop_odt_hidden(root)
+        paras = ["".join(el.itertext()).strip() for el in root.iter() if el.tag in tags]
+    else:
+        paras = [_docx_paragraph(el) for el in root.iter() if el.tag in tags]
     return "\n\n".join(p for p in paras if p)
+
+
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_ODT_HIDDEN = {
+    "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}" + n
+    for n in ("tracked-changes", "hidden-text", "hidden-paragraph")
+} | {"{urn:oasis:names:tc:opendocument:xmlns:office:1.0}annotation"}
+
+
+def _docx_paragraph(p) -> str:
+    """Text of the visible runs: hidden text (w:vanish), deleted text and field codes are not read."""
+    out = []
+    for run in p.iter(_W + "r"):
+        props = run.find(_W + "rPr")
+        if props is not None and props.find(_W + "vanish") is not None:
+            continue
+        out.extend(t.text or "" for t in run.iter(_W + "t"))
+    return "".join(out).strip()
+
+
+def _drop_odt_hidden(root) -> None:
+    """Removes tracked changes, hidden text and comments from an ODT tree, keeping the text that follows them."""
+    for parent in list(root.iter()):
+        previous = None
+        for child in list(parent):
+            if child.tag in _ODT_HIDDEN:
+                tail = child.tail or ""
+                parent.remove(child)
+                if tail:
+                    if previous is None:
+                        parent.text = (parent.text or "") + tail
+                    else:
+                        previous.tail = (previous.tail or "") + tail
+            else:
+                previous = child
 
 
 # --------------------------------------------------------------------------- links

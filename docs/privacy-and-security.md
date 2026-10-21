@@ -14,6 +14,16 @@
 - **Privacy notice**: each organisation writes its own with its DPO before publication and links it from the widget with `privacyUrl`.
 - **Where data goes**: with `LLM_PROVIDER=ollama` nothing leaves the server; with `claude` or `bedrock` the masked question, the last messages of the conversation and the retrieved passages are sent to the provider (see below). Embeddings are always computed locally by Ollama. The pages in `widget/` also load the latest release and commit from the public GitHub API in the visitor's browser, and, only if the installation defines `window.ZautteMatomo`, send page views and clicks on external links (not the questions) to the organisation's own Matomo server, without cookies (`widget/matomo.js`).
 
+## Hostile text in the index
+
+Pages, PDFs and attachments are written by others, so what the model reads from them is treated as data, not as instructions:
+- the instructions tell the model to ignore commands found in the documents, never to give an address, IBAN, phone number or email that is not in them, and not to draft official acts;
+- a passage cannot imitate the labels and separators that frame the passages in the prompt, and titles are cut to one line;
+- text a visitor cannot see is not indexed: elements hidden with `hidden`, `display:none`, tiny or transparent text, off-screen positions, `sr-only`-style classes, hidden or deleted text in DOCX and ODT, and invisible Unicode characters (zero-width, bidirectional marks, the "tag" block);
+- with nothing relevant found there is no model call at all;
+- the widget links only to the hosts listed in `link_hosts`.
+None of this makes a page that really says something false trustworthy: whoever can publish on the indexed site can still make the bot repeat it.
+
 ## AI transparency
 
 - The widget states at the first interaction that the user is talking to an AI system (EU AI Act, Art. 50), shows an "IA" badge in the header and an "AI-generated answers" note in the footer.

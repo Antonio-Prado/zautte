@@ -29,6 +29,7 @@ from config.settings import (
     BEDROCK_REWRITE_MODEL,
     CLAUDE_MODEL,
     CLAUDE_REWRITE_MODEL,
+    CRAWL_ALLOWED_DOMAINS,
     LLM_EFFORT,
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
@@ -319,6 +320,21 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     return (known + chunks)[:top_k]
 
 
+_FAKE_LABEL_RE = re.compile(r"^[ \t]*\[\s*Fonte\s+\d+\s*:", re.IGNORECASE | re.MULTILINE)
+_FAKE_RULE_RE = re.compile(r"^[ \t]*-{3,}[ \t]*$", re.MULTILINE)
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _one_line(text: str, limit: int = 200) -> str:
+    return re.sub(r"\s+", " ", str(text)).strip()[:limit]
+
+
+def _untrusted(text: str) -> str:
+    """The text of a passage comes from pages and files that anybody may have written: it must
+    not be able to imitate the labels and separators that frame the passages in the prompt."""
+    return _FAKE_RULE_RE.sub("—", _FAKE_LABEL_RE.sub("(Fonte", text))
+
+
 def build_context_block(chunks: list[dict]) -> str:
     """Formats the chunks with enriched metadata for the prompt."""
     if not chunks:
@@ -326,21 +342,38 @@ def build_context_block(chunks: list[dict]) -> str:
     parts = []
     for i, chunk in enumerate(chunks, 1):
         # Label enriched with metadata
-        label_parts = [f"Fonte {i}: {chunk.get('display_title') or chunk['title']}"]
+        label_parts = [f"Fonte {i}: {_one_line(chunk.get('display_title') or chunk['title'])}"]
         if chunk.get("category"):
-            label_parts.append(f"tipo={chunk['category']}")
+            label_parts.append(f"tipo={_one_line(chunk['category'], 40)}")
         if chunk.get("service_status"):
-            label_parts.append(f"stato={chunk['service_status']}")
-        if chunk.get("date"):
-            label_parts.append(f"aggiornato={chunk['date']}")
+            label_parts.append(f"stato={_one_line(chunk['service_status'], 40)}")
+        if chunk.get("date") and _DATE_RE.fullmatch(str(chunk["date"])[:10]):
+            label_parts.append(f"aggiornato={str(chunk['date'])[:10]}")
         # Omit the link for migrated domains (it would be dead): the LLM cites only
         # the title. The original URL stays in the metadata for possible remapping.
         source = chunk.get("source", "")
         if source and not is_migrated_source(source):
             label_parts.append(source)
         source_label = f"[{' — '.join(label_parts)}]"
-        parts.append(f"{source_label}\n{chunk['text']}")
+        parts.append(f"{source_label}\n{_untrusted(chunk['text'])}")
     return "\n\n---\n\n".join(parts)
+
+
+_URL_HOST_RE = re.compile(r"https?://([^\s/:?#)\]>\"\']+)", re.IGNORECASE)
+
+
+def link_hosts(messages: list[dict], query: str) -> list[str]:
+    """Hosts the answer may link to: the site's own, and every host that appears in what the model
+    was given (the instructions with the known facts, and the passages), but not in the user's own
+    question. A link to any other address is something the model made up or was talked into."""
+    given = " ".join(m["content"] for m in messages if m["role"] == "system")
+    given += " " + messages[-1]["content"].replace(query, " ")
+    hosts = {h.lower().rstrip(".") for h in _URL_HOST_RE.findall(given)}
+    for d in [SITE_URL, *CRAWL_ALLOWED_DOMAINS]:
+        h = (_URL_HOST_RE.search(d).group(1) if d.startswith("http") else d).lower().strip().rstrip(".")
+        if h:
+            hosts.add(h)
+    return sorted(hosts)
 
 
 def build_prompt(
@@ -935,7 +968,8 @@ async def answer(
     Answers a question using RAG.
 
     If stream=False: returns a dict with the answer and sources.
-    If stream=True: returns (AsyncGenerator[str], sources, answer language).
+    If stream=True: returns (AsyncGenerator[str], sources, answer language, link hosts).
+    Link hosts: the hosts the answer may link to (see link_hosts()); the widget shows no link to any other.
 
     history: list of {"role": "user"|"assistant", "content": str}
              to keep the conversational context (max 3 turns).
@@ -963,8 +997,8 @@ async def answer(
         if stream:
             async def _fixed_gen():
                 yield text
-            return _fixed_gen(), [], language
-        return {"answer": text, "sources": [], "language": language}
+            return _fixed_gen(), [], language, []
+        return {"answer": text, "sources": [], "language": language, "link_hosts": []}
 
     _query_freq[_freq_key(query)] += 1
     _query_seen[_freq_key(query)] = _time.time()
@@ -1028,29 +1062,34 @@ async def answer(
         if top_score < RETRIEVAL_CONFIDENCE:
             await asyncio.to_thread(_log_gap, retrieval_query, len(chunks), weak=True, rid=rid)
 
-    if stream:
-        if not chunks:
-            # No context found — bypass the LLM with a reliable fallback
-            office_hint = suggest_office(retrieval_query)
-            fallback = (
-                "Non ho trovato informazioni specifiche su questo argomento "
-                "nella base di conoscenza."
-            )
-            if office_hint:
-                fallback += f"\n\n{office_hint}"
+    hosts = link_hosts(messages, query)
 
+    if not chunks:
+        # Nothing found: no model call, in either mode. The bot is not a general assistant, and
+        # a request that has nothing to do with the site (draft an official act, ignore the rules...)
+        # must not be answered at the organisation's expense.
+        office_hint = suggest_office(retrieval_query)
+        fallback = (
+            "Non ho trovato informazioni specifiche su questo argomento "
+            "nella base di conoscenza."
+        )
+        if office_hint:
+            fallback += f"\n\n{office_hint}"
+        _save_stats()
+        if stream:
             async def _no_context_gen():
                 yield fallback
 
-            _save_stats()
-            return _no_context_gen(), unique_sources, language
+            return _no_context_gen(), unique_sources, language, hosts
+        return {"answer": fallback, "sources": unique_sources, "language": language, "link_hosts": hosts}
 
+    if stream:
         if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
         _save_stats()
-        return gen, unique_sources, language
+        return gen, unique_sources, language, hosts
 
     else:
         _t0 = _time.monotonic()
@@ -1062,7 +1101,7 @@ async def answer(
         if len(_response_times) > 100:
             _response_times.pop(0)
 
-        result = {"answer": text, "sources": unique_sources, "language": language}
+        result = {"answer": text, "sources": unique_sources, "language": language, "link_hosts": hosts}
         if use_cache:
             _cache_set(query, result)
         _save_stats()

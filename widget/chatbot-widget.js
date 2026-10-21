@@ -1065,6 +1065,21 @@
     /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/.source,
   ].join("|"), "g");
 
+  /** Hosts the current answer may link to, sent by the server before the first token
+   *  (null = unknown, an older server: every http(s) link is allowed). */
+  let linkHosts = null;
+
+  function hostOf(url) {
+    try { return new URL(url.replace(/&amp;/g, "&")).hostname.toLowerCase().replace(/\.$/, ""); }
+    catch (e) { return ""; }
+  }
+
+  function linkAllowed(url) {
+    if (linkHosts === null) return true;
+    const h = hostOf(url);
+    return !!h && linkHosts.some((a) => h === a || h.endsWith("." + a));
+  }
+
   function linkHtml(url, text) {
     return `<a href="${url}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">${text}</a>`;
   }
@@ -1073,12 +1088,19 @@
   function formatInline(html) {
     return html
       .replace(INLINE_RE, (m, mdText, mdUrl, brUrl, url, email) => {
-        if (mdUrl) return linkHtml(mdUrl, mdText);
-        if (brUrl) return linkHtml(brUrl, brUrl);
+        if (mdUrl) {
+          if (!linkAllowed(mdUrl)) return `${mdText} (${hostOf(mdUrl)})`;   // text only, the host in clear
+          // a text that looks like an address but leads elsewhere: show the real address
+          if (/^(?:https?:\/\/|www\.)/i.test(mdText) && hostOf(mdText.replace(/^www\./i, "https://www.")) !== hostOf(mdUrl)) {
+            return linkHtml(mdUrl, mdUrl);
+          }
+          return linkHtml(mdUrl, mdText);
+        }
+        if (brUrl) return linkAllowed(brUrl) ? linkHtml(brUrl, brUrl) : brUrl;
         if (url) {
           const tail = (url.match(/[.,;:!?]+$/) || [""])[0];   // trailing punctuation outside the link
           const clean = url.slice(0, url.length - tail.length);
-          return linkHtml(clean, clean) + tail;
+          return (linkAllowed(clean) ? linkHtml(clean, clean) : clean) + tail;
         }
         return `<a href="mailto:${email}" style="color:inherit">${email}</a>`;
       })
@@ -1557,6 +1579,7 @@
       let receivedBlocked = false;
       let firstToken = true;
 
+      linkHosts = null;   // set again by the first event of this stream
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -1574,7 +1597,9 @@
           try {
             const payload = JSON.parse(line.slice(6));
 
-            if (payload.token !== undefined) {
+            if (payload.link_hosts !== undefined) {
+              linkHosts = Array.isArray(payload.link_hosts) ? payload.link_hosts : null;
+            } else if (payload.token !== undefined) {
               if (firstToken) {
                 removeTypingIndicator();
                 bubble.classList.add("streaming");
