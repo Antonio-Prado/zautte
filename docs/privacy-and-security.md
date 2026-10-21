@@ -14,6 +14,10 @@
 - **Privacy notice**: each organisation writes its own with its DPO before publication and links it from the widget with `privacyUrl`.
 - **Where data goes**: with `LLM_PROVIDER=ollama` nothing leaves the server; with `claude` or `bedrock` the masked question, the last messages of the conversation and the retrieved passages are sent to the provider (see below). Embeddings are always computed locally by Ollama. The pages in `widget/` also load the latest release and commit from the public GitHub API in the visitor's browser, and, only if the installation defines `window.ZautteMatomo`, send page views and clicks on external links (not the questions) to the organisation's own Matomo server, without cookies (`widget/matomo.js`).
 
+## Content-Security-Policy
+
+The pages the API serves (the widget pages, the password reset page, the login page of the restricted area) carry a Content-Security-Policy (`api/csp.py`): scripts may come only from the same origin, plus the inline scripts that are in the page as served, each named by its SHA-256 (computed from the file on disk, so an installation's own pages need no change); connections go to the same origin and to `api.github.com` (the footer) and `CSP_EXTRA_HOSTS`; no plugins, no `<base>`, forms only to the same origin, and the pages cannot be framed (`FRAME_ANCESTORS`). A script injected by a flaw in how an answer is drawn is not run and cannot read the session token the browser keeps. `CSP_MODE=report-only` makes the browser only log violations, to try a change; `off` removes the header. The pages also send `Referrer-Policy: strict-origin-when-cross-origin` and a `Permissions-Policy` that turns camera, microphone, location and payment off. Add the Matomo server to `CSP_EXTRA_HOSTS`, or its script is blocked. If the widget is embedded in another site, that site's own policy applies to it.
+
 ## Hostile text in the index
 
 Pages, PDFs and attachments are written by others, so what the model reads from them is treated as data, not as instructions:

@@ -33,7 +33,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import auth, conversations, llm_gate, quota
+from api import auth, conversations, csp, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
 from api.bodylimit import BodyLimitMiddleware
@@ -190,11 +190,15 @@ if ADMIN_PATH:
         except OSError as e:
             log.error("Login page not readable: %s", e)
             raise HTTPException(status_code=404, detail="Not Found")
-        return HTMLResponse(html, headers={
-            "Cache-Control": "no-store",
-            # not embeddable in other pages, no <base> or plugin injection, forms only to us
-            "Content-Security-Policy": "frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'",
-        })
+        # The page runs its own inline script and, after the key is accepted, the script of the panel
+        # that /dati delivers as text: both are named by hash, nothing else inline can run here.
+        try:
+            panel_js = _panel_file("panel.js")
+        except OSError:
+            panel_js = ""
+        # not embeddable in other pages, no <base> or plugin injection, forms only to us
+        policy = csp.headers_for(html, [csp.script_hash(panel_js)] if panel_js else None, frame_ancestors="'none'")
+        return HTMLResponse(html, headers={"Cache-Control": "no-store", **policy})
 
     @app.get(ADMIN_PATH + "/dati", include_in_schema=False)
     async def area_dati(_: None = Security(require_admin)):
@@ -215,6 +219,8 @@ async def _security_headers(request: Request, call_next):
     """Headers that apply to every response."""
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
     # Anything asked with a key or a token (statistics, messages, answers) is for that
     # requester only: no proxy or browser cache may keep it
     if request.headers.get("x-admin-key") or request.headers.get("authorization"):
@@ -269,6 +275,18 @@ class _RevalidatedStaticFiles(StaticFiles):
         return response
 
 
+def _with_csp(response):
+    """Content-Security-Policy on the HTML pages, computed from the file being served."""
+    file = getattr(response, "path", None)
+    if file and str(file).lower().endswith(".html") and response.status_code == 200:
+        try:
+            text = Path(file).read_text(encoding="utf-8")
+        except OSError:
+            return response
+        response.headers.update(csp.headers_for(text))
+    return response
+
+
 class _OverlayStaticFiles(_RevalidatedStaticFiles):
     """Like _RevalidatedStaticFiles, but first looks for the file in the installation's
     folder (INSTANCE_DIR/widget) and uses the generic one only if it is missing."""
@@ -283,11 +301,11 @@ class _OverlayStaticFiles(_RevalidatedStaticFiles):
                 response = await self._overlay.get_response(path, scope)
                 if response.status_code != 404:
                     response.headers["Cache-Control"] = "no-cache"
-                    return response
+                    return _with_csp(response)
             except StarletteHTTPException as e:
                 if e.status_code != 404:
                     raise
-        return await super().get_response(path, scope)
+        return _with_csp(await super().get_response(path, scope))
 
 
 # Serves the JS widget as a static file (GET /widget/chatbot-widget.js)

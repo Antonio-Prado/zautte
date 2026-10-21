@@ -117,6 +117,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── limiter.py            # Rate limiting (slowapi)
 │   ├── account_guard.py      # Limits per account: wrong passwords, reset emails
 │   ├── bodylimit.py          # Limit on the size of a request body
+│   ├── csp.py                # Content-Security-Policy of the pages (hashes of the inline scripts)
 │   ├── clientkey.py          # Key of a client for the limits (IPv6 by /64)
 │   ├── llm_gate.py           # Limits on answers generated at once (per user and in total)
 │   ├── filelock.py           # Safe file locks (no symlinks, fail closed)

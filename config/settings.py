@@ -263,6 +263,11 @@ API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes"
 # Largest request body the API reads (bytes); anything bigger gets 413
 MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "131072"))
 
+# --- Content-Security-Policy of the pages (api/csp.py) ---
+CSP_MODE = os.getenv("CSP_MODE", "enforce").strip().lower()          # enforce | report-only | off
+CSP_EXTRA_HOSTS = [h.strip() for h in os.getenv("CSP_EXTRA_HOSTS", "").split(",") if h.strip()]   # e.g. the Matomo server
+FRAME_ANCESTORS = os.getenv("FRAME_ANCESTORS", "'none'").strip()     # who may frame the pages
+
 # --- Limits per account (api/account_guard.py) ---
 LOGIN_MAX_FAILURES = int(os.getenv("LOGIN_MAX_FAILURES", "10"))     # wrong passwords before the account refuses logins
 LOGIN_LOCK_SECONDS = int(os.getenv("LOGIN_LOCK_SECONDS", "900"))    # window of the count and duration of the refusal
