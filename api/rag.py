@@ -889,6 +889,17 @@ def forget_queries(queries: list[str]) -> int:
     return touched
 
 
+def forget_usage_of(uids: set[str]) -> int:
+    """Removes the usage records of these users (token_history in stats.json), when all their
+    questions are deleted. Records of other users are kept. Returns how many were removed."""
+    before = len(_token_history)
+    _token_history[:] = [e for e in _token_history if e.get("uid") not in uids]
+    removed = before - len(_token_history)
+    if removed:
+        _save_stats()
+    return removed
+
+
 def clear_response_cache() -> None:
     """Forgets the cached answers: they may cite documents the new index no longer has."""
     _response_cache.clear()

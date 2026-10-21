@@ -252,6 +252,10 @@ FORWARDED_ALLOW_IPS = os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
 # anyone the complete list of endpoints and parameters.
 API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes", "on")
 
+# --- Answers at once (api/llm_gate.py) ---
+LLM_MAX_CONCURRENT = int(os.getenv("LLM_MAX_CONCURRENT", "8"))   # in the whole process
+LLM_MAX_PER_USER = int(os.getenv("LLM_MAX_PER_USER", "2"))       # for each user
+
 # --- Admin endpoint authentication ---
 # Set in .env to protect /gaps and /stats
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")

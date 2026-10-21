@@ -163,7 +163,7 @@ The `scripts/chatbot_rcd` script (runs as root, and starts the API as the user i
 
 ### Running as an unprivileged user
 
-The API listens on the Internet, so it should not run as root. Create a dedicated account and tell the rc script to use it:
+The API listens on the Internet, so it should not run as root: without `chatbot_user` (or with `root`) the rc script refuses to start, unless `chatbot_allow_root="YES"` is set. Create a dedicated account and tell the rc script to use it:
 
 ```sh
 pw useradd zautte -d /nonexistent -s /usr/sbin/nologin -c "Zautte service"

@@ -71,11 +71,19 @@ def _sweep(now: float, force: bool = False) -> None:
             del table[k]
 
 
+MIN_KEY_LENGTH = 16
+
+
+def admin_key_ok() -> bool:
+    """False for an empty, short or placeholder key (the one in .env.example)."""
+    return len(ADMIN_API_KEY) >= MIN_KEY_LENGTH and not ADMIN_API_KEY.lower().startswith("cambia")
+
+
 def check_admin_key(request: Request, key: str | None) -> bool:
     """True if the key is valid. A key that is present but wrong is counted;
     with the address blocked it raises 429 (Retry-After in seconds)."""
-    if not ADMIN_API_KEY:
-        return ADMIN_AUTH_DISABLED  # no key set: closed, unless explicitly disabled (development)
+    if not admin_key_ok():
+        return ADMIN_AUTH_DISABLED  # no usable key: closed, unless explicitly disabled (development)
     ip = _ip(request)
     if ip in _LOCAL:
         return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())

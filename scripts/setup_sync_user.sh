@@ -32,8 +32,9 @@ done
 mkdir -p /var/log/chatbot && chown -R $SYNC_USER:$SYNC_USER /var/log/chatbot
 touch /var/log/chatbot-sync.log && chown $SYNC_USER:$APP_USER /var/log/chatbot-sync.log && chmod 640 /var/log/chatbot-sync.log
 
-# A copy of .env for the sync account, without the secrets of the API and the admin area
-grep -v -E '^(AUTH_SECRET|ADMIN_API_KEY|ADMIN_PATH|ANTHROPIC_[A-Z_]*|AWS_[A-Z_]*|CLAUDE_API_KEY)=' $APP/.env > $APP/.env.sync
+# The sync account's own environment file: an allowlist of the settings the jobs need
+# (scripts/make_sync_env.py); no secret of the API, the admin area, SMTP or the cloud
+$APP/venv/bin/python $APP/scripts/make_sync_env.py $APP/.env > $APP/.env.sync
 chown root:$SYNC_USER $APP/.env.sync && chmod 640 $APP/.env.sync
 
 # Last, so that the API (restart it afterwards: it must pick up the new group) is not left

@@ -218,6 +218,7 @@ Deletes questions on request, without restarting the API: removes them from `usa
 
 - Selection: `rids` (list of question ids), or `uid` with `last` (the user's last N questions), `all` (all their questions and feedback) or `ts` (exact `usage.jsonl` timestamps)
 - `dry_run`: only returns what would be deleted
+- With `uid` and `all`, the usage records of that user kept in `stats.json` (`token_history`: time, model, tokens, cost) are removed too. With the other selections they stay until `RETENTION_STATS_DAYS` expires, because they carry no question id: they are accounting data, not the content of a question
 - The memory part assumes a single API process (`api/serve.py`): with several workers, the others keep their counters and cache until they restart
 - Entries written before 5 October 2026 have no `rid`: they are matched by user, text and time (gap within 5 minutes, feedback after the question). Questions from anonymous visitors are only in `gaps.jsonl` and can only be found by `rid`
 
