@@ -25,7 +25,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config.settings import CRAWL_CACHE_DIR
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
+from config.settings import CRAWL_CACHE_DIR, DOCUMENTS_DIR
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
 from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
@@ -172,10 +176,23 @@ def _index_documents(
     return docs_ok, batcher.total_inserted
 
 
+def _inside(path: Path, base: Path) -> Path | None:
+    """`path` if it really lies inside `base` (links resolved), else None. The index.json
+    that names the files is written by the sync account: a path in it is not trusted."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    if resolved.is_relative_to(base.resolve()):
+        return path
+    log.warning(f"  Path outside {base.name}/ ignored: {path.name}")
+    return None
+
+
 def _page_chunks(page: dict) -> list[dict] | None:
     """Read the text saved by the crawler and split it into chunks."""
-    fpath = Path(page["file"])
-    if not fpath.exists():
+    fpath = _inside(Path(page["file"]), CRAWL_CACHE_DIR)
+    if fpath is None or not fpath.exists():
         log.warning(f"  File not found: {fpath}")
         return None
 
@@ -203,8 +220,8 @@ def _page_chunks(page: dict) -> list[dict] | None:
 
 def _pdf_chunks(pdf: dict) -> list[dict] | None:
     """Extract the text from the PDF and split it into chunks."""
-    fpath = Path(pdf["file"])
-    if not fpath.exists():
+    fpath = _inside(Path(pdf["file"]), DOCUMENTS_DIR)
+    if fpath is None or not fpath.exists():
         log.warning(f"  File not found: {fpath}")
         return None
 

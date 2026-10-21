@@ -31,6 +31,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
 from config.settings import DATA_DIR
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts

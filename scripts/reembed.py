@@ -37,6 +37,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
 from config.settings import EMBEDDING_DIMENSION, OLLAMA_EMBED_MODEL, now_local
 from indexer import embedder
 from indexer import vector_store as vs

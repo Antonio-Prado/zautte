@@ -22,12 +22,17 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
 from config.settings import (
     CRAWL_ALLOWED_DOMAINS,
     CRAWL_CACHE_DIR,
     CRAWL_DOMAIN_MAX_PATH_DEPTH,
     CRAWL_EXCLUDE_PATTERNS,
     CRAWL_MAX_PATH_DEPTH,
+    DOCUMENTS_DIR,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -116,6 +121,10 @@ def cleanup(dry_run: bool = False):
     files_deleted = 0
     for entry in pages_drop + pdfs_drop:
         fpath = Path(entry.get("file", ""))
+        # index.json is written by the sync account: delete only what lies in the cache folders
+        if not any(fpath.parent.resolve().is_relative_to(base.resolve()) for base in (CRAWL_CACHE_DIR, DOCUMENTS_DIR)):
+            log.warning(f"  Not deleted, outside the cache folders: {fpath.name}")
+            continue
         if fpath.exists():
             fpath.unlink()
             files_deleted += 1

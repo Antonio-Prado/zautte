@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.11] - 2026-10-22
+
+### Security
+- The sync, re-embedding, cleanup, inbox and indexer scripts started as root now become the sync account (`SYNC_USER`,
+  default `zsync`) before reading `.env`, and use `.env.sync`; root no longer writes in folders that the sync account
+  can plant links in. Without that account they keep running as root, with a warning.
+- The vector store files are written through a temporary file created exclusively with a random name (mode 644)
+  instead of the predictable `*.tmp` that a link could replace.
+- The indexer and `cleanup_index.py` use only the files that really lie in the crawl cache and the documents folder,
+  whatever `index.json` says (it is written by the sync account), and no longer delete or read paths outside them.
+- The watchdog honours a restart request at most once every 10 minutes and a reload every 2, and ignores a request file
+  that is not a regular file, so a compromised sync account cannot keep the API restarting.
+
 ## [0.7.10] - 2026-10-22
 
 ### Security

@@ -27,10 +27,25 @@ if [ -f "$MAINTENANCE" ]; then
 fi
 
 # A sync asked for a restart (new index to load): the same as restarting by hand
+# The folder belongs to the sync account, which could ask over and over: a request is honoured only
+# if it is a regular file and at most once in RESTART_GAP seconds (the time is kept where only root writes)
+STATE=/var/run/zautte-watchdog.state
+RESTART_GAP=600
+RELOAD_GAP=120
+now=$(date +%s)
+for r in restart reload; do
+    [ -L "$CONTROL/$r" ] && rm -f "$CONTROL/$r"
+done
 if [ -f "$CONTROL/restart" ]; then
     rm -f "$CONTROL/restart" "$CONTROL/reload"
-    echo "$(stamp) — Watchdog: restart requested by a sync" >> $LOG
-    service chatbot restart </dev/null >> $LOG 2>&1
+    last=$(cat "$STATE.restart" 2>/dev/null || echo 0)
+    if [ $((now - last)) -ge $RESTART_GAP ]; then
+        echo "$now" > "$STATE.restart"
+        echo "$(stamp) — Watchdog: restart requested by a sync" >> $LOG
+        service chatbot restart </dev/null >> $LOG 2>&1
+    else
+        echo "$(stamp) — Watchdog: restart request ignored (one every ${RESTART_GAP}s at most)" >> $LOG
+    fi
     exit 0
 fi
 
@@ -41,6 +56,9 @@ if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
     if echo "$STATUS" | grep -q '"status":"ok"'; then
         if [ -f "$CONTROL/reload" ]; then
             rm -f "$CONTROL/reload"
+            last=$(cat "$STATE.reload" 2>/dev/null || echo 0)
+            [ $((now - last)) -ge $RELOAD_GAP ] || { echo "$(stamp) — Watchdog: reload request ignored (too soon)" >> $LOG; exit 0; }
+            echo "$now" > "$STATE.reload"
             KEY=$(sed -n 's/^ADMIN_API_KEY=//p' "$ENVFILE" | head -n 1 | tr -d "\"'")
             echo "$(stamp) — Watchdog: index reload requested by a sync" >> $LOG
             if [ -n "$KEY" ]; then
