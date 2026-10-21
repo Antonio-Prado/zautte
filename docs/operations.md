@@ -342,6 +342,8 @@ venv/bin/python -m scripts.embed_check compare /root/embed_before.npz   # exits 
 pkg lock -y ollama
 ```
 
+The Ollama log (`/var/log/ollama-<user>.log`) grows with every request. newsyslog cannot rotate it, because the rc.d script starts `daemon(8)` without `-H` and the file would not be reopened; `scripts/rotate_ollama_log.sh` copies and truncates it instead (it appends, so this is safe). Run it daily from `/etc/crontab` as root: `0 4 * * * root /opt/chatbot/scripts/rotate_ollama_log.sh` (rotates above 50 MB, keeps 8 compressed copies; `OLLAMA_LOG_MAX_KB` and `OLLAMA_LOG_COUNT` change that).
+
 Do not use `service ollama restart`: if the old process has not exited yet, `start` finds it, gives up ("process already running") and leaves Ollama down, and with it every answer. Keep a copy of the old package (`/var/cache/pkg/ollama-<version>.pkg`) to go back with `pkg unlock -y ollama && pkg delete -fy ollama && pkg add <file>`. Since 0.31 the rc.d script defaults to `ollama_user=nobody` with models in `/var/lib/ollama/models`. Do not run Ollama as root: a flaw in its model download (CVE-2026-103663, versions 0.34.2 to 0.35.0) allows writing a library that is loaded after a restart, which as root means a full takeover. Create a dedicated account (`pw useradd ollama -d /var/db/ollama -s /usr/sbin/nologin`), copy the models to `/var/db/ollama/.ollama/models`, `chown -R ollama:ollama /var/db/ollama`, set `ollama_user="ollama"` in `/etc/rc.conf`, then stop, wait for the old process to exit and start (never `restart`), and run `embed_check compare` as above. On 6 October 2026, 0.19.0 → 0.31.1 with `bge-m3`: minimum similarity 0.999906, retrieval evaluation unchanged (hit@7 79/100, MRR@7 0.663), no re-embedding needed.
 
 ### Changing embedding model

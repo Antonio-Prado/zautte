@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-21
+
+### Added
+- `scripts/rotate_ollama_log.sh` rotates the Ollama logs by copy and truncate (newsyslog cannot, as the ollama
+  rc.d script starts `daemon` without `-H`); documented in the operations guide.
+
 ## [0.7.2] - 2026-10-21
 
 ### Fixed
