@@ -34,7 +34,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from api import account_guard
+from api import account_guard, csp
 from api.filelock import file_lock
 from api.limiter import limiter
 from config.settings import (
@@ -493,8 +493,10 @@ _MIN_PASSWORD = 10
 
 
 def _html(body: str, status: int = 200) -> HTMLResponse:
-    return HTMLResponse(_PAGE.format(body=body), status_code=status,
-                        headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+    page = _PAGE.format(body=body)
+    return HTMLResponse(page, status_code=status,
+                        headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store",
+                                 **csp.headers_for(page)})
 
 
 @router.get("/reset", response_class=HTMLResponse)

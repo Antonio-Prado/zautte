@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.18] - 2026-10-22
+
+### Security
+- The widget pages, the password reset page and the login page of the restricted area carry a Content-Security-Policy
+  (`api/csp.py`): scripts only from the same origin plus the inline scripts of the page as served, named by SHA-256 and
+  computed from the file on disk (an installation's own pages need no change); the panel script that the restricted
+  area delivers after login is named by hash too. An injected script is not run and cannot read the session token or
+  the admin key. `CSP_MODE` (enforce, report-only, off), `CSP_EXTRA_HOSTS` (the Matomo server) and `FRAME_ANCESTORS`
+  configure it. Every response also gets `Referrer-Policy` and `Permissions-Policy`.
+
 ## [0.7.17] - 2026-10-22
 
 ### Security
