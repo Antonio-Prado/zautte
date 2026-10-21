@@ -48,7 +48,7 @@ Public. Returns the caller's IP address as the API sees it, shown in the page fo
 
 Complete response (non-streaming). Waits for the full response before replying.
 
-**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows "Hai raggiunto il limite di 20 domande al giorno…". See [Rate Limiting](privacy-and-security.md#rate-limiting).
+**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows "Hai raggiunto il limite di 20 domande al giorno…". **Concurrent answers**: at most `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; over the limit: `429` with `{"detail": {"error": "busy"}}` and `Retry-After: 5`, before any daily quota is used. See [Rate Limiting](privacy-and-security.md#rate-limiting).
 
 **Request:**
 ```json
@@ -234,7 +234,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 |---|---|---|
 | `POST /auth/login` | public (10/min per IP) | Body `{"email", "password"}` → `{"token", "name", "expires_in"}`; `400` if `AUTH_ENABLED=false`, `401` on wrong credentials |
 | `POST /auth/forgot` | public (5/hour per IP) | Body `{"email"}`: emails a single-use link (valid 30 minutes) to choose a new password, only if SMTP is configured and `PUBLIC_BASE_URL` (or `PILOT_LOGIN_URL`) gives the address for the link (the `Host` header of the request is never used); the mail is sent after the reply; the password is NOT changed until the link is used; always the same generic reply; `400` if `AUTH_ENABLED=false` |
-| `GET /auth/reset?token=` | public | The page where the new password is chosen (at least 10 characters); `400` if the link is invalid, expired or already used |
+| `GET /auth/reset` | public | The page where the new password is chosen (at least 10 characters). The emailed link carries the token in the fragment (`/auth/reset#token=...`), which browsers do not send to servers or proxies; the page reads it and sends it with `POST /auth/reset`, which answers `400` if the link is invalid, expired or already used |
 | `POST /auth/reset` | public (10/hour per IP) | Body `{"token", "password"}`: sets the password, ends the user's older sessions and makes the link useless |
 | `POST /auth/logout` | user | Revokes the token of the request (listed in `data/revoked_tokens.json` until it would have expired); the widget calls it when the user signs out |
 | `GET /auth/me` | user | Current user `{"uid", "name"}`; `401` if the token is missing or expired |
@@ -254,7 +254,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 
 Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`, `/admin/reload`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
 
-If `ADMIN_API_KEY` is empty, every admin request is refused (the detailed `/health` stays hidden). Only with `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone.
+If `ADMIN_API_KEY` is empty, shorter than 16 characters or a placeholder (it starts with "cambia"), every admin request is refused and the API refuses to start with a weak one (the detailed `/health` stays hidden). Only with `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone.
 
 **Lockout.** A wrong key counts as a failed attempt for the client address. After `ADMIN_MAX_ATTEMPTS` (default 5) within `ADMIN_LOCKOUT_SECONDS` (default 900) that address gets `429` with `Retry-After`, even with the right key, on every admin endpoint and on `/health`. Counts are kept in memory (they restart with the service); localhost, used by the maintenance scripts, is never locked.
 

@@ -29,6 +29,8 @@
 
 Questions (`/chat` and `/chat/stream`, one counter for both): **`DAILY_QUESTION_LIMIT` per day per user** (default 20, `0` = no limit), counted on the logged-in user and not on the IP address, so colleagues behind the same office address each have their own. The day is the server's calendar day: counters restart at midnight. They live in memory (one uvicorn process) and on startup are rebuilt from `data/usage.jsonl`, so a restart does not hand out new questions. A question counts when it arrives and is given back if the answer fails. With `AUTH_ENABLED=false` the limit is per client IP and starts from zero after a restart. Over the limit: `429` with `Retry-After` (implemented in `api/quota.py`).
 
+**Answers at once**: `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; a request over the limit is refused with `429` ("busy") before it uses any daily quota, so one user cannot open dozens of answers in parallel.
+
 The other limits use slowapi (`api/limiter.py`), per client IP, with counters in memory that reset on every restart:
 
 - `/feedback` and `/feedback/detail`: **60 requests/hour**
