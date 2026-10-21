@@ -10,7 +10,8 @@ if [ -d "$CONTROL" ]; then LOCKFILE=$CONTROL/sync.lock; else LOCKFILE=/var/run/c
 if [ "$(id -u)" != 0 ] && [ -r /opt/chatbot/.env.sync ]; then export ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync; fi
 
 cd /opt/chatbot
-lockf -t 0 "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.sync incremental
+# Stopped after SYNC_TIMEOUT seconds (default 16 h; a normal run takes about 5): a hung run would hold the lock
+lockf -t 0 "$LOCKFILE" timeout -k 120 "${SYNC_TIMEOUT:-57600}" /opt/chatbot/venv/bin/python -m scripts.sync incremental
 STATUS=$?
 
 if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then

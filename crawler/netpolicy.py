@@ -31,6 +31,7 @@ import httpx
 
 from config.settings import (
     CRAWL_BLOCK_PRIVATE_IPS,
+    CRAWL_MAX_DOWNLOAD_SECONDS,
     CRAWL_MAX_FILE_MB,
     CRAWL_MAX_PAGE_MB,
     CRAWL_PRIVATE_OK_HOSTS,
@@ -47,6 +48,10 @@ class BlockedURL(httpx.RequestError):
 
 class TooLarge(httpx.RequestError):
     """The body is bigger than the limit."""
+
+
+class TooSlow(httpx.RequestError):
+    """The download takes longer than CRAWL_MAX_DOWNLOAD_SECONDS."""
 
 
 def host_allowed(host: str, domains: Iterable[str]) -> bool:
@@ -179,8 +184,9 @@ _STEP = 1 << 20   # bytes of decoded data produced at a time
 class _Body:
     """Accumulates a response body, decoding gzip/deflate in steps and stopping at `limit`."""
 
-    def __init__(self, resp: httpx.Response, limit: int):
+    def __init__(self, resp: httpx.Response, limit: int, deadline: float | None = None):
         self.limit, self.raw, self.out = limit, 0, bytearray()
+        self.deadline = deadline
         self.request = resp.request
         enc = resp.headers.get("content-encoding", "").lower().strip()
         if enc in ("", "identity"):
@@ -196,6 +202,8 @@ class _Body:
         return TooLarge(f"body over {self.limit // 1048576} MB", request=self.request)
 
     def feed(self, chunk: bytes) -> None:
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            raise TooSlow(f"download over {CRAWL_MAX_DOWNLOAD_SECONDS} s", request=self.request)
         self.raw += len(chunk)
         if self.raw > self.limit:
             raise self._full()
@@ -265,6 +273,7 @@ def get_limited(client: httpx.Client, url: str, domains: Iterable[str], **kw) ->
     """GET under the whole policy: checked address, pinned connection, redirects followed
     one hop at a time, bounded download. Raises BlockedURL, TooLarge or an httpx error."""
     allowed = list(domains)
+    deadline = time.monotonic() + CRAWL_MAX_DOWNLOAD_SECONDS
     for _ in range(_MAX_HOPS + 1):
         last: Exception | None = None
         for ip in _plan(url, allowed):
@@ -274,7 +283,7 @@ def get_limited(client: httpx.Client, url: str, domains: Iterable[str], **kw) ->
                                    follow_redirects=False, **kw) as resp:
                     nxt = _next_hop(resp, url)
                     if nxt is None:
-                        reader = _Body(resp, _limit_for(resp, url))
+                        reader = _Body(resp, _limit_for(resp, url), deadline)
                         for chunk in resp.iter_raw():
                             reader.feed(chunk)
                         return _final(resp, url, reader.result())
@@ -291,6 +300,7 @@ def get_limited(client: httpx.Client, url: str, domains: Iterable[str], **kw) ->
 async def get_limited_async(client: httpx.AsyncClient, url: str, domains: Iterable[str]) -> httpx.Response:
     """Asynchronous version of get_limited."""
     allowed = list(domains)
+    deadline = time.monotonic() + CRAWL_MAX_DOWNLOAD_SECONDS
     for _ in range(_MAX_HOPS + 1):
         last: Exception | None = None
         for ip in _plan(url, allowed):
@@ -300,7 +310,7 @@ async def get_limited_async(client: httpx.AsyncClient, url: str, domains: Iterab
                                          follow_redirects=False) as resp:
                     nxt = _next_hop(resp, url)
                     if nxt is None:
-                        reader = _Body(resp, _limit_for(resp, url))
+                        reader = _Body(resp, _limit_for(resp, url), deadline)
                         async for chunk in resp.aiter_raw():
                             reader.feed(chunk)
                         return _final(resp, url, reader.result())

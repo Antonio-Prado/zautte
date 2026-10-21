@@ -30,6 +30,7 @@ from config.settings import (
     CRAWL_EXTRA_START_URLS,
     CRAWL_MAX_PAGES,
     CRAWL_MAX_PATH_DEPTH,
+    CRAWL_MAX_QUERY_VARIANTS,
     CRAWL_PDF_EXCLUDE_PATTERNS,
     CRAWL_SECTION_RULES,
     CRAWL_URL_ALIASES,
@@ -226,6 +227,17 @@ def drop_invisible(soup: BeautifulSoup) -> None:
             tag.decompose()
 
 
+def _variant_ok(link: str, variants: dict[tuple[str, str], int]) -> bool:
+    """A calendar or a filter makes endless URLs that differ only in the query string: past
+    CRAWL_MAX_QUERY_VARIANTS of one path the others are not followed."""
+    parts = urlparse(link)
+    if not parts.query:
+        return True
+    key = (parts.netloc, parts.path)
+    variants[key] = variants.get(key, 0) + 1
+    return variants[key] <= CRAWL_MAX_QUERY_VARIANTS
+
+
 def clean_text(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     drop_invisible(soup)
@@ -365,6 +377,8 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
 
     visited: set[str] = set()
     to_visit: list[str] = [start_url] + CRAWL_EXTRA_START_URLS
+    queued: set[str] = set(to_visit)                 # O(1) test instead of a scan of the list
+    variants: dict[tuple[str, str], int] = {}        # (host, path) -> query-string variants queued
     pdf_urls: set[str] = set()
     pdf_link_texts: dict[str, list[str]] = {}  # PDF URL → texts of the links that cite it
     results_pages = []
@@ -436,8 +450,12 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                     # Always discover new links, even if the page has not changed
                     new_links = extract_links(raw_html, url)
                     for link in new_links:
-                        if link not in visited and link not in to_visit:
-                            to_visit.append(link)
+                        if link in visited or link in queued:
+                            continue
+                        if not _variant_ok(link, variants):
+                            continue
+                        queued.add(link)
+                        to_visit.append(link)
                     for pdf_url, link_text in extract_pdf_links(raw_html, url):
                         pdf_urls.add(pdf_url)
                         if link_text:

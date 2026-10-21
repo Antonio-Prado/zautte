@@ -2,11 +2,41 @@
 Text extraction from PDF documents using pypdf (pure Python, no compilation).
 """
 
+import contextlib
 import logging
 import re
+import signal
+import threading
+import time
 from pathlib import Path
 
+from config.settings import PDF_MAX_CHARS, PDF_MAX_PAGES, PDF_MAX_SECONDS
+
 log = logging.getLogger(__name__)
+
+
+class _TimedOut(Exception):
+    pass
+
+
+@contextlib.contextmanager
+def _time_limit(seconds: int):
+    """Interrupts a single page that never finishes (a hostile file can make the parser loop for
+    hours inside one call). Needs SIGALRM and the main thread; elsewhere the check between pages remains."""
+    if seconds <= 0 or not hasattr(signal, "setitimer") or threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _raise(signum, frame):
+        raise _TimedOut
+
+    previous = signal.signal(signal.SIGALRM, _raise)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def extract_text_from_pdf(pdf_path: str | Path) -> str:
@@ -22,14 +52,30 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         return ""
 
     try:
-        reader = PdfReader(str(pdf_path))
-        parts = []
-        for page_num, page in enumerate(reader.pages, start=1):
-            text = page.extract_text() or ""
-            if text.strip():
-                parts.append(f"[Pagina {page_num}]\n{text.strip()}")
+        started = time.monotonic()
+        parts: list[str] = []
+        chars = 0
+        try:
+            with _time_limit(PDF_MAX_SECONDS):
+                reader = PdfReader(str(pdf_path))
+                for page_num, page in enumerate(reader.pages, start=1):
+                    if page_num > PDF_MAX_PAGES:
+                        log.warning(f"PDF {pdf_path.name}: only the first {PDF_MAX_PAGES} pages are read")
+                        break
+                    if time.monotonic() - started > PDF_MAX_SECONDS:
+                        raise _TimedOut
+                    text = page.extract_text() or ""
+                    if text.strip():
+                        parts.append(f"[Pagina {page_num}]\n{text.strip()}")
+                        chars += len(parts[-1])
+                    if chars > PDF_MAX_CHARS:
+                        log.warning(f"PDF {pdf_path.name}: text cut at {PDF_MAX_CHARS} characters")
+                        break
+        except _TimedOut:
+            log.warning(f"PDF {pdf_path.name}: reading stopped after {PDF_MAX_SECONDS} s, "
+                        f"{len(parts)} pages kept")
 
-        full_text = "\n\n".join(parts)
+        full_text = "\n\n".join(parts)[:PDF_MAX_CHARS]
         return _clean_pdf_text(full_text)
 
     except Exception as e:  # noqa: BLE001 - pypdf raises heterogeneous exception types on corrupt PDFs
