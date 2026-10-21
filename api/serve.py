@@ -50,6 +50,9 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=API_PORT)
     args = parser.parse_args()
 
+    # trusting every address would let anybody choose the address the limits and the lockout see
+    if any(p.strip() in ("*", "0.0.0.0/0", "::/0") for p in FORWARDED_ALLOW_IPS.split(",")):
+        raise SystemExit("FORWARDED_ALLOW_IPS must list the proxy addresses, not every address")
     hosts = args.host or [h.strip() for h in API_HOST.split(",") if h.strip()]
     sockets = [_listen(h, args.port) for h in hosts]
     # Config also configures uvicorn's logging

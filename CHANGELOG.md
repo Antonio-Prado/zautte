@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.10] - 2026-10-22
+
+### Security
+- Per-account limits: after `LOGIN_MAX_FAILURES` (10) wrong passwords in `LOGIN_LOCK_SECONDS` (15 minutes) an account
+  refuses logins with the same answer as a wrong password, so passwords of known accounts cannot be sprayed from many
+  addresses; at most `RESET_EMAILS_PER_HOUR` (3) reset emails are sent per account. `scripts/adduser.py` asks for
+  passwords of at least 10 characters, as the reset page does.
+- Request bodies over `MAX_BODY_BYTES` (128 KB) are refused (413) before they are buffered.
+- The admin lockout no longer exempts loopback: a right key on loopback always passes (sync scripts, watchdog), a wrong
+  one is counted, so a local proxy that shows every client as 127.0.0.1 cannot switch the lockout off. The API refuses
+  to start when `FORWARDED_ALLOW_IPS` trusts every address (`*`, `0.0.0.0/0`, `::/0`).
+
 ## [0.7.9] - 2026-10-22
 
 ### Security

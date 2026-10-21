@@ -103,8 +103,8 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
         password = secrets.token_urlsafe(24)   # unknown to everybody: replaced through the emailed link
     else:
         password = getpass.getpass("Password: ")
-    if len(password) < 8:
-        print("The password must be at least 8 characters long.")
+    if len(password) < 10:
+        print("The password must be at least 10 characters long.")
         sys.exit(1)
 
     existing = next(

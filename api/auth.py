@@ -34,6 +34,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
+from api import account_guard
 from api.filelock import file_lock
 from api.limiter import limiter
 from config.settings import (
@@ -318,11 +319,16 @@ async def login(request: Request, req: LoginRequest):
         raise HTTPException(status_code=500, detail="AUTH_SECRET non configurato")
 
     user = _find_user_by_email(req.email)
-    stored = user["pw_hash"] if user else _DUMMY_HASH
+    locked = account_guard.login_locked(req.email)
+    # a locked account is checked against the dummy hash: same time, same answer as a wrong password
+    stored = user["pw_hash"] if user and not locked else _DUMMY_HASH
     async with _password_slots:   # a few at a time: scrypt is deliberately heavy
         ok = await asyncio.to_thread(verify_password, req.password, stored)
-    if not user or not ok:
+    if not user or not ok or locked:
+        if not locked:
+            account_guard.login_failed(req.email)
         raise HTTPException(status_code=401, detail="Email o password non validi")
+    account_guard.login_ok(req.email)
 
     token = create_token(user["id"], user.get("name", user["email"]), int(user.get("auth_version", 0)))
     return LoginResponse(
@@ -438,7 +444,7 @@ async def forgot(request: Request, req: ForgotRequest, background_tasks: Backgro
         raise HTTPException(status_code=400, detail="Autenticazione non attiva")
 
     user = _find_user_by_email(req.email)
-    if user:
+    if user and account_guard.reset_email_allowed(req.email):
         background_tasks.add_task(_send_reset_email, user)
     return generic
 

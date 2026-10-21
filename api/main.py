@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api import auth, conversations, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
+from api.bodylimit import BodyLimitMiddleware
 from api.clientkey import client_key
 from api.datalog import forget
 from api.filelock import file_lock
@@ -305,6 +306,7 @@ async def root(request: Request):
     query = request.url.query
     return RedirectResponse("/widget/dashboard.html" + ("?" + query if query else ""), status_code=302)
 
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=API_CORS_ORIGINS,

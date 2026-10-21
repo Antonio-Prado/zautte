@@ -38,6 +38,8 @@ The other limits use slowapi (`api/limiter.py`), per client address (an IPv6 cli
 
 Excess requests get `429`.
 
+**Per account** (`api/account_guard.py`): after `LOGIN_MAX_FAILURES` wrong passwords (default 10) within `LOGIN_LOCK_SECONDS` (900) an account refuses logins, with the same answer as a wrong password, until that time has passed; a right login clears the count. At most `RESET_EMAILS_PER_HOUR` (3) reset emails are sent per account, the others silently dropped. **Request size**: a body over `MAX_BODY_BYTES` (128 KB) is refused before it is read (`413`, or `400` when it is cut while streaming).
+
 ## Protected Admin Endpoints
 
 `/stats`, `/gaps`, `/feedback/list`, `/feedback/negative`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history` and `/admin/reload` require the `X-Admin-Key` header, and `/health` returns its detailed fields only with it. Set `ADMIN_API_KEY` in `.env` in production (after `ADMIN_MAX_ATTEMPTS` wrong keys the client address is locked out for `ADMIN_LOCKOUT_SECONDS`, see [API](api.md#admin-authentication)): if it is empty, short (under 16 characters) or a placeholder, admin requests are refused (only `ADMIN_AUTH_DISABLED=true`, for development, opens them, and only when no usable key is set). `/docs` and `/openapi.json` exist only with `API_DOCS=true` (development); `/client-ip` is public and tells each caller only their own address (shown in the page footer).

@@ -90,6 +90,12 @@ AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
+# Wrong passwords before an account refuses logins, and the window/duration (seconds); reset emails per account per hour
+#LOGIN_MAX_FAILURES=10
+#LOGIN_LOCK_SECONDS=900
+#RESET_EMAILS_PER_HOUR=3
+# Largest request body in bytes (413 above it)
+#MAX_BODY_BYTES=131072
 # Answers being generated at once: for each user, and in the whole process (over the limit: HTTP 429 "busy")
 LLM_MAX_PER_USER=2
 LLM_MAX_CONCURRENT=8

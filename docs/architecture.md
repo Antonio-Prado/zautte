@@ -115,6 +115,9 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── feedback_store.py     # Feedback archive (votes, comments, links)
 │   ├── mailer.py             # Email notifications (credentials, reports)
 │   ├── limiter.py            # Rate limiting (slowapi)
+│   ├── account_guard.py      # Limits per account: wrong passwords, reset emails
+│   ├── bodylimit.py          # Limit on the size of a request body
+│   ├── clientkey.py          # Key of a client for the limits (IPv6 by /64)
 │   ├── llm_gate.py           # Limits on answers generated at once (per user and in total)
 │   ├── filelock.py           # Safe file locks (no symlinks, fail closed)
 │   ├── safefile.py           # Atomic writes and regular-file checks for the data files

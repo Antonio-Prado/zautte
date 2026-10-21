@@ -8,7 +8,8 @@ ADMIN_LOCKOUT_SECONDS: 429 response even if the key were right. A ceiling on the
 wrong keys of all clients together (ADMIN_GLOBAL_MAX_FAILURES in the same window)
 stops a guessing attack spread over many networks: past it, every request from
 outside is refused until the window ends. The count lives in memory and restarts
-from zero when the service restarts. Localhost (sync.py, forget.py) is never blocked.
+from zero when the service restarts. A right key on loopback (sync.py, forget.py, the watchdog) always passes; a wrong one is
+counted like any other, so a proxy that shows every client as 127.0.0.1 does not switch the lockout off.
 """
 
 import hmac
@@ -100,13 +101,15 @@ def check_admin_key(request: Request, key: str | None) -> bool:
     if not admin_key_ok():
         return ADMIN_AUTH_DISABLED  # no usable key: closed, unless explicitly disabled (development)
     ip = _ip(request)
-    if _is_local(request):
-        return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())
+    right = bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())
+    local = _is_local(request)
+    if local and right:
+        return True   # the sync scripts and the watchdog, on loopback, are never held up
     with _lock:
         now = time.monotonic()
         _sweep(now)
         wait = _locked(ip, now)
-        if not wait and len(_all_failures) >= ADMIN_GLOBAL_MAX_FAILURES:
+        if not wait and len(_all_failures) >= ADMIN_GLOBAL_MAX_FAILURES and not local:
             wait = ADMIN_LOCKOUT_SECONDS - (now - _all_failures[0])
         if wait:
             raise HTTPException(
@@ -116,7 +119,7 @@ def check_admin_key(request: Request, key: str | None) -> bool:
             )
         if not key:
             return False  # no attempt: nothing to count
-        if hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode()):
+        if right:
             _failures.pop(ip, None)
             return True
         _register_failure(ip, now)
