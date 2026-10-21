@@ -142,6 +142,9 @@ def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-zàáâäèéêëìíîïòóôöùúûü]+", text.lower())
 
 
+_MAX_QUERY_TERMS = 32
+
+
 def _make_bm25(metadata: list[dict]):
     """BM25 index of the given corpus (None if empty or without rank_bm25)."""
     if not metadata:
@@ -365,8 +368,9 @@ def chunks_to_embed(chunks: list[dict], ids: list[str]) -> list[bool]:
 def _is_inbox(meta: dict) -> bool:
     """Chunk loaded by hand from the inbox (scripts/inbox_indexer): it must be kept
     even if its source does not appear in the crawl or is re-crawled.
-    `doc_type == "document"` covers inbox documents that predate the marker."""
-    return meta.get("origin") == "inbox" or meta.get("doc_type") == "document"
+    A "document" without any origin is an inbox document that predates the marker; one with
+    origin=news is an Office attachment of a news item, which is replaced like any other news chunk."""
+    return meta.get("origin") == "inbox" or (meta.get("doc_type") == "document" and not meta.get("origin"))
 
 
 def _is_protected(meta: dict) -> bool:
@@ -527,7 +531,9 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     # --- BM25 search ---
     bm25_rrf = {}
     if _bm25 is not None:
-        tokens = _tokenize(query_text)
+        # each word once, and no more than a few dozen: the scoring loops over every passage for each
+        # word, so a question made of hundreds of words would keep the whole service busy for seconds
+        tokens = list(dict.fromkeys(_tokenize(query_text)))[:_MAX_QUERY_TERMS]
         if tokens:
             bm25_scores = _bm25.get_scores(tokens)
             bm25_top = np.argpartition(bm25_scores, -fetch_k)[-fetch_k:]

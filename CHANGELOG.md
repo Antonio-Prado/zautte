@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.15] - 2026-10-22
+
+### Security
+- The keyword search takes each word of a question once and at most 32 words. A question made of hundreds of repeated
+  words used to make the scoring loop over every passage for each of them (about 2 s per 20,000 passages, so tens of
+  seconds on the full index, holding up the whole service); it is now a few milliseconds.
+
+### Fixed
+- Office attachments (DOCX, ODT) of news items were treated as inbox documents, so a corrected version of the same file
+  was added next to the old one and a withdrawn file never left the index. Only documents without an origin (inbox
+  documents that predate the marker) and those marked `origin=inbox` are kept by the syncs now; news attachments are
+  replaced like any other news chunk, and the next news sync fixes the existing ones.
+
 ## [0.7.14] - 2026-10-22
 
 ### Changed
