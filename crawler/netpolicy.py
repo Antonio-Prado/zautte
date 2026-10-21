@@ -230,8 +230,9 @@ class _Body:
 
 def _final(resp: httpx.Response, url: str, body: bytes) -> httpx.Response:
     """A normal, fully read response for the original (not pinned) address."""
-    headers = [(k, v) for k, v in resp.headers.multi_items()
-               if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")]
+    # raw bytes: a header such as Content-Disposition may carry non-ASCII characters
+    headers = [(k, v) for k, v in resp.headers.raw
+               if k.lower() not in (b"content-encoding", b"content-length", b"transfer-encoding")]
     return httpx.Response(resp.status_code, headers=headers, content=body,
                           request=httpx.Request("GET", url))
 
