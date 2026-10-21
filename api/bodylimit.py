@@ -20,10 +20,12 @@ class BodyLimitMiddleware:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope["method"] in ("GET", "HEAD", "OPTIONS"):
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
         declared = dict(scope["headers"]).get(b"content-length", b"")
         if declared.isdigit() and int(declared) > self.max_bytes:
-            return await JSONResponse({"detail": "Richiesta troppo grande"}, status_code=413)(scope, receive, send)
+            await JSONResponse({"detail": "Richiesta troppo grande"}, status_code=413)(scope, receive, send)
+            return
         seen = 0
 
         async def limited_receive():

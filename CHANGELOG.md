@@ -9,6 +9,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.14] - 2026-10-22
+
+### Changed
+- The request size limit returns in a uniform way (closes a code scanning note); no change in behaviour.
+
 ## [0.7.13] - 2026-10-22
 
 ### Fixed
