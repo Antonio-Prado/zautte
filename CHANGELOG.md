@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.17] - 2026-10-22
+
+### Security
+- The vector store is saved as a set: the three files are written aside first, renamed one after the other, and a
+  `manifest.json` (size and SHA-256 of each) is written last. At load the files must match it, so files of different
+  generations left by an interrupted save are detected instead of silently paired.
+- A store that exists but cannot be read (or does not match its manifest) is no longer treated as empty and overwritten by
+  the next sync: the API works with an empty store, logs the error, and writing refuses until a backup is restored or the
+  store is emptied on purpose. `scripts/reembed.py apply` refreshes the manifest.
+- Vectors that are not numbers or have a length above 1 (an overflow of the model, damage, tampering), which would have
+  ranked first for every question, are neutralised or brought back to unit length at load.
+
 ## [0.7.16] - 2026-10-22
 
 ### Security
