@@ -20,7 +20,8 @@ import re
 
 from config.settings import CSP_EXTRA_HOSTS, CSP_MODE, FRAME_ANCESTORS
 
-_INLINE_SCRIPT = re.compile(r"<script(?P<attrs>[^>]*)>(?P<body>.*?)</script>", re.IGNORECASE | re.DOTALL)
+# a browser also ends a script at </script foo> or </script\n>: the closing tag is read the way it does
+_INLINE_SCRIPT = re.compile(r"<script(?P<attrs>[^>]*)>(?P<body>.*?)</script[^>]*>", re.IGNORECASE | re.DOTALL)
 _DATA_TYPES = ("application/ld+json", "application/json", "importmap")
 
 

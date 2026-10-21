@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.19] - 2026-10-22
+
+### Changed
+- The inline scripts of a page are found with a closing tag read the way a browser reads it (`</script foo>` ends a script
+  too); closes a code scanning warning. The pages of this repository have no such tag, so no hash changes.
+
 ## [0.7.18] - 2026-10-22
 
 ### Security
