@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-10-22
+
+### Changed
+- Removed the `secondaryColor` widget option, which was defined but never used.
+- Corrected the comment on `PDF_PENALTY` in `api/rag.py`: inbox PDFs are penalised like any other PDF, only
+  inbox TXT and DOCX files are not; installation-specific figures removed from it.
+
 ## [0.7.7] - 2026-10-22
 
 ### Changed

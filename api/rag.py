@@ -112,12 +112,11 @@ BM25_WEIGHT = 0.4
 
 # PDF passage penalty in re-ranking: at similar relevance the site
 # pages, written for citizens, come first; the PDF stays among the 7 if it is really more
-# relevant (forms, regulations). 80% of passages come from PDFs and the sync of
-# 05/10/2026 added 49,503 from the attachments of the pages (/s3/6115/: forms
-# but also theses, plans, drawings). Measurement of 06/10/2026 on the 259,379-passage index:
-# correct page within the 7: 79 → 81/100, MRR@7 0.663 → 0.748, no question lost;
-# removing them entirely gave 80 and 0.726. Manually loaded texts (inbox) are
-# "document" and are not penalised.
+# relevant (forms, regulations). On a reference index, where PDFs are most of the
+# passages (attachments of the pages: forms but also theses, plans, drawings), this
+# raised the rank of the correct page without losing any test question. Manually
+# loaded TXT and DOCX files (inbox) are "document" and are not penalised; inbox PDFs are
+# "pdf" like any other and are.
 PDF_PENALTY = 0.04
 
 # Keyword → competent office map — loaded from config/offices.json
