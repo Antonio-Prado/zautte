@@ -193,6 +193,7 @@ def apply(model: str, cache: Path, backup: Path) -> None:
     vs._atomic_write_npy(vs.EMBEDDINGS_FILE, emb)
     if flags_changed:
         vs._atomic_write_json(vs.METADATA_FILE, meta)
+    vs.write_manifest()
     zeros = int((~np.any(emb, axis=1)).sum())
     log.info(f"written {vs.EMBEDDINGS_FILE}: {emb.shape}, zero vectors {zeros}, "
              f"needs_reembedding flags changed {flags_changed}. Now set OLLAMA_EMBED_MODEL={model} "

@@ -37,6 +37,8 @@ log = logging.getLogger(__name__)
 EMBEDDINGS_FILE = VECTOR_STORE_DIR / "embeddings.npy"
 METADATA_FILE   = VECTOR_STORE_DIR / "metadata.json"
 IDS_FILE        = VECTOR_STORE_DIR / "ids.json"
+MANIFEST_FILE   = VECTOR_STORE_DIR / "manifest.json"   # size and SHA-256 of the three files above
+_STORE_FILES = (EMBEDDINGS_FILE, METADATA_FILE, IDS_FILE)
 
 CHECKPOINT_INTERVAL = 1800  # seconds between two saves in deferred mode
 
@@ -59,13 +61,59 @@ _deferred_depth = 0
 _lock = threading.RLock()
 _dirty = False        # in-memory changes not yet written to disk
 _last_save_ts = 0.0
+# Set when files exist but could not be read: the store in memory is then empty only by force, and
+# writing it would destroy the files that are still there (restore a backup, or reset on purpose).
+_load_error: str | None = None
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _check_manifest() -> None:
+    """The three files must be the ones the last complete save wrote. A save interrupted between
+    two of them (crash, power cut) leaves files of different generations that happen to have
+    compatible sizes: they would be paired silently. Stores written before the manifest existed have none."""
+    if not MANIFEST_FILE.exists():
+        return
+    with open(MANIFEST_FILE, encoding="utf-8") as f:
+        expected = json.load(f).get("files", {})
+    for path in _STORE_FILES:
+        want = expected.get(path.name)
+        if want is None or os.path.getsize(path) != want["size"] or _sha256(path) != want["sha256"]:
+            raise ValueError(f"{path.name} does not match the manifest: a save was interrupted? Restore a backup")
+
+
+def _sanitize(embeddings: np.ndarray) -> np.ndarray:
+    """Vectors are stored with unit length. A row that is not a number (a rare overflow of the model),
+    or whose length is off (damage, tampering), would rank first for every question: such rows are
+    neutralised (zero = never similar) or brought back to unit length."""
+    if embeddings.ndim != 2 or embeddings.shape[0] == 0:
+        return embeddings
+    bad = ~np.isfinite(embeddings).all(axis=1)
+    if bad.any():
+        log.error(f"{int(bad.sum())} vectors with non-finite values neutralised")
+        embeddings = embeddings.copy() if not embeddings.flags.writeable else embeddings
+        embeddings[bad] = 0.0
+    norms = np.linalg.norm(embeddings, axis=1)
+    off = norms > 1.05
+    if off.any():
+        log.error(f"{int(off.sum())} vectors with a length above 1 brought back to unit length")
+        embeddings = embeddings.copy() if not embeddings.flags.writeable else embeddings
+        embeddings[off] /= norms[off][:, None]
+    return embeddings
 
 
 def _read_from_disk() -> tuple[np.ndarray, list[dict], list[str]] | None:
     """Reads the three store files. None if missing; exception if unreadable."""
     if not (EMBEDDINGS_FILE.exists() and METADATA_FILE.exists() and IDS_FILE.exists()):
         return None
-    embeddings = np.load(str(EMBEDDINGS_FILE))
+    _check_manifest()
+    embeddings = np.load(str(EMBEDDINGS_FILE), allow_pickle=False)
     with open(METADATA_FILE, encoding="utf-8") as f:
         metadata = json.load(f)
     with open(IDS_FILE, encoding="utf-8") as f:
@@ -73,18 +121,20 @@ def _read_from_disk() -> tuple[np.ndarray, list[dict], list[str]] | None:
     if not (len(metadata) == len(ids) == embeddings.shape[0]):
         raise ValueError(f"store incoerente: {embeddings.shape[0]} vettori, "
                          f"{len(metadata)} metadati, {len(ids)} id")
-    return embeddings, metadata, ids
+    return _sanitize(embeddings), metadata, ids
 
 
 def _ensure_loaded():
-    global _embeddings, _metadata, _ids, _id_to_idx, _last_save_ts
+    global _embeddings, _metadata, _ids, _id_to_idx, _last_save_ts, _load_error
     if _embeddings is not None:
         return
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
     try:
         loaded = _read_from_disk()
     except Exception as e:
-        log.warning(f"Error loading vector store: {e} — starting from scratch", exc_info=True)
+        _load_error = str(e)
+        log.exception("Vector store unreadable. Working with an empty one; the files on disk are NOT "
+                      "overwritten (restore a backup, or reset on purpose)")
         loaded = None
     if loaded is None:
         _reset_state()
@@ -173,10 +223,10 @@ def _ensure_bm25():
         _build_bm25()
 
 
-def _atomic_replace(path: Path, write):
-    """Writes through a temporary file created exclusively (random name, never a link that
-    someone planted) in the same folder, then renames it over `path`. The index is public
-    data that the API account must read: mode 644."""
+def _prepare(path: Path, write) -> str:
+    """Writes the content to a temporary file created exclusively (random name, never a link that
+    someone planted) in the same folder and returns its name. The index is public data that the
+    API account must read: mode 644."""
     fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
         os.fchmod(fd, 0o644)
@@ -184,11 +234,28 @@ def _atomic_replace(path: Path, write):
             write(f)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)  # atomic on all POSIX filesystems
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    return tmp
+
+
+def _atomic_replace(path: Path, write):
+    """Writes through a temporary file, then renames it over `path` (atomic on all POSIX filesystems)."""
+    tmp = _prepare(path, write)
+    try:
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def write_manifest() -> None:
+    """Records size and hash of the three files as they are now (for a script that rewrote one of them)."""
+    manifest = {"files": {p.name: {"size": os.path.getsize(p), "sha256": _sha256(p)} for p in _STORE_FILES}}
+    _atomic_replace(MANIFEST_FILE, lambda f: f.write(json.dumps(manifest).encode("utf-8")))
 
 
 def _atomic_write_json(path: Path, data):
@@ -205,10 +272,33 @@ def _atomic_write_npy(path: Path, arr: np.ndarray):
 def _write_to_disk():
     global _dirty, _last_save_ts
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
+    if _load_error is not None:
+        raise RuntimeError(f"the vector store on disk could not be read ({_load_error}): not overwriting it. "
+                           "Restore a backup, or empty it on purpose (clear_collection)")
     arr = _embeddings if _embeddings is not None else np.zeros((0, 0), dtype=np.float32)
-    _atomic_write_npy(EMBEDDINGS_FILE, arr)
-    _atomic_write_json(METADATA_FILE, _metadata)
-    _atomic_write_json(IDS_FILE, _ids)
+    # Everything is written aside first, then the files are renamed one after the other as fast as
+    # possible and the manifest last: a crash can only fall in those few renames, and the manifest
+    # then tells at the next load that the set is not whole.
+    contents = (
+        (EMBEDDINGS_FILE, lambda f: np.save(f, arr)),
+        (METADATA_FILE, lambda f: f.write(json.dumps(_metadata, ensure_ascii=False).encode("utf-8"))),
+        (IDS_FILE, lambda f: f.write(json.dumps(_ids, ensure_ascii=False).encode("utf-8"))),
+    )
+    prepared: list[tuple[str, Path]] = []
+    try:
+        for final, write in contents:
+            prepared.append((_prepare(final, write), final))
+        manifest = {"files": {final.name: {"size": os.path.getsize(tmp), "sha256": _sha256(Path(tmp))}
+                              for tmp, final in prepared}}
+        prepared.append((_prepare(MANIFEST_FILE, lambda f: f.write(json.dumps(manifest).encode("utf-8"))),
+                         MANIFEST_FILE))
+        for tmp, final in prepared:
+            os.replace(tmp, final)
+        prepared = []
+    finally:
+        for tmp, _ in prepared:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
     _dirty = False
     _last_save_ts = time.time()
 
@@ -665,6 +755,8 @@ def remove_chunk_ids(chunk_ids: set[str]) -> int:
 
 
 def clear_collection():
+    global _load_error
+    _load_error = None   # emptied on purpose: writing is allowed again
     _reset_state()
     _save()
     log.info("Vector store emptied.")

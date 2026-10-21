@@ -182,7 +182,7 @@ zautte/                       # deployed as /opt/chatbot
 └── data/                     # Auto-generated (do not commit)
     ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, news_state.json (written by the crawler and news_sync.py)
     ├── documents/            # Downloaded PDFs
-    ├── vectorstore/          # Embeddings + metadata (numpy; written by the sync jobs)
+    ├── vectorstore/          # embeddings.npy, metadata.json, ids.json and manifest.json (size and SHA-256 of the three, written last); written by the sync jobs
     ├── inbox/                # Documents to index manually (processed/, errors/)
     ├── backups/              # Compressed vector store backups (backup_vectorstore.sh, last 7 days kept)
     ├── gaps.jsonl            # Unanswered or weakly answered queries (content gaps)
