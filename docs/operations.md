@@ -203,10 +203,10 @@ Rotation configured:
 
 | File                        | When                  | Kept                 | Compression |
 |-----------------------------|-----------------------|----------------------|-------------|
-| `/var/log/chatbot.log`      | every day at midnight | 365 files (one year) | bzip2 (J)   |
+| `/var/log/chatbot.log`      | every day at midnight | 90 files (90 days)   | bzip2 (J)   |
 | `/var/log/chatbot-sync.log` | above 100 MB          | 14 files             | bzip2 (J)   |
 
-`/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for one year and then deleted. newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` (since 6 October 2026).
+`/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for 90 days and then deleted (change the file count in `scripts/newsyslog-chatbot.conf` to match the retention in your privacy notice). newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` (since 6 October 2026).
 
 The file also lists `/var/log/chatbot-crawler.log` and `/var/log/chatbot-indexer.log`, which the current code no longer writes.
 

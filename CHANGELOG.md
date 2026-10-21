@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-10-22
+
+### Changed
+- The access log with client addresses (`chatbot.log`) is now kept for 90 days by default in the newsyslog
+  configuration (it was 365); the operations guide says how to match it to the privacy notice.
+
 ## [0.7.5] - 2026-10-22
 
 ### Changed
