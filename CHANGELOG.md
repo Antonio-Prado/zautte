@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-21
+
+### Fixed
+- The crawler and the news sync no longer fail on a response whose headers contain non-ASCII characters (for
+  example a `Content-Disposition` with an accented file name): the headers of the checked response are now copied
+  as raw bytes. The bug, introduced with the pinned connections in 0.6.4, made the incremental sync skip about
+  280 attachment downloads in one run.
+
 ## [0.7.1] - 2026-10-21
 
 ### Security
