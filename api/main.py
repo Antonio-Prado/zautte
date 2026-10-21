@@ -13,6 +13,7 @@ import asyncio
 import datetime
 import json
 import logging
+import os
 import re
 import secrets
 import sys
@@ -35,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api import auth, conversations, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
+from api.clientkey import client_key
 from api.datalog import forget
 from api.filelock import file_lock
 from api.limiter import limiter
@@ -47,7 +49,7 @@ from api.rag import (
     get_activity_stats,
     get_query_count,
 )
-from api.safefile import write_text_atomic
+from api.safefile import ensure_private, write_text_atomic
 from config.settings import (
     ADMIN_API_KEY,
     ADMIN_PATH,
@@ -69,6 +71,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
+# Everything the API writes (questions, answers, feedback, users) is for its owner only: another
+# account in the shared data group, such as the sync account, must not read it.
+os.umask(0o077)
+
 log = logging.getLogger(__name__)
 
 _startup_time = now_local()
@@ -96,6 +102,18 @@ async def lifespan(app: FastAPI):
     if ADMIN_API_KEY and not admin_key_ok():
         raise RuntimeError("ADMIN_API_KEY is a placeholder or shorter than 16 characters: refusing to start "
                            "(generate one, e.g. python -c 'import secrets; print(secrets.token_urlsafe(32))')")
+    from api.auth import _read_users
+    if not AUTH_ENABLED and (_read_users() or []) and os.getenv("ALLOW_ANONYMOUS", "").lower() != "true":
+        # accounts exist but the gate is off: .env was probably not read (permissions after a deploy)
+        raise RuntimeError("users.json has accounts but AUTH_ENABLED is not true (is .env readable?): "
+                           "refusing to start; set ALLOW_ANONYMOUS=true if the gate is meant to be open")
+    from api.datalog import ANSWERS_FILE, FEEDBACK_FILE, GAPS_FILE, RESOLVED_FILE, USAGE_FILE
+    from config.settings import USERS_FILE
+    for problem in await asyncio.to_thread(
+            ensure_private, [USAGE_FILE, ANSWERS_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE,
+                             USERS_FILE, USERS_FILE.parent / "revoked_tokens.json",
+                             USERS_FILE.parent / "stats.json"]):
+        log.error("Data file: %s", problem)
     log.info("Starting chatbot...")
     try:
         from indexer.embedder import check_ollama_embed
@@ -381,7 +399,7 @@ def _take_question(request: Request, user: dict) -> str:
     """Counts the question against the daily limit (api/quota.py) and returns its
     key, so it can be given back if the answer fails; 429 if today's limit is
     already reached (the widget shows the message with the number of questions)."""
-    key = quota.key_for(user, request.client.host if request.client else "")
+    key = quota.key_for(user, client_key(request))
     if not quota.take(key):
         log.info("Limit of %d questions per day reached (%s)",
                  DAILY_QUESTION_LIMIT, "user" if key.startswith("uid:") else "IP")
@@ -393,10 +411,22 @@ def _take_question(request: Request, user: dict) -> str:
     return key
 
 
+def _free_text(text: str) -> str:
+    """Free text sent with a feedback (comment, answer excerpt): the personal data the question
+    filters know are masked, and a text that contains any is replaced altogether, as a question
+    with personal data is not accepted. Otherwise it would sit in feedback.jsonl, the admin panel and the
+    notification emails."""
+    if not text:
+        return text
+    if contains_personal(text):
+        return "[commento rimosso: conteneva dati personali]"
+    return redact(text)
+
+
 def _take_slot(request: Request, user: dict) -> str:
     """A slot for an answer in progress (api/llm_gate.py); 429 "busy" if the user or the
     service has too many answers at once. Nothing is counted against the daily limit."""
-    who = user.get("uid") or (request.client.host if request.client else "")
+    who = user.get("uid") or client_key(request)
     sid = llm_gate.acquire(who)
     if sid is None:
         raise HTTPException(status_code=429, detail={"error": "busy"}, headers={"Retry-After": "5"})
@@ -680,7 +710,7 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         "ts": fs.now_iso(),
         "rating": req.rating,
         "question": redact(req.question)[:200],
-        "answer_preview": req.answer[:100],
+        "answer_preview": _free_text(req.answer[:100]),
         "uid": user.get("uid", ""),
         "user": user.get("name", ""),
     }
@@ -693,8 +723,8 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         entry["rid"] = req.rid
     elif AUTH_ENABLED:
         raise HTTPException(status_code=400, detail="Identificativo della risposta mancante")
-    comment = fs.clean_comment(req.comment)
-    urls = fs.clean_urls(req.urls[:20])
+    comment = _free_text(fs.clean_comment(req.comment))
+    urls = [u for u in fs.clean_urls(req.urls[:20]) if redact(u) == u]
     if comment:
         entry["comment"] = comment
     if urls:
@@ -713,8 +743,8 @@ async def feedback_detail(request: Request, req: FeedbackDetailRequest, backgrou
     to the pages with the correct information. Only the feedback's author.
     If FEEDBACK_NOTIFY_EMAIL is set, notifies the administrator by email."""
     from api import feedback_store as fs
-    comment = fs.clean_comment(req.comment)
-    urls = fs.clean_urls(req.urls[:20])
+    comment = _free_text(fs.clean_comment(req.comment))
+    urls = [u for u in fs.clean_urls(req.urls[:20]) if redact(u) == u]
     if not comment and not urls:
         raise HTTPException(status_code=400, detail="Nessun dettaglio da salvare")
     entry = await asyncio.to_thread(fs.attach_details, req.id, user.get("uid", ""), comment, urls)

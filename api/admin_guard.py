@@ -1,11 +1,14 @@
 """
 Admin key check with a limit on wrong attempts.
 
-Errors are counted per IP address (the real one, behind the load balancer, thanks
-to FORWARDED_ALLOW_IPS). After ADMIN_MAX_ATTEMPTS wrong keys within the window
-the address is blocked for ADMIN_LOCKOUT_SECONDS: 429 response even if the key
-were right. The count lives in memory and restarts from zero when the
-service restarts. Localhost (sync.py, forget.py) is never blocked.
+Errors are counted per client (the real address, behind the load balancer, thanks
+to FORWARDED_ALLOW_IPS; IPv6 clients by their /64 network, see api/clientkey.py).
+After ADMIN_MAX_ATTEMPTS wrong keys within the window the client is blocked for
+ADMIN_LOCKOUT_SECONDS: 429 response even if the key were right. A ceiling on the
+wrong keys of all clients together (ADMIN_GLOBAL_MAX_FAILURES in the same window)
+stops a guessing attack spread over many networks: past it, every request from
+outside is refused until the window ends. The count lives in memory and restarts
+from zero when the service restarts. Localhost (sync.py, forget.py) is never blocked.
 """
 
 import hmac
@@ -14,6 +17,7 @@ import time
 
 from fastapi import HTTPException, Request
 
+from api.clientkey import client_key
 from config.settings import (
     ADMIN_API_KEY,
     ADMIN_AUTH_DISABLED,
@@ -25,13 +29,21 @@ _LOCAL = {"127.0.0.1", "::1"}
 _lock = threading.Lock()
 _failures: dict[str, list[float]] = {}   # ip -> times of recent errors
 _blocked_until: dict[str, float] = {}    # ip -> end of block
-_MAX_TRACKED = 10_000                    # entries kept in each table, whatever the traffic
+_MAX_TRACKED = 10_000                    # entries kept in the table of the errors, whatever the traffic
+_MAX_BLOCKS = 100_000                    # blocks kept (the ones closest to expiring go first)
+ADMIN_GLOBAL_MAX_FAILURES = 100          # wrong keys, all clients together, per window
+_all_failures: list[float] = []          # times of the recent wrong keys of everybody
 _SWEEP_EVERY = 60.0                      # seconds between the cleanups of expired entries
 _sweep_state = {"last": 0.0}            # monotonic time of the last cleanup
 
 
 def _ip(request: Request) -> str:
-    return request.client.host if request.client else ""
+    return client_key(request)
+
+
+def _is_local(request: Request) -> bool:
+    """The raw peer address (not the /64 key): the sync scripts talk to the API on loopback."""
+    return bool(request.client) and request.client.host in _LOCAL
 
 
 def _locked(ip: str, now: float) -> float:
@@ -46,6 +58,7 @@ def _locked(ip: str, now: float) -> float:
 def _register_failure(ip: str, now: float) -> None:
     recent = [t for t in _failures.get(ip, []) if now - t < ADMIN_LOCKOUT_SECONDS]
     recent.append(now)
+    _all_failures.append(now)
     if len(recent) >= ADMIN_MAX_ATTEMPTS:
         _blocked_until[ip] = now + ADMIN_LOCKOUT_SECONDS
         _failures.pop(ip, None)
@@ -65,9 +78,12 @@ def _sweep(now: float, force: bool = False) -> None:
         del _failures[k]
     for k in [k for k, until in _blocked_until.items() if until <= now]:
         del _blocked_until[k]
-    for table in (_failures, _blocked_until):
-        for k in list(table)[:max(0, len(table) - _MAX_TRACKED)]:
-            del table[k]
+    _all_failures[:] = [t for t in _all_failures if now - t < ADMIN_LOCKOUT_SECONDS]
+    for k in list(_failures)[:max(0, len(_failures) - _MAX_TRACKED)]:
+        del _failures[k]
+    if len(_blocked_until) > _MAX_BLOCKS:   # active blocks are kept unless there are absurdly many
+        for k in sorted(_blocked_until, key=_blocked_until.get)[:len(_blocked_until) - _MAX_BLOCKS]:
+            del _blocked_until[k]
 
 
 MIN_KEY_LENGTH = 16
@@ -84,12 +100,14 @@ def check_admin_key(request: Request, key: str | None) -> bool:
     if not admin_key_ok():
         return ADMIN_AUTH_DISABLED  # no usable key: closed, unless explicitly disabled (development)
     ip = _ip(request)
-    if ip in _LOCAL:
+    if _is_local(request):
         return bool(key) and hmac.compare_digest(key.encode(), ADMIN_API_KEY.encode())
     with _lock:
         now = time.monotonic()
         _sweep(now)
         wait = _locked(ip, now)
+        if not wait and len(_all_failures) >= ADMIN_GLOBAL_MAX_FAILURES:
+            wait = ADMIN_LOCKOUT_SECONDS - (now - _all_failures[0])
         if wait:
             raise HTTPException(
                 status_code=429,

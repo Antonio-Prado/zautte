@@ -82,7 +82,10 @@ RETENTION_STATS_DAYS=90
 SERVICE_USER=
 
 # Pilot login (email + password) and email delivery
+# The API refuses to start when users.json has accounts but AUTH_ENABLED is not true (a lost .env would
+# otherwise open the bot to everybody); ALLOW_ANONYMOUS=true says that an open bot is intended.
 AUTH_ENABLED=false
+#ALLOW_ANONYMOUS=false
 AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
