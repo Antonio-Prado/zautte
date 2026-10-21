@@ -1,6 +1,6 @@
 #!/bin/sh
 # Set up the cron jobs for periodic synchronisation on FreeBSD.
-# Run as the 'chatbot' user (not root).
+# Run as root (crontab -u needs it): the entries are added to the crontab of the 'chatbot' user.
 #
 # Usage:
 #   sh scripts/cron_setup.sh

@@ -16,7 +16,7 @@ APP_USER=${1:-zautte}                 # account of the API (chatbot_user in rc.c
 SYNC_USER=zsync
 SHARED_GROUP=zdata                    # lets both accounts create files in data/
 APP=/opt/chatbot
-DATA=/data/chatbot/data
+DATA=$(cd $APP/data && pwd -P)       # follows a symlink to another disk
 CONTROL=/var/db/zautte-sync
 
 pw groupshow $SHARED_GROUP >/dev/null 2>&1 || pw groupadd $SHARED_GROUP

@@ -30,7 +30,7 @@ Public liveness check. Without a valid `X-Admin-Key` it returns a minimal view:
 }
 ```
 
-With a valid `X-Admin-Key` (or when `ADMIN_AUTH_DISABLED=true`) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
+With a valid `X-Admin-Key` (or when no usable `ADMIN_API_KEY` is set and `ADMIN_AUTH_DISABLED=true`) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
 
 ---
 
@@ -48,7 +48,7 @@ Public. Returns the caller's IP address as the API sees it, shown in the page fo
 
 Complete response (non-streaming). Waits for the full response before replying.
 
-**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows "Hai raggiunto il limite di 20 domande al giorno…". **Concurrent answers**: at most `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; over the limit: `429` with `{"detail": {"error": "busy"}}` and `Retry-After: 5`, before any daily quota is used. See [Rate Limiting](privacy-and-security.md#rate-limiting).
+**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows a localised message with the number of questions per day (and, for `busy`, a message asking to try again in a moment). **Concurrent answers**: at most `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; over the limit: `429` with `{"detail": {"error": "busy"}}` and `Retry-After: 5`, before any daily quota is used. See [Rate Limiting](privacy-and-security.md#rate-limiting).
 
 **Request:**
 ```json
@@ -71,9 +71,13 @@ Complete response (non-streaming). Waits for the full response before replying.
     {"title": "Electronic Identity Card", "url": "https://...", "score": 0.87}
   ],
   "language": "en",
-  "rid": "a1b2c3d4e5f6"
+  "rid": "a1b2c3d4e5f6",
+  "cid": "9f1c2b7a4d3e8a10",
+  "blocked": false
 }
 ```
+
+If `PII_BLOCK` is on and the question contains personal data, the reply is a fixed refusal message with `"blocked": true` and an empty `sources` list. The question is not searched, sent to the model, stored, or counted against the daily limit. On `/chat/stream` the same message arrives as a single `token` event followed by `sources` (with `blocked: true`) and `done`.
 
 In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `answers.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
 
@@ -93,7 +97,7 @@ data: {"token": "An "}
 data: {"token": "identity "}
 data: {"token": "card "}
 ...
-data: {"sources": [{"title": "...", "url": "...", "score": 0.87}], "rid": "a1b2c3d4e5f6", "language": "en"}
+data: {"sources": [{"title": "...", "url": "...", "score": 0.87}], "rid": "a1b2c3d4e5f6", "cid": "9f1c2b7a4d3e8a10", "language": "en"}
 data: {"done": true}
 ```
 
@@ -127,7 +131,7 @@ Saves a 👍/👎 rating. With `AUTH_ENABLED=true` it requires `Authorization: B
 
 - `rating`: `1` (positive) or `-1` (negative)
 - `comment` (optional, max 2000 characters) and `urls` (optional; http/https only, max 5 kept) can also be added later with `POST /feedback/detail`
-- `rid` (optional): the question's id from `/chat` or `/chat/stream`; stored only if it is 12 hex characters
+- `rid`: the question's id from `/chat` or `/chat/stream`; stored only if it is 12 hex characters. With `AUTH_ENABLED=true` it is required and must belong to an answer given to the caller: `400` if missing, `403` if the answer is not found for this user
 
 **Response:** `{"ok": true, "id": "3f9c2a1b7d4e"}`
 
@@ -245,7 +249,6 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `GET /crawl-history` | admin | Recent crawl/indexing events read from `/var/log/chatbot-sync.log`, plus the current progress |
 | `POST /admin/reload` | admin | Reloads the vector store from disk without restarting the API (used by `scripts.sync news`); returns the store statistics plus `reloaded` (`false` if the files were unreadable and the previous store stays in memory) |
 | `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
-| `GET /client-ip` | public | `{"ip"}`: the caller's own IP address, shown in the page footer |
 | `GET /docs` | public, only with `API_DOCS=true` | Swagger UI (schema at `/openapi.json`); off by default, so in production both return `404` |
 
 "user" means: with `AUTH_ENABLED=true`, `Authorization: Bearer <token>` is required; with `AUTH_ENABLED=false` the endpoint is open.
@@ -254,7 +257,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 
 Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`, `/admin/reload`. They require the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; a missing or wrong key returns `403`. `/health` is public but returns its detailed view only with a valid key.
 
-If `ADMIN_API_KEY` is empty, shorter than 16 characters or a placeholder (it starts with "cambia"), every admin request is refused and the API refuses to start with a weak one (the detailed `/health` stays hidden). Only with `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone.
+If `ADMIN_API_KEY` is empty, shorter than 16 characters or a placeholder (it starts with "cambia"), every admin request is refused (the detailed `/health` stays hidden); a non-empty key that is too short or a placeholder also stops the API from starting. Only when no usable key is set and `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone; with a valid key the flag has no effect.
 
 **Lockout.** A wrong key counts as a failed attempt for the client address. After `ADMIN_MAX_ATTEMPTS` (default 5) within `ADMIN_LOCKOUT_SECONDS` (default 900) that address gets `429` with `Retry-After`, even with the right key, on every admin endpoint and on `/health`. Counts are kept in memory (they restart with the service); localhost, used by the maintenance scripts, is never locked.
 
@@ -262,7 +265,7 @@ If `ADMIN_API_KEY` is empty, shorter than 16 characters or a placeholder (it sta
 
 ## User Authentication
 
-With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are signed with HMAC-SHA256 using `AUTH_SECRET` and valid for `AUTH_TOKEN_TTL_DAYS` days (default 7). A token stops working earlier after `POST /auth/logout`, when its user is removed from `users.json`, or when that user's password changes (`auth_version` in `users.json`, raised by the password reset and by `adduser` on an existing user, and repeated in the token). `users.json` is written atomically, under a lock. Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`.
+With `AUTH_ENABLED=true`, `/chat`, `/chat/stream`, `/feedback`, `/feedback/detail` and `/auth/me` require `Authorization: Bearer <token>`, obtained from `POST /auth/login`. Tokens are signed with HMAC-SHA256 using `AUTH_SECRET` (at least 16 characters, otherwise the API refuses to start and no token is signed or accepted) and valid for `AUTH_TOKEN_TTL_DAYS` days (default 7). A token stops working earlier after `POST /auth/logout`, when its user is removed from `users.json`, or when that user's password changes (`auth_version` in `users.json`, raised by the password reset and by `adduser` on an existing user, and repeated in the token). `users.json` is written atomically, under a lock. Users are stored in `data/users.json` (password hashed with scrypt) and managed with `python -m scripts.adduser`. A missing, invalid or expired token returns `401`; so does every request while `users.json` is missing, unreadable or invalid. `python -m scripts.adduser --send-email` emails an invitation with a single-use link to choose the password (`--invite-hours`); no password is ever sent by email.
 
 ## CORS
 

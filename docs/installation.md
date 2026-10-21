@@ -7,7 +7,7 @@ Installing Zautte on FreeBSD, from the prerequisites to the first indexing.
 ## Prerequisites
 
 - FreeBSD 15 (tested on 15.1-RELEASE; 14.x should also work)
-- Python 3.11+
+- Python 3.11 (the lock file and CI use 3.11)
 - Build tools: PyPI has no binary wheels for FreeBSD, so `pip` compiles numpy, lxml,
   pydantic-core, jiter and the other native packages. Install `rust`, `ninja`, `pkgconf`,
   `libxml2` and `libxslt` first (`setup_freebsd.sh` does it). Without a system `ninja`, pip
@@ -49,7 +49,7 @@ pip install -r requirements-lock.txt   # exact versions (FreeBSD, Python 3.11); 
 
 # Configure the environment
 cp .env.example .env
-chmod 600 .env   # API keys and secrets: readable only by its owner (and root)
+chmod 600 .env   # API keys and secrets; with a dedicated service account use root:<account> and 640 (see Operations)
 # Edit .env with your values
 
 # Create data directories
@@ -69,15 +69,16 @@ venv/bin/python -m indexer.indexer
 venv/bin/python -m scripts.sync full
 ```
 
-Every `scripts.sync` mode ends by killing the running `uvicorn api.main:app` processes, so that the API reloads the updated vector store: in production the watchdog starts the service again (see [Watchdog](operations.md#watchdog)).
+When a sync finishes, the API has to load the new index. Run as root, `scripts.sync` restarts it (or, for `news`, asks it to reload); run as the unprivileged sync account, it leaves a request file that the root watchdog acts on within a minute (see [Watchdog](operations.md#watchdog)).
 
 ## Starting the Backend
 
 ```sh
 # Development (with auto-reload)
-venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 
-# Production (via rc.d — see operations.md)
+# Production (via rc.d — see operations.md): create the unprivileged service account and set
+# chatbot_user first (the script does not start as root), install the watchdog and the log rotation
 service chatbot start
 ```
 
