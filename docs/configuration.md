@@ -80,6 +80,9 @@ AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
+# Answers being generated at once: for each user, and in the whole process (over the limit: HTTP 429 "busy")
+LLM_MAX_PER_USER=2
+LLM_MAX_CONCURRENT=8
 SMTP_HOST=
 SMTP_PORT=25
 SMTP_FROM=

@@ -12,8 +12,10 @@ desc="Zautte RAG chatbot"
 
 chatbot_dir="/opt/chatbot"
 # User the API runs as: set chatbot_user="zautte" (or another dedicated account) in
-# /etc/rc.conf. The default, root, only keeps old installations working.
-: ${chatbot_user:=root}
+# /etc/rc.conf. With no user, or root, the service does not start (an old installation
+# that really needs root says so with chatbot_allow_root="YES").
+: ${chatbot_user:=}
+: ${chatbot_allow_root:=NO}
 chatbot_logfile="/var/log/chatbot.log"
 pidfile="/var/run/${name}.pid"
 
@@ -23,6 +25,15 @@ status_cmd="${name}_status"
 
 chatbot_start()
 {
+    if [ -z "${chatbot_user}" ] || [ "${chatbot_user}" = "root" ]; then
+        if checkyesno chatbot_allow_root; then
+            chatbot_user=root
+        else
+            echo "${name}: set chatbot_user to an unprivileged account in /etc/rc.conf" \
+                 "(see docs/operations.md); chatbot_allow_root=\"YES\" keeps running it as root."
+            return 1
+        fi
+    fi
     if [ -f "${pidfile}" ] && ps -p "$(cat "${pidfile}")" > /dev/null 2>&1; then
         echo "${name} is already running as pid $(cat "${pidfile}")."
         return 1

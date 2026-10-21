@@ -220,7 +220,7 @@ _users_state: dict = {"mtime": None, "users": None}
 
 def _users_cached() -> list[dict] | None:
     """The user list, reread only when users.json changes (checked on every request).
-    If the file cannot be read, the last good copy is kept; with none, None."""
+    None if the file is missing, unreadable or invalid: nobody is let in."""
     try:
         mtime = os.stat(USERS_FILE).st_mtime
     except OSError:
@@ -228,8 +228,11 @@ def _users_cached() -> list[dict] | None:
     if _users_state["mtime"] != mtime:
         users = _read_users()
         if users is None:
-            log.warning("users.json cannot be read: keeping the last good copy")
-            return _users_state["users"]
+            # fail closed: sessions are refused until the file is valid again (writes are
+            # atomic, so a half-written file is never seen; an invalid one is an incident)
+            log.error("users.json is unreadable or invalid: every session is refused until it is fixed")
+            _users_state["mtime"], _users_state["users"] = None, None
+            return None
         _users_state["mtime"], _users_state["users"] = mtime, users
     return _users_state["users"]
 

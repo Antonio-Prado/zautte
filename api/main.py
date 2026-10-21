@@ -32,7 +32,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import auth, conversations, quota
+from api import auth, conversations, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.auth import require_user
 from api.datalog import forget
@@ -43,11 +43,13 @@ from api.rag import (
     answer,
     expire_and_save_stats,
     forget_queries,
+    forget_usage_of,
     get_activity_stats,
     get_query_count,
 )
 from api.safefile import write_text_atomic
 from config.settings import (
+    ADMIN_API_KEY,
     ADMIN_PATH,
     API_CORS_ORIGINS,
     API_DOCS,
@@ -90,6 +92,10 @@ async def lifespan(app: FastAPI):
     from api.auth import auth_secret_ok
     if AUTH_ENABLED and not auth_secret_ok():
         raise RuntimeError("AUTH_ENABLED=true needs AUTH_SECRET of at least 16 characters: refusing to start")
+    from api.admin_guard import admin_key_ok
+    if ADMIN_API_KEY and not admin_key_ok():
+        raise RuntimeError("ADMIN_API_KEY is a placeholder or shorter than 16 characters: refusing to start "
+                           "(generate one, e.g. python -c 'import secrets; print(secrets.token_urlsafe(32))')")
     log.info("Starting chatbot...")
     try:
         from indexer.embedder import check_ollama_embed
@@ -385,6 +391,16 @@ def _take_question(request: Request, user: dict) -> str:
             headers={"Retry-After": str(quota.seconds_to_midnight())},
         )
     return key
+
+
+def _take_slot(request: Request, user: dict) -> str:
+    """A slot for an answer in progress (api/llm_gate.py); 429 "busy" if the user or the
+    service has too many answers at once. Nothing is counted against the daily limit."""
+    who = user.get("uid") or (request.client.host if request.client else "")
+    sid = llm_gate.acquire(who)
+    if sid is None:
+        raise HTTPException(status_code=429, detail={"error": "busy"}, headers={"Retry-After": "5"})
+    return sid
 
 
 def _blocked_for_pii(question: str) -> str | None:
@@ -972,6 +988,8 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
         memory = forget_queries([q["q"] for q in result["questions"]])
         for owner in owners:   # the questions may still be in the conversations of their authors
             conversations.forget(owner)
+        if req.uid and req.all:   # every question of the user: their usage records go too
+            memory += forget_usage_of({req.uid})
         log.info("Deletion on request: questions %d, usage entries removed %d, answers %d, "
                  "gaps %d, feedback %d, from memory %d", len(result["questions"]),
                  result["usage"], result["answers"], result["gaps"], result["feedback"], memory)
@@ -1064,7 +1082,12 @@ async def chat(request: Request, req: ChatRequest,
     if blocked:
         return {"answer": BLOCK_MESSAGE, "sources": [], "language": "it",
                 "rid": blocked, "blocked": True}
-    key = _take_question(request, user)
+    slot = _take_slot(request, user)
+    try:
+        key = _take_question(request, user)
+    except HTTPException:
+        llm_gate.release(slot)
+        raise
     try:
         # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
@@ -1087,6 +1110,8 @@ async def chat(request: Request, req: ChatRequest,
         quota.give_back(key)
         log.exception("Error in /chat")
         raise HTTPException(status_code=500, detail="Errore interno del server")
+    finally:
+        llm_gate.release(slot)
 
 
 @app.post("/chat/stream")
@@ -1109,7 +1134,12 @@ async def chat_stream(request: Request, req: ChatRequest,
             yield 'data: {"done": true}\n\n'
         return StreamingResponse(_blocked_stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-    key = _take_question(request, user)
+    slot = _take_slot(request, user)
+    try:
+        key = _take_question(request, user)
+    except HTTPException:
+        llm_gate.release(slot)
+        raise
     try:
         # Recognisable personal data masked before the model and the logs
         question = redact(req.question)
@@ -1120,9 +1150,11 @@ async def chat_stream(request: Request, req: ChatRequest,
         await asyncio.to_thread(_log_usage, user.get("uid"), question, language, rid=rid)
     except ValueError as e:
         quota.give_back(key)
+        llm_gate.release(slot)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         quota.give_back(key)
+        llm_gate.release(slot)
         log.exception("Error in /chat/stream")
         raise HTTPException(status_code=500, detail="Errore interno del server")
 
@@ -1149,6 +1181,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 quota.give_back(key)
                 await queue.put(("error", str(exc)))
             finally:
+                llm_gate.release(slot)
                 # Even if interrupted (error, user gone): we record
                 # what was generated, marked as partial.
                 await asyncio.to_thread(_log_answer, user.get("uid"), rid, "".join(parts),

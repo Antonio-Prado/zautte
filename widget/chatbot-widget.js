@@ -84,6 +84,10 @@
     dailyLimit: (n) => isItalian
       ? `Hai raggiunto il limite di ${n > 0 ? n + " domande" : "domande"} al giorno. Potrai farne altre da domani.`
       : `You have reached the limit of ${n > 0 ? n + " questions" : "questions"} per day. You can ask more tomorrow.`,
+    // Too many answers at once (HTTP 429 with detail.error "busy")
+    busy: isItalian
+      ? "Sto ancora rispondendo alla domanda precedente, oppure il servizio è molto richiesto. Riprova tra qualche istante."
+      : "I am still answering the previous question, or the service is very busy. Please try again in a moment.",
     noInfo: isItalian
       ? "Non ho trovato informazioni specifiche su questo argomento nella base di conoscenza."
       : "I could not find specific information on this topic in the knowledge base.",
@@ -1524,11 +1528,13 @@
       // Daily limit reached: clear message instead of the generic error
       if (resp.status === 429) {
         let limit = 0;
+        let busy = false;
         try {
           const body = await resp.json();
           limit = Number(body && body.detail && body.detail.limit) || 0;
+          busy = !!(body && body.detail && body.detail.error === "busy");
         } catch (e) { /* body is not JSON */ }
-        const text = T.dailyLimit(limit);
+        const text = busy ? T.busy : T.dailyLimit(limit);
         removeTypingIndicator();
         addMessage("bot", text, null);
         announce(text);

@@ -9,6 +9,23 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-22
+
+### Security
+- The environment file of the sync account (`.env.sync`) is built from an allowlist of the settings the jobs need
+  (`scripts/make_sync_env.py`, read with the same parser as the application) instead of removing a list of secrets,
+  so SMTP credentials and `export NAME=...` lines can no longer slip into it. Summary emails of jobs run as that
+  account are no longer sent; run by root they still are.
+- `ADMIN_API_KEY` must be at least 16 characters and not a placeholder: the API refuses to start with a weak
+  one, and an unusable key keeps the admin endpoints closed. `.env.example` ships it empty.
+- The rc.d script no longer defaults to running the API as root: set `chatbot_user`, or `chatbot_allow_root="YES"`
+  to keep the old behaviour knowingly.
+- An unreadable or invalid `users.json` now refuses every session instead of keeping the last good copy.
+- Concurrent answers are limited (`LLM_MAX_PER_USER`, default 2, and `LLM_MAX_CONCURRENT`, default 8): the request
+  is refused with a clear message before it uses any daily quota.
+- Deleting all the questions of a user (`POST /usage/forget` with `uid` and `all`) also removes their usage
+  records from `stats.json`.
+
 ## [0.7.3] - 2026-10-21
 
 ### Added
