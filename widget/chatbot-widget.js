@@ -36,7 +36,6 @@
     {
       apiUrl: "http://localhost:8000",
       primaryColor: "#003366",
-      secondaryColor: "#ffffff",
       title: "Assistente Virtuale",
       subtitle: "",
       welcomeIt:
