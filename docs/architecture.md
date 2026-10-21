@@ -37,7 +37,14 @@ How the pieces fit together, the technology stack and the repository layout.
                       Ollama)
 ```
 
-The API keeps no conversation state: the last 3 turns of a conversation are kept in the API's memory only (api/conversations.py: two hours, never on disk) and the widget holds just the conversation id. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, and the answers given in `data/answers.jsonl` (logged-in users only), subject to the `RETENTION_*` periods and with an id (`rid`) that lets `scripts/forget.py` delete them on request; `data/stats.json` also keeps the 100 most frequent questions, outside those periods. The API log records only the question id (see [Privacy and Security](privacy-and-security.md)).
+The API stores no conversations on disk: the last 3 turns of each conversation (at most 5000 conversations, two hours, api/conversations.py) live only in the API's memory, and the widget holds just the conversation id. Single questions are still logged, after personal-data masking, in `data/usage.jsonl` (logged-in users only), `data/gaps.jsonl` and `data/feedback.jsonl`, and the answers given in `data/answers.jsonl` (logged-in users only), subject to the `RETENTION_*` periods and with an id (`rid`) that lets `scripts/forget.py` delete them on request; `data/stats.json` also keeps the 100 most frequent questions, outside those periods. The API log records only the question id (see [Privacy and Security](privacy-and-security.md)).
+
+## Processes, accounts and ports
+
+- **API**: one uvicorn process (`api/serve.py`, started by `start.sh` under the rc.d service). It runs as an unprivileged service account (`chatbot_user` in rc.conf); `scripts/chatbot_rcd` refuses to run it as root unless `chatbot_allow_root="YES"`. The supervisor `daemon(8)` stays root only to own the pid file and the log. It listens on `API_HOST` (default `127.0.0.1,::1`), port `API_PORT` (default 8000).
+- **Sync jobs** (`full_sync.sh`, `incremental_sync.sh`, `news_sync.sh`, `sync inbox`): run as the unprivileged account `zsync` (`scripts/setup_sync_user.sh`), which reads `.env.sync` (an allowlist built by `make_sync_env.py`, no secrets). They write only `vectorstore`, `crawl_cache`, `documents`, `inbox` and `backups`.
+- **Watchdog** (`scripts/watchdog.sh`, root, cron every minute): restarts the API if `/health` does not answer, and carries out the `restart`/`reload` request files that sync jobs leave in `SYNC_CONTROL_DIR`.
+- **Ollama** (default `http://localhost:11434`, local only): embeddings and the optional local LLM; it should run as its own unprivileged account too.
 
 ---
 
@@ -72,8 +79,11 @@ zautte/                       # deployed as /opt/chatbot
 ├── requirements.txt          # Python dependencies
 ├── pyproject.toml            # ruff configuration (Python 3.11)
 ├── start.sh                  # Launcher run by the rc.d service (uvicorn on the addresses of API_HOST, port API_PORT)
-├── LICENSE, CONTRIBUTING.md, SECURITY.md
-├── .github/                  # CI (ruff lint), CodeQL, Dependabot, issue/PR templates
+├── requirements-lock.txt     # Exact versions used in production
+├── README.md, CHANGELOG.md, LICENSE, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, ACCESSIBILITY.md
+├── version.json, CITATION.cff, publiccode.yml  # Release metadata, kept equal by scripts/check_version.py
+├── .github/                  # CI (ruff, version check, accessibility check), CodeQL, release workflow, Dependabot, issue/PR templates
+├── tests/a11y/check.py       # Accessibility check run in CI
 │
 ├── config/
 │   ├── settings.py           # Centralized config (loads .env)
@@ -134,7 +144,8 @@ zautte/                       # deployed as /opt/chatbot
 │
 ├── docs/                     # This documentation (index: docs/README.md)
 │   ├── architecture.md, installation.md, configuration.md, how-it-works.md,
-│   │   api.md, widget.md, operations.md, privacy-and-security.md, releasing.md
+│   │   api.md, widget.md, operations.md, privacy-and-security.md, releasing.md,
+│   │   accessibility-testing.md
 │   ├── images/               # Screenshots used in the README
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │
@@ -147,8 +158,9 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── eval.py               # RAG quality evaluation
 │   ├── purge_logs.py         # Applies retention periods to user logs (daily cron)
 │   ├── forget.py             # Deletes questions on request from logs and API memory
-│   ├── adduser.py            # Creates/updates/removes pilot users (--send-email: invitation with a link, no password by email)
+│   ├── adduser.py            # Creates/updates/removes users (--send-email: invitation with a link, no password by email)
 │   ├── feedback_open.py      # Lists open negative feedback
+│   ├── check_version.py      # Checks that version.json, CHANGELOG, CITATION.cff and publiccode.yml agree (CI, release)
 │   ├── cleanup_index.py      # Purges crawl-cache entries now excluded by the crawler filters
 │   ├── full_sync.sh          # Monthly full sync (zero downtime, sync lock)
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
@@ -158,25 +170,25 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── make_sync_env.py      # Builds .env.sync from an allowlist (no secrets)
 │   ├── rotate_ollama_log.sh  # Rotates the Ollama logs by copy and truncate (daily cron)
 │   ├── chatbot_rcd           # rc.d script for the service
-│   ├── cron_setup.sh         # Installs the cron jobs (run as root)
+│   ├── cron_setup.sh         # Installs the cron jobs of the syncs, the inbox, the log purge and log rotation (run as root; the watchdog, backup and news sync entries are added separately)
 │   ├── backup_vectorstore.sh # Daily vector store backup
 │   ├── watchdog.sh           # Watchdog: restarts the API if it is down or unresponsive
 │   ├── newsyslog-chatbot.conf # Log rotation configuration
 │   └── pf.conf.example       # Firewall template (pf)
 │
 └── data/                     # Auto-generated (do not commit)
-    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, news_state.json
+    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, news_state.json (written by the crawler and news_sync.py)
     ├── documents/            # Downloaded PDFs
-    ├── vectorstore/          # Embeddings + metadata (numpy)
+    ├── vectorstore/          # Embeddings + metadata (numpy; written by the sync jobs)
     ├── inbox/                # Documents to index manually (processed/, errors/)
-    ├── backups/              # Compressed vector store backups
+    ├── backups/              # Compressed vector store backups (backup_vectorstore.sh, last 7 days kept)
     ├── gaps.jsonl            # Unanswered or weakly answered queries (content gaps)
     ├── feedback.jsonl        # User feedback (thumbs up/down, comments, links)
     ├── resolved_negative.json # Negative feedback marked as resolved
-    ├── usage.jsonl           # Per-user usage (pilot users only)
-    ├── answers.jsonl         # Answers given, by question id (pilot users only)
-    ├── stats.json            # Query counters, the 100 most frequent questions, response times, token and cost history
-    ├── users.json            # Pilot users (password stored as scrypt hash)
+    ├── usage.jsonl           # Per-user usage (logged-in users only); written by the API, rewritten by purge_logs and forget
+    ├── answers.jsonl         # Answers given, by question id (logged-in users only)
+    ├── stats.json            # Query counters, the 100 most frequent questions, response times, token and cost history (last 100 records); written by the API
+    ├── users.json            # Users (password stored as scrypt hash); written by adduser.py and the API (password changes)
     └── revoked_tokens.json   # Tokens ended by logout, until they expire
 ```
 

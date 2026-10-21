@@ -2,7 +2,7 @@
 
 # Configuration
 
-Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
+Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Names that steer the loader, the interpreter or program lookup (`PATH`, `HOME`, `LD_*`, `DYLD_*`, `PYTHON*`, `SSL_CERT*`, `REQUESTS_CA*`, `CURL_CA*`, `BASH_*`, `MALLOC_*`, …) are ignored when found in `.env`. `ZAUTTE_ENV_FILE` (read from the environment only) points to an alternative env file; the unprivileged sync account uses it. Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
 
 ## Separating your organisation's files from the code
 
@@ -26,10 +26,11 @@ SITE_NAME=Your-organization
 # Domains allowed during the crawl (comma-separated; with an empty list only the start URLs are fetched)
 CRAWL_ALLOWED_DOMAINS=www.your-site.com
 # A host is allowed if it is one of these domains or a subdomain of one. Other hosts, IP addresses,
-# hosts resolving to a private address and redirects to them are refused. Limits of one download (MB):
+# hosts resolving to a private address and redirects to them are refused.
 CRAWL_BLOCK_PRIVATE_IPS=true
 # Hosts of yours that resolve to a private address on this server (split-horizon DNS)
 CRAWL_PRIVATE_OK_HOSTS=
+# Limits of one download (MB): pages and feeds / PDFs and other attachments
 CRAWL_MAX_PAGE_MB=20
 CRAWL_MAX_FILE_MB=100
 # Domains whose links are dead after a migration: content stays indexed, links are hidden
@@ -52,6 +53,9 @@ CLAUDE_MODEL=claude-sonnet-4-6
 LLM_EFFORT=low
 # Rewrites follow-up questions into standalone queries before retrieval
 QUERY_REWRITE=true
+# Model used for the rewrite (default: the answer model)
+#CLAUDE_REWRITE_MODEL=
+#BEDROCK_REWRITE_MODEL=
 
 # Claude on AWS Bedrock (pip install "anthropic[bedrock]"); the "eu." inference
 # profile keeps processing inside EU regions. AWS credentials come from the
@@ -62,8 +66,11 @@ BEDROCK_MODEL=eu.anthropic.claude-sonnet-4-6
 # Personal data in questions: masked before the LLM and the logs
 PII_REDACTION=true
 PII_KEEP_EMAIL_DOMAINS=your-municipality.it,pec.your-municipality.it
+# Refuse a question that contains personal data: no search, no model call, nothing logged
+PII_BLOCK=true
 
 # Retention of user logs in days (0 = keep forever), applied by scripts/purge_logs.py
+# (RETENTION_STATS_DAYS: applied by the API itself)
 RETENTION_USAGE_TEXT_DAYS=90
 RETENTION_USAGE_DAYS=365
 RETENTION_GAPS_DAYS=180
@@ -126,6 +133,8 @@ ADMIN_LOCKOUT_SECONDS=900
 
 ## Key Parameters in `settings.py`
 
+Parameters that are not variables of `.env` (constants in `config/settings.py`, changed in the code): `CRAWL_MAX_PAGES`, `CRAWL_DELAY_SECONDS`, `CRAWL_EXCLUDE_PATTERNS`, `CRAWL_MAX_PATH_DEPTH`, `CHUNK_SIZE`, `CHUNK_OVERLAP`, `EMBEDDING_DIMENSION`, `RETRIEVAL_TOP_K`. The variables of the example above that are not listed in this table are described in the comments of that block.
+
 | Parameter              | Default                        | Description                                          |
 |------------------------|--------------------------------|------------------------------------------------------|
 | `SITE_URL`             | *(from .env)*                  | Root URL for crawling                                |
@@ -139,7 +148,7 @@ ADMIN_LOCKOUT_SECONDS=900
 | `CRAWL_MAX_PAGE_MB` / `CRAWL_MAX_FILE_MB` | `20` / `100` | Largest download accepted: pages and feeds / PDFs and other attachments |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
-| `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); production excludes two university theses published among the site's attachments (`/s3/6115/allegati/tesi-`) |
+| `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); for example attachments that are of no use to citizens (theses, technical drawings) |
 | `CRAWL_SECTION_RULES`  | `section_rules` in `crawl_extra.json` | Rules that label each page with a `section` from its host name: `[{"host_contains": "suap", "section": "suap"}]`, first match wins, `sito_principale` otherwise |
 | `NEWS_SOURCES`         | `news` in `crawl_extra.json`   | Sources of the near-real-time news sync (`scripts.sync news`, see [Operations](operations.md)): `wordpress_api` (base URL of a WordPress REST API, `.../wp-json/wp/v2`), `rss` (feeds of the institutional site), `attachment_hosts` (extra hosts whose PDF/ODT/DOCX attachments are downloaded), `section` (metadata label) |
 | `CRAWL_URL_ALIASES`    | `url_aliases` in `crawl_extra.json` | Hosts that serve the same files under a path prefix (the CMS attachments on `www.`, the API host and the S3 bucket): their URLs are rewritten to `canonical_host`, so each file is fetched and indexed once and attachments on hosts outside `CRAWL_ALLOWED_DOMAINS` are included |
@@ -159,6 +168,8 @@ ADMIN_LOCKOUT_SECONDS=900
 | `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
 | `BEDROCK_REWRITE_MODEL`| `BEDROCK_MODEL`                | Model used to rewrite follow-up questions (`bedrock` provider) |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
+| `PII_BLOCK`            | `true`                         | Refuses a question that contains personal data (no search, no model call, nothing logged), independently of `PII_REDACTION` |
+| `SYNC_CONTROL_DIR`     | `/var/db/zautte-sync`          | Where sync jobs that are not root leave `restart`/`reload` requests for the root watchdog |
 | `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365` / `90` | Retention of question text, usage, gaps, feedback, and of the most frequent questions and per-user token records in `stats.json` (applied by the API itself) |
 
 Constants in `api/rag.py`, calibrated for `bge-m3`:

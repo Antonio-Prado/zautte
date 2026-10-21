@@ -24,8 +24,8 @@ You will receive an acknowledgement within 48 hours and a status update within 7
 
 ## Security design notes
 
-- **Stateless backend**: conversations are kept by the widget, not on the server; single questions are logged after personal-data masking, with retention periods and deletion on request (see [Privacy and Security](docs/privacy-and-security.md))
+- **Conversation memory**: the server keeps the last 3 turns of each conversation in memory only (two hours, tied to the user, never written to disk, lost on restart); the widget only holds a conversation id. Questions are logged after personal-data masking, with retention periods and deletion on request (see [Privacy and Security](docs/privacy-and-security.md))
 - **Rate limiting**: `/chat` and `/chat/stream` allow `DAILY_QUESTION_LIMIT` questions per day per logged-in user (default 20, `api/quota.py`); feedback, login and password reset are limited per IP via `slowapi` (see [Rate Limiting](docs/privacy-and-security.md#rate-limiting))
-- **Admin endpoints** (`/stats`, `/gaps`, `/feedback/*`, `/usage/*`, `/crawl-history`) require the `X-Admin-Key` header; set `ADMIN_API_KEY` in `.env` (a long random key: after `ADMIN_MAX_ATTEMPTS` wrong keys the client address is locked out); the restricted area lives at the address in `ADMIN_PATH`, not in any public page
+- **Admin endpoints** (`/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/*`, `/crawl-history`, `/admin/reload`) require the `X-Admin-Key` header; `ADMIN_API_KEY` must be at least 16 characters and not a placeholder (the API refuses to start with a weak one), and after `ADMIN_MAX_ATTEMPTS` wrong keys the client address is locked out; the restricted area lives at the address in `ADMIN_PATH`, not in any public page
 - **CORS**: restrict `API_CORS_ORIGINS` to your own domain in production
 - **Secrets** (`ANTHROPIC_API_KEY`, `ADMIN_API_KEY`, `AUTH_SECRET`): only in `.env`, never in code or version control; `chmod 600 .env` so that only its owner (and root) can read it, backups of `.env` included

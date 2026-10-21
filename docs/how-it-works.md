@@ -12,7 +12,10 @@ Each question flows through this pipeline (`api/main.py`, then `answer()` in `ap
 User question
      │
      ▼
-1. redact()               — masks tax codes, IBANs, cards, emails, phones in the question (api/pii.py)
+0. PII_BLOCK check        — a question with personal data (tax code, IBAN, card, email, phone, or a first-person
+                            introduction) gets a fixed "rephrase" reply: no search, no LLM, text not logged (api/pii.py);
+   limits                 — daily limit or too many answers at once: 429 before anything else (api/quota.py, api/llm_gate.py)
+1. redact()               — masks any residual personal data in the question (api/pii.py)
      │                      and gives the question its id (rid)
      ▼
    smalltalk.classify()   — greetings, thanks, compliments, insults: fixed reply, stop here (api/smalltalk.py)
@@ -56,7 +59,7 @@ When streaming finds no chunk at all, the LLM is not called: the answer is a fix
 
 ### Messages With No Question
 
-"grazie", "bravo", "ciao", "a presto" or an insult ask nothing of the site. `api/smalltalk.py` recognizes them when the message is short (up to 8 words) and made only of greeting, thanks, compliment, goodbye or insult words plus a few fillers ("sei", "molto", "mille", "per", "la"…): they get a fixed reply in Italian or English, with no retrieval and no model call, and stay out of the gap log and of the most frequent questions. A single content word ("grazie, e per la TARI?", "non è chiaro", "sì grazie") sends the message down the normal path. An insult is answered with an apology and an invitation to rephrase or to report the answer with 👎.
+"grazie", "bravo", "ciao", "a presto" or an insult ask nothing of the site. `api/smalltalk.py` recognizes them when the message is short (up to 8 words and 80 characters) and made only of greeting, thanks, compliment, goodbye or insult words plus a few fillers ("sei", "molto", "mille", "per", "la"…): they get a fixed reply in Italian or English, with no retrieval and no model call, and stay out of the gap log and of the most frequent questions. A single content word ("grazie, e per la TARI?", "non è chiaro", "sì grazie") sends the message down the normal path. An insult is answered with an apology and an invitation to rephrase or to report the answer with 👎.
 
 ### Follow-up Questions
 
@@ -64,7 +67,7 @@ With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRI
 
 ### Known Facts
 
-The four files in `config/` that describe a specific organisation (`known_facts.json`, `synonyms.json`, `offices.json`, `crawl_extra.json`) are not versioned: copy each `*.example.json` to the same name without `.example` and fill it in. Without them Zautte still starts, with no known facts, synonyms, offices or crawl overrides.
+The four files in `config/` that describe a specific organisation (`known_facts.json`, `synonyms.json`, `offices.json`, `crawl_extra.json`) are not part of the repository (they live in the folder of `INSTANCE_DIR`, see [Configuration](configuration.md)): copy each `*.example.json` to the same name without `.example` and fill it in. Without them Zautte still starts, with no known facts, synonyms, offices or crawl overrides.
 
 `config/known_facts.json` holds curated texts for topics the site covers poorly (opening hours, procedures, links). An entry is added to the context, ahead of the retrieved chunks and with score 1.0, when the question contains one of its `keywords` and one of its `require_any` words (whole single words: multi-word keywords never match). Retrieved chunks from the same source are dropped.
 
@@ -82,7 +85,7 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 
 - **+0.02 for each query term** present in the chunk's title
 - **+0.01** if the category is `"servizio"` (service pages)
-- **-0.04** (`PDF_PENALTY`) for chunks of PDF files, so that at similar relevance the site's pages, written for citizens, come before PDFs; a PDF that is clearly more relevant (a form, a regulation) still makes the 7. 80% of the chunks come from PDFs. Measured on 6 October 2026 with 259,379 chunks: right page in the 7 chunks 79 → 81/100, MRR@7 0.663 → 0.748, no question lost (removing the site's attachments altogether gave 80 and 0.726). Manually uploaded texts (inbox) have `doc_type` `document` and are not penalized
+- **-0.04** (`PDF_PENALTY`) for chunks of PDF files, so that at similar relevance the site's pages, written for citizens, come before PDFs; a PDF that is clearly more relevant (a form, a regulation) still makes the 7. On a reference index, where PDFs are most of the chunks, this small penalty raised retrieval quality (right page among the 7 chunks, MRR@7) without losing any test question. Manually uploaded TXT and DOCX files (inbox) have `doc_type` `document` and are not penalized; uploaded PDFs are
 - **-0.05 × n** if the same source has already appeared (penalizes duplicates)
 
 Each chunk keeps its cosine score, which the confidence check and the sources list use.
@@ -93,7 +96,7 @@ Each chunk keeps its cosine score, which the confidence check and the sources li
 
 ### Response Cache
 
-Complete answers from `/chat` (non-streaming) to questions without history are cached in memory, per API process, in an LRU of 200 entries with no expiry (emptied on every restart, e.g. after a sync). The key is the MD5 of the masked question, lowercased and stripped. `/chat/stream`, used by the widget, is never cached.
+Complete answers from `/chat` (non-streaming) to questions without history are cached in memory, per API process, in an LRU of 200 entries with no expiry (emptied on every restart and on every index reload, e.g. after a sync). The key is the MD5 of the masked question, lowercased and stripped. `/chat/stream`, used by the widget, is never cached.
 
 ### Gap Log
 
@@ -108,7 +111,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 ### How It Works
 
 1. **BFS** (breadth-first) starting from `SITE_URL` and the `extra_start_urls` in `config/crawl_extra.json`
-2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: the CMS of the reference site serves the same attachment under `/s3/6115/` on four hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS`
+2. Rewrites links to alias hosts onto their canonical host (`url_aliases` in `crawl_extra.json`: for example when the CMS serves the same attachment under a path prefix on several hosts), then follows only links to domains in `CRAWL_ALLOWED_DOMAINS` (the domain itself and its subdomains; never IP addresses or hosts resolving to private addresses, see `CRAWL_BLOCK_PRIVATE_IPS`; every redirect is checked, and downloads are capped by `CRAWL_MAX_PAGE_MB` and `CRAWL_MAX_FILE_MB`)
 3. Skips URLs containing any of the `CRAWL_EXCLUDE_PATTERNS` (plus `exclude_patterns` from `crawl_extra.json`), deeper than `CRAWL_MAX_PATH_DEPTH` (10 segments; per-domain limits in `domain_max_path_depth`), or repeating a non-numeric path segment (CMS breadcrumb loops); PDF links skip instead those containing one of the `pdf_exclude_patterns`
 4. For each HTML page (responses with HTTP status ≥ 400 are skipped):
    - Extracts text with `clean_text()` (removes nav, footer, widgets, noise lines)
@@ -149,6 +152,7 @@ State is managed by the `CrawlState` class in `crawler/state.py`.
 
 `clean_text()` takes the text from `<main>` (or the first element whose id contains content/main/body, then whose class contains content/main/article, then `<article>`, then `<body>`) and removes:
 - Tags `<script>`, `<style>`, `<noscript>`, `<nav>`, `<header>`, `<footer>`, `<aside>`, `<form>`, `<iframe>`
+- Elements hidden from view (`hidden` attribute, `display:none`, zero font size or opacity, far off-screen), so text meant only for a machine reader cannot reach the index (a defence against prompt injection)
 - CSS elements with classes `feedback`, `rating`, `survey`, `cookie`, `breadcrumb`, `pagination`, etc.
 - Noise lines: "go to page", "read more", "share", "print", page numbers, etc.
 - Lines shorter than 4 characters
@@ -177,7 +181,7 @@ The `title` of a crawled PDF is its internal `/Title`, or the cached file name (
 
 ### Embedding (`indexer/embedder.py`)
 
-Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). Until October 2026 the model was `mxbai-embed-large`: on 100 questions about municipal services, over the full index (222,480 chunks), `bge-m3` put the right page among the 7 chunks passed to the LLM 80 times against 58. To switch model see [Changing embedding model](operations.md#changing-embedding-model).
+Embeddings are generated via Ollama using the `bge-m3` model (1024 dimensions, multilingual, 8192-token context). `bge-m3` replaced `mxbai-embed-large` as the default after a retrieval comparison on a reference index, where it put the right page among the 7 chunks passed to the LLM far more often. To switch model see [Changing embedding model](operations.md#changing-embedding-model).
 
 - Uses Ollama's `/api/embed` endpoint with **native batches** (16 texts per call)
 - If a batch is rejected, its texts are sent one at a time; after 3 consecutive rejected batches, the rest of the run goes one text at a time
@@ -225,7 +229,7 @@ python -m scripts.inbox_indexer --watch
 }
 ```
 
-Processed files are moved to `data/inbox/processed/` (or `data/inbox/errors/` on failure, or with less than 100 characters of text). Inbox chunks are marked `origin: "inbox"`, so the stale-source cleanup of the syncs never removes them. Every `scripts.sync` mode except `reembed` also processes the inbox at the end.
+Processed files are moved to `data/inbox/processed/` (or `data/inbox/errors/` on failure, or with less than 100 characters of text). Inbox chunks are marked `origin: "inbox"`, so the stale-source cleanup of the syncs never removes them. The `full`, `incremental`, `full-index` and `inbox` modes of `scripts.sync` also process the inbox (`news` and `reembed` do not).
 
 ---
 
@@ -270,7 +274,7 @@ The BM25 index (`BM25Okapi`, lowercase letter-only tokens: numbers are not index
 
 ### Operational Note
 
-The vector store is loaded into memory once by the API process (at startup, or at the first query if Ollama was unreachable); `start.sh` runs a single process for IPv4 and IPv6 (`api/serve.py`). Chunks added by a standalone `indexer.indexer` or `inbox_indexer` run are not visible until the API restarts; `scripts.sync` restarts it at the end of every mode.
+The vector store is loaded into memory once by the API process (at startup, or at the first query if Ollama was unreachable); `start.sh` runs a single process for IPv4 and IPv6 (`api/serve.py`). Chunks added by a standalone `indexer.indexer` or `inbox_indexer` run are not visible until the API reloads or restarts. After `scripts.sync`, the `news` mode asks the API to reload the index without restarting; the other modes request a restart (done directly when run as root, otherwise left as a request file for the root watchdog).
 
 ---
 

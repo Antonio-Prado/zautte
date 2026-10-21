@@ -8,7 +8,7 @@ How to check that Zautte works with assistive technologies. The target and the c
 
 `tests/a11y/check.py` runs on every push (job *Accessibility (axe-core)*). It serves `widget/` locally, simulates the API and checks, in Chromium:
 
-- axe-core 4.10.2 with the WCAG 2.0, 2.1 and 2.2 A and AA rules, on every state: floating chat closed and open, login and login error, answer with sources and 👍/👎, report form, 320 px width, the dashboard's colleague and admin views, `come-funziona.html`;
+- axe-core 4.10.2 with the WCAG 2.0, 2.1 and 2.2 A and AA rules, on every state: floating chat closed and open, login and login error, answer with sources and 👍/👎, report form, 320 px width, the dashboard's login and in-page chat, the restricted admin panel, the daily-limit state, `come-funziona.html`;
 - what axe cannot see: the closed chat stays out of the Tab order, the panel is not modal, focus is not lost (after an answer, a failed login, a 👎, "Non ora", Esc), the conversation is not a live region, the finished answer is announced once without markdown or addresses and with the number of sources, the announcement area empties afterwards, headings, lists and links in answers are real HTML, English answers carry `lang="en"`, 👍/👎 have names and `aria-pressed`, form fields have visible labels, no transitions with reduced motion, no horizontal scrolling at 320 px.
 
 Run it locally:

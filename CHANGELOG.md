@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-10-22
+
+### Changed
+- Documentation reread against the code and corrected: the sync environment, the privilege model, the unprivileged
+  service account required by the rc.d script, request files for the watchdog, the manual sync lock, the data
+  folder paths, new and missing settings in `.env.example` and the configuration guide, the chat responses
+  (`cid`, `blocked`, 429 `busy`), the feedback `rid` rules, the crawler network policy, the reference figures and
+  installation-specific wording, and the contributing guide (lint, accessibility check, version check).
+- `scripts/setup_sync_user.sh` finds the data folder from the installation (it follows a symlink) instead of a
+  fixed path; the `newsyslog` sample no longer lists logs that nothing writes; `scripts/cron_setup.sh` says it
+  must run as root.
+
 ## [0.7.6] - 2026-10-22
 
 ### Changed

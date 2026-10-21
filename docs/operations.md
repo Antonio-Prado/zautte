@@ -42,14 +42,15 @@ The weekly crawl leaves a news item out of the index for up to seven days. `scri
 - a WordPress news site, such as a municipal bulletin (`wordpress_api`): WordPress REST API `wp/v2/posts`, full article text, date and categories; the state keeps the latest `modified` seen, so a run without news costs two HTTP requests and does not load the vector store;
 - a news feed of the institutional site (`rss`): title, link and date.
 
-For every new or modified item it indexes the article (text prefixed with "Notizia del <date> (<categories>)"), the site pages linked in the article (the twin news page, a service page: same text and metadata the crawler would produce, so the weekly crawl finds the chunks already there) and the PDF, ODT and DOCX attachments linked by the article or by those pages (downloaded to `data/documents/` like the crawler's PDFs; link texts feed the readable PDF titles). All these chunks carry `origin: news`: the incremental and full syncs never remove them as stale (news pages are not always reached by the crawl), but the crawler or a later news run can still replace them when the source changes. The state lives in `data/crawl_cache/news_state.json`; `--backfill` ignores it and indexes the whole archive (a few thousand articles: 1-2 hours), then emails a summary to `FEEDBACK_NOTIFY_EMAIL`.
+For every new or modified item it indexes the article (text prefixed with "Notizia del <date> (<categories>)"), the site pages linked in the article (the twin news page, a service page: same text and metadata the crawler would produce, so the weekly crawl finds the chunks already there) and the PDF, ODT and DOCX attachments linked by the article or by those pages (downloaded to `data/documents/` like the crawler's PDFs; link texts feed the readable PDF titles). All these chunks carry `origin: news`: the incremental and full syncs never remove them as stale (news pages are not always reached by the crawl), but the crawler or a later news run can still replace them when the source changes. The state lives in `data/crawl_cache/news_state.json`; `--backfill` ignores it and indexes the whole archive (a few thousand articles: 1-2 hours), then, when run as root, emails a summary to `FEEDBACK_NOTIFY_EMAIL`.
 
 `scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
 Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
-lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.sync <mode>
+LOCK=/var/db/zautte-sync/sync.lock; [ -d /var/db/zautte-sync ] || LOCK=/var/run/chatbot-sync.lock
+lockf -t 0 $LOCK venv/bin/python -m scripts.sync <mode>
 ```
 
 During long runs the vector store is saved to disk every 30 minutes (checkpoint) and at the end.
@@ -88,13 +89,13 @@ An alternative for installations that run the service as a dedicated `chatbot` u
 
 | Schedule                          | Command      | Description |
 |-----------------------------------|--------------|-------------|
-| every 30 min, 08:00–18:30 Mon–Fri | `sync inbox` | Processes inbox documents (no lock). As user `chatbot` it cannot kill the root-owned uvicorn processes, so the new documents are served only after the next API restart |
+| every 30 min, 08:00–18:30 Mon–Fri | `sync inbox` | Processes inbox documents (no lock). As user `chatbot` it cannot leave the restart request for the watchdog, so the new documents are served only after the next API restart |
 | 02:15 every day                   | `purge_logs` | Applies the log retention periods |
 | 04:00 every Sunday                | `find … -size +10M` | Compresses logs larger than 10 MB in `/var/log/chatbot/` |
 
-Since the sync wrappers need root (see above), prefer `/etc/crontab` for them.
+The script predates the `zsync` account: prefer the `/etc/crontab` lines above, with `zsync`, for the syncs.
 
-Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Domanda a1b2c3d4e5f6 | 36 caratteri | …`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the cron jobs above write to `/var/log/chatbot/` (`sync_inbox.log`, `purge_logs.log`, `sync_full.log`).
+Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Question a1b2c3d4e5f6 | 36 characters | lang=it | chunks=7 | provider=claude`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the cron jobs above write to `/var/log/chatbot/` (`sync_inbox.log`, `purge_logs.log`, `sync_full.log`).
 
 ### Vector Store Backup
 
@@ -111,6 +112,7 @@ Keeps the last **7 days** of backups, removing older ones automatically.
 ```sh
 cd /opt/chatbot
 tar -xzf data/backups/vectorstore_YYYYMMDD_HHMMSS.tar.gz -C data/
+chown -R zsync:zsync data/vectorstore   # the sync account must be able to rewrite it
 service chatbot restart
 ```
 
@@ -121,6 +123,10 @@ service chatbot restart
 - if `/var/run/chatbot.maintenance` exists (created by `service chatbot stop`, removed by `service chatbot start`) it does nothing
 - if the daemon in `/var/run/chatbot.pid` is not running, it runs `service chatbot start`
 - if it is running but `GET http://127.0.0.1:8000/health` does not return `"status":"ok"`, it kills the daemon and the uvicorn processes (`kill -9`) and starts the service again
+- if a `restart` file exists in `/var/db/zautte-sync/` (left by a sync job that is not root) it removes it and runs `service chatbot restart`
+- if a `reload` file exists and the API is healthy, it removes it and calls `POST /admin/reload` with `ADMIN_API_KEY` read from `/opt/chatbot/.env`
+
+The watchdog uses port 8000 and `/var/db/zautte-sync` whatever `API_PORT` and `SYNC_CONTROL_DIR` say: keep the defaults.
 
 Events go to `/var/log/chatbot-sync.log`. The watchdog is also what brings the API back after every sync.
 
@@ -136,8 +142,9 @@ cp /opt/chatbot/scripts/chatbot_rcd /usr/local/etc/rc.d/chatbot
 chmod +x /usr/local/etc/rc.d/chatbot
 chmod +x /opt/chatbot/start.sh      # executed by the rc.d script
 
-# Enable the service
-echo 'chatbot_enable="YES"' >> /etc/rc.conf
+# Enable the service. chatbot_user is required: create the service account first
+# (see "Running as an unprivileged user" below), the script does not start as root
+sysrc chatbot_enable=YES chatbot_user=zautte
 
 # Start
 service chatbot start
@@ -157,7 +164,7 @@ service chatbot status   # status
 The `scripts/chatbot_rcd` script (runs as root, and starts the API as the user in `chatbot_user`, see [Running as an unprivileged user](#running-as-an-unprivileged-user)):
 - does not export `/opt/chatbot/.env`: `config/settings.py` loads it with `python-dotenv` when each process starts, so a `.env` change takes effect at the next API start (`service chatbot restart`, or the watchdog restart after a sync)
 - starts `/opt/chatbot/start.sh` with `daemon(8)`: daemon PID in `/var/run/chatbot.pid`, stdout/stderr to `/var/log/chatbot.log`, reopened on `SIGHUP` (`-H`) when newsyslog rotates it
-- `start.sh` runs one uvicorn process (`python -m api.serve api.main:app`, one worker) listening on port `API_PORT` (8000) on the addresses of `API_HOST` (`.env`; production: `0.0.0.0,::`, both families, restricted by PF); scripts that look for the API process (`scripts/sync.py`, `scripts/watchdog.sh`, this rc.d script) match `api.main:app`
+- `start.sh` runs one uvicorn process (`python -m api.serve api.main:app`, one worker) listening on port `API_PORT` (8000) on the addresses of `API_HOST` (`.env`; default `127.0.0.1,::1`, local only; set `API_HOST=0.0.0.0,::` when a proxy on another host connects, and restrict the port with the firewall); scripts that look for the API process (`scripts/sync.py`, `scripts/watchdog.sh`, this rc.d script) match `api.main:app`
 - `daemon` runs without `-r`: after a crash, or after a sync kills uvicorn, the watchdog restarts the service within a minute
 - `stop` creates `/var/run/chatbot.maintenance` (the watchdog then leaves the service down) and `start` removes it; `status` checks the PID with `kill -0`
 
@@ -171,15 +178,15 @@ sysrc chatbot_user=zautte
 
 chown -R root:wheel /opt/chatbot && chmod -R go-w /opt/chatbot  # code: nobody but root can change it
 chown root:zautte /opt/chatbot/.env && chmod 640 /opt/chatbot/.env   # read by the service, changed only by root
-chmod 751 /data/chatbot                                          # let the account reach the data folder
-chown root:zautte /data/chatbot/data && chmod 1770 /data/chatbot/data   # the account writes in it but, with the sticky bit, cannot rename or delete what root owns
-find /data/chatbot/data -maxdepth 1 -type f -exec chown zautte:wheel {} +
-chgrp zautte /var/log/chatbot-sync.log                           # read by /crawl-history
+# every directory above data/ must be traversable by the account (chmod o+x)
+chown root:zautte /opt/chatbot/data && chmod 1770 /opt/chatbot/data   # the account writes in it but, with the sticky bit, cannot rename or delete what root owns
+find /opt/chatbot/data/ -maxdepth 1 -type f -exec chown zautte:wheel {} +
+chgrp zautte /var/log/chatbot-sync.log                           # read by /crawl-history (setup_sync_user.sh below makes it zsync:zautte)
 ```
 
 ### Running the sync jobs without root
 
-`scripts/setup_sync_user.sh` (run once as root, idempotent) creates the account `zsync` and the group `zdata` (both the API account and `zsync` belong to it, so both can create files in `data/`; the sticky bit keeps each from touching the other's). `zsync` owns only what the sync writes: `vectorstore`, `crawl_cache`, `documents`, `inbox`, `backups`, `/var/log/chatbot/` and the sync log. It reads `.env.sync`, which `scripts/make_sync_env.py` builds from an allowlist of the settings the jobs need (`CRAWL_*`, `OLLAMA_*`, `SITE_*`, `MIGRATED_DOMAINS`, `INSTANCE_DIR`, `API_PORT`, `SYNC_CONTROL_DIR`), read with the application's own `.env` parser: no API, admin, SMTP or provider secret can reach it (the wrappers select it with `ZAUTTE_ENV_FILE`; summary emails are therefore sent only when the job runs as root), so a flaw in a PDF or Office parser reaches neither the API nor its secrets. Edit `.env.sync` again when `.env` changes (run the script again).
+`scripts/setup_sync_user.sh` (run once as root, idempotent) creates the account `zsync` and the group `zdata` (both the API account and `zsync` belong to it, so both can create files in `data/`; the sticky bit keeps each from touching the other's). `zsync` owns only what the sync writes: `vectorstore`, `crawl_cache`, `documents`, `inbox`, `backups`, `/var/log/chatbot/` and the sync log. It reads `.env.sync`, which `scripts/make_sync_env.py` builds from an allowlist of the settings the jobs need (`CRAWL_*`, `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_MODEL`, `SITE_NAME`, `SITE_URL`, `MIGRATED_DOMAINS`, `INSTANCE_DIR`, `API_PORT`, `SYNC_CONTROL_DIR`), read with the application's own `.env` parser: no API, admin, SMTP or provider secret can reach it (the wrappers select it with `ZAUTTE_ENV_FILE`; summary emails are therefore sent only when the job runs as root), so a flaw in a PDF or Office parser reaches neither the API nor its secrets. Edit `.env.sync` again when `.env` changes (run the script again).
 
 Since `zsync` can neither signal the API nor use its admin key, `scripts/sync.py` leaves an empty request file (`reload` or `restart`) in `/var/db/zautte-sync/`; the root watchdog looks for it every minute, removes it, and reloads the index (`POST /admin/reload`) or runs `service chatbot restart`. The sync lock lives in the same folder. Start the manual syncs as that account, under the same lock:
 
@@ -189,7 +196,7 @@ su -m zsync -c 'cd /opt/chatbot && lockf -t 0 /var/db/zautte-sync/sync.lock venv
 
 Change the user of the sync lines in `/etc/crontab` to `zsync` and put `zsync:zautte` on `chatbot-sync.log` in the newsyslog configuration (`scripts/newsyslog-chatbot.conf`). Run as root, `scripts.sync` still works the old way (it reloads or kills the API itself).
 
-What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the folder `data/` itself belongs to root (group `zautte`, mode 1770) and has the sticky bit, so the account cannot rename or replace the root-owned folders inside it (`vectorstore`, `crawl_cache`, `documents`, `inbox`) that the root cron jobs write to. `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before touching them (`api/privdrop.py`). The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the watchdog stays root. The sync jobs do not (see below). Deploying code now needs root. Put `root:zautte` on `chatbot-sync.log` in the newsyslog configuration too, so that rotation keeps the group.
+What the account owns is only what the API writes: the `.env`, and the files directly in `data/` (statistics, logs of questions, feedback, users). The code, the vector store, the downloaded documents and the inbox stay owned by root and are read-only for it; the folder `data/` itself belongs to root (group `zautte`, mode 1770) and has the sticky bit, so the account cannot rename or replace the root-owned folders inside it (`vectorstore`, `crawl_cache`, `documents`, `inbox`) that the root cron jobs write to. `purge_logs` and `adduser`, when started as root, switch to the owner of the data files before touching them (`api/privdrop.py`). The `daemon(8)` supervisor stays root (it owns the pid file and the log), and the watchdog stays root. The sync jobs do not (see the previous section). Deploying code now needs root.
 
 ### Log Rotation
 
@@ -206,9 +213,7 @@ Rotation configured:
 | `/var/log/chatbot.log`      | every day at midnight | 90 files (90 days)   | bzip2 (J)   |
 | `/var/log/chatbot-sync.log` | above 100 MB          | 14 files             | bzip2 (J)   |
 
-`/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for 90 days and then deleted (change the file count in `scripts/newsyslog-chatbot.conf` to match the retention in your privacy notice). newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` (since 6 October 2026).
-
-The file also lists `/var/log/chatbot-crawler.log` and `/var/log/chatbot-indexer.log`, which the current code no longer writes.
+`/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for 90 days and then deleted (change the file count in `scripts/newsyslog-chatbot.conf` to match the retention in your privacy notice). newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` .
 
 ---
 
@@ -344,23 +349,23 @@ pkg lock -y ollama
 
 The Ollama log (`/var/log/ollama-<user>.log`) grows with every request. newsyslog cannot rotate it, because the rc.d script starts `daemon(8)` without `-H` and the file would not be reopened; `scripts/rotate_ollama_log.sh` copies and truncates it instead (it appends, so this is safe). Run it daily from `/etc/crontab` as root: `0 4 * * * root /opt/chatbot/scripts/rotate_ollama_log.sh` (rotates above 50 MB, keeps 8 compressed copies; `OLLAMA_LOG_MAX_KB` and `OLLAMA_LOG_COUNT` change that).
 
-Do not use `service ollama restart`: if the old process has not exited yet, `start` finds it, gives up ("process already running") and leaves Ollama down, and with it every answer. Keep a copy of the old package (`/var/cache/pkg/ollama-<version>.pkg`) to go back with `pkg unlock -y ollama && pkg delete -fy ollama && pkg add <file>`. Since 0.31 the rc.d script defaults to `ollama_user=nobody` with models in `/var/lib/ollama/models`. Do not run Ollama as root: a flaw in its model download (CVE-2026-103663, versions 0.34.2 to 0.35.0) allows writing a library that is loaded after a restart, which as root means a full takeover. Create a dedicated account (`pw useradd ollama -d /var/db/ollama -s /usr/sbin/nologin`), copy the models to `/var/db/ollama/.ollama/models`, `chown -R ollama:ollama /var/db/ollama`, set `ollama_user="ollama"` in `/etc/rc.conf`, then stop, wait for the old process to exit and start (never `restart`), and run `embed_check compare` as above. On 6 October 2026, 0.19.0 → 0.31.1 with `bge-m3`: minimum similarity 0.999906, retrieval evaluation unchanged (hit@7 79/100, MRR@7 0.663), no re-embedding needed.
+Do not use `service ollama restart`: if the old process has not exited yet, `start` finds it, gives up ("process already running") and leaves Ollama down, and with it every answer. Keep a copy of the old package (`/var/cache/pkg/ollama-<version>.pkg`) to go back with `pkg unlock -y ollama && pkg delete -fy ollama && pkg add <file>`. Since 0.31 the rc.d script defaults to `ollama_user=nobody` with models in `/var/lib/ollama/models`. Do not run Ollama as root: a flaw in its model download (CVE-2026-103663, versions 0.34.2 to 0.35.0) allows writing a library that is loaded after a restart, which as root means a full takeover. Create a dedicated account (`pw useradd ollama -d /var/db/ollama -s /usr/sbin/nologin`), copy the models to `/var/db/ollama/.ollama/models`, `chown -R ollama:ollama /var/db/ollama`, set `ollama_user="ollama"` in `/etc/rc.conf`, then stop, wait for the old process to exit and start (never `restart`), and run `embed_check compare` as above.
 
 ### Changing embedding model
 
-Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without crawling again: the API keeps answering with the old model while the new vectors are computed, and the switch needs only an API restart (about 15 seconds). Example with `bge-m3`, the current default (it replaced `mxbai-embed-large` in October 2026):
+Vectors from different models (or from a different Ollama version, which can also change them) are not comparable: if `OLLAMA_EMBED_MODEL` changes, every chunk must be re-embedded. `scripts/reembed.py` does it without crawling again: the API keeps answering with the old model while the new vectors are computed, and the switch needs only an API restart (about 15 seconds). Example with `bge-m3`, the current default:
 
 ```sh
 ollama pull bge-m3
 # 1. compute the new vectors in a cache, while production keeps using the old model
 #    (resumable; identical texts are embedded once; --threads N limits the Ollama threads
 #    to leave CPU to the API)
-nice venv/bin/python -m scripts.reembed build --model bge-m3 --cache /data/chatbot/reembed/bge-m3
-venv/bin/python -m scripts.reembed status --cache /data/chatbot/reembed/bge-m3
-# 2. with no sync running: rewrite embeddings.npy (chunks added after the build are
+nice venv/bin/python -m scripts.reembed build --model bge-m3 --cache /opt/chatbot/data/reembed/bge-m3
+venv/bin/python -m scripts.reembed status --cache /opt/chatbot/data/reembed/bge-m3
+# 2. with no sync running (LOCK as in the manual sync above): rewrite embeddings.npy (chunks added after the build are
 #    embedded now), then switch the model in .env and restart the API
-lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.reembed apply \
-    --model bge-m3 --cache /data/chatbot/reembed/bge-m3 --backup /data/chatbot/backups_keep
+lockf -t 0 $LOCK venv/bin/python -m scripts.reembed apply \
+    --model bge-m3 --cache /opt/chatbot/data/reembed/bge-m3 --backup /opt/chatbot/data/backups_keep
 sed -i '' 's/^OLLAMA_EMBED_MODEL=.*/OLLAMA_EMBED_MODEL=bge-m3/' .env
 service chatbot restart
 ```
@@ -369,10 +374,11 @@ The similarity thresholds and fusion weights in `api/rag.py` (`MIN_SIMILARITY`, 
 
 ### Changing chunking configuration
 
-Chunking is set by `MAX_PARAGRAPH_CHARS` in `indexer/chunker.py` and `CHUNK_OVERLAP` (minimum 150) in `config/settings.py`. To re-chunk the corpus already downloaded:
+Chunking is set by `CHUNK_SIZE` (800) and `CHUNK_OVERLAP` (100) in `config/settings.py` and by `MAX_PARAGRAPH_CHARS` (1200) in `indexer/chunker.py`. To re-chunk the corpus already downloaded:
 
 ```sh
-lockf -t 0 /var/run/chatbot-sync.lock venv/bin/python -m scripts.sync full-index
+LOCK=/var/db/zautte-sync/sync.lock; [ -d /var/db/zautte-sync ] || LOCK=/var/run/chatbot-sync.lock
+lockf -t 0 $LOCK venv/bin/python -m scripts.sync full-index
 ```
 
 It does not crawl: it uses `data/crawl_cache/index.json`. It clears the store first, so chunks from `MIGRATED_DOMAINS` and inbox documents already in `data/inbox/processed/` are lost (move them back to `data/inbox/` to re-index them). Every chunk is re-embedded, which takes hours.
@@ -395,6 +401,9 @@ chmod +x /opt/chatbot/scripts/watchdog.sh
 chmod +x /opt/chatbot/scripts/backup_vectorstore.sh
 chmod +x /opt/chatbot/scripts/incremental_sync.sh
 chmod +x /opt/chatbot/scripts/full_sync.sh
+chmod +x /opt/chatbot/scripts/news_sync.sh
+chmod +x /opt/chatbot/scripts/rotate_ollama_log.sh
+chmod +x /opt/chatbot/scripts/setup_sync_user.sh
 ```
 
 ---

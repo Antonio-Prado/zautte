@@ -43,7 +43,7 @@ It is built to run on a single FreeBSD server with no database and no containers
 </tr>
 <tr>
 <td width="50%">👍 <b>Feedback loop</b><br>Users rate answers and can point to the right page; admins resolve reports and the user is notified by email.</td>
-<td width="50%">🔄 <b>Self-updating index</b><br>News are indexed every 15 minutes; weekly incremental and monthly full crawl; only new or changed chunks are re-embedded; nightly backups and a watchdog.</td>
+<td width="50%">🔄 <b>Self-updating index</b><br>News are indexed every 15 minutes; weekly incremental and monthly full crawl (the 15-minute news job is scheduled separately, see Operations); only new or changed chunks are re-embedded; nightly backups and a watchdog.</td>
 </tr>
 <tr>
 <td width="50%">🧠 <b>Your choice of LLM</b><br>Claude through the Anthropic API or AWS Bedrock (EU, Milan region), or a fully local model with Ollama.</td>
@@ -56,7 +56,7 @@ It is built to run on a single FreeBSD server with no database and no containers
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as Colleague / citizen
+    actor U as User
     participant W as Widget
     participant A as API
     participant S as Vector store<br/>(numpy + BM25)
@@ -65,7 +65,7 @@ sequenceDiagram
 
     loop every 15 min, weekly, monthly
         I->>S: crawl site, news sources, feed, PDF/DOCX<br/>chunk + embed + index
-        I->>A: reload index (no restart)
+        I->>A: reload index (news) or restart (full, incremental)
     end
 
     Note over U,A: sign-in when login is enabled (AUTH_ENABLED)
@@ -77,7 +77,7 @@ sequenceDiagram
     W->>A: POST /chat/stream (token)
     alt the question contains personal data
         A-->>W: fixed reply: rephrase it<br/>(nothing sent to the LLM, nothing logged)
-    else daily limit of questions reached
+    else daily limit reached, or too many answers at once
         A-->>W: 429, the widget explains it
     else
         A->>A: mask residual personal data
@@ -131,7 +131,7 @@ ollama pull bge-m3                     # embedding model, always local
 
 cp .env.example .env                   # set SITE_URL, SITE_NAME, LLM_PROVIDER, ADMIN_API_KEY, ADMIN_PATH, keys
 venv/bin/python -m scripts.sync full   # crawl the site and build the index
-venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+venv/bin/python -m api.serve api.main:app   # listens on API_HOST (default: local only); run it as an unprivileged account, not root
 ```
 
 Then add the widget to your site's pages:
