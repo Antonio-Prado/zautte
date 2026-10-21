@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-22
+
+### Changed
+- The admin key guard keeps the time of its last cleanup in a state dictionary instead of a module variable
+  (closes a code scanning note); no change in behaviour.
+- Documentation aligned with 0.7.4: the sync environment allowlist, new modules and scripts in the architecture
+  tree, the limit on concurrent answers, the reset link in the fragment, the admin key requirements and `PII_BLOCK`.
+
 ## [0.7.4] - 2026-10-22
 
 ### Security

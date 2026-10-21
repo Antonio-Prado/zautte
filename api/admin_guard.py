@@ -27,7 +27,7 @@ _failures: dict[str, list[float]] = {}   # ip -> times of recent errors
 _blocked_until: dict[str, float] = {}    # ip -> end of block
 _MAX_TRACKED = 10_000                    # entries kept in each table, whatever the traffic
 _SWEEP_EVERY = 60.0                      # seconds between the cleanups of expired entries
-_last_sweep = 0.0
+_sweep_state = {"last": 0.0}            # monotonic time of the last cleanup
 
 
 def _ip(request: Request) -> str:
@@ -57,11 +57,10 @@ def _register_failure(ip: str, now: float) -> None:
 def _sweep(now: float, force: bool = False) -> None:
     """Drops the expired entries (at most once a minute) and keeps each table under
     _MAX_TRACKED, oldest first: a scan from many addresses cannot grow them without limit."""
-    global _last_sweep
-    if not force and now - _last_sweep < _SWEEP_EVERY and \
+    if not force and now - _sweep_state["last"] < _SWEEP_EVERY and \
             max(len(_failures), len(_blocked_until)) <= _MAX_TRACKED:
         return
-    _last_sweep = now
+    _sweep_state["last"] = now
     for k in [k for k, v in _failures.items() if now - v[-1] >= ADMIN_LOCKOUT_SECONDS]:
         del _failures[k]
     for k in [k for k, until in _blocked_until.items() if until <= now]:

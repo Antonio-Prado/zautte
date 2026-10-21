@@ -84,6 +84,7 @@ zautte/                       # deployed as /opt/chatbot
 │
 ├── crawler/
 │   ├── crawler.py            # Async httpx crawler
+│   ├── netpolicy.py          # One policy for every download: allowed hosts, public addresses only, pinned connection, bounded size
 │   └── state.py              # Crawl state for incremental mode
 │
 ├── indexer/
@@ -104,6 +105,12 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── feedback_store.py     # Feedback archive (votes, comments, links)
 │   ├── mailer.py             # Email notifications (credentials, reports)
 │   ├── limiter.py            # Rate limiting (slowapi)
+│   ├── llm_gate.py           # Limits on answers generated at once (per user and in total)
+│   ├── filelock.py           # Safe file locks (no symlinks, fail closed)
+│   ├── safefile.py           # Atomic writes and regular-file checks for the data files
+│   ├── privdrop.py           # Maintenance scripts started as root switch to the service account
+│   ├── serve.py              # Starts the single uvicorn process on the addresses of API_HOST
+│   ├── conversations.py      # Last turns of each conversation, in memory
 │   ├── admin_guard.py        # Admin key check with a lockout after repeated wrong keys
 │   └── quota.py              # Daily question limit per user
 │
@@ -147,6 +154,9 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
 │   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
+│   ├── setup_sync_user.sh    # Creates the unprivileged account of the sync jobs (run once as root)
+│   ├── make_sync_env.py      # Builds .env.sync from an allowlist (no secrets)
+│   ├── rotate_ollama_log.sh  # Rotates the Ollama logs by copy and truncate (daily cron)
 │   ├── chatbot_rcd           # rc.d script for the service
 │   ├── cron_setup.sh         # Installs the cron jobs (run as root)
 │   ├── backup_vectorstore.sh # Daily vector store backup

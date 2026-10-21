@@ -111,8 +111,10 @@ API_DOCS=false
 # Admin key (X-Admin-Key header) for /stats, /gaps, /feedback/{list,negative,resolve},
 # /usage/{summary,messages}, /crawl-history and the detailed /health.
 # With an empty key all admin requests are refused; set ADMIN_AUTH_DISABLED=true
-# to open them instead (development only)
-ADMIN_API_KEY=your-secret-key-here
+# to open them instead (development only). At least 16 characters, generated, e.g.
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+# A shorter key, or one that starts with "cambia", stops the API from starting.
+ADMIN_API_KEY=
 ADMIN_AUTH_DISABLED=false
 # Address of the restricted admin area, e.g. /area-riservata (empty = the area is off; the path is
 # never written in the code)
