@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.13] - 2026-10-22
+
+### Fixed
+- `link_hosts` no longer includes the example address used in the instructions to the model (`esempio.it`), which
+  would have let the widget link to it.
+
 ## [0.7.12] - 2026-10-22
 
 ### Security

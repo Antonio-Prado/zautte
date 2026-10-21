@@ -362,13 +362,16 @@ def build_context_block(chunks: list[dict]) -> str:
 _URL_HOST_RE = re.compile(r"https?://([^\s/:?#)\]>\"\']+)", re.IGNORECASE)
 
 
+_EXAMPLE_HOSTS = {"esempio.it", "example.it", "example.com", "example.org", "example.net"}
+
+
 def link_hosts(messages: list[dict], query: str) -> list[str]:
     """Hosts the answer may link to: the site's own, and every host that appears in what the model
     was given (the instructions with the known facts, and the passages), but not in the user's own
     question. A link to any other address is something the model made up or was talked into."""
     given = " ".join(m["content"] for m in messages if m["role"] == "system")
     given += " " + messages[-1]["content"].replace(query, " ")
-    hosts = {h.lower().rstrip(".") for h in _URL_HOST_RE.findall(given)}
+    hosts = {h.lower().rstrip(".") for h in _URL_HOST_RE.findall(given)} - _EXAMPLE_HOSTS   # the example in the instructions
     for d in [SITE_URL, *CRAWL_ALLOWED_DOMAINS]:
         h = (_URL_HOST_RE.search(d).group(1) if d.startswith("http") else d).lower().strip().rstrip(".")
         if h:
