@@ -206,23 +206,29 @@ _NOISE_LINES = re.compile(
 # for the model (indirect prompt injection). aria-hidden is not here on purpose: it hides
 # a decorative element from screen readers, not from the eye.
 _INVISIBLE_STYLE = re.compile(
-    r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0(?![.\d])|opacity\s*:\s*0(?![.\d])|"
-    r"(?:left|top|text-indent)\s*:\s*-\d{4,}",
+    r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*(?:0(?![.\d])|[12]px)|opacity\s*:\s*0(?![.\d])|"
+    r"(?:left|top|text-indent)\s*:\s*-\d{3,}|clip(?:-path)?\s*:\s*(?:rect\(\s*0|inset\(\s*50%)|"
+    r"(?:height|width)\s*:\s*0(?![.\d])[^\"]*overflow\s*:\s*hidden",
     re.IGNORECASE,
 )
+# Classes of the common frameworks that hide an element from the eye (screen-reader-only text included:
+# it is navigation noise for the index, and as good a place as any to hide instructions)
+_INVISIBLE_CLASS = re.compile(r"^(?:d-none|sr-only|visually-hidden|screen-reader-text|u-hidden|hidden)$", re.IGNORECASE)
 
 
-def _drop_invisible(soup: BeautifulSoup) -> None:
+def drop_invisible(soup: BeautifulSoup) -> None:
     for tag in soup.find_all(True):
         if tag.decomposed:
             continue   # inside an element that was already removed
-        if tag.has_attr("hidden") or _INVISIBLE_STYLE.search(tag.get("style") or ""):
+        classes = tag.get("class") or []
+        if (tag.has_attr("hidden") or _INVISIBLE_STYLE.search(tag.get("style") or "")
+                or any(_INVISIBLE_CLASS.match(c) for c in classes)):
             tag.decompose()
 
 
 def clean_text(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    _drop_invisible(soup)
+    drop_invisible(soup)
 
     # Remove useless tags
     for tag in soup.find_all(["script", "style", "nav", "header", "footer",

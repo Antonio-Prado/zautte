@@ -12,6 +12,7 @@ Strategy:
 
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -60,6 +61,17 @@ def _split_long_paragraph(text: str) -> list[str]:
     return splitter.split_text(text)
 
 
+def strip_invisible_chars(text: str) -> str:
+    """Removes the characters a reader cannot see but a model reads: format controls (zero-width,
+    bidirectional marks, the 'tag' block U+E0000 that can spell a hidden message in ASCII), private
+    use and unassigned code points, and control characters other than newline and tab."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(
+        ch for ch in text
+        if ch in "\n\t" or (unicodedata.category(ch) not in ("Cf", "Co", "Cs", "Cn", "Cc") and ch != "\ufeff")
+    )
+
+
 def chunk_document(
     text: str,
     source_url: str,
@@ -82,7 +94,8 @@ def chunk_document(
         }
     }
     """
-    text = text.strip()
+    text = strip_invisible_chars(text).strip()
+    title = re.sub(r"\s+", " ", strip_invisible_chars(title or "")).strip()[:200]
     if not text:
         return []
 

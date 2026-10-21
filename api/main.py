@@ -382,6 +382,7 @@ class ChatResponse(BaseModel):
     rid: str = ""
     cid: str = ""
     blocked: bool = False
+    link_hosts: list[str] = []
 
 
 class ForgetRequest(BaseModel):
@@ -1177,7 +1178,7 @@ async def chat_stream(request: Request, req: ChatRequest,
         question = redact(req.question)
         cid, history = conversations.resolve(user.get("uid", ""), req.cid)
         rid = _new_rid()
-        generator, sources, language = await answer(question, stream=True, history=history,
+        generator, sources, language, hosts = await answer(question, stream=True, history=history,
                                                     uid=user.get("uid"), rid=rid)
         await asyncio.to_thread(_log_usage, user.get("uid"), question, language, rid=rid)
     except ValueError as e:
@@ -1221,6 +1222,7 @@ async def chat_stream(request: Request, req: ChatRequest,
 
         task = _asyncio.create_task(_produce())
         try:
+            yield f"data: {json.dumps({'link_hosts': hosts})}\n\n"   # before the first token: the widget links only to these
             while True:
                 try:
                     kind, value = await _asyncio.wait_for(queue.get(), timeout=15.0)

@@ -9,6 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.12] - 2026-10-22
+
+### Security
+- Against hostile text in indexed pages and files: the instructions now say that the passages are data and not
+  commands, that addresses, IBANs, phone numbers and emails may be given only if they appear in them, and that no
+  official acts are drafted; a passage can no longer imitate the `[Fonte n: ...]` labels and `---` separators that
+  frame the passages, and titles, categories and dates in the labels are cut and checked.
+- When nothing relevant is found, `/chat` also answers with the fixed text and no model call (it used to ask the model, and
+  cache the answer), as `/chat/stream` already did.
+- The answer carries `link_hosts` (a first event of the stream, a field of `/chat`): the site's hosts and those that appear
+  in what the model was given, never one that only the user's question mentions. The widget makes a link only to those
+  hosts, writes the host out for the others, and shows the real address when a link's text names a different one.
+- Text a visitor cannot see is no longer indexed: tiny, off-screen, clipped or zero-size elements and `sr-only`/`d-none`-style
+  classes in pages and in WordPress posts; hidden and deleted text in DOCX, tracked changes, hidden text and comments in
+  ODT; invisible Unicode characters (format controls, the "tag" block, private use) in every document and title.
+
 ## [0.7.11] - 2026-10-22
 
 ### Security

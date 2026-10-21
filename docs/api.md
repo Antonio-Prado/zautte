@@ -73,9 +73,12 @@ Complete response (non-streaming). Waits for the full response before replying.
   "language": "en",
   "rid": "a1b2c3d4e5f6",
   "cid": "9f1c2b7a4d3e8a10",
-  "blocked": false
+  "blocked": false,
+  "link_hosts": ["www.example.com"]
 }
 ```
+
+`link_hosts` lists the hosts the answer may link to: the site's own and those that appear in what the model was given, never one that only the user's question mentions. The widget shows a link to any other host as plain text with the host written out. When nothing relevant is found the reply is a fixed text with no model call, in `/chat` as in `/chat/stream`.
 
 If `PII_BLOCK` is on and the question contains personal data, the reply is a fixed refusal message with `"blocked": true` and an empty `sources` list. The question is not searched, sent to the model, stored, or counted against the daily limit. On `/chat/stream` the same message arrives as a single `token` event followed by `sources` (with `blocked: true`) and `done`.
 
@@ -93,6 +96,7 @@ Streaming response via **Server-Sent Events (SSE)**. This is the endpoint the wi
 
 **Event stream** (each event is followed by a blank line):
 ```
+data: {"link_hosts": ["www.example.com"]}
 data: {"token": "An "}
 data: {"token": "identity "}
 data: {"token": "card "}
