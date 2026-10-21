@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.16] - 2026-10-22
+
+### Security
+- A download is dropped after `CRAWL_MAX_DOWNLOAD_SECONDS` (300): a server that sent one byte every few seconds used to be
+  kept for ever, whatever the size limit.
+- PDF extraction reads at most `PDF_MAX_PAGES` (2000) pages and keeps at most `PDF_MAX_CHARS` (5,000,000) characters, and
+  stops after `PDF_MAX_SECONDS` (180), also in the middle of a page that never finishes, keeping what was read.
+- The crawler follows at most `CRAWL_MAX_QUERY_VARIANTS` (25) query-string variants of one path (endless calendars and
+  filters) and tests its queue in constant time instead of scanning a list.
+- The sync wrappers run the job under `timeout` (news 25 min, incremental 16 h, full 40 h; `SYNC_TIMEOUT` changes it),
+  so a hung job no longer holds the lock for ever and makes every later sync skip.
+
 ## [0.7.15] - 2026-10-22
 
 ### Security

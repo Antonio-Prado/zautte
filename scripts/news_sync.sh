@@ -9,11 +9,15 @@ if [ -d "$CONTROL" ]; then LOCKFILE=$CONTROL/sync.lock; else LOCKFILE=/var/run/c
 if [ "$(id -u)" != 0 ] && [ -r /opt/chatbot/.env.sync ]; then export ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync; fi
 
 cd /opt/chatbot || exit 1
-lockf -t 0 "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.sync news
+# A hung run must not hold the lock for ever and make every later sync skip: stopped after
+# SYNC_TIMEOUT seconds (a normal run takes seconds; every 15 minutes is the rhythm)
+lockf -t 0 "$LOCKFILE" timeout -k 60 "${SYNC_TIMEOUT:-1500}" /opt/chatbot/venv/bin/python -m scripts.sync news
 STATUS=$?
 
 if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then
     exit 0   # previous sync still running
+elif [ $STATUS -eq 124 ]; then
+    logger -t chatbot-news "news sync stopped after ${SYNC_TIMEOUT:-1500} s"
 elif [ $STATUS -ne 0 ]; then
     logger -t chatbot-news "news sync failed (exit $STATUS)"
 fi

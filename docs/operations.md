@@ -46,7 +46,7 @@ For every new or modified item it indexes the article (text prefixed with "Notiz
 
 `scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
-Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
+Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
 LOCK=/var/db/zautte-sync/sync.lock; [ -d /var/db/zautte-sync ] || LOCK=/var/run/chatbot-sync.lock

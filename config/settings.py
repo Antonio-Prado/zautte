@@ -77,6 +77,14 @@ CRAWL_PRIVATE_OK_HOSTS = [
 # Size limits of a single download, in MB (pages and feeds / PDFs and other attachments)
 CRAWL_MAX_PAGE_MB = int(os.getenv("CRAWL_MAX_PAGE_MB", "20"))
 CRAWL_MAX_FILE_MB = int(os.getenv("CRAWL_MAX_FILE_MB", "100"))
+# Longest time one download may take, in seconds (a server that sends a byte every 29 s is never "slow" for httpx)
+CRAWL_MAX_DOWNLOAD_SECONDS = int(os.getenv("CRAWL_MAX_DOWNLOAD_SECONDS", "300"))
+# Distinct query-string variants of one path that the crawler follows (calendars, filters: endless URL spaces)
+CRAWL_MAX_QUERY_VARIANTS = int(os.getenv("CRAWL_MAX_QUERY_VARIANTS", "25"))
+# PDF extraction: pages read, characters kept, seconds spent on one file (what was read so far is kept)
+PDF_MAX_PAGES = int(os.getenv("PDF_MAX_PAGES", "2000"))
+PDF_MAX_CHARS = int(os.getenv("PDF_MAX_CHARS", "5000000"))
+PDF_MAX_SECONDS = int(os.getenv("PDF_MAX_SECONDS", "180"))
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",

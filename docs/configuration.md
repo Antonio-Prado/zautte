@@ -33,6 +33,13 @@ CRAWL_PRIVATE_OK_HOSTS=
 # Limits of one download (MB): pages and feeds / PDFs and other attachments
 CRAWL_MAX_PAGE_MB=20
 CRAWL_MAX_FILE_MB=100
+# Longest time of one download (seconds), and distinct query-string variants of one path the crawler follows
+#CRAWL_MAX_DOWNLOAD_SECONDS=300
+#CRAWL_MAX_QUERY_VARIANTS=25
+# PDF extraction: pages read, characters kept, seconds on one file (what was read so far is kept)
+#PDF_MAX_PAGES=2000
+#PDF_MAX_CHARS=5000000
+#PDF_MAX_SECONDS=180
 # Domains whose links are dead after a migration: content stays indexed, links are hidden
 # (comma-separated domains or path prefixes; empty = none)
 MIGRATED_DOMAINS=
@@ -155,6 +162,9 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `CRAWL_PRIVATE_OK_HOSTS` | *(empty)*                    | Exact host names (not their subdomains) that may resolve to a private address (split-horizon DNS) |
 | `SERVICE_USER` | *(empty)* | Account that `purge_logs` and `adduser` become when started as root (see [Operations](operations.md)); empty = owner of the existing data files; the script stops if it cannot be determined |
 | `CRAWL_MAX_PAGE_MB` / `CRAWL_MAX_FILE_MB` | `20` / `100` | Largest download accepted: pages and feeds / PDFs and other attachments |
+| `CRAWL_MAX_DOWNLOAD_SECONDS` | `300` | Longest time of one download; a slower one is dropped |
+| `CRAWL_MAX_QUERY_VARIANTS` | `25` | Query-string variants of one path the crawler follows (endless calendars and filters) |
+| `PDF_MAX_PAGES` / `PDF_MAX_CHARS` / `PDF_MAX_SECONDS` | `2000` / `5000000` / `180` | Pages read, characters kept and seconds spent on one PDF; what was read so far is kept |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
 | `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); for example attachments that are of no use to citizens (theses, technical drawings) |

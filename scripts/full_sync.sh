@@ -15,7 +15,8 @@ LOGFILE=/var/log/chatbot/sync_full.log
 WAIT_SECONDS=43200
 
 cd /opt/chatbot
-lockf -t "$WAIT_SECONDS" "$LOCKFILE" /opt/chatbot/venv/bin/python -m scripts.sync full >> "$LOGFILE" 2>&1
+# Stopped after SYNC_TIMEOUT seconds (default 40 h)
+lockf -t "$WAIT_SECONDS" "$LOCKFILE" timeout -k 120 "${SYNC_TIMEOUT:-144000}" /opt/chatbot/venv/bin/python -m scripts.sync full >> "$LOGFILE" 2>&1
 STATUS=$?
 
 if [ $STATUS -eq 73 ] || [ $STATUS -eq 75 ]; then
