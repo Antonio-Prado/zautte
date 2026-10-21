@@ -12,11 +12,14 @@ are postponed to the periodic `checkpoint()` calls and to the exit from the
 block, instead of a full rewrite for every document.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
+import os
 import re
 import sys
+import tempfile
 import threading
 import time
 from collections import Counter
@@ -167,21 +170,33 @@ def _ensure_bm25():
         _build_bm25()
 
 
+def _atomic_replace(path: Path, write):
+    """Writes through a temporary file created exclusively (random name, never a link that
+    someone planted) in the same folder, then renames it over `path`. The index is public
+    data that the API account must read: mode 644."""
+    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o644)
+        with os.fdopen(fd, "wb") as f:
+            write(f)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)  # atomic on all POSIX filesystems
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 def _atomic_write_json(path: Path, data):
-    """Writes JSON atomically: first to .tmp, then rename."""
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
-    tmp.replace(path)  # atomic on all POSIX filesystems
+    """Writes JSON atomically (see _atomic_replace)."""
+    _atomic_replace(path, lambda f: f.write(json.dumps(data, ensure_ascii=False).encode("utf-8")))
 
 
 def _atomic_write_npy(path: Path, arr: np.ndarray):
-    """Writes the array atomically. np.save on an open file does not add
-    the .npy extension, so the temporary name stays the one chosen here."""
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "wb") as f:
-        np.save(f, arr)
-    tmp.replace(path)
+    """Writes the array atomically (see _atomic_replace). np.save on an open file does not add
+    the .npy extension."""
+    _atomic_replace(path, lambda f: np.save(f, arr))
 
 
 def _write_to_disk():

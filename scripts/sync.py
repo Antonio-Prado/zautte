@@ -33,6 +33,10 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
 from config.settings import ADMIN_API_KEY, API_PORT, SYNC_CONTROL_DIR, is_migrated_source, now_local
 from crawler.crawler import crawl
 from indexer.indexer import index_pages, index_pdfs, load_index

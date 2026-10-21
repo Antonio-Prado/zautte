@@ -45,6 +45,10 @@ from bs4 import BeautifulSoup
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from api.privdrop import drop_to_sync_user
+
+drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
+
 from config.settings import (
     CRAWL_ALLOWED_DOMAINS,
     CRAWL_CACHE_DIR,
