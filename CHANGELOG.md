@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.9] - 2026-10-22
+
+### Security
+- Rate limits, the admin lockout and the quota without login count an IPv6 client by its /64 network (an IPv4-mapped
+  address as the IPv4 one) instead of the exact address, which gave anyone with a normal IPv6 connection a fresh
+  budget on every request. A ceiling of 100 wrong admin keys from all clients together refuses further requests from
+  outside until the window ends, and active blocks are no longer pushed out of the table by a flood of new addresses.
+- The API process creates its files with mode 600 and, at start, restricts the data files it owns (and creates the
+  missing ones and their lock files exclusively), so an account in the shared data group, such as the sync account,
+  cannot read questions, answers or feedback or create those files first. Problems it cannot fix are logged.
+- Feedback comments, the answer excerpt and links go through the personal-data filters: a comment with personal data is
+  replaced by a notice, the rest is masked, links that contain any are dropped.
+- The API refuses to start when `users.json` has accounts but `AUTH_ENABLED` is not true (a lost or unreadable `.env`
+  used to open the bot to everybody); `ALLOW_ANONYMOUS=true` says that is intended.
+
 ## [0.7.8] - 2026-10-22
 
 ### Changed

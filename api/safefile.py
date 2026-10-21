@@ -63,3 +63,36 @@ def atomic_file(path: Path, mode: int = 0o600) -> Iterator[IO[str]]:
 def write_text_atomic(path: Path, text: str, mode: int = 0o600) -> None:
     with atomic_file(path, mode) as f:
         f.write(text)
+
+
+def ensure_private(paths: list[Path]) -> list[str]:
+    """Makes the data files (and their lock files) readable by their owner only.
+
+    A missing file is created exclusively, mode 600, so that another account that can write in
+    the folder cannot create it first. An existing regular file of this process loses any group
+    or world access. What cannot be fixed (a link, a file of another account) is returned as a
+    problem to log. Never follows links."""
+    problems: list[str] = []
+    for path in paths:
+        for p in (Path(path), Path(path).with_name(Path(path).name + ".lock")):
+            try:
+                st = os.lstat(p)
+            except FileNotFoundError:
+                try:
+                    os.close(os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600))
+                except OSError as e:
+                    problems.append(f"{p.name}: cannot create ({e.strerror})")
+                continue
+            except OSError as e:
+                problems.append(f"{p.name}: {e.strerror}")
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                problems.append(f"{p.name}: not a regular file")
+            elif st.st_uid != os.geteuid():
+                problems.append(f"{p.name}: owned by uid {st.st_uid}, not by this process")
+            elif st.st_mode & 0o077:
+                try:
+                    os.chmod(p, 0o600)
+                except OSError as e:
+                    problems.append(f"{p.name}: cannot restrict permissions ({e.strerror})")
+    return problems

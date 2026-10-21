@@ -6,6 +6,7 @@ api.auth without creating circular imports.
 """
 
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
+from api.clientkey import client_key
+
+limiter = Limiter(key_func=client_key)
