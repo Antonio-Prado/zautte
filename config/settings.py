@@ -252,6 +252,14 @@ FORWARDED_ALLOW_IPS = os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
 # anyone the complete list of endpoints and parameters.
 API_DOCS = os.getenv("API_DOCS", "false").strip().lower() in ("1", "true", "yes", "on")
 
+# Largest request body the API reads (bytes); anything bigger gets 413
+MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", "131072"))
+
+# --- Limits per account (api/account_guard.py) ---
+LOGIN_MAX_FAILURES = int(os.getenv("LOGIN_MAX_FAILURES", "10"))     # wrong passwords before the account refuses logins
+LOGIN_LOCK_SECONDS = int(os.getenv("LOGIN_LOCK_SECONDS", "900"))    # window of the count and duration of the refusal
+RESET_EMAILS_PER_HOUR = int(os.getenv("RESET_EMAILS_PER_HOUR", "3"))
+
 # --- Answers at once (api/llm_gate.py) ---
 LLM_MAX_CONCURRENT = int(os.getenv("LLM_MAX_CONCURRENT", "8"))   # in the whole process
 LLM_MAX_PER_USER = int(os.getenv("LLM_MAX_PER_USER", "2"))       # for each user
