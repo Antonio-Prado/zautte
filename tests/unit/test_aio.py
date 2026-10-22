@@ -2,8 +2,6 @@ import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-import pytest
-
 from api.aio import to_thread_uncancellable
 
 
@@ -23,8 +21,8 @@ async def _cancelled_right_after_scheduling(run):
     task = asyncio.create_task(producer())
     await asyncio.sleep(0)   # the producer runs up to its await and hands the work to the executor
     task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
+    await asyncio.gather(task, return_exceptions=True)
+    assert task.cancelled()
     busy.set()   # the worker is free again
     await asyncio.sleep(0.2)
     return done.is_set()

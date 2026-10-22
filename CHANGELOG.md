@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.31] - 2026-10-22
+
+### Changed
+- The same unit test waits for the cancelled task with `gather` and asserts its state; closes the remaining code
+  scanning note. No change to the program.
+
 ## [0.7.30] - 2026-10-22
 
 ### Changed
