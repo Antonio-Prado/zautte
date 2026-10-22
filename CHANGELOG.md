@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.29] - 2026-10-22
+
+### Changed
+- Re-ranking: news items and their attachments get a small penalty (`NEWS_PENALTY`, 0.04), passages from retired
+  domains a smaller one (`MIGRATED_PENALTY`, 0.03), as PDFs already did. On 100 questions with a known page the right
+  page entered the first three passages for 3 more questions and the noise among the 7 fell by a fifth, with no change
+  for 10 news questions. Documented in `docs/how-it-works.md`.
+
 ## [0.7.28] - 2026-10-22
 
 ### Fixed

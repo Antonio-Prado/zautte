@@ -36,7 +36,7 @@ User question
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
      ├─ hybrid_search()      — 21 candidates (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
-     ├─ rerank()             — title boost, "servizio" category boost, PDF penalty, same-source penalty
+     ├─ rerank()             — title boost, "servizio" category boost, PDF, news and retired-domain penalties, same-source penalty
      └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
      │
      ▼
@@ -86,6 +86,8 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 - **+0.02 for each query term** present in the chunk's title
 - **+0.01** if the category is `"servizio"` (service pages)
 - **-0.04** (`PDF_PENALTY`) for chunks of PDF files, so that at similar relevance the site's pages, written for citizens, come before PDFs; a PDF that is clearly more relevant (a form, a regulation) still makes the 7. On a reference index, where PDFs are most of the chunks, this small penalty raised retrieval quality (right page among the 7 chunks, MRR@7) without losing any test question. Manually uploaded TXT and DOCX files (inbox) have `doc_type` `document` and are not penalized; uploaded PDFs are
+- **-0.04** (`NEWS_PENALTY`) for news items and their attachments (`category` `notizia` or `allegato`): many, and lexically close to the service pages they announce. Tuned on 22/10/2026 over 100 questions with a known page: the right page entered the first three for 3 more questions (72 → 75) and the news/noise passages among the 7 fell from 1.8 to 1.4 per question, while 10 news questions kept the same news on top (0.06 cost two of them the first place).
+- **-0.03** (`MIGRATED_PENALTY`) for passages from retired domains (`MIGRATED_DOMAINS`), whose link cannot be opened: a page the user can open comes first at similar relevance.
 - **-0.05 × n** if the same source has already appeared (penalizes duplicates)
 
 Each chunk keeps its cosine score, which the confidence check and the sources list use.

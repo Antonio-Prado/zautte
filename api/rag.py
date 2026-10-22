@@ -120,6 +120,17 @@ BM25_WEIGHT = 0.4
 # "pdf" like any other and are.
 PDF_PENALTY = 0.04
 
+# News passages (site news, bulletin articles and their attachments) are many and lexically
+# close to the service pages they announce: at similar relevance the service page comes first.
+# Tuned on 22/10/2026 over 100 questions with a known page: 0.04 lifted the right page into the
+# first three for 3 more questions (72 -> 75) and cut the news/noise passages among the 7 from
+# 1.8 to 1.4 per question, while 10 news questions kept the same news on top; 0.06 cost two of
+# them the first place. News stays among the 7 when it is really what is asked.
+NEWS_PENALTY = 0.04
+# Passages from retired domains (MIGRATED_DOMAINS) have no working link: at similar relevance a
+# page the user can open comes first (+1 question with the right page among the 7 in the same test).
+MIGRATED_PENALTY = 0.03
+
 # Keyword → competent office map — loaded from config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
     import json as _j
@@ -188,7 +199,8 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
     Lightweight re-ranking without an additional model:
     - Boost if query terms appear in the title
     - Boost if the category is "servizio" (more useful to the user)
-    - Penalty for PDF passages (PDF_PENALTY)
+    - Penalty for PDF passages (PDF_PENALTY), news passages (NEWS_PENALTY) and passages from
+      retired domains (MIGRATED_PENALTY)
     - Penalty for duplicate chunks (same source + similar text)
     """
     query_terms = set(re.findall(r"\w+", query.lower()))
@@ -210,6 +222,10 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
 
         if chunk.get("doc_type") == "pdf":
             score -= PDF_PENALTY
+        if chunk.get("category") in ("notizia", "allegato"):   # news item, or an attachment of one
+            score -= NEWS_PENALTY
+        if is_migrated_source(chunk.get("source", "")):
+            score -= MIGRATED_PENALTY
 
         # Same-source duplicate penalty
         src = chunk.get("source", "")
