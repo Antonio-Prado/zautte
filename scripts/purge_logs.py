@@ -33,8 +33,10 @@ from api.datalog import (
     USAGE_FILE,
     drop_resolved,
     parse_ts,
+    rename_resolved,
     rewrite_jsonl,
 )
+from api.feedback_store import resolved_key
 from api.privdrop import drop_to_service_user
 from config.settings import (
     DATA_DIR,
@@ -80,19 +82,42 @@ def purge_answers(dry_run: bool) -> int:
 
 
 def purge_gaps(dry_run: bool) -> int:
-    cut = _cutoff(RETENTION_GAPS_DAYS)
+    """A gap is a question text: it never outlives RETENTION_USAGE_TEXT_DAYS."""
+    cut = _cutoff(min(d for d in (RETENTION_GAPS_DAYS, RETENTION_USAGE_TEXT_DAYS) if d > 0) if
+                  (RETENTION_GAPS_DAYS > 0 or RETENTION_USAGE_TEXT_DAYS > 0) else 0)
     removed, _ = rewrite_jsonl(GAPS_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
     return removed
 
 
-def purge_feedback(dry_run: bool) -> tuple[int, int]:
+_FEEDBACK_TEXT = ("question", "answer_preview", "comment", "urls", "user")
+
+
+def purge_feedback(dry_run: bool) -> tuple[int, int, int]:
+    """Old feedback is deleted; before that, past RETENTION_USAGE_TEXT_DAYS, it loses its texts
+    (question, answer excerpt, comment, links, author's name) and keeps the vote, the dates and
+    the ids, so the counters of the panel do not change. Returns (deleted, stripped, marks removed)."""
     cut = _cutoff(RETENTION_FEEDBACK_DAYS)
-    removed, _ = rewrite_jsonl(FEEDBACK_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
+    text_cut = _cutoff(RETENTION_USAGE_TEXT_DAYS)
+    renamed: dict[str, str] = {}   # "resolved" marks of rows without id are keyed by time and question
+
+    def transform(e: dict) -> dict | None:
+        ts = e.get("ts", "")
+        if _older(ts, cut):
+            return None
+        if _older(ts, text_cut) and any(k in e for k in _FEEDBACK_TEXT):
+            if not e.get("id") and e.get("question"):
+                renamed[resolved_key(ts, e["question"])] = resolved_key(ts, "")
+            return {k: v for k, v in e.items() if k not in _FEEDBACK_TEXT}
+        return e
+
+    removed, stripped = rewrite_jsonl(FEEDBACK_FILE, transform, dry_run)
+    if renamed:
+        rename_resolved(renamed, dry_run)
     # "risolto" marks: `ts` of the feedback, or (older marks) the start of the key "<ts>::<question>"
     resolved_removed = (drop_resolved(
         lambda i: _older(str(i.get("ts") or str(i.get("key", "")).split("::", 1)[0]), cut), dry_run)
                         if cut is not None else 0)
-    return removed, resolved_removed
+    return removed, stripped, resolved_removed
 
 
 def purge_revoked(dry_run: bool) -> int:
@@ -113,7 +138,7 @@ def main() -> None:
     u_removed, u_stripped = purge_usage(args.dry_run)
     a_removed = purge_answers(args.dry_run)
     g_removed = purge_gaps(args.dry_run)
-    f_removed, r_removed = purge_feedback(args.dry_run)
+    f_removed, f_stripped, r_removed = purge_feedback(args.dry_run)
 
     revoked = purge_revoked(args.dry_run)
 
@@ -121,8 +146,10 @@ def main() -> None:
     print(f"{prefix}usage.jsonl: {u_removed} entries deleted, text removed from {u_stripped} "
           f"(retention: text {RETENTION_USAGE_TEXT_DAYS} d, entry {RETENTION_USAGE_DAYS} d)")
     print(f"{prefix}answers.jsonl: {a_removed} answers deleted (retention {RETENTION_USAGE_TEXT_DAYS} d)")
-    print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d)")
-    print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, {r_removed} 'resolved' marks removed "
+    print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d, "
+          f"never beyond the question text, {RETENTION_USAGE_TEXT_DAYS} d)")
+    print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, texts removed from {f_stripped} "
+          f"(after {RETENTION_USAGE_TEXT_DAYS} d), {r_removed} 'resolved' marks removed "
           f"(retention {RETENTION_FEEDBACK_DAYS} d)")
     print(f"{prefix}revoked_tokens.json: {revoked} expired entries dropped")
 

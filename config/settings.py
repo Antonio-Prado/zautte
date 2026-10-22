@@ -246,12 +246,13 @@ PII_BLOCK = os.getenv("PII_BLOCK", "true").strip().lower() in ("1", "true", "yes
 # --- Log retention (days; 0 = no expiry) ---
 # Applied by scripts/purge_logs.py (daily cron). Values to be agreed with
 # the DPO and reported in the privacy notice.
-#   RETENTION_USAGE_TEXT_DAYS: question text in usage.jsonl (afterwards only
-#                              date, user and metrics remain) and answers in
-#                              answers.jsonl
+#   RETENTION_USAGE_TEXT_DAYS: every text typed by a user or answered to them: question text
+#                              in usage.jsonl (afterwards only date, user and metrics remain),
+#                              answers in answers.jsonl, gaps.jsonl entries, and the question,
+#                              answer excerpt, comment, links and author's name of a feedback
 #   RETENTION_USAGE_DAYS:      usage.jsonl entries
-#   RETENTION_GAPS_DAYS:       unanswered questions in gaps.jsonl
-#   RETENTION_FEEDBACK_DAYS:   feedback (vote, question, comment, author)
+#   RETENTION_GAPS_DAYS:       unanswered questions in gaps.jsonl (never beyond the text retention)
+#   RETENTION_FEEDBACK_DAYS:   feedback rows (vote, dates, ids; the texts expire earlier)
 RETENTION_USAGE_TEXT_DAYS = int(os.getenv("RETENTION_USAGE_TEXT_DAYS", "90"))
 RETENTION_USAGE_DAYS = int(os.getenv("RETENTION_USAGE_DAYS", "365"))
 RETENTION_GAPS_DAYS = int(os.getenv("RETENTION_GAPS_DAYS", "180"))

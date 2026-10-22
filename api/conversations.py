@@ -45,8 +45,10 @@ def add_turn(uid: str, cid: str, question: str, answer: str) -> None:
     """Remembers a completed turn."""
     now = time.time()
     messages = list(_store.get((uid, cid), (0, []))[1])
+    from api.pii import redact
+    # the answer is masked before it is sent back to the provider in the next turns
     messages += [{"role": "user", "content": question[:MAX_CHARS]},
-                 {"role": "assistant", "content": answer[:MAX_CHARS]}]
+                 {"role": "assistant", "content": redact(answer)[:MAX_CHARS]}]
     _store[(uid, cid)] = (now, messages[-MAX_MESSAGES:])
     _store.move_to_end((uid, cid))
     _expire(now)

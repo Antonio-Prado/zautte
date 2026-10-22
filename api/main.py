@@ -605,12 +605,13 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
     usage.jsonl), answer text as the user saw it, and sources
     (title and link). Only for authenticated users, like usage.jsonl. With
     `partial` the answer was interrupted (error or user gone) and the text
-    is what arrived up to that point. The answer is not masked: the
-    question already is, before the model, and the text comes from the public
-    content of the body (office contact details included).
+    is what arrived up to that point. The answer goes through the same masking as the
+    question (institutional addresses kept), in case the model echoed a personal datum the
+    question filters let through.
     """
     if not uid or uid == "anon" or not rid:
         return
+    text = redact(text or "")   # what the model may have echoed from the question
     f = _DATA_DIR / "answers.jsonl"
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
@@ -734,8 +735,7 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         "rating": req.rating,
         "question": redact(req.question)[:200],
         "answer_preview": _free_text(req.answer[:100]),
-        "uid": user.get("uid", ""),
-        "user": user.get("name", ""),
+        "uid": user.get("uid", ""),   # the name is resolved at display time, like usage.jsonl
     }
     if req.rid and _RID_RE.fullmatch(req.rid):
         from api.datalog import answer_owner
@@ -792,7 +792,8 @@ def _notify_feedback(entry: dict) -> None:
     if not FEEDBACK_NOTIFY_EMAIL or not smtp_configured():
         return
     try:
-        send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, entry, PILOT_LOGIN_URL)
+        named = {**entry, "user": _load_user_names().get(entry.get("uid", "")) or entry.get("user", "")}
+        send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, named, PILOT_LOGIN_URL)
     except Exception:
         log.warning("Feedback notification not sent to %s", FEEDBACK_NOTIFY_EMAIL, exc_info=True)
 
@@ -813,7 +814,7 @@ async def feedback_negative(limit: int = 200, _: None = Security(require_admin))
     """Questions with negative feedback not yet resolved, with author, comment
     and links reported by the colleague. Admin only."""
     from api import feedback_store as fs
-    items, open_negative, total = fs.negative_open(_load_resolved_negative(), limit)
+    items, open_negative, total = fs.negative_open(_load_resolved_negative(), limit, names=_load_user_names())
     return {"items": items, "total_negative": open_negative, "total": total}
 
 
@@ -888,7 +889,9 @@ async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
     feedback_file = _DATA_DIR / "feedback.jsonl"
     if not feedback_file.exists():
         return {"feedback": [], "total": 0, "positive": 0, "negative": 0}
-    entries = dedup(await asyncio.to_thread(_read_jsonl, feedback_file))
+    names = _load_user_names()
+    entries = [{**e, "user": names.get(e.get("uid", "")) or e.get("user", "")}
+               for e in dedup(await asyncio.to_thread(_read_jsonl, feedback_file))]
     positive = sum(1 for e in entries if e.get("rating") == 1)
     negative = sum(1 for e in entries if e.get("rating") == -1)
     return {

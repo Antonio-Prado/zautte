@@ -733,7 +733,8 @@ from pathlib import Path as _Path
 _GAPS_LOG = _Path(__file__).parent.parent / "data" / "gaps.jsonl"
 
 
-def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None = None):
+def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None = None,
+             rewritten: bool = False):
     """Records queries with 0 chunks or weak retrieval (without personal data).
 
     weak=True means chunks were found but with low relevance (below
@@ -751,6 +752,8 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
         }
         if rid:
             entry["rid"] = rid
+        if rewritten:
+            entry["rewritten"] = True   # retrieval used the question rewritten with the previous turns
         with file_lock(_GAPS_LOG), open(_GAPS_LOG, "a", encoding="utf-8") as f:
             f.write(dump_line(entry) + "\n")
     except (OSError, TypeError, ValueError) as exc:
@@ -1086,14 +1089,16 @@ async def answer(
              log_rid, len(query), language, len(chunks), LLM_PROVIDER)
 
     if len(chunks) == 0:
-        await asyncio.to_thread(_log_gap, retrieval_query, 0, rid=rid)
+        # the question as typed (masked), never the rewritten one: that carries the previous turns
+        await asyncio.to_thread(_log_gap, query, 0, rid=rid, rewritten=retrieval_query != query)
     else:
         # "Weak" retrieval: chunks found but even the best is below the
         # confidence threshold (often documents that are only thematically close).
         # Track them to surface content gaps that would otherwise be invisible.
         top_score = max(c.get("score", 0.0) for c in chunks)
         if top_score < RETRIEVAL_CONFIDENCE:
-            await asyncio.to_thread(_log_gap, retrieval_query, len(chunks), weak=True, rid=rid)
+            await asyncio.to_thread(_log_gap, query, len(chunks), weak=True, rid=rid,
+                                    rewritten=retrieval_query != query)
 
     hosts = link_hosts(messages, query, chunks)
 

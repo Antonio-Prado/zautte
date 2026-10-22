@@ -9,6 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.33] - 2026-10-22
+
+### Security
+- One expiry for every text a user typed or was answered (`RETENTION_USAGE_TEXT_DAYS`): `gaps.jsonl` entries never
+  outlive it, and a feedback loses its question, answer excerpt, comment, links and author's name after it, keeping
+  the vote, the dates and the ids (the panel counters do not change). Older "resolved" marks keyed by time and
+  question are renamed accordingly.
+- A feedback row records the user id only; the name is resolved when the panel or the notification shows it.
+- Answers are masked like the questions before they are recorded and before they are kept in the conversation memory
+  sent back to the model provider, in case the model echoed a personal datum the question filters let through.
+- The gap log records the question as typed (masked), never the question rewritten with the previous turns; a
+  `rewritten` flag says when retrieval used a rewrite. Deleting a question no longer leaves its text in the gap of the
+  next one.
+- The notification emails carry neither the question nor the reporter's name in the subject (subjects end up in mail
+  logs), and the links reported by a colleague are marked as unverified.
+
 ## [0.7.32] - 2026-10-22
 
 ### Security

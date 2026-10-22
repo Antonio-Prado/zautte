@@ -108,6 +108,27 @@ def drop_resolved(drop: Callable[[dict], bool], dry_run: bool) -> int:
     return removed
 
 
+def rename_resolved(mapping: dict[str, str], dry_run: bool) -> int:
+    """Changes the key of the «risolto» marks listed in `mapping` (old key -> new key): used
+    when the question text of a feedback row without id is removed. Returns how many."""
+    if not RESOLVED_FILE.exists() or not mapping:
+        return 0
+    try:
+        items = json.loads(RESOLVED_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(items, list):
+        return 0
+    n = 0
+    for i in items:
+        if isinstance(i, dict) and str(i.get("key", "")) in mapping:
+            i["key"] = mapping[str(i["key"])]
+            n += 1
+    if n and not dry_run:
+        write_text_atomic(RESOLVED_FILE, json.dumps(items, ensure_ascii=False, indent=2))
+    return n
+
+
 def answer_owner(rid: str) -> str | None:
     """User id the answer `rid` was given to (from answers.jsonl); None if unknown."""
     for e in _read_jsonl(ANSWERS_FILE):
