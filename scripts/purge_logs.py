@@ -41,6 +41,7 @@ from api.privdrop import drop_to_service_user
 from config.settings import (
     DATA_DIR,
     RETENTION_FEEDBACK_DAYS,
+    RETENTION_FEEDBACK_TEXT_DAYS,
     RETENTION_GAPS_DAYS,
     RETENTION_USAGE_DAYS,
     RETENTION_USAGE_TEXT_DAYS,
@@ -93,11 +94,11 @@ _FEEDBACK_TEXT = ("question", "answer_preview", "comment", "urls", "user")
 
 
 def purge_feedback(dry_run: bool) -> tuple[int, int, int]:
-    """Old feedback is deleted; before that, past RETENTION_USAGE_TEXT_DAYS, it loses its texts
+    """Old feedback is deleted; before that, past RETENTION_FEEDBACK_TEXT_DAYS, it loses its texts
     (question, answer excerpt, comment, links, author's name) and keeps the vote, the dates and
     the ids, so the counters of the panel do not change. Returns (deleted, stripped, marks removed)."""
     cut = _cutoff(RETENTION_FEEDBACK_DAYS)
-    text_cut = _cutoff(RETENTION_USAGE_TEXT_DAYS)
+    text_cut = _cutoff(RETENTION_FEEDBACK_TEXT_DAYS)
     renamed: dict[str, str] = {}   # "resolved" marks of rows without id are keyed by time and question
 
     def transform(e: dict) -> dict | None:
@@ -149,7 +150,7 @@ def main() -> None:
     print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d, "
           f"never beyond the question text, {RETENTION_USAGE_TEXT_DAYS} d)")
     print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, texts removed from {f_stripped} "
-          f"(after {RETENTION_USAGE_TEXT_DAYS} d), {r_removed} 'resolved' marks removed "
+          f"(after {RETENTION_FEEDBACK_TEXT_DAYS} d), {r_removed} 'resolved' marks removed "
           f"(retention {RETENTION_FEEDBACK_DAYS} d)")
     print(f"{prefix}revoked_tokens.json: {revoked} expired entries dropped")
 

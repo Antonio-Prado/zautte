@@ -247,6 +247,8 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `POST /auth/logout` | user | Revokes the token of the request (listed in `data/revoked_tokens.json` until it would have expired); the widget calls it when the user signs out |
 | `GET /auth/me` | user | Current user `{"uid", "name"}`; `401` if the token is missing or expired |
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |
+| `GET /auth/me` | user | Identity of the session; `consent_required` says whether the participation declaration is still to be made (with `CONSENT_REQUIRED`), `privacy_notice_url` where the notice is |
+| `POST /auth/consent` | user | Body `{"adult": true, "notice_read": true}`: records the participation declaration (date, `CONSENT_VERSION`) in `users.json`; both must be true |
 | `POST /feedback/resolve` | admin | Body `{"ts", "question", "id"?, "note"?, "notify"?}` (`id` is the one returned by `GET /feedback/negative`; the mark is kept under it, older marks under time and question): marks a negative feedback as resolved and, unless `notify` is `false`, emails the reporter with the optional note |
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
 | `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) |
@@ -255,7 +257,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
 | `GET /docs` | public, only with `API_DOCS=true` | Swagger UI (schema at `/openapi.json`); off by default, so in production both return `404` |
 
-"user" means: with `AUTH_ENABLED=true`, `Authorization: Bearer <token>` is required; with `AUTH_ENABLED=false` the endpoint is open.
+"user" means: with `AUTH_ENABLED=true`, `Authorization: Bearer <token>` is required; with `AUTH_ENABLED=false` the endpoint is open. With `CONSENT_REQUIRED=true`, `/chat` and `/chat/stream` also need the participation declaration: until it is made they answer `403` with `{"detail": {"error": "consent_required"}}`, and the widget shows the declaration form (of age, notice read, asks to take part); `POST /auth/login` returns `consent_required` and `privacy_notice_url` too. Changing `CONSENT_VERSION` asks everybody again.
 
 ## Admin Authentication
 

@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from api import auth, conversations, csp, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.aio import to_thread_uncancellable
-from api.auth import require_user
+from api.auth import require_participant, require_user
 from api.bodylimit import BodyLimitMiddleware
 from api.clientkey import client_key
 from api.datalog import forget
@@ -1131,7 +1131,7 @@ async def crawl_history(_: None = Security(require_admin)):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: Request, req: ChatRequest,
-               user: dict = Security(require_user)):
+               user: dict = Security(require_participant)):
     """
     Complete answer to the visitor's question.
     Waits for the whole answer before returning.
@@ -1175,7 +1175,7 @@ async def chat(request: Request, req: ChatRequest,
 
 @app.post("/chat/stream")
 async def chat_stream(request: Request, req: ChatRequest,
-                      user: dict = Security(require_user)):
+                      user: dict = Security(require_participant)):
     """
     Streaming answer via Server-Sent Events (SSE).
     The widget receives tokens as they are generated.

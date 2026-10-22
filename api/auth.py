@@ -41,9 +41,13 @@ from config.settings import (
     AUTH_ENABLED,
     AUTH_SECRET,
     AUTH_TOKEN_TTL_DAYS,
+    CONSENT_REQUIRED,
+    CONSENT_VERSION,
     PILOT_LOGIN_URL,
+    PRIVACY_NOTICE_URL,
     PUBLIC_BASE_URL,
     USERS_FILE,
+    now_local,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -355,6 +359,8 @@ class LoginResponse(BaseModel):
     token: str
     name: str
     expires_in: int
+    consent_required: bool = False   # the participation declaration is still to be made
+    privacy_notice_url: str = ""
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -384,6 +390,8 @@ async def login(request: Request, req: LoginRequest):
         token=token,
         name=user.get("name", ""),
         expires_in=AUTH_TOKEN_TTL_DAYS * 86400,
+        consent_required=not consent_ok(user["id"]),
+        privacy_notice_url=PRIVACY_NOTICE_URL,
     )
 
 
@@ -397,8 +405,68 @@ async def logout(user: dict = Security(require_user)):
 
 @router.get("/me")
 async def me(user: dict = Security(require_user)):
-    """Returns the identity of the authenticated user."""
-    return {"uid": user.get("uid"), "name": user.get("name")}
+    """Returns the identity of the authenticated user, and whether the participation
+    declaration is still to be made."""
+    return {"uid": user.get("uid"), "name": user.get("name"),
+            "consent_required": not consent_ok(user.get("uid", "")),
+            "privacy_notice_url": PRIVACY_NOTICE_URL}
+
+
+# ---------------------------------------------------------------------------
+# Participation declaration (CONSENT_REQUIRED): of age, notice read, asks to take part
+# ---------------------------------------------------------------------------
+def consent_ok(uid: str) -> bool:
+    """True if the user made the declaration for the current CONSENT_VERSION (or none is
+    required). The anonymous identity, with the gate off, needs none."""
+    if not CONSENT_REQUIRED or not AUTH_ENABLED:
+        return True
+    for u in _users_cached() or []:
+        if u.get("id") == uid:
+            c = u.get("consent")
+            return (isinstance(c, dict) and c.get("version") == CONSENT_VERSION
+                    and bool(c.get("adult")) and bool(c.get("notice_read")))
+    return False
+
+
+async def require_participant(user: dict = Security(require_user)) -> dict:
+    """require_user, plus the participation declaration when the installation asks for it.
+    The widget shows the declaration form on this error."""
+    if not consent_ok(user.get("uid", "")):
+        raise HTTPException(status_code=403, detail={"error": "consent_required"})
+    return user
+
+
+class ConsentRequest(BaseModel):
+    adult: bool = Field(..., description="dichiara di avere almeno 18 anni")
+    notice_read: bool = Field(..., description="dichiara di aver letto l'informativa")
+
+
+@router.post("/consent")
+@limiter.limit("10/minute")
+async def consent(request: Request, req: ConsentRequest, user: dict = Security(require_user)):
+    """Records the participation declaration of the logged-in user: date, version of the notice
+    and the two statements. Both must be true."""
+    if not AUTH_ENABLED:
+        raise HTTPException(status_code=400, detail="Autenticazione non attiva")
+    if not (req.adult and req.notice_read):
+        raise HTTPException(status_code=400, detail="Entrambe le dichiarazioni sono necessarie")
+    record = {"ts": now_local().isoformat(timespec="seconds"), "version": CONSENT_VERSION,
+              "adult": True, "notice_read": True}
+
+    def _save() -> bool:
+        with file_lock(USERS_FILE):
+            users = _load_users()
+            for u in users:
+                if u.get("id") == user.get("uid"):
+                    u["consent"] = record
+                    write_users(users)
+                    return True
+        return False
+
+    if not await asyncio.to_thread(_save):
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    log.info("Participation declaration recorded for a user (version %s)", CONSENT_VERSION)
+    return {"ok": True, "consent": record}
 
 
 class ForgotRequest(BaseModel):

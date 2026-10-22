@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.35] - 2026-10-22
+
+### Added
+- Participation declaration (`CONSENT_REQUIRED`): before the first question a logged-in user declares in the chat to
+  be at least 18 years old and to have read the privacy notice (`PRIVACY_NOTICE_URL`, linked from the form) and asks
+  to take part; recorded in `users.json` with date and `CONSENT_VERSION` (`POST /auth/consent`; `/chat` answers
+  `403 consent_required` until then; `/auth/login` and `/auth/me` say whether it is still due).
+
+### Changed
+- The texts of a feedback expire after `RETENTION_FEEDBACK_TEXT_DAYS` (default: the same as the rows), no longer
+  after the question text retention: a report is read and answered by a person, and a privacy notice may keep it
+  longer than a question.
+
 ## [0.7.34] - 2026-10-22
 
 ### Security
