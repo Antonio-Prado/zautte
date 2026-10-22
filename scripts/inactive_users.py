@@ -46,6 +46,14 @@ def last_activity() -> dict[str, dt.datetime]:
     return last
 
 
+def _created(user: dict, tz) -> dt.datetime | None:
+    """The `created` date of the account, or None if it has none (older accounts) or it is not a date."""
+    try:
+        return dt.datetime.fromisoformat(user["created"]).replace(tzinfo=tz)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def classify(users: list[dict], days: int) -> tuple[list[dict], list[dict]]:
     """(inactive, undated): the accounts to remove, and those that cannot be judged."""
     cutoff = now_local() - dt.timedelta(days=days)
@@ -57,11 +65,7 @@ def classify(users: list[dict], days: int) -> tuple[list[dict], list[dict]]:
             if seen < cutoff:
                 inactive.append(u)
             continue
-        created = None
-        try:
-            created = dt.datetime.fromisoformat(u["created"]).replace(tzinfo=cutoff.tzinfo)
-        except (KeyError, TypeError, ValueError):
-            pass
+        created = _created(u, cutoff.tzinfo)
         if created is None:
             undated.append(u)
         elif created < cutoff:
