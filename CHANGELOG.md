@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.39] - 2026-10-22
+
+### Changed
+- The invitation email tells the participant what is asked of them: ask questions in their own words, rate every
+  answer with 👍 / 👎, and after a 👎 say what is wrong and paste the link of the right page; it states the daily limit
+  (`DAILY_QUESTION_LIMIT`) and the period of the pilot (new optional `PILOT_PERIOD`, free text). The greeting no
+  longer assumes the participant's gender.
+
 ## [0.7.38] - 2026-10-22
 
 ### Changed
