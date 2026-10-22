@@ -9,6 +9,26 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.32] - 2026-10-22
+
+### Security
+- A question or a comment containing a Unicode line separator (U+2028, U+2029, U+0085) is written to the JSONL files
+  as a JSON escape, and the files are read line by line on `\n` only: such a record used to be split in two non-JSON
+  fragments by the first rewrite (purge, deletion on request, a second vote) and then kept for ever, invisible and
+  never expiring.
+- A request without an admin key is never held up by the lockout: the public `/health` answer and the ordinary `403`
+  come back whatever the state of the blocks, so a hundred wrong keys cannot take the health check down, and a wrong
+  key on loopback cannot make the watchdog restart the service.
+- The hosts an answer may link to are the site's own, those named in the known facts and those of the sources of the
+  passages, no longer every host written inside the passages: a document published on an allowed site cannot make an
+  address of its own clickable. Email addresses in answers follow the same rule.
+
+### Fixed
+- The watchdog keeps a restart or reload request that comes too soon and honours it once the minimum gap has passed;
+  it used to delete it, leaving the API on the old index.
+- PDF titles: the cache file names of 0.7.23 (24 hex digits) are recognised as such, as the older ones were, so a PDF
+  without an internal title does not show its file name as title.
+
 ## [0.7.31] - 2026-10-22
 
 ### Changed

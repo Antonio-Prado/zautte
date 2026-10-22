@@ -16,7 +16,7 @@ import secrets
 from pathlib import Path
 
 from api.filelock import file_lock
-from api.safefile import write_text_atomic
+from api.safefile import dump_line, write_text_atomic
 from config.settings import now_local
 
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -101,7 +101,7 @@ def _append(entry: dict) -> dict:
     FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
     key = vote_key(entry)
     if key and FEEDBACK_FILE.exists():
-        lines = FEEDBACK_FILE.read_text(encoding="utf-8").splitlines()
+        lines = [ln for ln in FEEDBACK_FILE.read_text(encoding="utf-8").split("\n") if ln.strip()]
         for i in range(len(lines) - 1, -1, -1):
             try:
                 old = json.loads(lines[i])
@@ -109,12 +109,12 @@ def _append(entry: dict) -> dict:
                 continue
             if vote_key(old) == key:
                 entry = {"id": old.get("id") or new_id(), **entry}
-                lines[i] = json.dumps(entry, ensure_ascii=False)
+                lines[i] = dump_line(entry)
                 write_text_atomic(FEEDBACK_FILE, "\n".join(lines) + "\n")
                 return entry
     entry = {"id": new_id(), **entry}
     with open(FEEDBACK_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        f.write(dump_line(entry) + "\n")
     return entry
 
 
@@ -148,7 +148,7 @@ def _attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict |
         return None
     found = None
     new_lines = []
-    for line in FEEDBACK_FILE.read_text(encoding="utf-8").splitlines():
+    for line in FEEDBACK_FILE.read_text(encoding="utf-8").split("\n"):
         if not line.strip():
             continue
         try:
@@ -163,7 +163,7 @@ def _attach_details(fid: str, uid: str, comment: str, urls: list[str]) -> dict |
                 e["urls"] = urls
             e["details_ts"] = now_iso()
             found = e
-            line = json.dumps(e, ensure_ascii=False)
+            line = dump_line(e)
         new_lines.append(line)
     if found is None:
         return None

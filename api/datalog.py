@@ -17,7 +17,7 @@ from pathlib import Path
 
 from api.feedback_store import entry_key, resolved_key
 from api.filelock import file_lock
-from api.safefile import atomic_file, require_regular, write_text_atomic
+from api.safefile import atomic_file, dump_line, require_regular, write_text_atomic
 from config.settings import DATA_DIR
 
 USAGE_FILE = DATA_DIR / "usage.jsonl"
@@ -60,7 +60,7 @@ def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
         size = f.tell()
     removed = changed = 0
     out: list[str] = []
-    for line in content.splitlines():
+    for line in content.split("\n"):   # not splitlines(): only \n ends a record
         if not line.strip():
             continue
         try:
@@ -77,7 +77,7 @@ def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
             continue
         if new != entry:
             changed += 1
-            line = json.dumps(new, ensure_ascii=False)
+            line = dump_line(new)
         out.append(line)
     if dry_run or not (removed or changed):
         return removed, changed
