@@ -893,8 +893,11 @@ def get_activity_stats() -> dict:
     }
 
 
+_CACHE_TTL = 6 * 3600   # seconds a cached answer is reused; also dropped when the date changes
+
+
 def _cache_key(query: str) -> str:
-    return _hashlib.md5(query.lower().strip().encode()).hexdigest()
+    return _hashlib.sha256(query.lower().strip().encode()).hexdigest()
 
 
 def _freq_key(query: str) -> str:
@@ -942,15 +945,21 @@ def clear_response_cache() -> None:
 
 def _cache_get(query: str):
     key = _cache_key(query)
-    if key in _response_cache:
-        _response_cache.move_to_end(key)
-        return _response_cache[key]
-    return None
+    entry = _response_cache.get(key)
+    if entry is None:
+        return None
+    stored_at, day, value = entry
+    # the system prompt carries today's date: an answer from yesterday may be wrong today
+    if _time.time() - stored_at > _CACHE_TTL or day != now_local().date().isoformat():
+        del _response_cache[key]
+        return None
+    _response_cache.move_to_end(key)
+    return value
 
 
 def _cache_set(query: str, value):
     key = _cache_key(query)
-    _response_cache[key] = value
+    _response_cache[key] = (_time.time(), now_local().date().isoformat(), value)
     _response_cache.move_to_end(key)
     if len(_response_cache) > _CACHE_MAX:
         _response_cache.popitem(last=False)

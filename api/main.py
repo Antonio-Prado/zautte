@@ -742,6 +742,13 @@ async def feedback(request: Request, req: FeedbackRequest, background_tasks: Bac
         if (owner and owner != entry["uid"]) or (AUTH_ENABLED and not owner):
             raise HTTPException(status_code=403, detail="Risposta non trovata per questo utente")
         entry["rid"] = req.rid
+        # what the administrator reads is what the server logged, not what the browser says
+        from api.datalog import logged_exchange
+        question, answer = await asyncio.to_thread(logged_exchange, req.rid)
+        if question:
+            entry["question"] = redact(question)[:200]
+        if answer:
+            entry["answer_preview"] = _free_text(answer[:100])
     elif AUTH_ENABLED:
         raise HTTPException(status_code=400, detail="Identificativo della risposta mancante")
     comment = _free_text(fs.clean_comment(req.comment))

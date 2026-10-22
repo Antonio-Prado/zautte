@@ -96,7 +96,7 @@ Each chunk keeps its cosine score, which the confidence check and the sources li
 
 ### Response Cache
 
-Complete answers from `/chat` (non-streaming) to questions without history are cached in memory, per API process, in an LRU of 200 entries with no expiry (emptied on every restart and on every index reload, e.g. after a sync). The key is the MD5 of the masked question, lowercased and stripped. `/chat/stream`, used by the widget, is never cached.
+Complete answers from `/chat` (non-streaming) to questions without history are cached in memory, per API process, in an LRU of 200 entries; an entry is reused for 6 hours at most and not on another day, because the prompt carries today's date (the cache is also emptied on every restart and on every index reload, e.g. after a sync). The key is the SHA-256 of the masked question, lowercased and stripped. `/chat/stream`, used by the widget, is never cached.
 
 ### Gap Log
 

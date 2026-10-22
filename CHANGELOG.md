@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.22] - 2026-10-22
+
+### Security
+- A feedback keeps the question and the answer excerpt that the server logged for that answer, not the text sent by
+  the browser (which is used only when the server has nothing, e.g. after the retention period).
+- Personal data masking: tax codes written in groups (`RSSMRA 80A01 H501Z`), IBANs with hyphens, phone numbers after a
+  dot (`tel.333…`) and foreign phone numbers are masked; a lower-case "mi chiamo mario rossi" is blocked like the
+  capitalised form.
+- The response cache keys on SHA-256, drops an entry after 6 hours and does not reuse an answer on another day.
+
 ## [0.7.21] - 2026-10-22
 
 ### Security
