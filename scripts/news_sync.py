@@ -162,6 +162,8 @@ def wp_posts(client: httpx.Client, api: str, modified_after: str = "", after: st
         if not isinstance(batch, list) or not batch:
             break
         for p in batch:
+            if not isinstance(p, dict) or not _own_page(str(p.get("link", ""))):
+                continue
             try:
                 posts.append({
                     "url": p["link"],
@@ -180,19 +182,33 @@ def wp_posts(client: httpx.Client, api: str, modified_after: str = "", after: st
     return posts
 
 
+def _own_page(url: str) -> bool:
+    """True if the link of a post or feed item is a plain http(s) address on a host the news
+    sync is allowed to use (the crawled domains, the sources, the attachment hosts)."""
+    return url_allowed(url or "", _fetch_domains())
+
+
+def _parse_xml(data: bytes):
+    """Parse XML from a feed or an Office file. A document type declaration (entities) is
+    refused: nothing legitimate here uses one."""
+    if b"<!DOCTYPE" in data[:4096].upper() or b"<!ENTITY" in data.upper():
+        raise ET.ParseError("document type declaration not allowed")
+    return ET.fromstring(data)
+
+
 def rss_items(client: httpx.Client, url: str) -> list[dict]:
     resp = _get(client, url)
     if resp is None:
         return []
     try:
-        root = ET.fromstring(resp.content)
+        root = _parse_xml(resp.content)
     except ET.ParseError as e:
         log.warning(f"  Feed unreadable {url}: {e}")
         return []
     items = []
     for it in root.iter("item"):
         link = (it.findtext("link") or "").strip()
-        if not link:
+        if not link or not _own_page(link):
             continue
         pub = (it.findtext("pubDate") or "").strip()
         try:
@@ -255,7 +271,7 @@ def office_text(path: Path) -> str:
                 data = fh.read(_MAX_OFFICE_XML + 1)   # the declared size can lie: count what comes out
         if len(data) > _MAX_OFFICE_XML:
             raise OSError(f"{inner} expands to more than {_MAX_OFFICE_XML >> 20} MB")
-        root = ET.fromstring(data)
+        root = _parse_xml(data)
     except (zipfile.BadZipFile, KeyError, ET.ParseError, OSError) as e:
         log.warning(f"  Document unreadable {path.name}: {e}")
         return ""

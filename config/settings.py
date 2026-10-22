@@ -7,6 +7,7 @@ import datetime as _datetime
 import logging
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Names a .env file must never set: they steer the dynamic loader, the interpreter or the
 # lookup of programs, and the sync jobs (root) start other programs.
@@ -156,8 +157,22 @@ MIGRATED_DOMAINS = [
 
 
 def is_migrated_source(url: str) -> bool:
-    """True if the URL belongs to a migrated/retired domain (link no longer valid)."""
-    return bool(url) and any(d in url for d in MIGRATED_DOMAINS)
+    """True if the URL belongs to a migrated/retired domain (link no longer valid).
+    An entry is a host (it matches that host and its subdomains) or a host with a path
+    prefix; it is compared with the host and path of the URL, not looked for in the text."""
+    if not url or not MIGRATED_DOMAINS:
+        return False
+    parts = urlsplit(url if "//" in url else "//" + url)
+    host, path = (parts.hostname or "").lower(), parts.path or "/"
+    for entry in MIGRATED_DOMAINS:
+        entry = entry.split("//", 1)[-1].lower()
+        d_host, _, d_path = entry.partition("/")
+        if host != d_host and not host.endswith("." + d_host):
+            continue
+        prefix = "/" + d_path.rstrip("/")
+        if not d_path or path == prefix or path.startswith(prefix + "/"):
+            return True
+    return False
 
 
 # --- Chunking ---

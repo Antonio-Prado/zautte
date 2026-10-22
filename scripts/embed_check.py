@@ -63,12 +63,12 @@ def main() -> int:
     if mode == "save":
         idx, texts, stored = _sample()
         vec = np.array(embed_texts(texts + QUERIES), dtype=np.float32)
-        np.savez(path, idx=np.array(idx), texts=np.array(texts + QUERIES, dtype=object),
+        np.savez(path, idx=np.array(idx), texts=np.array(texts + QUERIES),
                  stored=stored, vec=vec)
         c = _cos(vec[:N], stored)
         print(f"Current Ollama vs index: min {c.min():.6f}  mean {c.mean():.6f}")
         return 0
-    saved = np.load(path, allow_pickle=True)
+    saved = np.load(path)   # no pickle: the file is only arrays and strings
     vec = np.array(embed_texts(list(saved["texts"])), dtype=np.float32)
     old = _cos(vec, saved["vec"])
     idx = _cos(vec[:N], saved["stored"])

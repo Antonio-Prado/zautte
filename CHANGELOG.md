@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.21] - 2026-10-22
+
+### Security
+- `MIGRATED_DOMAINS` is compared with the host and the path of an address (a host also matches its subdomains; a path
+  prefix matches on whole segments) instead of being looked for anywhere in the text: an address that merely mentions a
+  retired domain in its query string is no longer treated as retired, and a similar name does not match.
+- The news sync takes a post or feed item only if its link is a plain http(s) address on a host it is allowed to use.
+- XML read by the news sync (feeds, Office attachments) is refused if it declares a document type or entities.
+- `scripts/embed_check.py` saves and reads its sample without pickle.
+
 ## [0.7.20] - 2026-10-22
 
 ### Security
