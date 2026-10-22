@@ -36,7 +36,7 @@ touch /var/log/chatbot-sync.log && chown $SYNC_USER:$APP_USER /var/log/chatbot-s
 
 # The sync account's own environment file: an allowlist of the settings the jobs need
 # (scripts/make_sync_env.py); no secret of the API, the admin area, SMTP or the cloud
-$APP/venv/bin/python $APP/scripts/make_sync_env.py $APP/.env > $APP/.env.sync
+( umask 077; $APP/venv/bin/python $APP/scripts/make_sync_env.py $APP/.env > $APP/.env.sync )
 chown root:$SYNC_USER $APP/.env.sync && chmod 640 $APP/.env.sync
 
 # Last, so that the API (restart it afterwards: it must pick up the new group) is not left

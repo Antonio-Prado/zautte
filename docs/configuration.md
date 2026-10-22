@@ -135,6 +135,8 @@ API_CORS_ORIGINS=https://www.your-site.com
 FORWARDED_ALLOW_IPS=127.0.0.1,::1
 # Interactive API docs at /docs and /openapi.json (development only; default false)
 API_DOCS=false
+# Seconds uvicorn waits for the requests in flight on SIGTERM before cutting them (default 15)
+#SHUTDOWN_GRACE_SECONDS=15
 
 # Admin key (X-Admin-Key header) for /stats, /gaps, /feedback/{list,negative,resolve},
 # /usage/{summary,messages}, /crawl-history and the detailed /health.

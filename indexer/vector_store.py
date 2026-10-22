@@ -112,16 +112,37 @@ def _read_from_disk() -> tuple[np.ndarray, list[dict], list[str]] | None:
     """Reads the three store files. None if missing; exception if unreadable."""
     if not (EMBEDDINGS_FILE.exists() and METADATA_FILE.exists() and IDS_FILE.exists()):
         return None
-    _check_manifest()
-    embeddings = np.load(str(EMBEDDINGS_FILE), allow_pickle=False)
-    with open(METADATA_FILE, encoding="utf-8") as f:
-        metadata = json.load(f)
-    with open(IDS_FILE, encoding="utf-8") as f:
-        ids = json.load(f)
+    for attempt in range(3):
+        before = _file_identities()
+        _check_manifest()
+        embeddings = np.load(str(EMBEDDINGS_FILE), allow_pickle=False)
+        with open(METADATA_FILE, encoding="utf-8") as f:
+            metadata = json.load(f)
+        with open(IDS_FILE, encoding="utf-8") as f:
+            ids = json.load(f)
+        if _file_identities() == before:
+            break
+        # a sync renamed a new generation in while we were reading: the three files may not
+        # belong to the same set any more, read them again
+        log.warning("Vector store files changed while loading (attempt %d): reading again", attempt + 1)
+    else:
+        raise ValueError("store rewritten three times while loading")
     if not (len(metadata) == len(ids) == embeddings.shape[0]):
         raise ValueError(f"store incoerente: {embeddings.shape[0]} vettori, "
                          f"{len(metadata)} metadati, {len(ids)} id")
     return _sanitize(embeddings), metadata, ids
+
+
+def _file_identities() -> tuple:
+    """(inode, size, mtime) of the store files: a renamed-in generation changes them."""
+    out = []
+    for p in (EMBEDDINGS_FILE, METADATA_FILE, IDS_FILE, MANIFEST_FILE):
+        try:
+            st = os.stat(p)
+            out.append((st.st_ino, st.st_size, st.st_mtime_ns))
+        except OSError:
+            out.append(None)
+    return tuple(out)
 
 
 def _ensure_loaded():
@@ -285,7 +306,11 @@ def _write_to_disk():
         (IDS_FILE, lambda f: f.write(json.dumps(_ids, ensure_ascii=False).encode("utf-8"))),
     )
     prepared: list[tuple[str, Path]] = []
+    from api.filelock import file_lock
+    lock = None
     try:
+        lock = file_lock(MANIFEST_FILE)   # two writers (a sync and a script run by hand) never interleave
+        lock.__enter__()
         for final, write in contents:
             prepared.append((_prepare(final, write), final))
         manifest = {"files": {final.name: {"size": os.path.getsize(tmp), "sha256": _sha256(Path(tmp))}
@@ -296,6 +321,9 @@ def _write_to_disk():
             os.replace(tmp, final)
         prepared = []
     finally:
+        if lock is not None:
+            with contextlib.suppress(OSError):
+                lock.__exit__(None, None, None)
         for tmp, _ in prepared:
             with contextlib.suppress(OSError):
                 os.unlink(tmp)

@@ -223,11 +223,12 @@ def _revoked_keys() -> dict[str, int]:
 def revoke_token(claims: dict) -> None:
     """Adds the token to the revocation list until its natural expiry."""
     now = int(time.time())
-    with _revoked_lock:
+    from api.safefile import write_text_atomic
+    _REVOKED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with _revoked_lock, file_lock(_REVOKED_FILE):   # purge_logs prunes the same file from another process
+        _revoked_state["mtime"] = None   # reread under the lock: another process may have written it
         current = {k: v for k, v in _revoked_keys().items() if v > now}
         current[revocation_key(claims)] = int(claims.get("exp", now))
-        from api.safefile import write_text_atomic
-        _REVOKED_FILE.parent.mkdir(parents=True, exist_ok=True)
         write_text_atomic(_REVOKED_FILE, json.dumps(current))
 
 
@@ -235,7 +236,8 @@ def prune_revoked() -> int:
     """Drops from the revocation list the tokens that have expired anyway (nothing else
     cleans it between logouts). Returns how many were dropped."""
     now = int(time.time())
-    with _revoked_lock:
+    with _revoked_lock, file_lock(_REVOKED_FILE):
+        _revoked_state["mtime"] = None
         keys = _revoked_keys()
         current = {k: v for k, v in keys.items() if v > now}
         dropped = len(keys) - len(current)

@@ -31,6 +31,32 @@ def content_hash(data: str | bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def write_json_atomic(path: Path, data, indent: int = 2) -> None:
+    """Writes `data` as JSON next to `path` and renames it over: a job stopped halfway (timeout,
+    crash) never leaves a truncated file behind. An existing file keeps its permissions; a new
+    one gets those of an ordinary write (the umask decides: the API reads some of these files)."""
+    import contextlib
+    import os
+    path = Path(path)
+    try:
+        mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        mode = None
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        with open(tmp, "x", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)   # the permissions the file already had, whatever they are
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):   # the temporary file may not exist yet
+            os.unlink(tmp)
+        raise
+
+
 class CrawlState:
     """
     Persistent dictionary: URL → {hash, last_crawled, title, file, changed}.
@@ -53,8 +79,7 @@ class CrawlState:
                 self._state = {}
 
     def save(self):
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(self._state, f, ensure_ascii=False, indent=2)
+        write_json_atomic(STATE_FILE, self._state, indent=2)
 
     def is_changed(self, url: str, new_hash: str) -> bool:
         """Return True if the content is new or changed since the last scan."""

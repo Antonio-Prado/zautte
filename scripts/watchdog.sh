@@ -69,7 +69,13 @@ if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
         fi
         exit 0  # all ok
     fi
-    # Process alive but not responding — kill it
+    # Process alive but not responding. Just started (the index takes a while to load, Ollama
+    # may still be loading the model): give it a few minutes before judging it stuck.
+    started=$(stat -f %m "$PIDFILE" 2>/dev/null || echo 0)
+    if [ $((now - started)) -lt 300 ]; then
+        echo "$(stamp) — Watchdog: not answering yet, started $((now - started))s ago: waiting" >> $LOG
+        exit 0
+    fi
     echo "$(stamp) — Chatbot not responding, restarting..." >> $LOG
     kill -9 $(cat "$PIDFILE") 2>/dev/null
     pkill -9 -f "api.main:app" 2>/dev/null

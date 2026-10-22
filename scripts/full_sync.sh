@@ -14,7 +14,10 @@ if [ "$(id -u)" != 0 ] && [ -r /opt/chatbot/.env.sync ]; then export ZAUTTE_ENV_
 LOGFILE=/var/log/chatbot/sync_full.log
 WAIT_SECONDS=43200
 
-cd /opt/chatbot
+cd /opt/chatbot || exit 1
+# Ceiling on the memory of the job (virtual size, KB): a hostile PDF or page that makes the
+# parser blow up ends the job, not the API that shares the machine (SYNC_MAX_VMEM_KB=0 lifts it)
+[ "${SYNC_MAX_VMEM_KB:-25165824}" = 0 ] || ulimit -v "${SYNC_MAX_VMEM_KB:-25165824}"
 # Stopped after SYNC_TIMEOUT seconds (default 40 h)
 lockf -t "$WAIT_SECONDS" "$LOCKFILE" timeout -k 120 "${SYNC_TIMEOUT:-144000}" /opt/chatbot/venv/bin/python -m scripts.sync full >> "$LOGFILE" 2>&1
 STATUS=$?

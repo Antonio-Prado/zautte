@@ -9,6 +9,30 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.34] - 2026-10-22
+
+### Security
+- The sync jobs run under a memory ceiling (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB): a hostile PDF or page
+  that makes a parser blow up ends the job, not the API that shares the machine.
+- The vector store backup runs as root into a folder the sync account cannot write: a bug or a compromise of a sync
+  cannot delete the index and its backups together.
+- `scripts/cron_setup.sh` is retired: it made root jobs write into a folder owned by the sync account.
+- The API refuses to start when one of its data files belongs to another account or is a link.
+- `.env.sync` is written with a private umask and ignored by git.
+
+### Fixed
+- The crawler writes `index.json`, `crawl_state.json` and `pdf_link_texts.json` atomically: a run stopped halfway no
+  longer leaves a truncated file that breaks every later incremental crawl.
+- The vector store is saved under a file lock (two writers, e.g. a sync and a script run by hand, no longer interleave)
+  and is read against a stable set of files (if a sync renames a new generation in during the load, the load is
+  repeated).
+- The revocation list and the "resolved" marks are read and written under the file lock shared with the purge, so a
+  logout or a mark cannot be lost to a concurrent rewrite.
+- SIGTERM is left to uvicorn with a bounded graceful shutdown (`SHUTDOWN_GRACE_SECONDS`): `service chatbot stop`
+  ends cleanly instead of with SIGKILL.
+- The watchdog gives a freshly started service five minutes before judging it stuck.
+- `sync_full.log` is rotated by newsyslog.
+
 ## [0.7.33] - 2026-10-22
 
 ### Security

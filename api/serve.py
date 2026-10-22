@@ -24,6 +24,7 @@ The app appears as an argument because the commands that look for the API proces
 
 import argparse
 import logging
+import os
 import socket
 
 import uvicorn
@@ -56,7 +57,10 @@ def main() -> None:
     hosts = args.host or [h.strip() for h in API_HOST.split(",") if h.strip()]
     sockets = [_listen(h, args.port) for h in hosts]
     # Config also configures uvicorn's logging
-    config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS)
+    # On SIGTERM uvicorn stops accepting and waits for the requests in flight; a streamed answer
+    # can last minutes, so the wait is bounded (seconds) and the rest is cut short
+    config = uvicorn.Config(args.app, forwarded_allow_ips=FORWARDED_ALLOW_IPS,
+                            timeout_graceful_shutdown=int(os.getenv("SHUTDOWN_GRACE_SECONDS", "15")))
     log = logging.getLogger("uvicorn.error")
     log.info("Listening on port %d of %s", args.port, ", ".join(hosts))
     log.info("X-Forwarded-For accepted from %s", FORWARDED_ALLOW_IPS)

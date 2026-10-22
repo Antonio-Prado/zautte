@@ -95,7 +95,6 @@ async def require_admin(request: Request, key: str | None = Security(_api_key_he
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import signal
 
     from api.auth import auth_secret_ok
     if AUTH_ENABLED and not auth_secret_ok():
@@ -116,6 +115,10 @@ async def lifespan(app: FastAPI):
                              USERS_FILE, USERS_FILE.parent / "revoked_tokens.json",
                              USERS_FILE.parent / "stats.json"]):
         log.error("Data file: %s", problem)
+        if "owned by uid" in problem or "not a regular file" in problem:
+            # a file of another account (or a link) where the API keeps its users and logs: refuse to
+            # read it as if it were ours
+            raise RuntimeError(f"refusing to start: {problem}")
     log.info("Starting chatbot...")
     try:
         from indexer.embedder import check_ollama_embed
@@ -135,21 +138,11 @@ async def lifespan(app: FastAPI):
 
     stats_task = asyncio.create_task(_expire_stats_forever())
 
-    # Graceful shutdown: waits for in-flight requests to complete
-    shutdown_event = asyncio.Event()
-
-    def _handle_sigterm(*_):
-        log.info("SIGTERM received: waiting for in-flight requests to complete...")
-        shutdown_event.set()
-
-    signal.signal(signal.SIGTERM, _handle_sigterm)
-
+    # SIGTERM is left to uvicorn: it stops accepting, lets the requests in flight finish (up to
+    # the graceful timeout set in api/serve.py) and then runs the rest of this function
     yield
 
     stats_task.cancel()
-    if shutdown_event.is_set():
-        await asyncio.sleep(2)  # window for streaming requests to complete
-
     log.info("Chatbot stopped.")
 
 
@@ -833,11 +826,17 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
     """Marks a negative feedback as resolved — admin only. If the feedback has
     an author with an email (login enabled) and `notify` is true, sends them a
     reply email with the optional note. Returns `notified` = email being sent."""
+
+    f = _resolved_negative_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    with file_lock(f):   # purge_logs and forget rewrite the same file from another process
+        return await asyncio.to_thread(_resolve_locked, f, req, background_tasks)
+
+
+def _resolve_locked(f, req: "ResolveRequest", background_tasks: BackgroundTasks) -> dict:
     import json as _json
 
     from api import feedback_store as fs
-    f = _resolved_negative_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
     existing: list[dict] = []
     if f.exists():
         try:
