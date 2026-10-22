@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.26] - 2026-10-22
+
+### Changed
+- `scripts/inactive_users.py` reads the creation date of an account in a function of its own; closes a code scanning
+  warning (empty `except`).
+
 ## [0.7.25] - 2026-10-22
 
 ### Security
