@@ -35,7 +35,7 @@
           if (d.top_doc) {
             const td = d.top_doc;
             document.getElementById('top-doc').innerHTML =
-              '<a href="'+_esc(td.source)+'" target="_blank" style="color:#003366;font-size:.9em">'+_esc(td.title||td.source.split('/').pop())+'</a>'
+              '<a href="'+_href(td.source)+'" target="_blank" rel="noopener" style="color:#003366;font-size:.9em">'+_esc(td.title||td.source.split('/').pop())+'</a>'
               +' <span style="color:#666;font-size:.8em">('+_esc(td.chunks)+' chunk)</span>';
           }
 
@@ -203,6 +203,11 @@
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    // An address for href: only http(s), else '#'
+    function _href(u) {
+      return /^https?:\/\//i.test(String(u || '').trim()) ? _esc(String(u).trim()) : '#';
+    }
+
     function loadMessages() {
       const body = document.getElementById('msg-body');
       const status = document.getElementById('msg-status');
@@ -231,7 +236,7 @@
               let src = '';
               (m.sources || []).forEach(s => {
                 const t = _esc(s.title || s.url || '');
-                src += '<li>' + (s.url ? '<a href="' + _esc(s.url) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</li>';
+                src += '<li>' + (s.url ? '<a href="' + _href(s.url) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</li>';
               });
               cell = '<details class="msg-answer" data-rid="' + _esc(m.rid) + '"'
                 + (open.has(m.rid) ? ' open' : '') + '><summary>' + _esc(m.q)
@@ -318,7 +323,7 @@
             if (e.urls && e.urls.length) {
               html += '<ul class="neg-urls">' + e.urls.map(u => {
                 const safe = _esc(u);
-                return '<li>🔗 <a href="' + safe + '" target="_blank" rel="noopener noreferrer">' + safe + '</a></li>';
+                return '<li>🔗 <a href="' + _href(u) + '" target="_blank" rel="noopener noreferrer">' + safe + '</a></li>';
               }).join('') + '</ul>';
             }
             main.innerHTML = html;

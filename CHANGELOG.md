@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.20] - 2026-10-22
+
+### Security
+- New password hashes use scrypt with twice the memory (N=2^15). An older hash is stored again with the new parameters
+  the first time its owner logs in; a stored hash asking for absurd parameters is refused instead of computed.
+- The mailer refuses to log in to a relay (`SMTP_USER`) without `SMTP_SSL` or `SMTP_STARTTLS`, unless the relay is on
+  the same machine: the password would travel in clear text.
+- The subject of an email is a single line: a question with a line break no longer breaks the notification.
+- The restricted area opens a link only if it starts with `http://` or `https://`.
+- `setup_freebsd.sh` writes its temporary constraints file with `mktemp` instead of a predictable name in `/tmp`.
+
 ## [0.7.19] - 2026-10-22
 
 ### Changed

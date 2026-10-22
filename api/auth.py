@@ -52,10 +52,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ---------------------------------------------------------------------------
 # Password hashing (scrypt, standard library)
 # ---------------------------------------------------------------------------
-_SCRYPT_N = 2 ** 14      # ~16 MB of memory: below the default maxmem (32 MB)
+_SCRYPT_N = 2 ** 15      # ~32 MB of memory per check; older hashes (2**14) are upgraded at login
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SCRYPT_DKLEN = 32
+_SCRYPT_MAXMEM = 96 * 1024 * 1024
+_SCRYPT_MAX_N = 2 ** 17  # a stored hash asking for more is treated as damaged, not computed
 
 
 def hash_password(password: str) -> str:
@@ -64,6 +66,7 @@ def hash_password(password: str) -> str:
     dk = hashlib.scrypt(
         password.encode("utf-8"), salt=salt,
         n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_SCRYPT_DKLEN,
+        maxmem=_SCRYPT_MAXMEM,
     )
     return "scrypt${}${}${}${}${}".format(
         _SCRYPT_N, _SCRYPT_R, _SCRYPT_P,
@@ -80,13 +83,40 @@ def verify_password(password: str, stored: str) -> bool:
             return False
         salt = base64.b64decode(salt_b64)
         expected = base64.b64decode(hash_b64)
+        if not 2 <= int(n) <= _SCRYPT_MAX_N or int(r) > 16 or int(p) > 4:
+            return False
         dk = hashlib.scrypt(
             password.encode("utf-8"), salt=salt,
             n=int(n), r=int(r), p=int(p), dklen=len(expected),
+            maxmem=_SCRYPT_MAXMEM,
         )
         return hmac.compare_digest(dk, expected)
     except (ValueError, TypeError):  # stored hash malformed: fail closed
         return False
+
+
+def needs_rehash(stored: str) -> bool:
+    """True if the stored hash was made with weaker parameters than the current ones."""
+    try:
+        return int(stored.split("$")[1]) < _SCRYPT_N
+    except (IndexError, ValueError):
+        return False
+
+
+def _upgrade_hash(uid: str, password: str, old_hash: str) -> None:
+    """After a successful login, store the password again with the current parameters.
+    Skipped if the hash changed in the meantime (reset, new password)."""
+    new_hash = hash_password(password)   # slow: done before taking the lock
+    with file_lock(USERS_FILE):
+        users = _load_users()
+        for u in users:
+            if u.get("id") == uid and u.get("pw_hash") == old_hash:
+                u["pw_hash"] = new_hash
+                try:
+                    write_users(users)
+                except (OSError, TypeError, ValueError):
+                    log.warning("Could not upgrade a password hash")
+                return
 
 
 # "Decoy" hash computed once at import: by always verifying the password
@@ -329,6 +359,8 @@ async def login(request: Request, req: LoginRequest):
             account_guard.login_failed(req.email)
         raise HTTPException(status_code=401, detail="Email o password non validi")
     account_guard.login_ok(req.email)
+    if needs_rehash(user["pw_hash"]):
+        await asyncio.to_thread(_upgrade_hash, user["id"], req.password, user["pw_hash"])
 
     token = create_token(user["id"], user.get("name", user["email"]), int(user.get("auth_version", 0)))
     return LoginResponse(
