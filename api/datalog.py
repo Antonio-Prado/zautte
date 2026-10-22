@@ -116,6 +116,14 @@ def answer_owner(rid: str) -> str | None:
     return None
 
 
+def logged_exchange(rid: str) -> tuple[str, str]:
+    """(question, answer) recorded by the server for `rid`; an empty string where the server has
+    nothing (never logged, or already erased by the retention period)."""
+    answer = next((e.get("a", "") for e in _read_jsonl(ANSWERS_FILE) if e.get("rid") == rid), "")
+    question = next((e.get("q", "") for e in _read_jsonl(USAGE_FILE) if e.get("rid") == rid), "")
+    return str(question or ""), str(answer or "")
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []

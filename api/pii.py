@@ -25,18 +25,18 @@ import re
 from config.settings import PII_BLOCK, PII_KEEP_EMAIL_DOMAINS, PII_REDACTION
 
 # Tax code (codice fiscale) of natural persons, including omocodia (digits replaced
-# by the letters LMNPQRSTUV).
+# by the letters LMNPQRSTUV), also written in groups separated by a space.
 _CF_RE = re.compile(
-    r"(?<![A-Za-z0-9])[A-Za-z]{6}[0-9LMNPQRSTUVlmnpqrstuv]{2}[ABCDEHLMPRSTabcdehlmprst]"
-    r"[0-9LMNPQRSTUVlmnpqrstuv]{2}[A-Za-z][0-9LMNPQRSTUVlmnpqrstuv]{3}[A-Za-z](?![A-Za-z0-9])"
+    r"(?<![A-Za-z0-9])[A-Za-z]{3} ?[A-Za-z]{3} ?[0-9LMNPQRSTUVlmnpqrstuv]{2}[ABCDEHLMPRSTabcdehlmprst]"
+    r"[0-9LMNPQRSTUVlmnpqrstuv]{2} ?[A-Za-z][0-9LMNPQRSTUVlmnpqrstuv]{3} ?[A-Za-z](?![A-Za-z0-9])"
 )
 
 # IBAN: country + 2 check digits + 11-30 characters, either contiguous or
-# in groups of 4 separated by a space (uppercase only, so that the words that
+# in groups of 4 separated by a space or a hyphen (uppercase only, so that the words that
 # follow are not swallowed into the number).
 _IBAN_RE = re.compile(
     r"(?<![A-Za-z0-9])(?:[A-Za-z]{2}\d{2}[A-Za-z0-9]{11,30}"
-    r"|[A-Z]{2}\d{2}(?: [A-Z0-9]{4}){2,7}(?: [A-Z0-9]{1,4})?)(?![A-Za-z0-9])"
+    r"|[A-Z]{2}\d{2}(?:[ -][A-Z0-9]{4}){2,7}(?:[ -][A-Z0-9]{1,4})?)(?![A-Za-z0-9])"
 )
 
 # Payment card: 13-19 digits, optionally separated by spaces or hyphens.
@@ -54,13 +54,15 @@ _EMAIL_RE = re.compile(
 # checked afterwards (9-11 national digits), so dates like 01/02/2026 (8 digits)
 # and amounts are left untouched.
 _PHONE_RE = re.compile(
-    r"(?<![\w.,/+])(?:(?:\+|00)39[ .-]?)?[03]\d(?:[ ./-]?\d){5,10}(?![\w])"
+    r"(?<![\w,/+])(?<!\d\.)(?:(?:\+|00)39[ .-]?)?[03]\d(?:[ ./-]?\d){5,10}(?![\w])"
 )
+# Foreign number: international prefix other than +39, then 8-13 digits
+_PHONE_INTL_RE = re.compile(r"(?<![\w,/+])(?:\+|00)(?!39(?!\d))[1-9]\d{0,2}(?:[ .-]?\d){7,12}(?![\w])")
 _PHONE_PREFIX_RE = re.compile(r"^(?:\+|00)39")
 
 
 def _iban_ok(candidate: str) -> bool:
-    s = re.sub(r"\s", "", candidate).upper()
+    s = re.sub(r"[\s-]", "", candidate).upper()
     if not 15 <= len(s) <= 34:
         return False
     rearranged = s[4:] + s[:4]
@@ -113,6 +115,7 @@ def _mask(text: str, keep_institutional: bool) -> str:
     text = _CARD_RE.sub(lambda m: "[carta di pagamento]" if _luhn_ok(m.group(0)) else m.group(0), text)
     text = _EMAIL_RE.sub(
         lambda m: m.group(0) if keep_institutional and _email_kept(m.group(2)) else "[email]", text)
+    text = _PHONE_INTL_RE.sub("[telefono]", text)
     return _PHONE_RE.sub(lambda m: "[telefono]" if _phone_ok(m.group(0)) else m.group(0), text)
 
 
@@ -129,7 +132,8 @@ def redact(text: str) -> str:
 # anziano»), hence the patterns are case-sensitive.
 _NAME = r"[A-ZÀ-Ý][a-zà-ÿ']{1,}"
 _SELF_RE = re.compile(
-    r"(?i:\bmi chiamo|\bil mio nome è|\bil mio cognome è|\bme chiamo|\bmy name is|\bi am called)\s+" + _NAME
+    r"(?i:\bmi chiamo|\bme chiamo|\bmy name is|\bi am called)\s+[A-Za-zÀ-ÿ']{2,}"
+    + r"|(?i:\bil mio nome è|\bil mio cognome è)\s+" + _NAME
     + r"|(?i:\bsono (?:il |la |lo )?(?:signor|signora|sig\.|sig\.ra|dott\.|dottor|dottoressa|ing\.)?)\s*" + _NAME + r"\s+" + _NAME
     + r"|(?i:\b(?:abito|vivo|risiedo|sono residente|resido|domiciliat[oa]) (?:in|a) (?:via|viale|corso|piazza|largo|vicolo|contrada|strada)\b)[^.?!]{0,40}\d"
     + r"|(?i:\bsono nat[oa] (?:a|il)\b)"
