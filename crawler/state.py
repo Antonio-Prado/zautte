@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config.settings import CRAWL_CACHE_DIR
+from config.settings import CRAWL_CACHE_DIR, DOCUMENTS_DIR
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class CrawlState:
     def __init__(self):
         CRAWL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         self._state: dict = {}
+        self._orphans: set[str] = set()   # files a URL no longer uses (it was saved under a new name)
         self._load()
 
     def _load(self):
@@ -65,6 +66,9 @@ class CrawlState:
     def update(self, url: str, new_hash: str, title: str = "", file: str = ""):
         """Update the state for a URL."""
         was_new = url not in self._state
+        previous = (self._state.get(url) or {}).get("file")
+        if previous and file and previous != file:
+            self._orphans.add(previous)
         self._state[url] = {
             "hash": new_hash,
             "last_crawled": _now_iso(),
@@ -73,6 +77,24 @@ class CrawlState:
             "changed": True,
         }
         return was_new
+
+    def delete_orphans(self) -> int:
+        """Delete the files that URLs stopped using. Called once the state and the index that name
+        the new files are saved: an interrupted crawl never leaves an index pointing at a deleted
+        file. Only files inside the cache folders, and not used by any other URL, are removed."""
+        in_use = {e.get("file") for e in self._state.values() if e.get("file")}
+        bases = [CRAWL_CACHE_DIR.resolve(), DOCUMENTS_DIR.resolve()]
+        removed = 0
+        for name in self._orphans - in_use:
+            path = Path(name)
+            try:
+                if path.is_file() and any(path.resolve().is_relative_to(b) for b in bases):
+                    path.unlink()
+                    removed += 1
+            except OSError as e:
+                log.warning(f"Old cache file not removed ({path.name}): {e}")
+        self._orphans.clear()
+        return removed
 
     def mark_unchanged(self, url: str):
         """Mark a URL as unchanged in this session."""

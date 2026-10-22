@@ -27,9 +27,11 @@ chown $SYNC_USER:$SYNC_USER $CONTROL && chmod 755 $CONTROL
 
 # What the sync jobs write
 for d in vectorstore crawl_cache documents inbox backups; do
-    [ -d "$DATA/$d" ] && chown -R $SYNC_USER:$SYNC_USER "$DATA/$d"
+    # directories and files with a single name only: never through a link, and not a file that is
+    # also linked from somewhere else (it could be one the sync account must not own)
+    [ -d "$DATA/$d" ] && find "$DATA/$d" \( -type d -o \( -type f -links 1 \) \) -exec chown $SYNC_USER:$SYNC_USER {} +
 done
-mkdir -p /var/log/chatbot && chown -R $SYNC_USER:$SYNC_USER /var/log/chatbot
+mkdir -p /var/log/chatbot && find /var/log/chatbot \( -type d -o \( -type f -links 1 \) \) -exec chown $SYNC_USER:$SYNC_USER {} +
 touch /var/log/chatbot-sync.log && chown $SYNC_USER:$APP_USER /var/log/chatbot-sync.log && chmod 640 /var/log/chatbot-sync.log
 
 # The sync account's own environment file: an allowlist of the settings the jobs need

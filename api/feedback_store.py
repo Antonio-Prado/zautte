@@ -187,6 +187,24 @@ def resolved_key(ts: str, question: str) -> str:
     return f"{ts}::{question[:200]}"
 
 
+def entry_key(e: dict) -> str:
+    """Key under which a feedback is marked resolved from now on: its own id (feedback without
+    an id, from before 14/09/2026, keep the key made of time and question)."""
+    return f"id:{e['id']}" if e.get("id") else resolved_key(e.get("ts", ""), e.get("question", ""))
+
+
+def is_resolved(e: dict, resolved: set[str]) -> bool:
+    """Marked resolved under its id, or under the older key of time and question."""
+    return entry_key(e) in resolved or resolved_key(e.get("ts", ""), e.get("question", "")) in resolved
+
+
+def find_by_id(fid: str) -> dict | None:
+    for e in iter_entries():
+        if fid and e.get("id") == fid:
+            return e
+    return None
+
+
 def load_resolved() -> set[str]:
     """Keys of the negative feedback already marked as resolved by the administrator."""
     if not RESOLVED_FILE.exists():
@@ -197,7 +215,7 @@ def load_resolved() -> set[str]:
         return set()
 
 
-def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
+def negative_open(resolved: set[str], limit: int = 200,
                   include_resolved: bool = False) -> tuple[list[dict], int, int]:
     """Negative feedback with the reported details (author, comment, links).
     By default only the unresolved ones; with include_resolved also the others,
@@ -209,8 +227,8 @@ def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
         total += 1
         if e.get("rating") != -1:
             continue
-        is_resolved = key_fn(e.get("ts", ""), e.get("question", "")) in resolved
-        if not is_resolved:
+        done = is_resolved(e, resolved)
+        if not done:
             open_count += 1
         elif not include_resolved:
             continue
@@ -222,6 +240,6 @@ def negative_open(resolved: set[str], key_fn=resolved_key, limit: int = 200,
             "user": e.get("user", ""),
             "comment": e.get("comment", ""),
             "urls": e.get("urls", []) or [],
-            "resolved": is_resolved,
+            "resolved": done,
         })
     return items[-limit:], open_count, total

@@ -85,6 +85,27 @@ def url_allowed(url: str, domains: Iterable[str]) -> bool:
     return host_allowed(host, domains)
 
 
+def is_public_ip(text: str) -> bool:
+    """True for a public address. An IPv6 address that carries an IPv4 one (mapped, 6to4,
+    Teredo, NAT64) counts only if the IPv4 inside is public too: it would otherwise reach an
+    internal host through a gateway."""
+    ip = ipaddress.ip_address(text)
+    if not ip.is_global:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address):
+        inner = []
+        if ip.ipv4_mapped:
+            inner.append(ip.ipv4_mapped)
+        if ip.sixtofour:
+            inner.append(ip.sixtofour)
+        if ip.teredo:
+            inner.extend(ip.teredo)
+        if ip in ipaddress.ip_network("64:ff9b::/96") or ip in ipaddress.ip_network("64:ff9b:1::/48"):
+            inner.append(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+        return all(v4.is_global for v4 in inner)
+    return True
+
+
 _CACHE_SECONDS = 60
 _public_cache: dict[str, tuple[float, bool]] = {}
 
@@ -105,7 +126,7 @@ def resolves_public(host: str) -> bool:
         try:
             infos = socket.getaddrinfo(host, None)
             ok = bool(infos) and all(
-                ipaddress.ip_address(i[4][0].split("%")[0]).is_global for i in infos
+                is_public_ip(i[4][0].split("%")[0]) for i in infos
             )
         except (OSError, ValueError):
             ok = False
@@ -148,7 +169,7 @@ def _addresses(host: str) -> list[str]:
         if ip not in ips:
             ips.append(ip)
     if (CRAWL_BLOCK_PRIVATE_IPS and not _private_ok(host)
-            and (not ips or not all(ipaddress.ip_address(ip).is_global for ip in ips))):
+            and (not ips or not all(is_public_ip(ip) for ip in ips))):
         raise OSError("non-public address")
     return sorted(ips, key=lambda ip: ":" in ip)
 

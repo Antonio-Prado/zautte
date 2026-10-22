@@ -9,6 +9,28 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.23] - 2026-10-22
+
+### Security
+- A feedback is marked resolved under its own id instead of time and question, so two reports with the same question in
+  the same second can no longer resolve each other. Marks made before keep working; the panel sends the id.
+- Cache files of the crawler are named with 96 bits of SHA-256 instead of 48 bits of MD5. A page or document is saved
+  under the new name when it is saved again, and the old file is deleted at the end of the crawl, after the index and
+  the state that name the new one are written; nothing is downloaded again because of this.
+- The inbox ignores symbolic links.
+- Addresses that carry an IPv4 address inside IPv6 (NAT64, 6to4, Teredo, IPv4-mapped) are public only if the IPv4
+  address is public too; the crawler and the news sync no longer read proxy settings from the environment.
+- `purge_logs` drops the expired entries of the logout revocation list. New accounts carry a `created` date, and
+  `scripts/inactive_users.py` lists (and, on request, removes) accounts with no activity for a long time.
+- `requirements-lock.txt` carries the SHA-256 of every file (`scripts/update_lock_hashes.py` regenerates them) and pip
+  refuses anything else. CI installs from it, uses a pinned ruff, and the GitHub Actions are pinned by commit.
+- `setup_sync_user.sh` changes the owner of directories and of files with a single name only, never through a link.
+
+### Added
+- Unit tests (`tests/unit`, pytest, run by CI) for personal data masking, client keys, the Content-Security-Policy,
+  password hashes, the network policy, retired domains, prompt and ingestion hardening, feedback keys, the response cache
+  and the crawler state.
+
 ## [0.7.22] - 2026-10-22
 
 ### Security

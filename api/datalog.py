@@ -15,7 +15,7 @@ import json
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from api.feedback_store import resolved_key
+from api.feedback_store import entry_key, resolved_key
 from api.filelock import file_lock
 from api.safefile import atomic_file, require_regular, write_text_atomic
 from config.settings import DATA_DIR
@@ -90,9 +90,9 @@ def _rewrite_jsonl(path: Path, transform: Callable[[dict], dict | None],
     return removed, changed
 
 
-def drop_resolved(drop: Callable[[str], bool], dry_run: bool) -> int:
-    """Removes from resolved_negative.json the «risolto» marks whose key
-    ("<ts del feedback>::<domanda>") satisfies `drop`. Returns how many."""
+def drop_resolved(drop: Callable[[dict], bool], dry_run: bool) -> int:
+    """Removes from resolved_negative.json the «risolto» marks (records with `key`, and `ts`
+    of the feedback; the older keys are "<ts>::<question>") that satisfy `drop`. Returns how many."""
     if not RESOLVED_FILE.exists():
         return 0
     try:
@@ -101,7 +101,7 @@ def drop_resolved(drop: Callable[[str], bool], dry_run: bool) -> int:
         return 0
     if not isinstance(items, list):
         return 0
-    keep = [i for i in items if not (isinstance(i, dict) and drop(str(i.get("key", ""))))]
+    keep = [i for i in items if not (isinstance(i, dict) and drop(i))]
     removed = len(items) - len(keep)
     if removed and not dry_run:
         write_text_atomic(RESOLVED_FILE, json.dumps(keep, ensure_ascii=False, indent=2))
@@ -223,8 +223,9 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
     n_feedback, _ = (rewrite_jsonl(FEEDBACK_FILE, drop_feedback, dry_run)
                      if (all_rids or legacy or (every and uid)) else (0, 0))
 
-    keys = {resolved_key(e.get("ts", ""), e.get("question", "")) for e in dropped_feedback}
-    n_resolved = drop_resolved(lambda k: k in keys, dry_run) if keys else 0
+    keys = {k for e in dropped_feedback
+            for k in (entry_key(e), resolved_key(e.get("ts", ""), e.get("question", "")))}
+    n_resolved = drop_resolved(lambda i: str(i.get("key", "")) in keys, dry_run) if keys else 0
 
     questions = [{"ts": e.get("ts", ""), "rid": e.get("rid", ""), "q": e.get("q", "")}
                  for e in picked]

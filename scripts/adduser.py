@@ -34,7 +34,7 @@ from api.auth import create_reset_token, hash_password, reset_link, write_users
 from api.filelock import file_lock
 from api.mailer import send_invitation, smtp_configured
 from api.privdrop import drop_to_service_user
-from config.settings import USERS_FILE
+from config.settings import USERS_FILE, now_local
 
 
 def _load() -> list[dict]:
@@ -125,6 +125,7 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
             "name": args.name,
             "email": email,
             "pw_hash": hash_password(password),
+            "created": now_local().date().isoformat(),   # read by scripts.inactive_users
         })
         print(f"Created: {args.name} <{email}>")
     write_users(users)

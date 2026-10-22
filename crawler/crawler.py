@@ -50,6 +50,15 @@ log = logging.getLogger(__name__)
 
 
 def url_to_filename(url: str) -> str:
+    """Cache file name of a URL: the start of its path and 96 bits of its SHA-256 (until 0.7.23 it
+    was 48 bits of MD5: the files saved that way are replaced when the URL is saved again)."""
+    h = hashlib.sha256(url.encode()).hexdigest()[:24]
+    path = urlparse(url).path.strip("/").replace("/", "_")[:60]
+    return f"{path}_{h}" if path else h
+
+
+def legacy_filename(url: str) -> str:
+    """The name url_to_filename gave before 0.7.23 (48 bits of MD5)."""
     h = hashlib.md5(url.encode()).hexdigest()[:12]
     path = urlparse(url).path.strip("/").replace("/", "_")[:60]
     return f"{path}_{h}" if path else h
@@ -420,7 +429,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     skipped_pages = 0
 
     async with httpx.AsyncClient(
-        headers=headers, follow_redirects=True, timeout=30.0,
+        headers=headers, follow_redirects=True, timeout=30.0, trust_env=False,
         event_hooks=guard_async(CRAWL_ALLOWED_DOMAINS),
     ) as client:
 
@@ -583,6 +592,9 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     log.info(f"PDF link texts: {len(pdf_link_texts)} PDFs cited, {updated} new or changed titles")
     index = {"pages": results_pages, "pdfs": results_pdfs}
     index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    n_old = state.delete_orphans()
+    if n_old:
+        log.info(f"{n_old} cache files under the old name removed")
 
     mode = "incrementale" if incremental else "completo"
     log.info(f"=== Crawl {mode} completed ===")

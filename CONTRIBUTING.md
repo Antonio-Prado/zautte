@@ -20,7 +20,7 @@ Open an issue using the **Feature request** template. Describe the use case clea
 
 1. Fork the repository and create a branch from `main`
 2. Make your changes — keep them focused on a single concern
-3. Run `ruff check .` (as CI does) and, if you touch the widget or the bundled pages, `python tests/a11y/check.py` (see [Accessibility testing](docs/accessibility-testing.md)). For retrieval changes, `venv/bin/python -m scripts.eval --no-llm` is a quick sanity check (it needs a built index and Ollama)
+3. Run `ruff check .` and `python -m pytest -q tests/unit` (as CI does) and, if you touch the widget or the bundled pages, `python tests/a11y/check.py` (see [Accessibility testing](docs/accessibility-testing.md)). For retrieval changes, `venv/bin/python -m scripts.eval --no-llm` is a quick sanity check (it needs a built index and Ollama)
 4. Open a pull request with a clear description of what changes and why
 
 **Before submitting:**
@@ -38,7 +38,7 @@ Open an issue using the **Feature request** template. Describe the use case clea
 | `api/` | FastAPI backend + RAG pipeline |
 | `widget/` | Self-contained JS/CSS chat widget |
 | `admin_panel/` | Restricted admin area (HTML/JS) |
-| `tests/` | Accessibility checks (Playwright + axe-core) |
+| `tests/` | `unit/`: regression tests (pytest); `a11y/`: accessibility checks (Playwright + axe-core) |
 | `scripts/` | Sync orchestration, eval, inbox indexer |
 
 ## Changes and releases

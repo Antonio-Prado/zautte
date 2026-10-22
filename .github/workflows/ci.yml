@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.11"
           cache: pip
@@ -26,11 +26,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install ruff
-          pip install -r requirements.txt
+          pip install ruff==0.16.9 pytest==9.1.1
+          pip install --require-hashes -r requirements-lock.txt
 
       - name: Ruff — lint
         run: ruff check .
+
+      - name: Unit tests
+        run: python -m pytest -q tests/unit
 
       - name: Version consistent (version.json, CHANGELOG.md, CITATION.cff)
         run: python scripts/check_version.py
@@ -45,10 +48,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.11"
 
