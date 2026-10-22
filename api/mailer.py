@@ -93,8 +93,8 @@ def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[s
     `entry` is the row of data/feedback.jsonl."""
     user = entry.get("user") or "un collega"
     question = (entry.get("question") or "").strip()
-    subject = f"Zautte — segnalazione di {user}: {question[:70]}"
     when = (entry.get("details_ts") or entry.get("ts") or "").replace("T", " ")[:19]
+    subject = f"Zautte — nuova segnalazione ({when[:10]})"   # no question or name: subjects end up in mail logs
     urls = entry.get("urls") or []
     lines = [
         f"{user} ha segnalato una risposta non soddisfacente ({when}).",
@@ -108,7 +108,7 @@ def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[s
         "Commento:",
         f"  {(entry.get('comment') or '').strip() or '(nessuno)'}",
         "",
-        "Pagine con l'informazione corretta:",
+        "Pagine con l'informazione corretta, indicate dal collega (link non verificati):",
     ]
     lines += [f"  {u}" for u in urls] if urls else ["  (nessuna)"]
     if dashboard_url:
@@ -129,7 +129,7 @@ def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
     """Subject and body of the acknowledgement email to the colleague who reported,
     when the administrator marks the feedback as resolved."""
     question = (entry.get("question") or "").strip()
-    subject = f"Zautte — la tua segnalazione è stata risolta: {question[:70]}"
+    subject = "Zautte — la tua segnalazione è stata risolta"
     lines = [
         f"Ciao {name or 'collega'},",
         "",

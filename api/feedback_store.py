@@ -216,10 +216,12 @@ def load_resolved() -> set[str]:
 
 
 def negative_open(resolved: set[str], limit: int = 200,
-                  include_resolved: bool = False) -> tuple[list[dict], int, int]:
+                  include_resolved: bool = False, names: dict[str, str] | None = None) -> tuple[list[dict], int, int]:
     """Negative feedback with the reported details (author, comment, links).
     By default only the unresolved ones; with include_resolved also the others,
-    with the `resolved` field. Returns (last `limit`, open negatives, totals)."""
+    with the `resolved` field. The author's name comes from `names` (user id -> name): the
+    file holds only the id (older rows still carry a name). Returns (last `limit`, open
+    negatives, totals)."""
     items = []
     total = 0
     open_count = 0
@@ -237,7 +239,7 @@ def negative_open(resolved: set[str], limit: int = 200,
             "ts": e.get("ts", ""),
             "question": e.get("question", ""),
             "answer_preview": e.get("answer_preview", ""),
-            "user": e.get("user", ""),
+            "user": (names or {}).get(e.get("uid", "")) or e.get("user", ""),
             "comment": e.get("comment", ""),
             "urls": e.get("urls", []) or [],
             "resolved": done,
