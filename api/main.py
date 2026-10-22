@@ -35,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import auth, conversations, csp, llm_gate, quota
 from api.admin_guard import check_admin_key
+from api.aio import to_thread_uncancellable
 from api.auth import require_user
 from api.bodylimit import BodyLimitMiddleware
 from api.clientkey import client_key
@@ -1240,8 +1241,10 @@ async def chat_stream(request: Request, req: ChatRequest,
                 llm_gate.release(slot)
                 # Even if interrupted (error, user gone): we record
                 # what was generated, marked as partial.
-                await asyncio.to_thread(_log_answer, user.get("uid"), rid, "".join(parts),
-                                        sources, partial=not completed)
+                # The response generator cancels this task right after the last event: plain
+                # to_thread() work can still be pending then, and a cancelled job never runs.
+                await to_thread_uncancellable(_log_answer, user.get("uid"), rid, "".join(parts),
+                                              sources, partial=not completed)
 
         task = _asyncio.create_task(_produce())
         try:
