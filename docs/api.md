@@ -247,7 +247,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `POST /auth/logout` | user | Revokes the token of the request (listed in `data/revoked_tokens.json` until it would have expired); the widget calls it when the user signs out |
 | `GET /auth/me` | user | Current user `{"uid", "name"}`; `401` if the token is missing or expired |
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |
-| `GET /auth/me` | user | Identity of the session; `consent_required` says whether the participation declaration is still to be made (with `CONSENT_REQUIRED`), `privacy_notice_url` where the notice is |
+| `GET /auth/me` | user | Identity of the session; `consent_required` says whether the participation declaration is still to be made (with `CONSENT_REQUIRED`), `privacy_notice_url` where the notice is, `daily_limit` the questions allowed per day (`DAILY_QUESTION_LIMIT`, shown by the widget in the declaration) |
 | `POST /auth/consent` | user | Body `{"adult": true, "notice_read": true}`: records the participation declaration (date, `CONSENT_VERSION`) in `users.json`; both must be true |
 | `POST /apply` | public (`APPLY_ENABLED`) | Body `{"name", "email", "age", "district"?, "usage"?, "adult": true, "notice_read": true, "website": ""}`: records an application to the pilot (`applications.jsonl`), emails `APPLY_NOTIFY_EMAIL`; 5 per hour per client; `website` is a hidden field a robot fills (then nothing is recorded) |
 | `GET /applications` | admin | Applications received, newest first, with `pending` |

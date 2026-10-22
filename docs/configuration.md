@@ -143,6 +143,9 @@ API_DOCS=false
 #APPLY_ENABLED=true
 #APPLY_NOTIFY_EMAIL=
 #RETENTION_APPLICATIONS_DAYS=90
+# Branding of the password page rendered by the API: logo (absolute path or https) and "how it works" page
+#SITE_LOGO_URL=/widget/zautte-logo.svg
+#SITE_INFO_URL=/widget/come-funziona.html
 # Participation declaration before the first question (pilot): of age, notice read, asks to take part.
 # Kept in users.json with date and version; change the version to ask everybody again.
 #CONSENT_REQUIRED=true

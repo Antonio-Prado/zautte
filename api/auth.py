@@ -43,9 +43,13 @@ from config.settings import (
     AUTH_TOKEN_TTL_DAYS,
     CONSENT_REQUIRED,
     CONSENT_VERSION,
+    DAILY_QUESTION_LIMIT,
     PILOT_LOGIN_URL,
     PRIVACY_NOTICE_URL,
     PUBLIC_BASE_URL,
+    SITE_INFO_URL,
+    SITE_LOGO_URL,
+    SITE_NAME,
     USERS_FILE,
     now_local,
 )
@@ -361,6 +365,7 @@ class LoginResponse(BaseModel):
     expires_in: int
     consent_required: bool = False   # the participation declaration is still to be made
     privacy_notice_url: str = ""
+    daily_limit: int = 0             # questions per day, told to the user up front
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -392,6 +397,7 @@ async def login(request: Request, req: LoginRequest):
         expires_in=AUTH_TOKEN_TTL_DAYS * 86400,
         consent_required=not consent_ok(user["id"]),
         privacy_notice_url=PRIVACY_NOTICE_URL,
+        daily_limit=DAILY_QUESTION_LIMIT,
     )
 
 
@@ -409,7 +415,7 @@ async def me(user: dict = Security(require_user)):
     declaration is still to be made."""
     return {"uid": user.get("uid"), "name": user.get("name"),
             "consent_required": not consent_ok(user.get("uid", "")),
-            "privacy_notice_url": PRIVACY_NOTICE_URL}
+            "privacy_notice_url": PRIVACY_NOTICE_URL, "daily_limit": DAILY_QUESTION_LIMIT}
 
 
 # ---------------------------------------------------------------------------
@@ -571,17 +577,26 @@ _PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
 <title>Zautte — nuova password</title>
-<style>body{{font:16px/1.5 system-ui,sans-serif;max-width:26rem;margin:12vh auto;padding:0 16px;color:#1a1a1a}}
-label{{display:block;margin-top:14px}}input{{width:100%;box-sizing:border-box;padding:10px;font-size:16px;margin-top:4px}}
-button{{margin-top:18px;padding:11px 16px;font-size:16px;background:#003366;color:#fff;border:0;border-radius:8px;cursor:pointer}}
-.err{{color:#b3261e}}.ok{{color:#1b5e20}}</style></head>
-<body><main><h1>Nuova password</h1>{body}</main></body></html>"""
+<style>*,*::before,*::after{{box-sizing:border-box}}
+body{{font:16px/1.6 Arial,sans-serif;margin:0;padding:32px 16px 64px;background:#f5f5f5;color:#333}}
+main{{max-width:480px;margin:0 auto;background:#fff;border:1px solid #ddd;border-radius:8px;padding:24px 28px}}
+.brand-logo{{display:block;height:40px;width:auto;margin:4px 0 20px}}
+h1{{color:#003366;margin:0 0 8px;font-size:1.5em}}p{{margin:10px 0}}a{{color:#003366}}
+.intro{{color:#555}}.links{{font-size:.95em;color:#555}}
+label{{display:block;margin-top:14px;font-weight:600;font-size:.95em}}
+input{{width:100%;padding:10px 12px;font-size:16px;margin-top:4px;border:1px solid #8a8a8a;border-radius:8px}}
+button{{margin-top:18px;padding:11px 16px;font-size:16px;font-weight:600;background:#003366;color:#fff;border:0;border-radius:8px;cursor:pointer}}
+.err{{color:#b3261e;font-weight:600}}.ok{{color:#1b5e20;font-weight:600}}</style></head>
+<body><main>{logo}<h1>Nuova password</h1>{body}</main>
+<script src="/widget/site-footer.js" defer></script></body></html>"""
 
-_FORM = """<p>Scegli la nuova password di Zautte (almeno {min} caratteri).</p>
+_FORM = """<p class="intro">{intro}</p>
+<p>Scegli la nuova password (almeno {min} caratteri).</p>
 <form id="f"><label>Nuova password<input id="p1" type="password" autocomplete="new-password" minlength="{min}" required></label>
 <label>Ripetila<input id="p2" type="password" autocomplete="new-password" minlength="{min}" required></label>
 <p id="m" role="alert" class="err"></p><button type="submit">Salva la password</button></form>
 {login}
+{links}
 <script>
 // the token travels in the fragment, which browsers never send to servers or proxies
 // (links sent before 0.7.1 carried it in the query string: still accepted)
@@ -609,8 +624,15 @@ document.getElementById('f').addEventListener('submit', async (e) => {{
 _MIN_PASSWORD = 10
 
 
+def _safe_url(url: str) -> str:
+    """An absolute path or an http(s) address, escaped for an attribute; else empty."""
+    return html.escape(url, quote=True) if url.startswith(("/", "http://", "https://")) else ""
+
+
 def _html(body: str, status: int = 200) -> HTMLResponse:
-    page = _PAGE.format(body=body)
+    logo = (f'<img class="brand-logo" src="{_safe_url(SITE_LOGO_URL)}" alt="Zautte" height="40">'
+            if _safe_url(SITE_LOGO_URL) else "")
+    page = _PAGE.format(body=body, logo=logo)
     return HTMLResponse(page, status_code=status,
                         headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store",
                                  **csp.headers_for(page)})
@@ -624,7 +646,12 @@ async def reset_page():
         return _html('<p class="err">Il link non è valido o è scaduto.</p>', 400)
     login = (f'<p id="go" hidden><a href="{html.escape(PILOT_LOGIN_URL, quote=True)}">Vai all\'accesso</a></p>'
              if PILOT_LOGIN_URL.startswith(("http://", "https://")) else "")
-    return _html(_FORM.format(min=_MIN_PASSWORD, login=login))
+    intro = ("Stai scegliendo la password per accedere a Zautte, l'assistente virtuale"
+             + (f" di {html.escape(SITE_NAME)}" if SITE_NAME else "") + ".")
+    parts = [f'<a href="{u}">{t}</a>' for u, t in ((_safe_url(SITE_INFO_URL), "Come funziona Zautte"),
+                                                   (_safe_url(PRIVACY_NOTICE_URL), "Informativa sul trattamento dei dati")) if u]
+    links = f'<p class="links">{" · ".join(parts)}</p>' if parts else ""
+    return _html(_FORM.format(min=_MIN_PASSWORD, login=login, intro=intro, links=links))
 
 
 class ResetRequest(BaseModel):

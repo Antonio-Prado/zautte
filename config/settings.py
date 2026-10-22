@@ -54,6 +54,10 @@ INSTANCE_DIR = os.getenv("INSTANCE_DIR", "").strip()
 # Required: set in .env
 SITE_URL  = os.getenv("SITE_URL", "")
 SITE_NAME = os.getenv("SITE_NAME", "")
+# Branding of the pages the API renders itself (the password page): the logo (an absolute
+# path such as /widget/zautte-logo.svg, or an https address) and the "how it works" page
+SITE_LOGO_URL = os.getenv("SITE_LOGO_URL", "").strip()
+SITE_INFO_URL = os.getenv("SITE_INFO_URL", "").strip()
 
 # --- Crawling ---
 CRAWL_MAX_PAGES = 0            # 0 = no limit

@@ -137,10 +137,11 @@
     consentIntro: isItalian
       ? "La sperimentazione è riservata a maggiorenni che hanno letto l'informativa sul trattamento dei dati."
       : "The pilot is open to adults who have read the privacy notice.",
+    consentLimit: isItalian ? "Ogni partecipante può fare fino a {n} domande al giorno." : "Each participant may ask up to {n} questions a day.",
     consentNotice: isItalian ? "Leggi l'informativa" : "Read the privacy notice",
     consentAdult: isItalian ? "Dichiaro di avere almeno 18 anni" : "I declare that I am at least 18 years old",
     consentRead: isItalian ? "Dichiaro di aver letto l'informativa" : "I declare that I have read the privacy notice",
-    consentSubmit: isItalian ? "Chiedo di partecipare alla sperimentazione" : "I ask to take part in the pilot",
+    consentSubmit: isItalian ? "Entra nella sperimentazione" : "Enter the pilot",
     consentSending: isItalian ? "Invio…" : "Sending…",
     consentBoth: isItalian ? "Per partecipare servono entrambe le dichiarazioni." : "Both declarations are needed to take part.",
     consentErr: isItalian ? "Non è stato possibile registrare la dichiarazione. Riprova." : "The declaration could not be recorded. Please try again.",
@@ -880,7 +881,7 @@
   const checkStyle = "display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;color:#333;cursor:pointer;";
   consentEl.innerHTML = `
     <h2 style="margin:0;font-weight:600;font-size:16px;color:${p};text-align:center;">${T.consentTitle}</h2>
-    <div style="font-size:13px;opacity:.8;line-height:1.4;text-align:center;">${T.consentIntro}</div>
+    <div style="font-size:13px;opacity:.8;line-height:1.4;text-align:center;">${T.consentIntro} <span id="${WIDGET_ID}-consent-limit"></span></div>
     <div id="${WIDGET_ID}-consent-link" style="text-align:center;font-size:14px;"></div>
     <label style="${checkStyle}"><input type="checkbox" id="${WIDGET_ID}-consent-adult" required style="margin-top:3px;width:18px;height:18px;"> <span>${T.consentAdult}</span></label>
     <label style="${checkStyle}"><input type="checkbox" id="${WIDGET_ID}-consent-read" required style="margin-top:3px;width:18px;height:18px;"> <span>${T.consentRead}</span></label>
@@ -903,9 +904,11 @@
     holder.appendChild(a);
   }
 
-  function showConsent(url) {
+  function showConsent(url, limit) {
     needsConsent = true;
     setNoticeLink(url);
+    const lim = consentEl.querySelector(`#${WIDGET_ID}-consent-limit`);
+    lim.textContent = limit > 0 ? T.consentLimit.replace("{n}", String(limit)) : "";
     panel.classList.add("login");
     messages.style.display = "none";
     if (inputArea) inputArea.style.display = "none";
@@ -1037,7 +1040,7 @@
       pwInput.value = "";
       updateHeaderUser();
       clearChat();
-      if (data.consent_required) { showConsent(data.privacy_notice_url); return; }
+      if (data.consent_required) { showConsent(data.privacy_notice_url, data.daily_limit); return; }
       needsConsent = false;
       showChat();
       inputEl.focus({ preventScroll: true });
@@ -1870,7 +1873,7 @@
         }
         if (!r.ok) return;
         const me = await r.json().catch(() => ({}));
-        if (me.consent_required) { needsConsent = true; if (isOpen) showConsent(me.privacy_notice_url); }
+        if (me.consent_required) { needsConsent = true; if (isOpen) showConsent(me.privacy_notice_url, me.daily_limit); }
       })
       .catch(() => {});
   }
