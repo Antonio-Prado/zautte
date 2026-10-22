@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -41,7 +42,7 @@ def test_store_and_accept_create_the_account_once(files):
     assert [json.loads(ln) for ln in a.read_text().split("\n") if ln.strip()] == [entry]
 
     user, link = apps.accept(entry["id"])
-    assert user["email"] == "mario.rossi@example.org" and link.startswith("https://bot.example.org")
+    assert user["email"] == "mario.rossi@example.org" and urlsplit(link).netloc == "bot.example.org"
     assert json.loads(u.read_text())[0]["email"] == "mario.rossi@example.org"
     apps.mark(entry["id"], "accepted")
     assert apps.list_all()[0]["status"] == "accepted"
