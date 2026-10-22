@@ -18,10 +18,7 @@ async def _cancelled_right_after_scheduling(run):
     done = threading.Event()
 
     async def producer():
-        try:
-            pass
-        finally:
-            await run(done.set)
+        await run(done.set)   # the write the real producer schedules in its `finally`
 
     task = asyncio.create_task(producer())
     await asyncio.sleep(0)   # the producer runs up to its await and hands the work to the executor
