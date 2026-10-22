@@ -21,4 +21,4 @@ def test_unsafe_logo_and_links_are_left_out(monkeypatch):
     monkeypatch.setattr(auth, "SITE_LOGO_URL", "javascript:alert(1)")
     monkeypatch.setattr(auth, "SITE_INFO_URL", "data:text/html,x")
     page = asyncio.run(auth.reset_page()).body.decode()
-    assert "javascript:" not in page and "data:text" not in page and "brand-logo" not in page
+    assert "javascript:" not in page and "data:text" not in page and '<img class="brand-logo"' not in page

@@ -16,7 +16,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   (`SITE_NAME`), links to "how it works" (`SITE_INFO_URL`) and to the privacy notice (`PRIVACY_NOTICE_URL`), and the
   shared footer (`/widget/site-footer.js`, the installation's own when it overrides it).
 - The button of the participation declaration says "Entra nella sperimentazione" (the person has already asked to
-  take part when applying).
+  take part when applying), and the declaration states the daily limit of questions (`daily_limit` in `/auth/login`
+  and `/auth/me`, from `DAILY_QUESTION_LIMIT`).
 
 ## [0.7.37] - 2026-10-22
 
