@@ -211,7 +211,8 @@ def _revoked_keys() -> dict[str, int]:
         return st["keys"]
     if mtime != st["mtime"]:
         try:
-            data = json.loads(_REVOKED_FILE.read_text(encoding="utf-8"))
+            text = _REVOKED_FILE.read_text(encoding="utf-8")
+            data = json.loads(text) if text.strip() else {}   # created empty at startup (ensure_private)
             st["keys"] = {str(k): int(v) for k, v in data.items()} if isinstance(data, dict) else {}
             st["mtime"] = mtime
         except (OSError, ValueError, TypeError):
