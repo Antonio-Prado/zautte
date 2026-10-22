@@ -21,7 +21,7 @@ def test_feedback_texts_expire_before_the_row_and_marks_follow(tmp_path, monkeyp
     monkeypatch.setattr(pl, "FEEDBACK_FILE", f)
     monkeypatch.setattr(datalog, "RESOLVED_FILE", r)
     monkeypatch.setattr(pl, "RETENTION_FEEDBACK_DAYS", 365)
-    monkeypatch.setattr(pl, "RETENTION_USAGE_TEXT_DAYS", 30)
+    monkeypatch.setattr(pl, "RETENTION_FEEDBACK_TEXT_DAYS", 30)
     old_noid = {"ts": _ts(40), "rating": -1, "question": "vecchia", "uid": "u1", "user": "Mario"}
     old = {"id": "aa", "ts": _ts(40), "rating": 1, "question": "q", "answer_preview": "a", "comment": "c",
            "urls": ["https://x"], "uid": "u1", "rid": "r1"}

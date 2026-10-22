@@ -82,6 +82,8 @@ RETENTION_USAGE_TEXT_DAYS=90
 RETENTION_USAGE_DAYS=365
 RETENTION_GAPS_DAYS=180
 RETENTION_FEEDBACK_DAYS=365
+# Texts of a feedback (question, answer excerpt, comment, links, author's name); default: same as the rows
+#RETENTION_FEEDBACK_TEXT_DAYS=365
 RETENTION_STATS_DAYS=90
 
 # Account the maintenance scripts (purge_logs, adduser) switch to when started as root.
@@ -135,6 +137,11 @@ API_CORS_ORIGINS=https://www.your-site.com
 FORWARDED_ALLOW_IPS=127.0.0.1,::1
 # Interactive API docs at /docs and /openapi.json (development only; default false)
 API_DOCS=false
+# Participation declaration before the first question (pilot): of age, notice read, asks to take part.
+# Kept in users.json with date and version; change the version to ask everybody again.
+#CONSENT_REQUIRED=true
+#CONSENT_VERSION=2026-10-22
+#PRIVACY_NOTICE_URL=https://bot.example.org/widget/informativa.html
 # Seconds uvicorn waits for the requests in flight on SIGTERM before cutting them (default 15)
 #SHUTDOWN_GRACE_SECONDS=15
 

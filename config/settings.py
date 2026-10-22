@@ -243,20 +243,33 @@ PII_KEEP_EMAIL_DOMAINS = [
 # logging of the text, only a fixed answer inviting the user to rephrase.
 PII_BLOCK = os.getenv("PII_BLOCK", "true").strip().lower() in ("1", "true", "yes", "on")
 
+# --- Participation declaration (pilot) ---
+# With CONSENT_REQUIRED=true a logged-in user must, before the first question, declare to be of
+# age and to have read the privacy notice (PRIVACY_NOTICE_URL, shown as a link) and ask to take
+# part. The declaration is kept in users.json with its date and CONSENT_VERSION: change the
+# version to ask everybody again (new notice).
+CONSENT_REQUIRED = os.getenv("CONSENT_REQUIRED", "false").strip().lower() in ("1", "true", "yes", "on")
+CONSENT_VERSION = os.getenv("CONSENT_VERSION", "1").strip() or "1"
+PRIVACY_NOTICE_URL = os.getenv("PRIVACY_NOTICE_URL", "").strip()
+
 # --- Log retention (days; 0 = no expiry) ---
 # Applied by scripts/purge_logs.py (daily cron). Values to be agreed with
 # the DPO and reported in the privacy notice.
 #   RETENTION_USAGE_TEXT_DAYS: every text typed by a user or answered to them: question text
 #                              in usage.jsonl (afterwards only date, user and metrics remain),
-#                              answers in answers.jsonl, gaps.jsonl entries, and the question,
-#                              answer excerpt, comment, links and author's name of a feedback
+#                              answers in answers.jsonl and gaps.jsonl entries
 #   RETENTION_USAGE_DAYS:      usage.jsonl entries
 #   RETENTION_GAPS_DAYS:       unanswered questions in gaps.jsonl (never beyond the text retention)
-#   RETENTION_FEEDBACK_DAYS:   feedback rows (vote, dates, ids; the texts expire earlier)
+#   RETENTION_FEEDBACK_DAYS:   feedback rows (vote, dates, ids)
+#   RETENTION_FEEDBACK_TEXT_DAYS: texts of a feedback (default: same as the rows)
 RETENTION_USAGE_TEXT_DAYS = int(os.getenv("RETENTION_USAGE_TEXT_DAYS", "90"))
 RETENTION_USAGE_DAYS = int(os.getenv("RETENTION_USAGE_DAYS", "365"))
 RETENTION_GAPS_DAYS = int(os.getenv("RETENTION_GAPS_DAYS", "180"))
 RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
+# RETENTION_FEEDBACK_TEXT_DAYS: the texts of a feedback (question, answer excerpt, comment, links,
+# author's name); default the same as the rows. A report is read and answered by a person, so a
+# privacy notice may keep it longer than a question (e.g. "12 months after it is closed").
+RETENTION_FEEDBACK_TEXT_DAYS = int(os.getenv("RETENTION_FEEDBACK_TEXT_DAYS", str(RETENTION_FEEDBACK_DAYS)))
 # RETENTION_STATS_DAYS: most frequent questions and per-user token records in stats.json
 # (applied by the API itself every time the statistics are saved)
 RETENTION_STATS_DAYS = int(os.getenv("RETENTION_STATS_DAYS", "90"))

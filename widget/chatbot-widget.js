@@ -18,7 +18,7 @@
  *       infoUrl:       '',                                  // "Come funziona" page (optional)
  *       loginSubtitle: '',                                  // text under the login title (optional)
  *       applyNote:     '',                                  // note under the "Apply" label of the login form (optional)
- *       privacyUrl:    '',                                  // privacy notice (optional)
+ *       privacyUrl:    '',                                  // privacy notice (optional; also linked from the participation declaration)
  *       lang:          'it',                                // default language ('it' | 'en')
  *       inline:        '#chat-area',                        // panel inside the page (optional)
  *     };
@@ -131,6 +131,17 @@
     loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
     logout: isItalian ? "Esci" : "Sign out",
     forgot: isItalian ? "Password dimenticata?" : "Forgot password?",
+    consentTitle: isItalian ? "Prima di iniziare" : "Before you start",
+    consentIntro: isItalian
+      ? "La sperimentazione è riservata a maggiorenni che hanno letto l'informativa sul trattamento dei dati."
+      : "The pilot is open to adults who have read the privacy notice.",
+    consentNotice: isItalian ? "Leggi l'informativa" : "Read the privacy notice",
+    consentAdult: isItalian ? "Dichiaro di avere almeno 18 anni" : "I declare that I am at least 18 years old",
+    consentRead: isItalian ? "Dichiaro di aver letto l'informativa" : "I declare that I have read the privacy notice",
+    consentSubmit: isItalian ? "Chiedo di partecipare alla sperimentazione" : "I ask to take part in the pilot",
+    consentSending: isItalian ? "Invio…" : "Sending…",
+    consentBoth: isItalian ? "Per partecipare servono entrambe le dichiarazioni." : "Both declarations are needed to take part.",
+    consentErr: isItalian ? "Non è stato possibile registrare la dichiarazione. Riprova." : "The declaration could not be recorded. Please try again.",
     apply: isItalian ? "Candidatura" : "Apply as a volunteer",
     forgotNoEmail: isItalian ? "Inserisci prima la tua email qui sopra." : "Enter your email above first.",
     forgotSent: isItalian
@@ -857,6 +868,84 @@
     noteEl.style.display = "";
   }
 
+  // Participation declaration (CONSENT_REQUIRED on the server): shown after login until the
+  // user has declared to be of age and to have read the notice, and asked to take part
+  const consentEl = document.createElement("form");
+  consentEl.id = `${WIDGET_ID}-consent`;
+  consentEl.style.cssText = loginEl.style.cssText;
+  const checkStyle = "display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4;color:#333;cursor:pointer;";
+  consentEl.innerHTML = `
+    <h2 style="margin:0;font-weight:600;font-size:16px;color:${p};text-align:center;">${T.consentTitle}</h2>
+    <div style="font-size:13px;opacity:.8;line-height:1.4;text-align:center;">${T.consentIntro}</div>
+    <div id="${WIDGET_ID}-consent-link" style="text-align:center;font-size:14px;"></div>
+    <label style="${checkStyle}"><input type="checkbox" id="${WIDGET_ID}-consent-adult" required style="margin-top:3px;width:18px;height:18px;"> <span>${T.consentAdult}</span></label>
+    <label style="${checkStyle}"><input type="checkbox" id="${WIDGET_ID}-consent-read" required style="margin-top:3px;width:18px;height:18px;"> <span>${T.consentRead}</span></label>
+    <div id="${WIDGET_ID}-consent-error" role="alert" style="display:none;color:#c0392b;font-size:13px;"></div>
+    <button type="submit" id="${WIDGET_ID}-consent-submit"
+      style="padding:11px 12px;border:none;border-radius:8px;background:${p};color:#fff;font-size:14px;font-weight:600;cursor:pointer;">
+      ${T.consentSubmit}
+    </button>`;
+  panel.appendChild(consentEl);
+  let needsConsent = false;
+
+  function setNoticeLink(url) {
+    const holder = consentEl.querySelector(`#${WIDGET_ID}-consent-link`);
+    const href = cfg.privacyUrl || url || "";
+    holder.innerHTML = "";
+    if (!/^(https?:\/\/|\.?\/)/i.test(href)) return;
+    const a = document.createElement("a");
+    a.href = href; a.target = "_blank"; a.rel = "noopener"; a.style.color = p;
+    a.textContent = T.consentNotice;
+    holder.appendChild(a);
+  }
+
+  function showConsent(url) {
+    needsConsent = true;
+    setNoticeLink(url);
+    panel.classList.add("login");
+    messages.style.display = "none";
+    if (inputArea) inputArea.style.display = "none";
+    if (footerEl) footerEl.style.display = "none";
+    loginEl.style.display = "none";
+    consentEl.style.display = "flex";
+    const first = document.getElementById(`${WIDGET_ID}-consent-adult`);
+    if (first) setTimeout(() => first.focus({ preventScroll: true }), 60);
+  }
+
+  let consentSending = false;
+  consentEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (consentSending) return;
+    const adult = document.getElementById(`${WIDGET_ID}-consent-adult`).checked;
+    const read = document.getElementById(`${WIDGET_ID}-consent-read`).checked;
+    const errEl = document.getElementById(`${WIDGET_ID}-consent-error`);
+    const btn = document.getElementById(`${WIDGET_ID}-consent-submit`);
+    errEl.style.display = "none";
+    if (!adult || !read) { errEl.textContent = T.consentBoth; errEl.style.display = "block"; return; }
+    consentSending = true;
+    btn.setAttribute("aria-disabled", "true");
+    btn.textContent = T.consentSending;
+    try {
+      const resp = await fetch(`${cfg.apiUrl}/auth/consent`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ adult: true, notice_read: true }),
+      });
+      if (resp.status === 401) { setAuth(null, null); updateHeaderUser(); showLogin(); return; }
+      if (!resp.ok) { errEl.textContent = T.consentErr; errEl.style.display = "block"; return; }
+      needsConsent = false;
+      showChat();
+      inputEl.focus({ preventScroll: true });
+    } catch (_) {
+      errEl.textContent = T.consentErr;
+      errEl.style.display = "block";
+    } finally {
+      consentSending = false;
+      btn.removeAttribute("aria-disabled");
+      btn.textContent = T.consentSubmit;
+    }
+  });
+
   // Logout button (in the header, visible only when logged in)
   const logoutBtn = document.createElement("button");
   logoutBtn.className = `${WIDGET_ID}-icon-btn`;
@@ -894,14 +983,17 @@
     messages.style.display = "none";
     if (inputArea) inputArea.style.display = "none";
     if (footerEl) footerEl.style.display = "none";
+    consentEl.style.display = "none";
     loginEl.style.display = "flex";
     const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
     if (emailInput) setTimeout(() => emailInput.focus({ preventScroll: true }), 60);
   }
 
   function showChat() {
+    if (needsConsent) { showConsent(); return; }
     panel.classList.remove("login");
     loginEl.style.display = "none";
+    consentEl.style.display = "none";
     messages.style.display = "";
     if (inputArea) inputArea.style.display = "";
     if (footerEl) footerEl.style.display = "";
@@ -940,8 +1032,10 @@
       setAuth(data.token, data.name);
       pwInput.value = "";
       updateHeaderUser();
-      showChat();
       clearChat();
+      if (data.consent_required) { showConsent(data.privacy_notice_url); return; }
+      needsConsent = false;
+      showChat();
       inputEl.focus({ preventScroll: true });
     } catch (_) {
       errEl.textContent = T.loginErr;
@@ -1536,6 +1630,16 @@
         body: JSON.stringify({ question, cid: conversationId || undefined }),
       });
 
+      // The participation declaration is still to be made: ask for it, the question is kept in the box
+      if (resp.status === 403 && (await resp.clone().json().catch(() => ({}))).detail?.error === "consent_required") {
+        removeTypingIndicator();
+        clearTimeout(waitTimer);
+        if (waitHint) { waitHint.remove(); waitHint = null; }
+        setLoading(false);
+        inputEl.value = question;
+        showConsent();
+        return;
+      }
       // Session expired/missing: go back to login without showing a generic error
       if (resp.status === 401) {
         setAuth(null, null);
@@ -1753,11 +1857,16 @@
   // finding out at the first question (which would be lost).
   if (cfg.requireLogin && authToken) {
     fetch(`${cfg.apiUrl}/auth/me`, { headers: authHeaders() })
-      .then((r) => {
-        if (r.status !== 401) return;
-        setAuth(null, null);
-        updateHeaderUser();
-        if (isOpen) showLogin();
+      .then(async (r) => {
+        if (r.status === 401) {
+          setAuth(null, null);
+          updateHeaderUser();
+          if (isOpen) showLogin();
+          return;
+        }
+        if (!r.ok) return;
+        const me = await r.json().catch(() => ({}));
+        if (me.consent_required) { needsConsent = true; if (isOpen) showConsent(me.privacy_notice_url); }
       })
       .catch(() => {});
   }
