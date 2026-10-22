@@ -137,6 +137,12 @@ API_CORS_ORIGINS=https://www.your-site.com
 FORWARDED_ALLOW_IPS=127.0.0.1,::1
 # Interactive API docs at /docs and /openapi.json (development only; default false)
 API_DOCS=false
+# Applications to the pilot: public form (POST /apply) that records name, email, age, district and a line
+# of text in data/applications.jsonl; one email per application to APPLY_NOTIFY_EMAIL (default
+# FEEDBACK_NOTIFY_EMAIL); rows deleted after RETENTION_APPLICATIONS_DAYS (default 90)
+#APPLY_ENABLED=true
+#APPLY_NOTIFY_EMAIL=
+#RETENTION_APPLICATIONS_DAYS=90
 # Participation declaration before the first question (pilot): of age, notice read, asks to take part.
 # Kept in users.json with date and version; change the version to ask everybody again.
 #CONSENT_REQUIRED=true

@@ -24,6 +24,7 @@ USAGE_FILE = DATA_DIR / "usage.jsonl"
 ANSWERS_FILE = DATA_DIR / "answers.jsonl"
 GAPS_FILE = DATA_DIR / "gaps.jsonl"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
+APPLICATIONS_FILE = DATA_DIR / "applications.jsonl"
 RESOLVED_FILE = DATA_DIR / "resolved_negative.json"
 
 # Entries without rid: the gap is written before the model's answer and the usage

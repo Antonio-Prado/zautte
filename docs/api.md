@@ -249,6 +249,10 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `POST /feedback/detail` | user (60/hour per IP) | Body `{"id", "comment", "urls"}`: adds a comment and links to the caller's own feedback |
 | `GET /auth/me` | user | Identity of the session; `consent_required` says whether the participation declaration is still to be made (with `CONSENT_REQUIRED`), `privacy_notice_url` where the notice is |
 | `POST /auth/consent` | user | Body `{"adult": true, "notice_read": true}`: records the participation declaration (date, `CONSENT_VERSION`) in `users.json`; both must be true |
+| `POST /apply` | public (`APPLY_ENABLED`) | Body `{"name", "email", "age", "district"?, "usage"?, "adult": true, "notice_read": true, "website": ""}`: records an application to the pilot (`applications.jsonl`), emails `APPLY_NOTIFY_EMAIL`; 5 per hour per client; `website` is a hidden field a robot fills (then nothing is recorded) |
+| `GET /applications` | admin | Applications received, newest first, with `pending` |
+| `POST /applications/accept` | admin | Body `{"id"}`: creates the account and sends the invitation with the link to choose the password (like `adduser --send-email`) |
+| `POST /applications/reject` | admin | Body `{"id"}`: marks it as not selected (nothing is sent) |
 | `POST /feedback/resolve` | admin | Body `{"ts", "question", "id"?, "note"?, "notify"?}` (`id` is the one returned by `GET /feedback/negative`; the mark is kept under it, older marks under time and question): marks a negative feedback as resolved and, unless `notify` is `false`, emails the reporter with the optional note |
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
 | `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) |
