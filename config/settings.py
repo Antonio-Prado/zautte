@@ -252,6 +252,12 @@ CONSENT_REQUIRED = os.getenv("CONSENT_REQUIRED", "false").strip().lower() in ("1
 CONSENT_VERSION = os.getenv("CONSENT_VERSION", "1").strip() or "1"
 PRIVACY_NOTICE_URL = os.getenv("PRIVACY_NOTICE_URL", "").strip()
 
+# --- Applications to the pilot (POST /apply) ---
+# APPLY_ENABLED opens the public endpoint that records the applications of the citizens who ask
+# to take part (data/applications.jsonl); APPLY_NOTIFY_EMAIL receives one email per application
+# (default: FEEDBACK_NOTIFY_EMAIL); RETENTION_APPLICATIONS_DAYS is below.
+APPLY_ENABLED = os.getenv("APPLY_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
+
 # --- Log retention (days; 0 = no expiry) ---
 # Applied by scripts/purge_logs.py (daily cron). Values to be agreed with
 # the DPO and reported in the privacy notice.
@@ -270,6 +276,8 @@ RETENTION_FEEDBACK_DAYS = int(os.getenv("RETENTION_FEEDBACK_DAYS", "365"))
 # author's name); default the same as the rows. A report is read and answered by a person, so a
 # privacy notice may keep it longer than a question (e.g. "12 months after it is closed").
 RETENTION_FEEDBACK_TEXT_DAYS = int(os.getenv("RETENTION_FEEDBACK_TEXT_DAYS", str(RETENTION_FEEDBACK_DAYS)))
+# RETENTION_APPLICATIONS_DAYS: applications to the pilot (name, email, age, district), whatever their status
+RETENTION_APPLICATIONS_DAYS = int(os.getenv("RETENTION_APPLICATIONS_DAYS", "90"))
 # RETENTION_STATS_DAYS: most frequent questions and per-user token records in stats.json
 # (applied by the API itself every time the statistics are saved)
 RETENTION_STATS_DAYS = int(os.getenv("RETENTION_STATS_DAYS", "90"))
@@ -359,6 +367,7 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 # comment and/or link). Empty = no notification; the report remains
 # visible in the dashboard anyway (administrator view).
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
+APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
 
 # --- System prompts ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""

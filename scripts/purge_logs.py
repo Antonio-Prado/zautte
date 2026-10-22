@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.datalog import (
     ANSWERS_FILE,
+    APPLICATIONS_FILE,
     FEEDBACK_FILE,
     GAPS_FILE,
     USAGE_FILE,
@@ -40,6 +41,7 @@ from api.feedback_store import resolved_key
 from api.privdrop import drop_to_service_user
 from config.settings import (
     DATA_DIR,
+    RETENTION_APPLICATIONS_DAYS,
     RETENTION_FEEDBACK_DAYS,
     RETENTION_FEEDBACK_TEXT_DAYS,
     RETENTION_GAPS_DAYS,
@@ -121,6 +123,14 @@ def purge_feedback(dry_run: bool) -> tuple[int, int, int]:
     return removed, stripped, resolved_removed
 
 
+def purge_applications(dry_run: bool) -> int:
+    cut = _cutoff(RETENTION_APPLICATIONS_DAYS)
+    if not APPLICATIONS_FILE.exists():
+        return 0
+    removed, _ = rewrite_jsonl(APPLICATIONS_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
+    return removed
+
+
 def purge_revoked(dry_run: bool) -> int:
     """Expired entries of the logout revocation list."""
     from api.auth import _REVOKED_FILE, _revoked_keys, prune_revoked
@@ -142,6 +152,7 @@ def main() -> None:
     f_removed, f_stripped, r_removed = purge_feedback(args.dry_run)
 
     revoked = purge_revoked(args.dry_run)
+    applications = purge_applications(args.dry_run)
 
     prefix = "[dry-run] " if args.dry_run else ""
     print(f"{prefix}usage.jsonl: {u_removed} entries deleted, text removed from {u_stripped} "
@@ -153,6 +164,7 @@ def main() -> None:
           f"(after {RETENTION_FEEDBACK_TEXT_DAYS} d), {r_removed} 'resolved' marks removed "
           f"(retention {RETENTION_FEEDBACK_DAYS} d)")
     print(f"{prefix}revoked_tokens.json: {revoked} expired entries dropped")
+    print(f"{prefix}applications.jsonl: {applications} entries deleted (retention {RETENTION_APPLICATIONS_DAYS} d)")
 
 
 if __name__ == "__main__":

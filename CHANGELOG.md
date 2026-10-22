@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.37] - 2026-10-22
+
+### Added
+- Applications to the pilot (`APPLY_ENABLED`): `POST /apply` records name, email, age (at least 18), district, a
+  line of text and the two declarations in `applications.jsonl` (five per hour per client, hidden field against
+  robots) and emails `APPLY_NOTIFY_EMAIL`; `GET /applications`, `POST /applications/accept` (creates the account
+  and sends the invitation) and `POST /applications/reject` for the administrator, plus `scripts/applications.py`.
+  Rows expire after `RETENTION_APPLICATIONS_DAYS` (90).
+
 ## [0.7.36] - 2026-10-22
 
 ### Added

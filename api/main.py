@@ -33,9 +33,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import auth, conversations, csp, llm_gate, quota
+from api import applications, auth, conversations, csp, llm_gate, quota
 from api.admin_guard import check_admin_key
 from api.aio import to_thread_uncancellable
+from api.applications import ApplyRequest
 from api.auth import require_participant, require_user
 from api.bodylimit import BodyLimitMiddleware
 from api.clientkey import client_key
@@ -108,10 +109,17 @@ async def lifespan(app: FastAPI):
         # accounts exist but the gate is off: .env was probably not read (permissions after a deploy)
         raise RuntimeError("users.json has accounts but AUTH_ENABLED is not true (is .env readable?): "
                            "refusing to start; set ALLOW_ANONYMOUS=true if the gate is meant to be open")
-    from api.datalog import ANSWERS_FILE, FEEDBACK_FILE, GAPS_FILE, RESOLVED_FILE, USAGE_FILE
+    from api.datalog import (
+        ANSWERS_FILE,
+        APPLICATIONS_FILE,
+        FEEDBACK_FILE,
+        GAPS_FILE,
+        RESOLVED_FILE,
+        USAGE_FILE,
+    )
     from config.settings import USERS_FILE
     for problem in await asyncio.to_thread(
-            ensure_private, [USAGE_FILE, ANSWERS_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE,
+            ensure_private, [USAGE_FILE, ANSWERS_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE, APPLICATIONS_FILE,
                              USERS_FILE, USERS_FILE.parent / "revoked_tokens.json",
                              USERS_FILE.parent / "stats.json"]):
         log.error("Data file: %s", problem)
@@ -774,6 +782,85 @@ async def feedback_detail(request: Request, req: FeedbackDetailRequest, backgrou
     if entry is None:
         raise HTTPException(status_code=404, detail="Feedback non trovato")
     background_tasks.add_task(_notify_feedback, entry)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Applications to the pilot (APPLY_ENABLED)
+# ---------------------------------------------------------------------------
+@app.post("/apply")
+@limiter.limit("5/hour")
+async def apply(request: Request, req: ApplyRequest, background_tasks: BackgroundTasks):
+    """Records the application of a citizen who asks to take part (public, with APPLY_ENABLED).
+    Always answers ok to a robot that fills the hidden field, without recording anything."""
+    from config.settings import APPLY_ENABLED
+    if not APPLY_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+    why = applications.validate(req)
+    if why == "spam":
+        return {"ok": True}
+    if why:
+        raise HTTPException(status_code=400, detail=why)
+    entry = await asyncio.to_thread(applications.store, req)
+    log.info("Application %s recorded", entry["id"])
+    background_tasks.add_task(_notify_application, entry)
+    return {"ok": True}
+
+
+def _notify_application(entry: dict) -> None:
+    """Email to the administrator for a new application (background)."""
+    from api.mailer import send_email, smtp_configured
+    from config.settings import APPLY_NOTIFY_EMAIL
+    if not APPLY_NOTIFY_EMAIL or not smtp_configured():
+        return
+    body = (f"Nuova candidatura alla sperimentazione ({entry.get('ts', '')[:16].replace('T', ' ')}).\n\n"
+            f"Nome: {entry.get('name', '')}\nEmail: {entry.get('email', '')}\nEtà: {entry.get('age', '')}\n"
+            f"Quartiere: {entry.get('district', '') or '(non indicato)'}\n"
+            f"Uso dei servizi: {entry.get('usage', '') or '(non indicato)'}\n\n"
+            f"Per accettarla (crea l'account e invia il link per la password):\n"
+            f"  venv/bin/python -m scripts.applications --accept {entry.get('id', '')}\n"
+            f"Per vedere tutte le candidature in attesa: venv/bin/python -m scripts.applications\n")
+    try:
+        send_email(APPLY_NOTIFY_EMAIL, "Zautte — nuova candidatura", body)
+    except Exception:
+        log.warning("Application notification not sent to %s", APPLY_NOTIFY_EMAIL, exc_info=True)
+
+
+@app.get("/applications")
+async def applications_list(_: None = Security(require_admin)):
+    """Applications received, newest first — admin only."""
+    rows = await asyncio.to_thread(applications.list_all)
+    return {"applications": list(reversed(rows)), "pending": sum(1 for r in rows if r.get("status", "new") == "new")}
+
+
+class ApplicationDecision(BaseModel):
+    id: str = Field(..., max_length=32)
+
+
+@app.post("/applications/accept")
+async def applications_accept(req: ApplicationDecision, _: None = Security(require_admin)):
+    """Creates the account for an application and sends the invitation — admin only."""
+    from api.mailer import send_invitation, smtp_configured
+    if not smtp_configured():
+        raise HTTPException(status_code=503, detail="SMTP non configurato: impossibile inviare l'invito")
+    try:
+        user, link = await asyncio.to_thread(applications.accept, req.id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    try:
+        await asyncio.to_thread(send_invitation, user["email"], user["name"], link, applications.INVITE_HOURS)
+    except Exception as e:
+        log.warning("Invitation not sent to the accepted applicant", exc_info=True)
+        raise HTTPException(status_code=502, detail="Account creato ma invito non inviato: riprova con adduser --send-email") from e
+    await asyncio.to_thread(applications.mark, req.id, "accepted")
+    return {"ok": True, "email": user["email"]}
+
+
+@app.post("/applications/reject")
+async def applications_reject(req: ApplicationDecision, _: None = Security(require_admin)):
+    """Marks an application as not selected — admin only. Nothing is sent."""
+    if await asyncio.to_thread(applications.mark, req.id, "rejected") is None:
+        raise HTTPException(status_code=404, detail="Candidatura non trovata")
     return {"ok": True}
 
 

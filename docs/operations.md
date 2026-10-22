@@ -69,7 +69,7 @@ The sync jobs download and parse documents from the Internet, so they should not
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
 
-`purge_logs` also drops the expired entries of the logout revocation list (`revoked_tokens.json`). Accounts that stopped asking questions are not removed by themselves: `venv/bin/python -m scripts.inactive_users --days 180` lists them (a new account carries a `created` date; one without it and without any question is listed apart and never removed) and `--remove` deletes them after asking.
+Applications to the pilot (`POST /apply`) are listed and accepted with `venv/bin/python -m scripts.applications` (`--accept <id>` creates the account and sends the invitation, `--reject <id>` marks it as not selected, `--all` shows every one). `purge_logs` also drops the expired entries of the logout revocation list (`revoked_tokens.json`). Accounts that stopped asking questions are not removed by themselves: `venv/bin/python -m scripts.inactive_users --days 180` lists them (a new account carries a `created` date; one without it and without any question is listed apart and never removed) and `--remove` deletes them after asking.
 
 The last line is commented out on purpose: `purge_logs` deletes data for good, so turn it on (and try `--dry-run` first) only when the retention periods (`RETENTION_*_DAYS`) have been agreed with the data protection officer and written in the privacy notice. Until then nothing is deleted automatically (the statistics expire by themselves, see `RETENTION_STATS_DAYS`).
 
