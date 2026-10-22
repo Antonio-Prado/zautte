@@ -230,6 +230,20 @@ def revoke_token(claims: dict) -> None:
         write_text_atomic(_REVOKED_FILE, json.dumps(current))
 
 
+def prune_revoked() -> int:
+    """Drops from the revocation list the tokens that have expired anyway (nothing else
+    cleans it between logouts). Returns how many were dropped."""
+    now = int(time.time())
+    with _revoked_lock:
+        keys = _revoked_keys()
+        current = {k: v for k, v in keys.items() if v > now}
+        dropped = len(keys) - len(current)
+        if dropped:
+            from api.safefile import write_text_atomic
+            write_text_atomic(_REVOKED_FILE, json.dumps(current))
+        return dropped
+
+
 # ---------------------------------------------------------------------------
 # User store (data/users.json)
 # ---------------------------------------------------------------------------

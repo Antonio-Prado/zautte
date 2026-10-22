@@ -66,6 +66,7 @@ from crawler.crawler import (
     drop_invisible,
     extract_metadata,
     extract_title,
+    legacy_filename,
     save_link_texts,
     should_skip,
     url_to_filename,
@@ -420,6 +421,7 @@ def attachment_doc(client: httpx.Client, url: str, link_text: str, date: str) ->
     DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     fpath = DOCUMENTS_DIR / (url_to_filename(url) + ext)
     fpath.write_bytes(resp.content)
+    (DOCUMENTS_DIR / (legacy_filename(url) + ext)).unlink(missing_ok=True)   # saved under the old name
     extra: dict = {"category": "allegato", "date": date}
     if ext == ".pdf":
         text = extract_text_from_pdf(fpath)
@@ -542,7 +544,7 @@ def run_news(backfill: bool = False) -> dict:
     if backfill:
         state = {"wp_cursor": "", "items": {}}
     with httpx.Client(headers=_HEADERS, follow_redirects=True, timeout=30.0,
-                      event_hooks=guard(_fetch_domains())) as client:
+                      trust_env=False, event_hooks=guard(_fetch_domains())) as client:
         docs, new_state, counts = collect(client, state, backfill)
     if not docs:
         log.info("News: nothing new")

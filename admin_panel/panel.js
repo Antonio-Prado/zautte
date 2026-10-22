@@ -257,7 +257,7 @@
         });
     }
 
-    function resolveNegative(ts, question, liEl, btnEl, user) {
+    function resolveNegative(ts, question, liEl, btnEl, user, fid) {
       const key = getAdminKey();
       // If the feedback has an author, whoever resolves it can notify them by email with an
       // optional note: OK = resolve and notify, Cancel = resolve silently.
@@ -276,7 +276,7 @@
       fetch(apiBase + '/feedback/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-        body: JSON.stringify({ ts, question, note, notify }),
+        body: JSON.stringify({ ts, question, id: fid || null, note, notify }),
       })
         .then(r => {
           if (r.status === 403) { _adminKey = null; btnEl.disabled = false; btnEl.textContent = '✓ Resolved'; alert('Invalid admin key.'); return; }
@@ -330,7 +330,7 @@
             const btn = document.createElement('button');
             btn.className = 'btn-resolve';
             btn.textContent = '✓ Resolved';
-            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn, e.user || ''));
+            btn.addEventListener('click', () => resolveNegative(e.ts, e.question, li, btn, e.user || '', e.id || ''));
             li.appendChild(main);
             li.appendChild(btn);
             listEl.appendChild(li);

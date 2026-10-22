@@ -79,10 +79,11 @@ zautte/                       # deployed as /opt/chatbot
 ├── requirements.txt          # Python dependencies
 ├── pyproject.toml            # ruff configuration (Python 3.11)
 ├── start.sh                  # Launcher run by the rc.d service (uvicorn on the addresses of API_HOST, port API_PORT)
-├── requirements-lock.txt     # Exact versions used in production
+├── requirements-lock.txt     # Exact versions used in production, with the SHA-256 of each file (scripts/update_lock_hashes.py)
 ├── README.md, CHANGELOG.md, LICENSE, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, ACCESSIBILITY.md
 ├── version.json, CITATION.cff, publiccode.yml  # Release metadata, kept equal by scripts/check_version.py
 ├── .github/                  # CI (ruff, version check, accessibility check), CodeQL, release workflow, Dependabot, issue/PR templates
+├── tests/unit/               # Regression tests (pytest), run in CI
 ├── tests/a11y/check.py       # Accessibility check run in CI
 │
 ├── config/

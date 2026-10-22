@@ -45,7 +45,7 @@ python3.11 -m venv venv
 . venv/bin/activate
 
 # Install dependencies
-pip install -r requirements-lock.txt   # exact versions (FreeBSD, Python 3.11); requirements.txt has the minimums, rank-bm25 included
+pip install -r requirements-lock.txt   # exact versions, each checked against its SHA-256 (FreeBSD, Python 3.11); requirements.txt has the minimums, rank-bm25 included
 
 # Configure the environment
 cp .env.example .env

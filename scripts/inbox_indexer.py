@@ -157,8 +157,11 @@ def process_inbox() -> tuple[int, int]:
 
     candidates = [
         f for f in INBOX_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXT
+        if f.is_file() and not f.is_symlink() and f.suffix.lower() in SUPPORTED_EXT
     ]
+    for f in INBOX_DIR.iterdir():
+        if f.is_symlink():
+            log.warning(f"Link ignored in the inbox: {f.name}")
 
     if not candidates:
         log.info("Inbox empty, no files to process.")

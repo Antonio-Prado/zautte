@@ -88,10 +88,20 @@ def purge_gaps(dry_run: bool) -> int:
 def purge_feedback(dry_run: bool) -> tuple[int, int]:
     cut = _cutoff(RETENTION_FEEDBACK_DAYS)
     removed, _ = rewrite_jsonl(FEEDBACK_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e, dry_run)
-    # "risolto" marks: key "<ts del feedback>::<domanda>"
-    resolved_removed = (drop_resolved(lambda key: _older(key.split("::", 1)[0], cut), dry_run)
+    # "risolto" marks: `ts` of the feedback, or (older marks) the start of the key "<ts>::<question>"
+    resolved_removed = (drop_resolved(
+        lambda i: _older(str(i.get("ts") or str(i.get("key", "")).split("::", 1)[0]), cut), dry_run)
                         if cut is not None else 0)
     return removed, resolved_removed
+
+
+def purge_revoked(dry_run: bool) -> int:
+    """Expired entries of the logout revocation list."""
+    from api.auth import _REVOKED_FILE, _revoked_keys, prune_revoked
+    if dry_run:
+        now = int(dt.datetime.now(dt.UTC).timestamp())
+        return sum(1 for v in _revoked_keys().values() if v <= now) if _REVOKED_FILE.exists() else 0
+    return prune_revoked()
 
 
 def main() -> None:
@@ -105,6 +115,8 @@ def main() -> None:
     g_removed = purge_gaps(args.dry_run)
     f_removed, r_removed = purge_feedback(args.dry_run)
 
+    revoked = purge_revoked(args.dry_run)
+
     prefix = "[dry-run] " if args.dry_run else ""
     print(f"{prefix}usage.jsonl: {u_removed} entries deleted, text removed from {u_stripped} "
           f"(retention: text {RETENTION_USAGE_TEXT_DAYS} d, entry {RETENTION_USAGE_DAYS} d)")
@@ -112,6 +124,7 @@ def main() -> None:
     print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d)")
     print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, {r_removed} 'resolved' marks removed "
           f"(retention {RETENTION_FEEDBACK_DAYS} d)")
+    print(f"{prefix}revoked_tokens.json: {revoked} expired entries dropped")
 
 
 if __name__ == "__main__":

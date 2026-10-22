@@ -535,12 +535,13 @@ def _read_feedback_summary() -> dict:
     f = _DATA_DIR / "feedback.jsonl"
     pos = neg = res = 0
     if f.exists():
+        from api.feedback_store import is_resolved
         resolved = _load_resolved_negative()
         for e in dedup(_read_jsonl(f)):
             if e.get("rating") == 1:
                 pos += 1
             elif e.get("rating") == -1:
-                if _resolved_key(e.get("ts", ""), e.get("question", "")) in resolved:
+                if is_resolved(e, resolved):
                     res += 1
                 else:
                     neg += 1
@@ -806,23 +807,19 @@ def _load_resolved_negative() -> set[str]:
     return load_resolved()
 
 
-def _resolved_key(ts: str, question: str) -> str:
-    from api.feedback_store import resolved_key
-    return resolved_key(ts, question)
-
-
 @app.get("/feedback/negative")
 async def feedback_negative(limit: int = 200, _: None = Security(require_admin)):
     """Questions with negative feedback not yet resolved, with author, comment
     and links reported by the colleague. Admin only."""
     from api import feedback_store as fs
-    items, open_negative, total = fs.negative_open(_load_resolved_negative(), _resolved_key, limit)
+    items, open_negative, total = fs.negative_open(_load_resolved_negative(), limit)
     return {"items": items, "total_negative": open_negative, "total": total}
 
 
 class ResolveRequest(BaseModel):
     ts: str = Field(..., max_length=30)
     question: str = Field(..., max_length=1000)
+    id: str | None = Field(None, max_length=32, description="identificativo della segnalazione")
     note: str | None = Field(None, max_length=1000,
                              description="nota per il collega, inclusa nell'email di riscontro")
     notify: bool = Field(True, description="invia l'email di riscontro a chi ha segnalato")
@@ -845,16 +842,17 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
             existing = _json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             existing = []
-    key = _resolved_key(req.ts, req.question)
-    if any(e.get("key") == key for e in existing):
+    entry = (fs.find_by_id(req.id) if req.id else None) or fs.find_entry(req.ts, req.question)
+    key = fs.entry_key(entry) if entry else fs.resolved_key(req.ts, req.question)
+    done = {e.get("key") for e in existing if isinstance(e, dict)}
+    if key in done or (entry and fs.is_resolved(entry, done)):
         return {"ok": True, "notified": False}
 
     note = (req.note or "").strip()[:1000]
-    record = {"key": key, "resolved_at": fs.now_iso()}
+    record = {"key": key, "ts": req.ts, "resolved_at": fs.now_iso()}
     if note:
         record["note"] = note
     notified_to = ""
-    entry = fs.find_entry(req.ts, req.question)
     if req.notify and entry and entry.get("uid"):
         from api.auth import get_user_by_id
         u = get_user_by_id(entry["uid"])
