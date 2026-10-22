@@ -1,5 +1,6 @@
 # Secrets
 .env
+.env.sync
 
 # Content specific to each organisation (known facts, synonyms, offices, crawl overrides):
 # not part of the software, start from the *.example.json files

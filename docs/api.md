@@ -277,7 +277,7 @@ The CORS middleware uses `API_CORS_ORIGINS` (comma-separated, no spaces; default
 
 ## Shutdown
 
-`api/main.py` registers a SIGTERM handler that only logs the signal. It replaces uvicorn's own handler, so SIGTERM no longer stops uvicorn and the 2-second wait meant to follow it never runs: `service chatbot stop` therefore ends the service with SIGKILL (the daemon after 10 seconds, then the uvicorn processes).
+SIGTERM is handled by uvicorn: it stops accepting connections, waits for the requests in flight up to `SHUTDOWN_GRACE_SECONDS` (default 15; a streamed answer still running is then cut, and recorded as partial) and runs the shutdown part of the lifespan. `service chatbot stop` and `restart` therefore end the service cleanly within those seconds.
 
 ## Static Files
 

@@ -31,6 +31,33 @@ def content_hash(data: str | bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def write_json_atomic(path: Path, data, indent: int = 2) -> None:
+    """Writes `data` as JSON next to `path` and renames it over: a job stopped halfway (timeout,
+    crash) never leaves a truncated file behind. The file keeps its permissions (0644 when new:
+    the API reads some of these files)."""
+    import os
+    import tempfile
+    path = Path(path)
+    try:
+        mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        mode = 0o644
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=indent)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 class CrawlState:
     """
     Persistent dictionary: URL → {hash, last_crawled, title, file, changed}.
@@ -53,8 +80,7 @@ class CrawlState:
                 self._state = {}
 
     def save(self):
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(self._state, f, ensure_ascii=False, indent=2)
+        write_json_atomic(STATE_FILE, self._state, indent=2)
 
     def is_changed(self, url: str, new_hash: str) -> bool:
         """Return True if the content is new or changed since the last scan."""

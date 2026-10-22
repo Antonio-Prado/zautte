@@ -62,7 +62,7 @@ The sync jobs download and parse documents from the Internet, so they should not
 ```
 # minute hour mday month wday who  command
 *        *    *    *     *    root /opt/chatbot/scripts/watchdog.sh
-0        2    *    *     *    zsync /opt/chatbot/scripts/backup_vectorstore.sh
+0        2    *    *     *    root  /opt/chatbot/scripts/backup_vectorstore.sh
 30       2    *    *     1    zsync /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
 0        3    1    *     *    zsync /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    zsync /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
@@ -97,7 +97,7 @@ An alternative for installations that run the service as a dedicated `chatbot` u
 
 The script predates the `zsync` account: prefer the `/etc/crontab` lines above, with `zsync`, for the syncs.
 
-Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Question a1b2c3d4e5f6 | 36 characters | lang=it | chunks=7 | provider=claude`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the cron jobs above write to `/var/log/chatbot/` (`sync_inbox.log`, `purge_logs.log`, `sync_full.log`).
+Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Question a1b2c3d4e5f6 | 36 characters | lang=it | chunks=7 | provider=claude`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the full sync also writes `/var/log/chatbot/sync_full.log` (rotated by newsyslog). `/var/log/chatbot/` belongs to the sync account: never send the output of a root job there (on FreeBSD the owner of the folder could redirect it through a link); root jobs write to `/var/log/chatbot-sync.log` or to `/dev/null`.
 
 ### Vector Store Backup
 
@@ -107,7 +107,7 @@ Logs: the API writes to `/var/log/chatbot.log` (each question appears only as it
 data/backups/vectorstore_20260408_020000.tar.gz
 ```
 
-Keeps the last **7 days** of backups, removing older ones automatically.
+Keeps the last **7 days** of backups, removing older ones automatically. The job runs as root and the folder `data/backups` is root-only (`700`): the sync account, which owns the live index, cannot touch the archives, so a bug or a compromise of a sync cannot wipe index and backups together.
 
 **Restore:**
 

@@ -95,6 +95,11 @@ def drop_resolved(drop: Callable[[dict], bool], dry_run: bool) -> int:
     of the feedback; the older keys are "<ts>::<question>") that satisfy `drop`. Returns how many."""
     if not RESOLVED_FILE.exists():
         return 0
+    with file_lock(RESOLVED_FILE):
+        return _drop_resolved_locked(drop, dry_run)
+
+
+def _drop_resolved_locked(drop: Callable[[dict], bool], dry_run: bool) -> int:
     try:
         items = json.loads(RESOLVED_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -113,6 +118,11 @@ def rename_resolved(mapping: dict[str, str], dry_run: bool) -> int:
     when the question text of a feedback row without id is removed. Returns how many."""
     if not RESOLVED_FILE.exists() or not mapping:
         return 0
+    with file_lock(RESOLVED_FILE):
+        return _rename_resolved_locked(mapping, dry_run)
+
+
+def _rename_resolved_locked(mapping: dict[str, str], dry_run: bool) -> int:
     try:
         items = json.loads(RESOLVED_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):

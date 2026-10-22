@@ -39,7 +39,7 @@ from config.settings import (
     SITE_URL,
 )
 from crawler.netpolicy import get_limited_async, guard_async, url_allowed
-from crawler.state import CrawlState, content_hash
+from crawler.state import CrawlState, content_hash, write_json_atomic
 from indexer.titles import LINK_TEXTS_FILE, best_link_text
 
 logging.basicConfig(
@@ -196,7 +196,7 @@ def save_link_texts(observed: dict[str, list[str]]) -> int:
         if best and saved.get(url) != best:
             saved[url] = best
             updated += 1
-    path.write_text(json.dumps(saved, ensure_ascii=False, indent=1), encoding="utf-8")
+    write_json_atomic(path, saved, indent=1)
     return updated
 
 
@@ -591,7 +591,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     updated = save_link_texts(pdf_link_texts)
     log.info(f"PDF link texts: {len(pdf_link_texts)} PDFs cited, {updated} new or changed titles")
     index = {"pages": results_pages, "pdfs": results_pdfs}
-    index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json_atomic(index_path, index, indent=2)   # a run cut short never leaves a truncated index
     n_old = state.delete_orphans()
     if n_old:
         log.info(f"{n_old} cache files under the old name removed")

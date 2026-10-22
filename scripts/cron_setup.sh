@@ -1,9 +1,10 @@
 #!/bin/sh
-# Set up the cron jobs for periodic synchronisation on FreeBSD.
-# Run as root (crontab -u needs it): the entries are added to the crontab of the 'chatbot' user.
-#
-# Usage:
-#   sh scripts/cron_setup.sh
+# LEGACY: predates the unprivileged sync account and the wrappers in this folder. The production
+# schedule is the /etc/crontab in docs/operations.md (sync jobs as `zsync`, backup, purge and
+# watchdog as root). This script wrote root job logs into a folder owned by the sync account,
+# which on FreeBSD lets that account redirect them through a symbolic link: do not use it.
+echo "cron_setup.sh is no longer supported: use the /etc/crontab lines in docs/operations.md" >&2
+exit 1
 
 CHATBOT_DIR="/opt/chatbot"
 VENV_PYTHON="${CHATBOT_DIR}/venv/bin/python"
