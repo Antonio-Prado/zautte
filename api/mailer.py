@@ -45,10 +45,14 @@ def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
     msg = EmailMessage()
     msg["From"] = formataddr(("Zautte", SMTP_FROM))
     msg["To"] = to
-    msg["Subject"] = subject
+    msg["Subject"] = " ".join(subject.split())[:200]   # a line break in a question must not break the header
     if reply_to:
         msg["Reply-To"] = reply_to
     msg.set_content(body)
+
+    if SMTP_USER and not (SMTP_SSL or SMTP_STARTTLS) and SMTP_HOST not in ("localhost", "127.0.0.1", "::1"):
+        # never send the relay password in clear text over the network
+        raise RuntimeError("SMTP_USER requires SMTP_SSL or SMTP_STARTTLS (the password would travel unencrypted)")
 
     if SMTP_SSL:
         smtp = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20,
