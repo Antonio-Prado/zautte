@@ -140,7 +140,7 @@
     consentNotice: isItalian ? "Leggi l'informativa" : "Read the privacy notice",
     consentAdult: isItalian ? "Dichiaro di avere almeno 18 anni" : "I declare that I am at least 18 years old",
     consentRead: isItalian ? "Dichiaro di aver letto l'informativa" : "I declare that I have read the privacy notice",
-    consentSubmit: isItalian ? "Chiedo di partecipare alla sperimentazione" : "I ask to take part in the pilot",
+    consentSubmit: isItalian ? "Entra nella sperimentazione" : "Enter the pilot",
     consentSending: isItalian ? "Invio…" : "Sending…",
     consentBoth: isItalian ? "Per partecipare servono entrambe le dichiarazioni." : "Both declarations are needed to take part.",
     consentErr: isItalian ? "Non è stato possibile registrare la dichiarazione. Riprova." : "The declaration could not be recorded. Please try again.",
