@@ -2,7 +2,7 @@
 
 # Configuration
 
-Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Names that steer the loader, the interpreter or program lookup (`PATH`, `HOME`, `LD_*`, `DYLD_*`, `PYTHON*`, `SSL_CERT*`, `REQUESTS_CA*`, `CURL_CA*`, `BASH_*`, `MALLOC_*`, …) are ignored when found in `.env`. `ZAUTTE_ENV_FILE` (read from the environment only) points to an alternative env file; the unprivileged sync account uses it. Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
+Configuration lives in `config/settings.py`, which loads variables from `.env` via `python-dotenv` (real environment variables take precedence). Names that steer the loader, the interpreter or program lookup (`PATH`, `HOME`, `LD_*`, `DYLD_*`, `PYTHON*`, `SSL_CERT*`, `REQUESTS_CA*`, `CURL_CA*`, `BASH_*`, `MALLOC_*`, …) are ignored when found in `.env`. `ZAUTTE_ENV_FILE` (read from the environment only) points to an alternative env file; the unprivileged sync account uses it. Site-specific data lives in `config/*.json`; the retrieval thresholds and fusion weights (`MIN_SIMILARITY`, `RETRIEVAL_CONFIDENCE`, `VECTOR_WEIGHT`/`BM25_WEIGHT`, `PDF_PENALTY`, `NEWS_PENALTY`, `MIGRATED_PENALTY`) are constants in `api/rag.py`, calibrated for the embedding model in use.
 
 ## Separating your organisation's files from the code
 
@@ -204,6 +204,8 @@ Constants in `api/rag.py`, calibrated for `bge-m3`:
 | `RETRIEVAL_CONFIDENCE` | `0.52` | If even the best chunk is below it, the question is logged as a weak answer in `gaps.jsonl` |
 | `VECTOR_WEIGHT` / `BM25_WEIGHT` | `0.6` / `0.4` | Weights of the two rankings in the hybrid search |
 | `PDF_PENALTY`          | `0.04` | Subtracted from PDF chunks when re-ranking, so pages come first at similar relevance |
+| `NEWS_PENALTY`         | `0.04` | Subtracted from news items and their attachments when re-ranking |
+| `MIGRATED_PENALTY`     | `0.03` | Subtracted from passages of retired domains (`MIGRATED_DOMAINS`), whose link is dead |
 
 ---
 
