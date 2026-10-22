@@ -1,20 +1,30 @@
 # Example /etc/pf.conf for the Zautte machine (FreeBSD).
-# Replace the management networks and the proxy/load balancer address with the
-# real ones (the addresses below are documentation ones, RFC 5737 and RFC 3849).
+# Replace the management networks, the proxy/load balancer address and the resolvers
+# with the real ones (the addresses below are documentation ones, RFC 5737 and RFC 3849).
 #
 # Inbound everything is closed except:
 #   SSH (22) and API (8000) from the management networks
 #   API (8000) from the proxy/load balancer that publishes the service
 #   ping and the ICMPv6 messages IPv6 needs (neighbor discovery)
-# Outbound everything is open: crawler, model API, SMTP, DNS, NTP, pkg.
+# Outbound, per account (pf matches the owner of the socket):
+#   root and the administrator's account: everything (pkg, updates, maintenance)
+#   the API account:   HTTPS (the model's API), SMTP submission (587), DNS
+#   the sync account:  HTTP and HTTPS (crawler, news), SMTP submission (587), DNS
+#   ntpd:              NTP and DNS
+#   the Ollama account and every other account: nothing. Ollama only serves local models;
+#     to download a model, uncomment its rule while the download runs. A flaw in Ollama or in the
+#     API cannot be used to reach other hosts, and a compromised dependency cannot call home.
+#   ICMP and ICMPv6 always (ping, neighbor discovery, path MTU discovery)
 #
 # Activation: sysrc pf_enable=YES pflog_enable=YES && service pf start && service pflog start
-# Blocked packets: tcpdump -n -e -ttt -r /var/log/pflog
+# Blocked packets: tcpdump -n -e -ttt -r /var/log/pflog   (outbound ones say "block out")
 # Enabling pf remotely drops already open connections: see docs/operations.md.
+# Reloading the rules (pfctl -f) keeps the open connections.
 
 ext_if = "vtnet0"
 mgmt   = "{ 192.0.2.0/24, 198.51.100.0/24 }"
 lb     = "2001:db8::81"
+dns    = "{ 192.0.2.53, 2001:db8::53 }"
 
 set skip on lo0
 set block-policy drop
@@ -26,8 +36,18 @@ block log all
 block in quick on $ext_if inet proto 112 to 224.0.0.18
 block in quick on $ext_if inet proto udp to port { 137, 138 }
 
-pass out quick on $ext_if all keep state
+# --- Outbound
+pass out quick on $ext_if inet  proto icmp  all
+pass out quick on $ext_if inet6 proto icmp6 all
+pass out quick on $ext_if proto udp to any port 123 user ntpd
+pass out quick on $ext_if proto { tcp, udp } to $dns port 53 user { zautte, zsync, ntpd }
+pass out quick on $ext_if proto tcp to any port 443 user zautte
+pass out quick on $ext_if proto tcp to any port { 80, 443 } user zsync
+pass out quick on $ext_if proto tcp to any port 587 user { zautte, zsync }
+# pass out quick on $ext_if proto tcp to any port 443 user ollama   # only while a model is downloaded
+pass out quick on $ext_if all user { root, admin }
 
+# --- Inbound
 pass in quick on $ext_if inet  proto icmp  icmp-type echoreq keep state
 pass in quick on $ext_if inet6 proto icmp6 icmp6-type { echoreq, neighbrsol, neighbradv, routeradv, unreach, toobig, timex, paramprob }
 

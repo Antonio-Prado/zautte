@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.27] - 2026-10-22
+
+### Security
+- The firewall template (`scripts/pf.conf.example`) allows outbound traffic per account: the API account only HTTPS,
+  SMTP submission and DNS; the sync account HTTP, HTTPS, SMTP submission and DNS; `ntpd` NTP and DNS; root and the
+  administrator everything; the Ollama account and any other account nothing. A compromised service or dependency cannot
+  reach other hosts. Documented in `docs/operations.md`.
+
 ## [0.7.26] - 2026-10-22
 
 ### Changed
