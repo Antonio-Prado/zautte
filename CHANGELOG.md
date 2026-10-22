@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.28] - 2026-10-22
+
+### Fixed
+- The answer given by `/chat/stream` was not always recorded in `answers.jsonl` (since 0.6.5): the write runs in a
+  worker thread, and the response generator cancels the producing task right after the last event, so a write still
+  pending at that moment was dropped. The write is now shielded from that cancellation (`api/aio.py`), with a test.
+
 ## [0.7.27] - 2026-10-22
 
 ### Security
