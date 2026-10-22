@@ -9,6 +9,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.25] - 2026-10-22
+
+### Security
+- pypdf 6.21.1 (a JPEG image inside a PDF was loaded without validation).
+
 ## [0.7.24] - 2026-10-22
 
 ### Fixed
