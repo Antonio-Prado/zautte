@@ -33,28 +33,27 @@ def content_hash(data: str | bytes) -> str:
 
 def write_json_atomic(path: Path, data, indent: int = 2) -> None:
     """Writes `data` as JSON next to `path` and renames it over: a job stopped halfway (timeout,
-    crash) never leaves a truncated file behind. The file keeps its permissions (0644 when new:
-    the API reads some of these files)."""
+    crash) never leaves a truncated file behind. An existing file keeps its permissions; a new
+    one gets those of an ordinary write (the umask decides: the API reads some of these files)."""
+    import contextlib
     import os
-    import tempfile
     path = Path(path)
     try:
         mode = os.stat(path).st_mode & 0o777
     except FileNotFoundError:
-        mode = 0o644
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+        mode = None
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with open(tmp, "x", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=indent)
             f.flush()
             os.fsync(f.fileno())
-        os.chmod(tmp, mode)
+        if mode is not None:
+            os.chmod(tmp, mode)   # the permissions the file already had, whatever they are
         os.replace(tmp, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):   # the temporary file may not exist yet
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
