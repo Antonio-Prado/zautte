@@ -22,6 +22,8 @@ from email.message import EmailMessage
 from email.utils import formataddr
 
 from config.settings import (
+    DAILY_QUESTION_LIMIT,
+    PILOT_PERIOD,
     SMTP_FROM,
     SMTP_HOST,
     SMTP_PASSWORD,
@@ -75,17 +77,39 @@ def send_invitation(to: str, name: str, link: str, hours: int) -> None:
     subject = "Accesso a Zautte — assistente virtuale (pilota)"
     body = f"""Ciao {name},
 
-sei stato abilitato a testare Zautte, l'assistente virtuale. Per iniziare scegli la tua password da questo link:
+ti diamo il benvenuto nella sperimentazione di Zautte, l'assistente virtuale. Per iniziare scegli la tua password da questo link:
 
   {link}
 
 Il link vale {hours} ore e si può usare una sola volta; se scade, dal pulsante «Password dimenticata?» della pagina di accesso ne ottieni uno nuovo.
 Ti chiediamo di non condividere le tue credenziali con altri.
+
+{pilot_request_text()}
 Per qualsiasi problema puoi rispondere a questa email.
 
 Grazie per la collaborazione.
 """
     send_email(to, subject, body)
+
+
+def pilot_request_text() -> str:
+    """The paragraph "what we ask of you" shared by the invitation and the welcome emails:
+    questions, thumbs up/down, comment and link after a thumbs down, daily limit
+    (DAILY_QUESTION_LIMIT, omitted when 0) and period of the pilot (PILOT_PERIOD, omitted when empty)."""
+    lines = [
+        "Cosa ti chiediamo:",
+        "- fai a Zautte le domande che faresti allo sportello o al telefono, con parole tue;",
+        "- valuta ogni risposta con il pollice in su 👍 o in giù 👎, sotto la risposta;",
+        "- se metti 👎, nel modulo che compare scrivi cosa non va e, se puoi, incolla il link della pagina giusta.",
+    ]
+    tail = []
+    if DAILY_QUESTION_LIMIT > 0:
+        tail.append(f"Puoi fare fino a {DAILY_QUESTION_LIMIT} domande al giorno")
+    if PILOT_PERIOD:
+        tail.append(f"la sperimentazione dura {PILOT_PERIOD}" if tail else f"La sperimentazione dura {PILOT_PERIOD}")
+    if tail:
+        lines.append("; ".join(tail) + ".")
+    return "\n".join(lines) + "\n"
 
 
 def build_feedback_notification(entry: dict, dashboard_url: str = "") -> tuple[str, str]:
