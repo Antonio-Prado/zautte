@@ -1102,7 +1102,9 @@
           const clean = url.slice(0, url.length - tail.length);
           return (linkAllowed(clean) ? linkHtml(clean, clean) : clean) + tail;
         }
-        return `<a href="mailto:${email}" style="color:inherit">${email}</a>`;
+        // an address at any other host stays plain text, like a link
+        return linkAllowed("https://" + email.split("@")[1] + "/")
+          ? `<a href="mailto:${email}" style="color:inherit">${email}</a>` : email;
       })
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   }

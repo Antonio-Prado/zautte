@@ -11,12 +11,21 @@ regular file (a link, for instance) is refused.
 """
 
 import contextlib
+import json
 import os
 import stat
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import IO
+
+
+def dump_line(entry: dict) -> str:
+    """One JSONL line for `entry`. json.dumps leaves U+2028, U+2029 and U+0085 as they are, and
+    str.splitlines() breaks a line there: they are written as JSON escapes (same value when read
+    back), so a line is a line for every reader."""
+    return (json.dumps(entry, ensure_ascii=False)
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029").replace("\x85", "\\u0085"))
 
 
 def require_regular(path: Path) -> os.stat_result | None:

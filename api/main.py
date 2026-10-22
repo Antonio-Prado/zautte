@@ -51,7 +51,7 @@ from api.rag import (
     get_activity_stats,
     get_query_count,
 )
-from api.safefile import ensure_private, write_text_atomic
+from api.safefile import dump_line, ensure_private, write_text_atomic
 from config.settings import (
     ADMIN_API_KEY,
     ADMIN_PATH,
@@ -592,7 +592,7 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
         if rid:
             entry["rid"] = rid
         with file_lock(f), open(f, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            fh.write(dump_line(entry) + "\n")
     except (OSError, TypeError, ValueError) as e:
         log.warning("Usage logging failed: %s", e)
 
@@ -625,7 +625,7 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
         if partial:
             entry["partial"] = True
         with file_lock(f), open(f, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            fh.write(dump_line(entry) + "\n")
     except (OSError, TypeError, ValueError) as e:
         log.warning("Answer logging failed: %s", e)
 

@@ -16,8 +16,8 @@ from urllib.parse import unquote, urlparse
 
 from config.settings import SITE_NAME
 
-# Crawler cache file name: <path>_<md5 of the URL, 12 hex digits>
-_CACHE_STEM = re.compile(r"_[0-9a-f]{12}$")
+# Crawler cache file name: <path>_<hash of the URL: 24 hex digits since 0.7.23, 12 before>
+_CACHE_STEM = re.compile(r"_[0-9a-f]{12}(?:[0-9a-f]{12})?$")
 _APP_PREFIX = re.compile(
     r"^(?:microsoft\s+(?:office\s+)?(?:word|excel|powerpoint)|libreoffice\s+\w+|openoffice\.org\s+\w+)\s*-\s*",
     re.IGNORECASE,

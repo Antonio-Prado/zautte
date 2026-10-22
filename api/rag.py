@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import smalltalk
 from api.filelock import file_lock
-from api.safefile import write_text_atomic
+from api.safefile import dump_line, write_text_atomic
 from config.settings import (
     ANTHROPIC_API_KEY,
     BEDROCK_AWS_REGION,
@@ -381,13 +381,18 @@ _URL_HOST_RE = re.compile(r"https?://([^\s/:?#)\]>\"\']+)", re.IGNORECASE)
 _EXAMPLE_HOSTS = {"esempio.it", "example.it", "example.com", "example.org", "example.net"}
 
 
-def link_hosts(messages: list[dict], query: str) -> list[str]:
-    """Hosts the answer may link to: the site's own, and every host that appears in what the model
-    was given (the instructions with the known facts, and the passages), but not in the user's own
-    question. A link to any other address is something the model made up or was talked into."""
+def link_hosts(messages: list[dict], query: str, chunks: list[dict] | None = None) -> list[str]:
+    """Hosts the answer may link to: the site's own, the hosts in the instructions (the known
+    facts, written by the administrator) and the hosts of the sources of the passages. Not the
+    hosts written inside the passages: a document anybody can publish must not be able to make an
+    address of its own clickable. A link to any other address is something the model made up or
+    was talked into."""
     given = " ".join(m["content"] for m in messages if m["role"] == "system")
-    given += " " + messages[-1]["content"].replace(query, " ")
     hosts = {h.lower().rstrip(".") for h in _URL_HOST_RE.findall(given)} - _EXAMPLE_HOSTS   # the example in the instructions
+    for c in chunks or []:
+        m = _URL_HOST_RE.match(str(c.get("source", "")))
+        if m:
+            hosts.add(m.group(1).lower().rstrip("."))
     for d in [SITE_URL, *CRAWL_ALLOWED_DOMAINS]:
         h = (_URL_HOST_RE.search(d).group(1) if d.startswith("http") else d).lower().strip().rstrip(".")
         if h:
@@ -747,7 +752,7 @@ def _log_gap(query: str, chunks_found: int, weak: bool = False, rid: str | None 
         if rid:
             entry["rid"] = rid
         with file_lock(_GAPS_LOG), open(_GAPS_LOG, "a", encoding="utf-8") as f:
-            f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
+            f.write(dump_line(entry) + "\n")
     except (OSError, TypeError, ValueError) as exc:
         log.debug("Gap log not written: %s", exc)
 
@@ -1090,7 +1095,7 @@ async def answer(
         if top_score < RETRIEVAL_CONFIDENCE:
             await asyncio.to_thread(_log_gap, retrieval_query, len(chunks), weak=True, rid=rid)
 
-    hosts = link_hosts(messages, query)
+    hosts = link_hosts(messages, query, chunks)
 
     if not chunks:
         # Nothing found: no model call, in either mode. The bot is not a general assistant, and

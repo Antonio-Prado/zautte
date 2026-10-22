@@ -37,14 +37,15 @@ for r in restart reload; do
     [ -L "$CONTROL/$r" ] && rm -f "$CONTROL/$r"
 done
 if [ -f "$CONTROL/restart" ]; then
-    rm -f "$CONTROL/restart" "$CONTROL/reload"
     last=$(cat "$STATE.restart" 2>/dev/null || echo 0)
     if [ $((now - last)) -ge $RESTART_GAP ]; then
+        rm -f "$CONTROL/restart" "$CONTROL/reload"
         echo "$now" > "$STATE.restart"
         echo "$(stamp) — Watchdog: restart requested by a sync" >> $LOG
         service chatbot restart </dev/null >> $LOG 2>&1
-    else
-        echo "$(stamp) — Watchdog: restart request ignored (one every ${RESTART_GAP}s at most)" >> $LOG
+    elif [ $((now - last)) -lt 60 ]; then
+        # the request stays on disk and is honoured at the first run after the gap
+        echo "$(stamp) — Watchdog: restart request postponed (one every ${RESTART_GAP}s at most)" >> $LOG
     fi
     exit 0
 fi
@@ -55,9 +56,9 @@ if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
     STATUS=$(fetch -q -o - "$HEALTH_URL" 2>/dev/null)
     if echo "$STATUS" | grep -q '"status":"ok"'; then
         if [ -f "$CONTROL/reload" ]; then
-            rm -f "$CONTROL/reload"
             last=$(cat "$STATE.reload" 2>/dev/null || echo 0)
-            [ $((now - last)) -ge $RELOAD_GAP ] || { echo "$(stamp) — Watchdog: reload request ignored (too soon)" >> $LOG; exit 0; }
+            [ $((now - last)) -ge $RELOAD_GAP ] || exit 0   # the request stays on disk until the gap has passed
+            rm -f "$CONTROL/reload"
             echo "$now" > "$STATE.reload"
             KEY=$(sed -n 's/^ADMIN_API_KEY=//p' "$ENVFILE" | head -n 1 | tr -d "\"'")
             echo "$(stamp) — Watchdog: index reload requested by a sync" >> $LOG

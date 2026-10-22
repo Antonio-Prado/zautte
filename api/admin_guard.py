@@ -105,6 +105,8 @@ def check_admin_key(request: Request, key: str | None) -> bool:
     local = _is_local(request)
     if local and right:
         return True   # the sync scripts and the watchdog, on loopback, are never held up
+    if not key:
+        return False  # no attempt: nothing to count, and a block must not touch the public answers
     with _lock:
         now = time.monotonic()
         _sweep(now)
@@ -117,8 +119,6 @@ def check_admin_key(request: Request, key: str | None) -> bool:
                 detail="Troppi tentativi: riprova più tardi",
                 headers={"Retry-After": str(int(wait) + 1)},
             )
-        if not key:
-            return False  # no attempt: nothing to count
         if right:
             _failures.pop(ip, None)
             return True
