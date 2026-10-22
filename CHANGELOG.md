@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.24] - 2026-10-22
+
+### Fixed
+- The logout revocation list is read as empty when its file is empty (the file is created empty at startup); it used to
+  log a warning at every read.
+
 ## [0.7.23] - 2026-10-22
 
 ### Security

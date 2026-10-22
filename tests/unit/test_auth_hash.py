@@ -31,3 +31,12 @@ def test_token_roundtrip_and_tamper():
     token = auth.create_token("u1", "Name", 0)
     assert auth._b64url_decode(token.split(".")[0])   # well formed
     assert auth.verify_token(token + "x") is None
+
+
+def test_empty_revocation_file_is_an_empty_list(tmp_path, monkeypatch):
+    f = tmp_path / "revoked_tokens.json"
+    f.write_text("")
+    monkeypatch.setattr(auth, "_REVOKED_FILE", f)
+    monkeypatch.setattr(auth, "_revoked_state", {"mtime": None, "keys": {}})
+    assert auth._revoked_keys() == {}
+    assert auth._revoked_state["mtime"] is not None   # read once, not complained about at every request
