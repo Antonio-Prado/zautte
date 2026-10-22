@@ -9,6 +9,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.36] - 2026-10-22
+
+### Added
+- Widget option `applyUrl`: the "Apply" label of the login form becomes a link to the page where volunteers apply.
+
 ## [0.7.35] - 2026-10-22
 
 ### Added

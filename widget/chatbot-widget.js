@@ -17,6 +17,7 @@
  *       contactEmail:  '',                                  // error-report email (optional)
  *       infoUrl:       '',                                  // "Come funziona" page (optional)
  *       loginSubtitle: '',                                  // text under the login title (optional)
+ *       applyUrl:      '',                                  // page where volunteers apply: the "Apply" label becomes a link (optional)
  *       applyNote:     '',                                  // note under the "Apply" label of the login form (optional)
  *       privacyUrl:    '',                                  // privacy notice (optional; also linked from the participation declaration)
  *       lang:          'it',                                // default language ('it' | 'en')
@@ -50,6 +51,7 @@
       infoUrl: "",     // "Come funziona" page (transparency on the AI system)
       privacyUrl: "",  // personal data processing notice
       loginSubtitle: "",  // optional text under the login form title
+      applyUrl: "",       // page where volunteers apply: the "Apply" label of the login form links to it
       applyNote: "",      // optional small note under the "Apply" label of the login form
       zIndex: 99999,
       suggestions: [],
@@ -858,7 +860,9 @@
         style="background:none;border:none;padding:4px;font:inherit;font-size:13px;color:${p};text-align:center;text-decoration:underline;cursor:pointer;">
         ${T.forgot}
       </button>
-      <span id="${WIDGET_ID}-apply" style="padding:4px;font-size:13px;color:${p};">${T.apply}</span>
+      ${/^(https?:\/\/|\.?\/)/i.test(cfg.applyUrl || "")
+        ? `<a id="${WIDGET_ID}-apply" href="${escapeHtml(cfg.applyUrl)}" target="_blank" rel="noopener" style="padding:4px;font-size:13px;color:${p};">${T.apply}</a>`
+        : `<span id="${WIDGET_ID}-apply" style="padding:4px;font-size:13px;color:${p};">${T.apply}</span>`}
     </div>
     <div id="${WIDGET_ID}-apply-note" style="display:none;margin-top:-6px;text-align:center;font-size:12px;line-height:1.35;color:#595959;"></div>`;
   panel.appendChild(loginEl);
