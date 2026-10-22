@@ -9,6 +9,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.30] - 2026-10-22
+
+### Changed
+- A unit test is written without an empty `try` block; closes a code scanning note. No change to the program.
+
 ## [0.7.29] - 2026-10-22
 
 ### Changed
