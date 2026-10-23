@@ -121,6 +121,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── csp.py                # Content-Security-Policy of the pages (hashes of the inline scripts)
 │   ├── clientkey.py          # Key of a client for the limits (IPv6 by /64)
 │   ├── llm_gate.py           # Limits on answers generated at once (per user and in total)
+│   ├── maintenance.py        # "Service under maintenance" while the model provider refuses to serve (credit, key)
 │   ├── filelock.py           # Safe file locks (no symlinks, fail closed)
 │   ├── safefile.py           # Atomic writes and regular-file checks for the data files
 │   ├── privdrop.py           # Maintenance scripts started as root switch to the service account
@@ -136,7 +137,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── dashboard.css         # Styles of the page
 │   ├── come-funziona.html    # Generic "how it works" page (AI transparency)
 │   ├── pilot.html            # Test page with the floating widget
-│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, accessibility link, client IP)
+│   ├── site-footer.js        # Footer shared by the pages (latest release and commit, Zenodo DOI, accessibility link, client IP)
 │   ├── matomo.js             # Optional page-view statistics on your Matomo (no cookies, never the questions)
 │   ├── zautte-logo.svg       # Zautte logo (also used at the top of the README)
 │   ├── zautte-icon.svg       # "ZA" icon in the chat header

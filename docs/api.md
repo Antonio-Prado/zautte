@@ -26,11 +26,14 @@ Public liveness check. Without a valid `X-Admin-Key` it returns a minimal view:
 ```json
 {
   "status": "ok",
-  "uptime_seconds": 86400
+  "uptime_seconds": 86400,
+  "maintenance": false
 }
 ```
 
-With a valid `X-Admin-Key` (or when no usable `ADMIN_API_KEY` is set and `ADMIN_AUTH_DISABLED=true`) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history) and `top_doc`.
+`maintenance` is `true` while the chat answers "service under maintenance" because the model provider refuses to serve (API credit exhausted, key not valid; see [Maintenance mode](operations.md#maintenance-mode-model-provider-unavailable)); the widget reads it when the chat opens. The cause is never in the public view.
+
+With a valid `X-Admin-Key` (or when no usable `ADMIN_API_KEY` is set and `ADMIN_AUTH_DISABLED=true`) it also returns the details used by the admin dashboard: `llm_provider`, `hybrid_search`, `indexed_chunks`, `unique_sources`, `doc_types`, `llm_model`, `last_indexed`, `queries_since_restart`, `gaps_total`, `gaps_recent`, `feedback` (`total`/`positive`/`negative`/`resolved`; since 10 October 2026 `negative` counts only the open negatives, the resolved ones are in `resolved` and excluded from `total`), `activity` (response time, top queries, hourly counts, token usage and cost, per-user token history), `top_doc` and `maintenance_info` (`active`, `since`, `reason`: a fixed description of the cause, the provider's message stays in the log).
 
 ---
 
@@ -48,7 +51,7 @@ Public. Returns the caller's IP address as the API sees it, shown in the page fo
 
 Complete response (non-streaming). Waits for the full response before replying.
 
-**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows a localised message with the number of questions per day (and, for `busy`, a message asking to try again in a moment). **Concurrent answers**: at most `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; over the limit: `429` with `{"detail": {"error": "busy"}}` and `Retry-After: 5`, before any daily quota is used. See [Rate Limiting](privacy-and-security.md#rate-limiting).
+**Daily limit**: `DAILY_QUESTION_LIMIT` questions per day (default 20) per logged-in user, shared by `/chat` and `/chat/stream`; per client IP when `AUTH_ENABLED=false`. Over the limit: `429` with `{"detail": {"error": "daily_limit", "limit": 20}}` and `Retry-After` set to the seconds until midnight; the widget shows a localised message with the number of questions per day (and, for `busy`, a message asking to try again in a moment). **Concurrent answers**: at most `LLM_MAX_PER_USER` (default 2) for each user and `LLM_MAX_CONCURRENT` (default 8) in the whole process; over the limit: `429` with `{"detail": {"error": "busy"}}` and `Retry-After: 5`, before any daily quota is used. See [Rate Limiting](privacy-and-security.md#rate-limiting). **Maintenance mode**: while the model provider refuses to serve, `503` with `{"detail": {"error": "maintenance", "message": "<neutral text>"}}` and `Retry-After: 300`, before any quota is used and without calling the model; the request that first meets the provider's refusal gets the same `503` (its quota is given back). See [Maintenance mode](operations.md#maintenance-mode-model-provider-unavailable).
 
 **Request:**
 ```json
@@ -111,7 +114,7 @@ data: {"error": "Errore durante la generazione"}
 data: {"done": true}
 ```
 
-Errors before the stream starts (400/401/422/429/500) are returned as normal JSON responses. When nothing relevant is found, the stream contains a single fallback token ("Non ho trovato informazioni specifiche…", plus the suggested office) and an empty `sources` list.
+Errors before the stream starts (400/401/422/429/500/503) are returned as normal JSON responses. If the provider refuses at the start of the stream, the stream carries `{"error": "maintenance", "token": "<neutral text>"}` and then `{"done": true}`; the widget shows the maintenance notice. When nothing relevant is found, the stream contains a single fallback token ("Non ho trovato informazioni specifiche…", plus the suggested office) and an empty `sources` list.
 
 ---
 
