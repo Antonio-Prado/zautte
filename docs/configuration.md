@@ -125,6 +125,10 @@ SMTP_SSL=false
 PILOT_LOGIN_URL=
 # Period of the pilot, free text for the invitation email ("dal 22 ottobre al 18 dicembre 2026"); empty = not mentioned
 PILOT_PERIOD=
+# Channel with the organisation's news (Telegram channel, newsletter page): the emails to participants
+# end with "iscriviti al <NEWS_CHANNEL_NAME>" and this link; empty = no invitation
+#NEWS_CHANNEL_URL=https://t.me/example
+#NEWS_CHANNEL_NAME=canale Telegram
 # Public address of the site, used for the links in emails (password reset).
 # Empty = the origin of PILOT_LOGIN_URL; if both are empty no reset link is sent.
 PUBLIC_BASE_URL=

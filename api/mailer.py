@@ -23,7 +23,10 @@ from email.utils import formataddr
 
 from config.settings import (
     DAILY_QUESTION_LIMIT,
+    NEWS_CHANNEL_NAME,
+    NEWS_CHANNEL_URL,
     PILOT_PERIOD,
+    SITE_NAME,
     SMTP_FROM,
     SMTP_HOST,
     SMTP_PASSWORD,
@@ -86,10 +89,23 @@ Ti chiediamo di non condividere le tue credenziali con altri.
 
 {pilot_request_text()}
 Per qualsiasi problema puoi rispondere a questa email.
-
+{news_channel_text()}
 Grazie per la collaborazione.
 """
     send_email(to, subject, body)
+
+
+def news_channel_text() -> str:
+    """The closing paragraph of every email to a participant, inviting to follow the
+    organisation's news channel (NEWS_CHANNEL_URL, NEWS_CHANNEL_NAME). Empty when there is no
+    channel. Starts with a blank line so that it can follow any paragraph."""
+    if not NEWS_CHANNEL_URL:
+        return ""
+    if SITE_NAME.lower().startswith("comune "):
+        whose = f" del {SITE_NAME}"   # "del Comune di …"
+    else:
+        whose = f" di {SITE_NAME}" if SITE_NAME else ""
+    return f"\nResta aggiornato sulle notizie{whose}: iscriviti al {NEWS_CHANNEL_NAME}\n  {NEWS_CHANNEL_URL}\n"
 
 
 def pilot_request_text() -> str:
@@ -171,9 +187,10 @@ def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
     lines += ["", "Puoi verificare ponendo di nuovo la domanda all'assistente"
               + (f": {login_url}" if login_url else "."),
               "Se la risposta non ti convince ancora, rispondi a questa email oppure usa di nuovo",
-              "il 👎 con il modulo di segnalazione.",
-              "",
-              "Grazie per la collaborazione."]
+              "il 👎 con il modulo di segnalazione."]
+    if news_channel_text():
+        lines += [news_channel_text().rstrip("\n")]
+    lines += ["", "Grazie per la collaborazione."]
     return subject, "\n".join(lines) + "\n"
 
 
@@ -195,5 +212,5 @@ hai chiesto di reimpostare la password di Zautte. Per sceglierne una nuova apri 
 
 Il link vale {minutes} minuti e si può usare una sola volta. Finché non lo usi, la tua password attuale resta valida.
 Se NON hai fatto tu la richiesta, ignora questa email: non succede nulla.
-"""
+{news_channel_text()}"""
     send_email(to, subject, body)

@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.7.40] - 2026-10-23
+
+### Added
+- The emails to participants (invitation, password reset, report resolved) end with an invitation to follow the
+  organisation's news channel: new optional `NEWS_CHANNEL_URL` (a Telegram channel, a newsletter page) and
+  `NEWS_CHANNEL_NAME` (how the channel is called in the sentence, default "canale Telegram"). Empty URL = no
+  invitation, emails unchanged.
+
 ## [0.7.39] - 2026-10-22
 
 ### Changed
