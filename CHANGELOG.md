@@ -15,6 +15,9 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - The shared footer links the DOI of the software archive on Zenodo (concept DOI `10.5281/zenodo.23452491`,
   always the latest archived version), next to the release and the latest commit.
 
+### Changed
+- The footer calls the latest-commit link "Source".
+
 ## [0.7.40] - 2026-10-23
 
 ### Added

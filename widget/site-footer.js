@@ -4,7 +4,7 @@
  *
  *   <script src="./site-footer.js" defer></script>
  *
- * Shows the latest release and the latest commit on GitHub (read from the public API on
+ * Shows the latest release and the latest commit ("Source") on GitHub (read from the public API on
  * every page load; the release links to its page, the commit always to the
  * repository), the DOI of the archive on Zenodo, the accessibility link, and the visitor's IP address as the API
  * sees it (GET /client-ip on the same server as the script). Installations that
@@ -114,7 +114,7 @@
         var date = c.commit && c.commit.committer && c.commit.committer.date;
         var box = document.getElementById("zautte-last-commit");
         var link = box.querySelector("a");
-        link.textContent = "Latest commit " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
+        link.textContent = "Source " + sha.slice(0, 7) + (date ? "@" + stamp(new Date(date)) : "");
         box.hidden = false;
       })
       .catch(function () { /* GitHub unreachable or rate limit reached */ });
