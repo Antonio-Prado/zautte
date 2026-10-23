@@ -14,6 +14,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 ### Changed
 - The system prompts ask the model for bullet lists instead of Markdown tables: the widget renders lists, bold,
   headings and quotes but not tables, and the chat window is narrow on a phone.
+- The system prompts ask the model, when a question is generic or ambiguous because its object is missing
+  ("who is in charge?"), to ask for details in one or two lines instead of listing everything that might match.
 
 ## [0.8.0] - 2026-10-23
 
