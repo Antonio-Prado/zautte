@@ -1269,7 +1269,7 @@ async def chat(request: Request, req: ChatRequest,
         quota.give_back(key)
         reason = maintenance.classify(e)
         if reason:
-            maintenance.activate(reason)
+            maintenance.activate(reason, e)
             raise _maintenance_error() from e
         log.exception("Error in /chat")
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
@@ -1322,7 +1322,7 @@ async def chat_stream(request: Request, req: ChatRequest,
         llm_gate.release(slot)
         reason = maintenance.classify(e)
         if reason:
-            maintenance.activate(reason)
+            maintenance.activate(reason, e)
             raise _maintenance_error() from e
         log.exception("Error in /chat/stream")
         raise HTTPException(status_code=500, detail="Errore interno del server") from e
@@ -1350,7 +1350,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 quota.give_back(key)
                 reason = maintenance.classify(exc)
                 if reason:
-                    maintenance.activate(reason)
+                    maintenance.activate(reason, exc)
                     await queue.put(("maintenance", None))
                 else:
                     log.warning("Error while streaming the answer", exc_info=True)
