@@ -33,7 +33,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import applications, auth, conversations, csp, llm_gate, quota
+from api import applications, auth, conversations, csp, llm_gate, maintenance, quota
 from api.admin_guard import check_admin_key
 from api.aio import to_thread_uncancellable
 from api.applications import ApplyRequest
@@ -446,6 +446,13 @@ def _free_text(text: str) -> str:
     return redact(text)
 
 
+def _maintenance_error() -> HTTPException:
+    """503 with a neutral text: the model provider is refusing to serve (see api/maintenance)."""
+    return HTTPException(status_code=503,
+                         detail={"error": "maintenance", "message": maintenance.MESSAGE_IT},
+                         headers={"Retry-After": "300"})
+
+
 def _take_slot(request: Request, user: dict) -> str:
     """A slot for an answer in progress (api/llm_gate.py); 429 "busy" if the user or the
     service has too many answers at once. Nothing is counted against the daily limit."""
@@ -640,6 +647,8 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
     base = {
         "status": "ok",
         "uptime_seconds": int((now_local() - _startup_time).total_seconds()),
+        # True while the chat answers "service under maintenance" (the cause stays private)
+        "maintenance": maintenance.active(),
     }
 
     is_admin = check_admin_key(request, key)
@@ -647,6 +656,7 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
         return base
 
     stats = get_stats()
+    base["maintenance_info"] = maintenance.status()   # since when and why: admin only
     llm_info = {"ollama": OLLAMA_MODEL, "bedrock": BEDROCK_MODEL}.get(LLM_PROVIDER, CLAUDE_MODEL)
     last_indexed = None
     if EMBEDDINGS_FILE.exists():
@@ -1228,6 +1238,8 @@ async def chat(request: Request, req: ChatRequest,
     if blocked:
         return {"answer": BLOCK_MESSAGE, "sources": [], "language": "it",
                 "rid": blocked, "blocked": True}
+    if maintenance.active():
+        raise _maintenance_error()
     slot = _take_slot(request, user)
     try:
         key = _take_question(request, user)
@@ -1242,6 +1254,7 @@ async def chat(request: Request, req: ChatRequest,
         _t0 = _time.monotonic()
         result = await answer(question, stream=False, history=history,
                               uid=user.get("uid"), rid=rid)
+        maintenance.recovered()
         _lang = result.get("language") if isinstance(result, dict) else None
         await asyncio.to_thread(_log_usage, user.get("uid"), question, _lang,
                                 int((_time.monotonic() - _t0) * 1000), rid=rid)
@@ -1252,10 +1265,14 @@ async def chat(request: Request, req: ChatRequest,
     except ValueError as e:
         quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
+    except Exception as e:
         quota.give_back(key)
+        reason = maintenance.classify(e)
+        if reason:
+            maintenance.activate(reason)
+            raise _maintenance_error() from e
         log.exception("Error in /chat")
-        raise HTTPException(status_code=500, detail="Errore interno del server")
+        raise HTTPException(status_code=500, detail="Errore interno del server") from e
     finally:
         llm_gate.release(slot)
 
@@ -1280,6 +1297,8 @@ async def chat_stream(request: Request, req: ChatRequest,
             yield 'data: {"done": true}\n\n'
         return StreamingResponse(_blocked_stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    if maintenance.active():
+        raise _maintenance_error()
     slot = _take_slot(request, user)
     try:
         key = _take_question(request, user)
@@ -1298,11 +1317,15 @@ async def chat_stream(request: Request, req: ChatRequest,
         quota.give_back(key)
         llm_gate.release(slot)
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
+    except Exception as e:
         quota.give_back(key)
         llm_gate.release(slot)
+        reason = maintenance.classify(e)
+        if reason:
+            maintenance.activate(reason)
+            raise _maintenance_error() from e
         log.exception("Error in /chat/stream")
-        raise HTTPException(status_code=500, detail="Errore interno del server")
+        raise HTTPException(status_code=500, detail="Errore interno del server") from e
 
     async def event_stream():
         import asyncio as _asyncio
@@ -1319,13 +1342,19 @@ async def chat_stream(request: Request, req: ChatRequest,
                     parts.append(token)
                     await queue.put(("token", token))
                 completed = True
+                maintenance.recovered()
                 conversations.add_turn(user.get("uid", ""), cid, question, "".join(parts))
                 await queue.put(("sources", None))
                 await queue.put(("done", None))
             except Exception as exc:
-                log.warning("Error while streaming the answer", exc_info=True)
                 quota.give_back(key)
-                await queue.put(("error", str(exc)))
+                reason = maintenance.classify(exc)
+                if reason:
+                    maintenance.activate(reason)
+                    await queue.put(("maintenance", None))
+                else:
+                    log.warning("Error while streaming the answer", exc_info=True)
+                    await queue.put(("error", str(exc)))
             finally:
                 llm_gate.release(slot)
                 # Even if interrupted (error, user gone): we record
@@ -1358,6 +1387,11 @@ async def chat_stream(request: Request, req: ChatRequest,
                     yield 'data: {"done": true}\n\n'
                     break
                 elif kind == "done":
+                    yield 'data: {"done": true}\n\n'
+                    break
+                elif kind == "maintenance":
+                    # The provider refused at the start of the stream: neutral text, no cause
+                    yield f"data: {json.dumps({'error': 'maintenance', 'token': maintenance.MESSAGE_IT}, ensure_ascii=False)}\n\n"
                     yield 'data: {"done": true}\n\n'
                     break
                 elif kind == "error":

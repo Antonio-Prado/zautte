@@ -20,6 +20,16 @@
           document.getElementById('latency').textContent = ms + ' ms';
           document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-GB');
           document.getElementById('uptime').textContent = fmtUptime(d.uptime_seconds || 0);
+          // Maintenance mode (model provider unavailable): since when and why, admin only
+          const mi = d.maintenance_info || {};
+          const mEl = document.getElementById('maintenance');
+          if (mi.active) {
+            mEl.textContent = 'ACTIVE since ' + (mi.since || '?') + ' — ' + (mi.reason || '');
+            mEl.style.color = '#b3261e'; mEl.style.fontWeight = '600';
+          } else {
+            mEl.textContent = 'no';
+            mEl.style.color = ''; mEl.style.fontWeight = '';
+          }
 
           document.getElementById('model-name').textContent = d.llm_model || '—';
           document.getElementById('llm-provider').textContent = d.llm_provider ? '(' + d.llm_provider + ')' : '';

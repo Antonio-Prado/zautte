@@ -81,6 +81,11 @@
     error: isItalian
       ? "Si è verificato un errore. Riprova tra qualche istante."
       : "An error occurred. Please try again.",
+    // Service under maintenance (HTTP 503 with detail.error "maintenance", or /health
+    // maintenance: true): neutral text, the cause is never shown here
+    maintenance: isItalian
+      ? "Il servizio è temporaneamente in manutenzione. Riprova tra qualche minuto."
+      : "The service is temporarily under maintenance. Please try again in a few minutes.",
     // Daily question limit (n from the server; 0 if missing)
     dailyLimit: (n) => isItalian
       ? `Hai raggiunto il limite di ${n > 0 ? n + " domande" : "domande"} al giorno. Potrai farne altre da domani.`
@@ -1004,6 +1009,24 @@
     messages.style.display = "";
     if (inputArea) inputArea.style.display = "";
     if (footerEl) footerEl.style.display = "";
+    checkMaintenance();
+  }
+
+  // Service under maintenance: the server says so in the public /health while the model
+  // provider is unavailable. The notice is shown at most once a minute.
+  let maintenanceNoticeAt = 0;
+  function showMaintenance() {
+    if (Date.now() - maintenanceNoticeAt < 60000) return;
+    maintenanceNoticeAt = Date.now();
+    removeTypingIndicator();
+    addMessage("bot", T.maintenance, null);
+    announce(T.maintenance);
+  }
+  function checkMaintenance() {
+    fetch(`${cfg.apiUrl}/health`, { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.maintenance) showMaintenance(); })
+      .catch(() => {});
   }
 
   // Login submit handling. The button is not disabled (a disabled button
@@ -1615,6 +1638,12 @@
     if (suggestionsEl) suggestionsEl.remove();
 
     addMessage("user", question, null);
+    if (Date.now() - maintenanceNoticeAt < 60000) {
+      // Maintenance notice shown less than a minute ago: repeat it without calling the server
+      maintenanceNoticeAt = 0;
+      showMaintenance();
+      return;
+    }
     addTypingIndicator();
     setLoading(true);
     announce(T.typing);
@@ -1673,6 +1702,19 @@
         addMessage("bot", text, null);
         announce(text);
         return;
+      }
+
+      if (resp.status === 503) {
+        let maint = false;
+        try {
+          const body = await resp.json();
+          maint = !!(body && body.detail && body.detail.error === "maintenance");
+        } catch (e) { /* body is not JSON */ }
+        if (maint) {
+          maintenanceNoticeAt = 0;
+          showMaintenance();
+          return;
+        }
       }
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1736,10 +1778,12 @@
                 removeTypingIndicator();
                 bubble.classList.remove("streaming");
                 fullText = "\x00"; // sentinel: do not overwrite with noInfo
-                bubble.textContent = T.error;
+                const errText = payload.error === "maintenance" ? T.maintenance : T.error;
+                if (payload.error === "maintenance") maintenanceNoticeAt = Date.now();
+                bubble.textContent = errText;
                 messages.appendChild(wrap);
                 scrollToBottom();
-                announce(T.error);
+                announce(errText);
               }
             } else if (payload.done) {
               bubble.classList.remove("streaming");
