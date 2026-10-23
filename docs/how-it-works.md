@@ -43,7 +43,7 @@ User question
 6. build_context_block()  — one header per chunk: title, type, link (no link for MIGRATED_DOMAINS)
      │
      ▼
-7. build_prompt()         — system prompt (IT/EN) + last 6 messages + context + today's date + question + suggested office
+7. build_prompt()         — system prompt (IT/EN: context only, bullet lists instead of tables, ask for details when the question has no object) + last 6 messages + context + today's date + question + suggested office
      │
      ▼
 8. gap log                — 0 chunks, or best cosine < RETRIEVAL_CONFIDENCE (0.52)
