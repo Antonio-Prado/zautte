@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-23
+
+### Added
+- `DAILY_LIMIT_EXEMPT`: accounts (names or e-mails) not subject to the daily question limit, for test accounts;
+  their questions are still logged and billed. `/auth/login` and `/auth/me` tell them `daily_limit: 0`.
+
 ## [0.8.2] - 2026-10-23
 
 ### Fixed

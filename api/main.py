@@ -422,6 +422,8 @@ def _take_question(request: Request, user: dict) -> str:
     """Counts the question against the daily limit (api/quota.py) and returns its
     key, so it can be given back if the answer fails; 429 if today's limit is
     already reached (the widget shows the message with the number of questions)."""
+    if quota.exempt(user):
+        return ""          # test account: nothing counted, nothing to give back
     key = quota.key_for(user, client_key(request))
     if not quota.take(key):
         log.info("Limit of %d questions per day reached (%s)",

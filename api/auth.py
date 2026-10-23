@@ -34,7 +34,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from api import account_guard, csp
+from api import account_guard, csp, quota
 from api.filelock import file_lock
 from api.limiter import limiter
 from config.settings import (
@@ -43,7 +43,6 @@ from config.settings import (
     AUTH_TOKEN_TTL_DAYS,
     CONSENT_REQUIRED,
     CONSENT_VERSION,
-    DAILY_QUESTION_LIMIT,
     PILOT_LOGIN_URL,
     PRIVACY_NOTICE_URL,
     PUBLIC_BASE_URL,
@@ -397,7 +396,7 @@ async def login(request: Request, req: LoginRequest):
         expires_in=AUTH_TOKEN_TTL_DAYS * 86400,
         consent_required=not consent_ok(user["id"]),
         privacy_notice_url=PRIVACY_NOTICE_URL,
-        daily_limit=DAILY_QUESTION_LIMIT,
+        daily_limit=quota.limit_for(user),
     )
 
 
@@ -415,7 +414,7 @@ async def me(user: dict = Security(require_user)):
     declaration is still to be made."""
     return {"uid": user.get("uid"), "name": user.get("name"),
             "consent_required": not consent_ok(user.get("uid", "")),
-            "privacy_notice_url": PRIVACY_NOTICE_URL, "daily_limit": DAILY_QUESTION_LIMIT}
+            "privacy_notice_url": PRIVACY_NOTICE_URL, "daily_limit": quota.limit_for(user)}
 
 
 # ---------------------------------------------------------------------------
