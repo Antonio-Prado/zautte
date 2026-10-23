@@ -21,7 +21,7 @@ import json
 import logging
 from pathlib import Path
 
-from config.settings import AUTH_ENABLED, DAILY_QUESTION_LIMIT, now_local
+from config.settings import AUTH_ENABLED, DAILY_LIMIT_EXEMPT, DAILY_QUESTION_LIMIT, now_local
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +76,18 @@ def load() -> None:
     if counts:
         log.info("Today's questions rebuilt from usage.jsonl: %d users, %d questions",
                  len(counts), sum(counts.values()))
+
+
+def exempt(user: dict) -> bool:
+    """True for an account listed in DAILY_LIMIT_EXEMPT (by name or e-mail): no daily limit."""
+    if not DAILY_LIMIT_EXEMPT:
+        return False
+    return any(str(user.get(k) or "").strip().lower() in DAILY_LIMIT_EXEMPT for k in ("name", "email"))
+
+
+def limit_for(user: dict) -> int:
+    """The daily limit told to this user: 0 (no limit) for an exempt account."""
+    return 0 if exempt(user) else DAILY_QUESTION_LIMIT
 
 
 def key_for(user: dict, client_ip: str) -> str:

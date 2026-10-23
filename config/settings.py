@@ -347,6 +347,9 @@ USERS_FILE = DATA_DIR / "users.json"
 # Server calendar day: at midnight the count restarts from zero. With
 # AUTH_ENABLED=false the count is per IP address. See api/quota.py.
 DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
+# Accounts not subject to the daily limit (test accounts): names or e-mails, comma-separated,
+# compared without regard to case. Their questions are still logged and billed.
+DAILY_LIMIT_EXEMPT = frozenset(e.strip().lower() for e in os.getenv("DAILY_LIMIT_EXEMPT", "").split(",") if e.strip())
 # Period of the pilot as free text for the invitation email ("dal 22 ottobre al 18 dicembre
 # 2026"); empty = the email does not mention a period.
 PILOT_PERIOD = os.getenv("PILOT_PERIOD", "").strip()

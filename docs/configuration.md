@@ -99,6 +99,8 @@ AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
+# Accounts not subject to the daily limit (test accounts): names or e-mails, comma-separated
+#DAILY_LIMIT_EXEMPT=
 # Wrong passwords before an account refuses logins, and the window/duration (seconds); reset emails per account per hour
 #LOGIN_MAX_FAILURES=10
 #LOGIN_LOCK_SECONDS=900
