@@ -79,10 +79,13 @@ def load() -> None:
 
 
 def exempt(user: dict) -> bool:
-    """True for an account listed in DAILY_LIMIT_EXEMPT (by name or e-mail): no daily limit."""
+    """True for an account listed in DAILY_LIMIT_EXEMPT (by id, name or e-mail): no daily
+    limit. The session token carries the id (`uid`) and the name; users.json rows carry
+    `id`, `name` and `email`: all are checked."""
     if not DAILY_LIMIT_EXEMPT:
         return False
-    return any(str(user.get(k) or "").strip().lower() in DAILY_LIMIT_EXEMPT for k in ("name", "email"))
+    return any(str(user.get(k) or "").strip().lower() in DAILY_LIMIT_EXEMPT
+               for k in ("uid", "id", "name", "email"))
 
 
 def limit_for(user: dict) -> int:

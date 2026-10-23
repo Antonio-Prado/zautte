@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-23
+
+### Fixed
+- `DAILY_LIMIT_EXEMPT` also matches the account id, which is what the session token carries (the name in the
+  token is the display name, so an entry by short name did not match).
+
 ## [0.8.3] - 2026-10-23
 
 ### Added
