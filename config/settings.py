@@ -381,6 +381,13 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 # visible in the dashboard anyway (administrator view).
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
 APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
+# Maintenance mode (api/maintenance.py): when the model provider refuses to serve (API
+# credit exhausted, key not valid) the chat answers "service under maintenance" for
+# MAINTENANCE_HOLD_SECONDS, then tries the model again; the administrator gets an alert
+# (MAINTENANCE_ALERT_EMAIL, default FEEDBACK_NOTIFY_EMAIL) at most once an hour and one
+# e-mail when the service is back. Visitors never see the cause.
+MAINTENANCE_HOLD_SECONDS = int(os.getenv("MAINTENANCE_HOLD_SECONDS", "600"))
+MAINTENANCE_ALERT_EMAIL = os.getenv("MAINTENANCE_ALERT_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
 
 # --- System prompts ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""

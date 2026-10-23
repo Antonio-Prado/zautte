@@ -134,6 +134,11 @@ PILOT_PERIOD=
 PUBLIC_BASE_URL=
 # Address notified of every report sent from the widget (empty = none)
 FEEDBACK_NOTIFY_EMAIL=
+# Maintenance mode: when the model provider refuses to serve (API credit exhausted, key not valid) the chat
+# answers "service under maintenance" (HTTP 503, neutral text) for this many seconds, then tries again;
+# the alert e-mail (default FEEDBACK_NOTIFY_EMAIL) goes out at most once an hour, plus one when the service is back
+#MAINTENANCE_HOLD_SECONDS=600
+#MAINTENANCE_ALERT_EMAIL=
 
 # Backend: addresses the API listens on (comma-separated; 0.0.0.0,:: = all interfaces, then restrict port 8000 with the firewall) and port
 API_HOST=127.0.0.1,::1

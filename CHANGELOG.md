@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-23
+
+### Added
+- Maintenance mode (`api/maintenance.py`): when the model provider refuses to serve (API credit exhausted,
+  key not valid or without permission, payment required) the chat answers HTTP 503 with a neutral
+  "service under maintenance" text for `MAINTENANCE_HOLD_SECONDS` (default 600) without calling the model,
+  then tries again. The public `/health` only says `maintenance: true`; the cause goes to the log, to the
+  admin view of `/health` (`maintenance_info`) and to the restricted area. The administrator gets an alert
+  e-mail (`MAINTENANCE_ALERT_EMAIL`, default `FEEDBACK_NOTIFY_EMAIL`) at most once an hour and one e-mail
+  when the service is back. The widget shows the notice when the chat opens, on a 503 and on a streaming
+  error, and repeats it for a minute without calling the server.
+
 ## [0.7.41] - 2026-10-23
 
 ### Added
