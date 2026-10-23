@@ -9,6 +9,12 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-23
+
+### Changed
+- The system prompts ask the model for bullet lists instead of Markdown tables: the widget renders lists, bold,
+  headings and quotes but not tables, and the chat window is narrow on a phone.
+
 ## [0.8.0] - 2026-10-23
 
 ### Added
