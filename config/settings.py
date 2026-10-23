@@ -350,6 +350,12 @@ DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
 # Period of the pilot as free text for the invitation email ("dal 22 ottobre al 18 dicembre
 # 2026"); empty = the email does not mention a period.
 PILOT_PERIOD = os.getenv("PILOT_PERIOD", "").strip()
+# Channel where the organisation publishes its news (a Telegram channel, a newsletter page):
+# the emails to participants (invitation, password reset, report resolved) end with an
+# invitation to subscribe. Empty = no invitation. NEWS_CHANNEL_NAME is how the channel is
+# called in that sentence ("iscriviti al <NEWS_CHANNEL_NAME>").
+NEWS_CHANNEL_URL = os.getenv("NEWS_CHANNEL_URL", "").strip()
+NEWS_CHANNEL_NAME = os.getenv("NEWS_CHANNEL_NAME", "").strip() or "canale Telegram"
 
 # --- Email sending (SMTP) — to deliver credentials to participants ---
 # Organization's internal relay (recipients in the organization's domain):
