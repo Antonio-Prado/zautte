@@ -241,6 +241,15 @@ curl http://127.0.0.1:8000/health                          # status, LLM provide
 curl -H "X-Admin-Key: <key>" http://127.0.0.1:8000/health  # + chunks, last indexing, gaps, feedback, token costs
 ```
 
+### Maintenance mode (model provider unavailable)
+
+When the model provider refuses to serve at all (API credit exhausted, key not valid or without permission, payment required), `api/maintenance.py` puts the chat in maintenance mode on its own: `/chat` and `/chat/stream` answer `503` with a neutral "service under maintenance" text for `MAINTENANCE_HOLD_SECONDS` (default 600) without calling the model, then the next question tries the model again; a success closes the incident, a failure renews the hold. Visitors never see the cause: the public `/health` only says `"maintenance": true`, the widget shows the notice when the chat opens and after a question.
+
+- **Alert**: an e-mail to `MAINTENANCE_ALERT_EMAIL` (default `FEEDBACK_NOTIFY_EMAIL`) when the mode starts, at most once an hour while it lasts, and one when the service is back. The log carries `Maintenance mode started (model provider unavailable): <cause> — <provider message>`.
+- **Check**: `curl -H "X-Admin-Key: <key>" http://127.0.0.1:8000/health` → `maintenance_info` (`active`, `since`, `reason`); the restricted area shows the same in its "Maintenance" row.
+- **To end it**: fix the cause (top up the credit in the provider's console, fix the key); nothing to restart, the mode ends by itself at the next successful answer. A restart also clears it (the state is in memory).
+- Not the same thing as `/var/run/chatbot.maintenance`, the flag that `service chatbot stop` leaves for the watchdog.
+
 ### Vector Store Statistics (admin)
 
 ```sh
