@@ -26,59 +26,60 @@ MESSAGE_EN = "The service is temporarily under maintenance. Please try again in 
 _ALERT_EVERY_SECONDS = 3600
 
 _lock = threading.Lock()
-_until = 0.0                  # the chat refuses the model until this time
-_since: float | None = None   # start of the incident (None = no incident)
-_reason = ""
-_last_alert = 0.0
+# until: the chat refuses the model until this time; since: start of the incident (None =
+# no incident); reason: fixed description of the cause (never the provider's message, which
+# goes to the log only); last_alert: time of the last alert e-mail.
+_state: dict = {"until": 0.0, "since": None, "reason": "", "last_alert": 0.0}
 
 
 def classify(exc: BaseException) -> str | None:
-    """The reason of the outage when the exception means that the provider refuses to
-    serve at all (not a transient error of one request); None otherwise."""
+    """A fixed description of the outage when the exception means that the provider refuses
+    to serve at all (not a transient error of one request); None otherwise. The provider's
+    own message is never returned: it is logged by activate()."""
     try:
         import anthropic
     except ImportError:
         return None
-    msg = str(getattr(exc, "message", "") or exc)
-    low = msg.lower()
+    low = str(getattr(exc, "message", "") or exc).lower()
     if isinstance(exc, anthropic.AuthenticationError):
-        return f"API key not valid (authentication error): {msg[:200]}"
+        return "API key not valid (authentication error)"
     if isinstance(exc, anthropic.PermissionDeniedError):
-        return f"API key without permission (permission denied): {msg[:200]}"
+        return "API key without permission (permission denied)"
     if isinstance(exc, anthropic.BadRequestError) and any(
             w in low for w in ("credit", "balance", "billing")):
-        return f"API credit exhausted: {msg[:200]}"
+        return "API credit exhausted"
     if isinstance(exc, anthropic.APIStatusError) and getattr(exc, "status_code", 0) == 402:
-        return f"payment required (HTTP 402): {msg[:200]}"
+        return "payment required (HTTP 402)"
     return None
 
 
 def active() -> bool:
     """True while the chat must answer "maintenance" instead of calling the model."""
-    return time.time() < _until
+    return time.time() < _state["until"]
 
 
-def activate(reason: str) -> None:
+def activate(reason: str, exc: BaseException | None = None) -> None:
     """Starts (or renews) the maintenance mode; alerts the administrator at most once
-    an hour."""
-    global _until, _since, _reason, _last_alert
+    an hour. `exc` (the provider's error) is written to the log only."""
     now = time.time()
     with _lock:
-        first = _since is None
+        first = _state["since"] is None
         if first:
-            _since = now
-        _until = now + MAINTENANCE_HOLD_SECONDS
-        _reason = reason
-        alert = now - _last_alert >= _ALERT_EVERY_SECONDS
+            _state["since"] = now
+        _state["until"] = now + MAINTENANCE_HOLD_SECONDS
+        _state["reason"] = reason
+        alert = now - _state["last_alert"] >= _ALERT_EVERY_SECONDS
         if alert:
-            _last_alert = now
-    log.error("Maintenance mode %s (model provider unavailable): %s",
-              "started" if first else "renewed", reason)
+            _state["last_alert"] = now
+        since = _state["since"]
+    log.error("Maintenance mode %s (model provider unavailable): %s%s",
+              "started" if first else "renewed", reason,
+              f" — {str(exc)[:300]}" if exc is not None else "")
     if alert:
         _notify("Zautte — servizio in manutenzione",
                 f"Zautte{_site()} ha smesso di rispondere alle domande: il fornitore del modello "
-                f"rifiuta le richieste.\n\nCausa: {reason}\n\n"
-                f"Dalle: {_fmt(_since)}\n\n"
+                f"rifiuta le richieste.\n\nCausa: {reason} (il messaggio completo è nel log del server)\n\n"
+                f"Dalle: {_fmt(since)}\n\n"
                 f"Finché dura, chi scrive vede «{MESSAGE_IT}», senza altre spiegazioni; "
                 f"ogni {MAINTENANCE_HOLD_SECONDS // 60} minuti il modello viene riprovato. "
                 "Questa email si ripete al massimo una volta all'ora; un'altra arriva quando il "
@@ -87,14 +88,13 @@ def activate(reason: str) -> None:
 
 def recovered() -> None:
     """Called after a successful model call: closes the incident, if there was one."""
-    global _until, _since, _reason, _last_alert
-    if _since is None:
+    if _state["since"] is None:
         return
     with _lock:
-        if _since is None:
+        if _state["since"] is None:
             return
-        since, reason = _since, _reason
-        _until, _since, _reason, _last_alert = 0.0, None, "", 0.0
+        since, reason = _state["since"], _state["reason"]
+        _state.update(until=0.0, since=None, reason="", last_alert=0.0)
     log.warning("Maintenance mode ended: the model answers again (was: %s)", reason)
     _notify("Zautte — servizio di nuovo attivo",
             f"Zautte{_site()} risponde di nuovo alle domande.\n\n"
@@ -103,8 +103,8 @@ def recovered() -> None:
 
 def status() -> dict:
     """For the administrator: whether the mode is active, since when and why."""
-    return {"active": active(), "since": _fmt(_since) if _since else None,
-            "reason": _reason or None}
+    return {"active": active(), "since": _fmt(_state["since"]) if _state["since"] else None,
+            "reason": _state["reason"] or None}
 
 
 def _site() -> str:

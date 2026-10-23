@@ -18,10 +18,7 @@ def _err(cls, status, message):
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
-    monkeypatch.setattr(maintenance, "_until", 0.0)
-    monkeypatch.setattr(maintenance, "_since", None)
-    monkeypatch.setattr(maintenance, "_reason", "")
-    monkeypatch.setattr(maintenance, "_last_alert", 0.0)
+    monkeypatch.setattr(maintenance, "_state", {"until": 0.0, "since": None, "reason": "", "last_alert": 0.0})
     sent = []
     monkeypatch.setattr(maintenance, "_notify", lambda subject, body: sent.append((subject, body)))
     monkeypatch.setattr(maintenance, "MAINTENANCE_HOLD_SECONDS", 600)
@@ -29,8 +26,9 @@ def _clean(monkeypatch):
 
 
 def test_classify_knows_the_outages():
-    assert "credit" in maintenance.classify(
+    reason = maintenance.classify(
         _err(anthropic.BadRequestError, 400, "Your credit balance is too low to access the Anthropic API."))
+    assert reason == "API credit exhausted"      # fixed text: the provider's message never leaves the log
     assert "not valid" in maintenance.classify(_err(anthropic.AuthenticationError, 401, "invalid x-api-key"))
     assert "permission" in maintenance.classify(_err(anthropic.PermissionDeniedError, 403, "no access"))
     assert "402" in maintenance.classify(_err(anthropic.APIStatusError, 402, "payment required"))
@@ -46,8 +44,9 @@ def test_classify_ignores_ordinary_errors():
 def test_activate_alert_once_then_recover(_clean):
     sent = _clean
     assert not maintenance.active()
-    maintenance.activate("API credit exhausted: test")
+    maintenance.activate("API credit exhausted: test", ValueError("secret detail"))
     assert maintenance.active()
+    assert "secret" not in str(maintenance.status())
     assert len(sent) == 1 and "manutenzione" in sent[0][0] and "credit" in sent[0][1]
     st = maintenance.status()
     assert st["active"] and st["since"] and "credit" in st["reason"]

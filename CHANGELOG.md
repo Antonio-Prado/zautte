@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-23
+
+### Fixed
+- Maintenance mode: the reason shown in the admin view of `/health` is a fixed description of the cause; the
+  provider's error message goes to the log only (CodeQL: information exposure through an exception). The
+  module keeps its state in one dictionary instead of module globals (CodeQL: unused global variable).
+
 ## [0.8.1] - 2026-10-23
 
 ### Changed
