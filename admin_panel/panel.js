@@ -399,6 +399,96 @@
     }
     document.getElementById('usage-load-btn').addEventListener('click', loadUsage);
 
+    // Applications of the citizens who asked to take part (POST /apply): the same
+    // decisions as `scripts.applications --accept/--reject`, from any device.
+    function loadApplications() {
+      const statusEl = document.getElementById('apps-status');
+      const listEl = document.getElementById('apps-list');
+      const showAll = document.getElementById('apps-show-all').checked;
+      fetch(apiBase + '/applications', { headers: adminHeaders() })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(data => {
+          const all = data.applications || [];
+          const items = showAll ? all : all.filter(a => (a.status || 'new') === 'new');
+          statusEl.textContent = '— ' + (data.pending || 0) + ' to decide out of ' + all.length + ' received';
+          if (!items.length) {
+            listEl.innerHTML = '<li><span class="app-name" style="color:#666">'
+              + (showAll ? 'No applications received.' : 'No applications to decide.') + '</span></li>';
+            return;
+          }
+          listEl.innerHTML = '';
+          items.forEach(a => {
+            const st = String(a.status || 'new');
+            const li = document.createElement('li');
+            const main = document.createElement('div');
+            main.className = 'app-main';
+            const ts = (a.ts || '').replace('T', ' ').slice(0, 16);
+            const meta = [ts, _esc(a.email), a.age ? _esc(a.age) + ' years' : '', a.district ? _esc(a.district) : '']
+              .filter(Boolean).join(' · ');
+            let html = '<span class="app-name">' + _esc(a.name) + '</span> '
+              + '<span class="app-badge ' + _esc(st) + '">' + _esc(st) + '</span>'
+              + '<div class="app-meta">' + meta + '</div>';
+            if (a.usage) html += '<div class="app-usage">' + _esc(a.usage) + '</div>';
+            main.innerHTML = html;
+            li.appendChild(main);
+            if (st === 'new') {
+              const acts = document.createElement('div');
+              acts.className = 'app-actions';
+              const ok = document.createElement('button');
+              ok.className = 'btn-resolve';
+              ok.textContent = '✓ Accept';
+              const no = document.createElement('button');
+              no.className = 'btn-resolve btn-reject';
+              no.textContent = '✗ Reject';
+              ok.addEventListener('click', () => decideApplication(a, 'accept', li, [ok, no]));
+              no.addEventListener('click', () => decideApplication(a, 'reject', li, [ok, no]));
+              acts.appendChild(ok);
+              acts.appendChild(no);
+              li.appendChild(acts);
+            }
+            listEl.appendChild(li);
+          });
+        })
+        .catch(() => {
+          statusEl.textContent = '';
+          listEl.innerHTML = '<li><span class="app-name" style="color:#666">Error loading the applications.</span></li>';
+        });
+    }
+
+    function decideApplication(a, action, liEl, btns) {
+      const who = (a.name || '') + ' <' + (a.email || '') + '>';
+      const what = action === 'accept'
+        ? 'Accept ' + who + '?\n\nThe account is created and the invitation with the link to choose the password is sent now.'
+        : 'Reject ' + who + '?\n\nNothing is sent to the person: the application is only marked as not selected.';
+      if (!confirm(what)) return;
+      btns.forEach(b => { b.disabled = true; });
+      fetch(apiBase + '/applications/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': getAdminKey() },
+        body: JSON.stringify({ id: a.id }),
+      })
+        .then(async r => {
+          if (r.status === 403) { _adminKey = null; throw new Error('Invalid admin key.'); }
+          if (!r.ok) {
+            let detail = '';
+            try { detail = (await r.json()).detail || ''; } catch (_) { /* no body */ }
+            throw new Error(detail || ('HTTP ' + r.status));
+          }
+          return r.json();
+        })
+        .then(d => {
+          liEl.classList.add('resolving');
+          setTimeout(loadApplications, 320);
+          if (action === 'accept') alert('Accepted: the invitation was sent to ' + (d.email || a.email) + '.');
+        })
+        .catch(e => {
+          btns.forEach(b => { b.disabled = false; });
+          alert('Not done: ' + (e && e.message ? e.message : 'error'));
+          loadApplications();
+        });
+    }
+    document.getElementById('apps-show-all').addEventListener('change', loadApplications);
+
     // Start of the admin view: called by startAdminView() (dashboard.html)
     // after the panel has been inserted into the page.
     window.zautteAdminBoot = function () {
@@ -407,8 +497,10 @@
       loadNegativeFeedback();
       loadUsage();
       loadMessages();
+      loadApplications();
       setInterval(updateStats, 30000);
       setInterval(updateCrawlHistory, 60000);
       setInterval(loadNegativeFeedback, 60000);
       setInterval(loadMessages, 30000);
+      setInterval(loadApplications, 60000);
     };

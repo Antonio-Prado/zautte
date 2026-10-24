@@ -829,7 +829,8 @@ def _notify_application(entry: dict) -> None:
             f"Nome: {entry.get('name', '')}\nEmail: {entry.get('email', '')}\nEtà: {entry.get('age', '')}\n"
             f"Quartiere: {entry.get('district', '') or '(non indicato)'}\n"
             f"Uso dei servizi: {entry.get('usage', '') or '(non indicato)'}\n\n"
-            f"Per accettarla (crea l'account e invia il link per la password):\n"
+            f"Per accettarla (crea l'account e invia il link per la password) apri l'area riservata, "
+            f"scheda «Volunteer applications», oppure dal server:\n"
             f"  venv/bin/python -m scripts.applications --accept {entry.get('id', '')}\n"
             f"Per vedere tutte le candidature in attesa: venv/bin/python -m scripts.applications\n")
     try:
