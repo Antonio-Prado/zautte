@@ -67,7 +67,7 @@ The `widget/embed-snippet.html` file contains a ready-to-paste snippet with more
 
 ## Pages in `widget/`
 
-- `dashboard.html`: title, description and login, then the chat opens inside the page (`inline`). It contains nothing about administration: the restricted area (service status, indexed content, activity, feedback, open 👎 with "Resolve", users, message log, token costs, crawl history) is a separate page at the address set with `ADMIN_PATH`, see [API](api.md#admin-authentication)
+- `dashboard.html`: title, description and login, then the chat opens inside the page (`inline`). It contains nothing about administration: the restricted area (service status, indexed content, activity, feedback, open 👎 with "Resolve", volunteer applications with "Accept"/"Reject", users, message log, token costs, crawl history) is a separate page at the address set with `ADMIN_PATH`, see [API](api.md#admin-authentication)
 - `pilot.html`: pilot landing page with the floating widget
 - `come-funziona.html`: public "How it works" page (AI transparency)
 - `site-footer.js`: footer shared by the three pages, with the latest release and the last commit ("Source") read from the public GitHub API (so each visitor's browser contacts `api.github.com`), the DOI of the software archive on Zenodo, an accessibility link and the visitor's IP address as the API sees it (`GET /client-ip` on the server that serves the script; hidden if it does not answer). An installation that wants more lines (logos, credits) replaces the file through `INSTANCE_DIR`

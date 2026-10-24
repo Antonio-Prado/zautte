@@ -519,15 +519,21 @@ def _user_from_reset_token(token: str) -> dict | None:
         return None
 
 
-def reset_link(token: str) -> str | None:
-    """Absolute link to the reset page, on the address the administrator configured
-    (PUBLIC_BASE_URL, or the origin of PILOT_LOGIN_URL). Never built from the Host
-    header of the request, which a caller can choose: None if nothing is configured."""
+def public_base() -> str:
+    """Public address of the site for the links in e-mails (PUBLIC_BASE_URL, or the
+    origin of PILOT_LOGIN_URL), without a trailing slash. Never built from the Host
+    header of the request, which a caller can choose: empty if nothing is configured."""
     base = PUBLIC_BASE_URL.rstrip("/")
     if not base and PILOT_LOGIN_URL:
         parts = urlsplit(PILOT_LOGIN_URL)
         if parts.scheme in ("http", "https") and parts.netloc:
             base = f"{parts.scheme}://{parts.netloc}"
+    return base
+
+
+def reset_link(token: str) -> str | None:
+    """Absolute link to the reset page (see public_base): None if nothing is configured."""
+    base = public_base()
     if not base:
         return None
     return f"{base}/auth/reset#token={quote(token, safe='')}"
