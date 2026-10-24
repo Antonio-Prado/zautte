@@ -15,8 +15,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - Restricted area: the card "Volunteer applications" lists the applications received (`GET /applications`) and
   accepts or rejects each one from the browser, also on a phone (`POST /applications/accept|reject`); the
   decision asks for confirmation and accepting sends the invitation at once. Until now the decisions were
-  only possible with `scripts.applications` on the server. The notification e-mail of a new application points
-  to the card.
+  only possible with `scripts.applications` on the server. The notification e-mail of a new application carries
+  the link to the restricted area (`PUBLIC_BASE_URL` or the origin of `PILOT_LOGIN_URL`, plus `ADMIN_PATH`).
 - Restricted area: the cards stack in one column on narrow screens.
 
 ## [0.8.4] - 2026-10-23

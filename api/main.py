@@ -821,17 +821,21 @@ async def apply(request: Request, req: ApplyRequest, background_tasks: Backgroun
 
 def _notify_application(entry: dict) -> None:
     """Email to the administrator for a new application (background)."""
+    from api.auth import public_base
     from api.mailer import send_email, smtp_configured
     from config.settings import APPLY_NOTIFY_EMAIL
     if not APPLY_NOTIFY_EMAIL or not smtp_configured():
         return
+    # The restricted area accepts or rejects with a click (card "Volunteer applications")
+    area = f"{public_base()}{ADMIN_PATH}" if ADMIN_PATH and public_base() else ""
+    how = (f"Per accettarla (crea l'account e invia il link per la password) o rifiutarla apri "
+           f"l'area riservata, scheda «Volunteer applications»:\n  {area}\n" if area else "")
     body = (f"Nuova candidatura alla sperimentazione ({entry.get('ts', '')[:16].replace('T', ' ')}).\n\n"
             f"Nome: {entry.get('name', '')}\nEmail: {entry.get('email', '')}\nEtà: {entry.get('age', '')}\n"
             f"Quartiere: {entry.get('district', '') or '(non indicato)'}\n"
             f"Uso dei servizi: {entry.get('usage', '') or '(non indicato)'}\n\n"
-            f"Per accettarla (crea l'account e invia il link per la password) apri l'area riservata, "
-            f"scheda «Volunteer applications», oppure dal server:\n"
-            f"  venv/bin/python -m scripts.applications --accept {entry.get('id', '')}\n"
+            f"{how}"
+            f"Dal server: venv/bin/python -m scripts.applications --accept {entry.get('id', '')}\n"
             f"Per vedere tutte le candidature in attesa: venv/bin/python -m scripts.applications\n")
     try:
         send_email(APPLY_NOTIFY_EMAIL, "Zautte — nuova candidatura", body)
