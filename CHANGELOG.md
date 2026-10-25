@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-25
+
+### Fixed
+- Crawler: a word in an inline tag (`<strong>Non</strong>`, a link, an emphasis) landed on a line of its
+  own in the extracted text, and the line filter dropped it when shorter than 4 characters: a negation
+  at the start of a sentence disappeared from the index ("Non si possono autenticare procure" was indexed
+  as "si possono autenticare procure"). Inline tags are now unwrapped before the extraction, so their text
+  stays in its sentence; non-breaking spaces become plain spaces. Pages are re-extracted at the next
+  full sync.
+
 ## [0.10.0] - 2026-10-25
 
 ### Added
