@@ -239,6 +239,8 @@ Constants in `api/rag.py`, calibrated for `bge-m3`:
 | `RETRIEVAL_CONFIDENCE` | `0.52` | If even the best chunk is below it, the question is logged as a weak answer in `gaps.jsonl` |
 | `VECTOR_WEIGHT` / `BM25_WEIGHT` | `0.6` / `0.4` | Weights of the two rankings in the hybrid search |
 | `PDF_PENALTY`          | `0.04` | Subtracted from PDF chunks when re-ranking, so pages come first at similar relevance |
+| `COUNCIL_SESSIONS`     | `council` in `crawl_extra.json` | Calendar of the municipal council sessions (`scripts.council_sessions`, hourly from cron, see [Operations](operations.md)): `convocations_url` (the page that lists the convocations, one link per session grouped under "anno YYYY" headings), optional `link_pattern` (regex a session link must match, default `consiglio`), `keywords` and `require_any` (when the generated fact is injected) |
+| `KNOWN_FACTS_DYNAMIC_FILE` | `data/facts/known_facts_dynamic.json` | Known facts written by jobs, same format as `known_facts.json` plus an `id` per fact; the API checks the file once a minute and rereads it when it changes, without a restart |
 | `NEWS_PENALTY`         | `0.04` | Subtracted from news items and their attachments when re-ranking |
 | `MIGRATED_PENALTY`     | `0.03` | Subtracted from passages of retired domains (`MIGRATED_DOMAINS`), whose link is dead |
 

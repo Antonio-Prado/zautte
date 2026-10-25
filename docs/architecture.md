@@ -42,7 +42,7 @@ The API stores no conversations on disk: the last 3 turns of each conversation (
 ## Processes, accounts and ports
 
 - **API**: one uvicorn process (`api/serve.py`, started by `start.sh` under the rc.d service). It runs as an unprivileged service account (`chatbot_user` in rc.conf); `scripts/chatbot_rcd` refuses to run it as root unless `chatbot_allow_root="YES"`. The supervisor `daemon(8)` stays root only to own the pid file and the log. It listens on `API_HOST` (default `127.0.0.1,::1`), port `API_PORT` (default 8000).
-- **Sync jobs** (`full_sync.sh`, `incremental_sync.sh`, `news_sync.sh`, `sync inbox`): run as the unprivileged account `zsync` (`scripts/setup_sync_user.sh`), which reads `.env.sync` (an allowlist built by `make_sync_env.py`, no secrets). They write only `vectorstore`, `crawl_cache`, `documents`, `inbox` and `backups`.
+- **Sync jobs** (`full_sync.sh`, `incremental_sync.sh`, `news_sync.sh`, `sync inbox`): run as the unprivileged account `zsync` (`scripts/setup_sync_user.sh`), which reads `.env.sync` (an allowlist built by `make_sync_env.py`, no secrets). They write only `vectorstore`, `crawl_cache`, `documents`, `inbox`, `facts` (dynamic known facts) and `backups`.
 - **Watchdog** (`scripts/watchdog.sh`, root, cron every minute): restarts the API if `/health` does not answer, and carries out the `restart`/`reload` request files that sync jobs leave in `SYNC_CONTROL_DIR`.
 - **Ollama** (default `http://localhost:11434`, local only): embeddings and the optional local LLM; it should run as its own unprivileged account too.
 
@@ -158,6 +158,7 @@ zautte/                       # deployed as /opt/chatbot
 ├── scripts/
 │   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news)
 │   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
+│   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade
