@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-10-25
+
+### Changed
+- The note sent with the resolution of a negative feedback (`POST /feedback/resolve`) can be up to
+  2000 characters, not 1000: a reply that explains what was wrong and what the assistant answers now
+  did not fit.
+
 ## [0.10.1] - 2026-10-25
 
 ### Fixed
