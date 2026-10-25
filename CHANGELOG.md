@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-25
+
+### Added
+- Dynamic known facts: the API also reads `KNOWN_FACTS_DYNAMIC_FILE` (`data/facts/known_facts_dynamic.json`,
+  same format as `known_facts.json` plus an `id` per fact), checks it once a minute and rereads it when it
+  changes, without a restart. Jobs can keep facts that change over time up to date.
+- `scripts.council_sessions`: hourly cron job (as the sync account) that reads the page of the council
+  convocations (`council.convocations_url` in `crawl_extra.json`), works out the last session held and the
+  next one convened, and writes the calendar as a dynamic known fact, with a warning that the dates listed
+  under the previous year belong to that year. Until now the calendar was a hand-written known fact that went
+  stale at every new session.
+
 ## [0.9.1] - 2026-10-25
 
 ### Fixed

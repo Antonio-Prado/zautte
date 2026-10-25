@@ -26,5 +26,9 @@
       "host_contains": "servizi.",
       "section": "servizi_online"
     }
-  ]
+  ],
+  "council": {
+    "convocations_url": "https://www.example.org/it/public_documents/convocazioni-consiglio-comunale",
+    "link_pattern": "consiglio"
+  }
 }

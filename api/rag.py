@@ -30,6 +30,7 @@ from config.settings import (
     CLAUDE_MODEL,
     CLAUDE_REWRITE_MODEL,
     CRAWL_ALLOWED_DOMAINS,
+    KNOWN_FACTS_DYNAMIC_FILE,
     LLM_EFFORT,
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
@@ -242,49 +243,81 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
 # Known facts always available, independent of retrieval.
 # Useful for basic information that the embedding does not retrieve well
 # (addresses, opening hours, institutional contacts). Loaded from config/known_facts.json.
+def _parse_known_facts(entries: list[dict]) -> list[dict]:
+    result = []
+    for e in entries:
+        # Explicit precedence: "source" (full URL) takes priority; otherwise
+        # "source_path" relative to SITE_URL; otherwise no source.
+        # (It used to be a single expression with wrong precedence: facts with
+        #  only "source" ended up with an empty URL.)
+        if e.get("source"):
+            source = e["source"]
+        elif e.get("source_path"):
+            source = SITE_URL.rstrip("/") + e["source_path"]
+        else:
+            source = ""
+        result.append({
+            "keywords":    set(e["keywords"]),
+            "require_any": set(e.get("require_any", e["keywords"])),
+            "chunk": {
+                "text":     e["text"],
+                "title":    e["title"],
+                "source":   source,
+                "score":    1.0,
+                "category": e.get("category", "pagina"),
+            },
+        })
+    return result
+
+
 def _load_known_facts() -> list[dict]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "known_facts.json"
     if not f.exists():
         return []
     try:
-        entries = _j.loads(f.read_text(encoding="utf-8"))
-        result = []
-        for e in entries:
-            # Explicit precedence: "source" (full URL) takes priority; otherwise
-            # "source_path" relative to SITE_URL; otherwise no source.
-            # (It used to be a single expression with wrong precedence: facts with
-            #  only "source" ended up with an empty URL.)
-            if e.get("source"):
-                source = e["source"]
-            elif e.get("source_path"):
-                source = SITE_URL.rstrip("/") + e["source_path"]
-            else:
-                source = ""
-            result.append({
-                "keywords":    set(e["keywords"]),
-                "require_any": set(e.get("require_any", e["keywords"])),
-                "chunk": {
-                    "text":     e["text"],
-                    "title":    e["title"],
-                    "source":   source,
-                    "score":    1.0,
-                    "category": e.get("category", "pagina"),
-                },
-            })
-        return result
+        return _parse_known_facts(_j.loads(f.read_text(encoding="utf-8")))
     except (OSError, ValueError, KeyError, TypeError) as exc:
         log.warning(f"Could not load known_facts.json: {exc}")
         return []
 
 _KNOWN_FACTS = _load_known_facts()
 
+# Facts written by a job (scripts/council_sessions.py): the file is checked at most once
+# a minute and reread when it changes, so the API never needs a restart for them.
+_DYNAMIC_FACTS: dict = {"facts": [], "mtime": None, "checked": 0.0}
+_DYNAMIC_CHECK_SECONDS = 60
+
+
+def _dynamic_known_facts() -> list[dict]:
+    import json as _j
+    import time as _t
+    now = _t.monotonic()
+    if now - _DYNAMIC_FACTS["checked"] < _DYNAMIC_CHECK_SECONDS:
+        return _DYNAMIC_FACTS["facts"]
+    _DYNAMIC_FACTS["checked"] = now
+    try:
+        mtime = KNOWN_FACTS_DYNAMIC_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+    if mtime != _DYNAMIC_FACTS["mtime"]:
+        facts: list[dict] = []
+        if mtime is not None:
+            try:
+                facts = _parse_known_facts(_j.loads(KNOWN_FACTS_DYNAMIC_FILE.read_text(encoding="utf-8")))
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                log.warning(f"Could not load {KNOWN_FACTS_DYNAMIC_FILE.name}: {exc}")
+        _DYNAMIC_FACTS["facts"] = facts
+        _DYNAMIC_FACTS["mtime"] = mtime
+        log.info("Dynamic known facts loaded: %d", len(facts))
+    return _DYNAMIC_FACTS["facts"]
+
 
 def _inject_known_facts(query: str) -> list[dict]:
-    """Returns the known facts relevant to the query."""
+    """Returns the known facts relevant to the query (static ones first, then the dynamic ones)."""
     q = set(re.findall(r"\w+", query.lower()))
     results = []
-    for fact in _KNOWN_FACTS:
+    for fact in _KNOWN_FACTS + _dynamic_known_facts():
         keywords = fact["keywords"]
         require_any = fact.get("require_any", keywords)
         if q & keywords and q & require_any:

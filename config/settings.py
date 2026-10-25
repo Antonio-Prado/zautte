@@ -41,6 +41,9 @@ DATA_DIR = BASE_DIR / "data"
 # Where a sync job that is not root leaves its requests to the watchdog (reload / restart the API)
 SYNC_CONTROL_DIR = Path(os.getenv("SYNC_CONTROL_DIR", "/var/db/zautte-sync"))
 VECTOR_DB_DIR = DATA_DIR / "vectordb"
+# Known facts written by jobs (scripts/council_sessions.py), same format as config/known_facts.json;
+# the API rereads the file when it changes, without a restart
+KNOWN_FACTS_DYNAMIC_FILE = Path(os.getenv("KNOWN_FACTS_DYNAMIC_FILE") or DATA_DIR / "facts" / "known_facts_dynamic.json")
 DOCUMENTS_DIR = DATA_DIR / "documents"
 CRAWL_CACHE_DIR = DATA_DIR / "crawl_cache"
 
@@ -122,6 +125,9 @@ CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
 # crawl_extra.json → {"wordpress_api": ".../wp-json/wp/v2", "rss": [...],
 # "attachment_hosts": [...], "section": "..."}
 NEWS_SOURCES: dict = {}
+# Council sessions calendar (scripts/council_sessions.py): "council" key of crawl_extra.json →
+# {"convocations_url": "...", "link_pattern": "consiglio", "keywords": [...], "require_any": [...]}
+COUNCIL_SESSIONS: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -137,6 +143,7 @@ try:
         CRAWL_SECTION_RULES += _crawl_extra.get("section_rules", [])
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))
+        COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
