@@ -19,6 +19,8 @@ previous file is kept).
 
 import argparse
 import bisect
+import contextlib
+import grp
 import html
 import json
 import logging
@@ -185,6 +187,18 @@ def build_fact(sessions: list[dict], today: date, url: str, site_name: str,
     }
 
 
+def _share_with_api(path: Path, mode: int) -> None:
+    """The job runs as the sync account and the API as another one: the file (or folder) gets
+    the shared group of data/ (SYNC_SHARED_GROUP, default zdata) and group read access, no
+    access for others. Without that group (a single-user installation) the mode alone is set."""
+    os.chmod(path, mode)
+    name = os.environ.get("SYNC_SHARED_GROUP", "zdata")
+    try:
+        os.chown(path, -1, grp.getgrnam(name).gr_gid)
+    except (KeyError, PermissionError, OSError):
+        pass   # no such group, or not a member of it: the owner's group stays
+
+
 def upsert_fact(path: Path, fact: dict, dry_run: bool = False) -> bool:
     """Replaces the fact with the same id in the file (other dynamic facts are kept). Returns
     True when the file was written, False when its content was already the same."""
@@ -193,28 +207,28 @@ def upsert_fact(path: Path, fact: dict, dry_run: bool = False) -> bool:
         try:
             facts = [f for f in json.loads(path.read_text(encoding="utf-8")) if f.get("id") != fact["id"]]
         except (OSError, ValueError, AttributeError):
-            facts = []
+            facts = []   # unreadable or malformed: rebuilt from scratch
     facts.append(fact)
     new_text = json.dumps(facts, ensure_ascii=False, indent=1) + "\n"
     try:
         if path.read_text(encoding="utf-8") == new_text:
             return False
     except OSError:
-        pass
+        pass   # no file yet: written below
     if dry_run:
         return True
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.parent.exists():
+        path.parent.mkdir(parents=True)
+        _share_with_api(path.parent, 0o750)
     fd, tmp = tempfile.mkstemp(prefix=".facts-", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(new_text)
-        os.chmod(tmp, 0o644)
+        _share_with_api(Path(tmp), 0o640)
         os.replace(tmp, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
     return True
 
