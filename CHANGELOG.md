@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-25
+
+### Fixed
+- The phone numbers of the institution's own offices were masked as `[telefono]` in `answers.jsonl`
+  (so in the message log of the restricted area) and in the conversation history sent back to the
+  model on the next turns, while the visitor saw the real number. `PII_KEEP_PHONE_PREFIXES` lists the
+  national prefixes (e.g. the switchboard range) that stay in clear, like `PII_KEEP_EMAIL_DOMAINS`
+  does for institutional e-mail addresses; a question that quotes such a number is not refused by
+  `PII_BLOCK` either.
+
 ## [0.9.0] - 2026-10-24
 
 ### Added

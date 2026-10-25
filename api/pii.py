@@ -9,7 +9,10 @@ placeholder BEFORE any use.
 
 Masked: tax code (codice fiscale), IBAN (with check-digit verification), payment
 card numbers (with Luhn verification), email addresses (except those of the
-institutional domains in PII_KEEP_EMAIL_DOMAINS) and Italian phone numbers.
+institutional domains in PII_KEEP_EMAIL_DOMAINS) and Italian phone numbers (except
+those that start with one of the institutional prefixes in PII_KEEP_PHONE_PREFIXES,
+e.g. the municipality's switchboard range, so that the numbers the answers give out stay
+readable in the logs and in the conversation history).
 Names, home addresses and other free-form data cannot be recognised
 reliably and remain: the notice in the widget is still necessary.
 
@@ -22,7 +25,12 @@ model provider and without recording the text (DPO opinion of 19/10/2026).
 
 import re
 
-from config.settings import PII_BLOCK, PII_KEEP_EMAIL_DOMAINS, PII_REDACTION
+from config.settings import (
+    PII_BLOCK,
+    PII_KEEP_EMAIL_DOMAINS,
+    PII_KEEP_PHONE_PREFIXES,
+    PII_REDACTION,
+)
 
 # Tax code (codice fiscale) of natural persons, including omocodia (digits replaced
 # by the letters LMNPQRSTUV), also written in groups separated by a space.
@@ -84,9 +92,18 @@ def _luhn_ok(candidate: str) -> bool:
     return total % 10 == 0
 
 
+def _phone_national(candidate: str) -> str:
+    return _PHONE_PREFIX_RE.sub("", re.sub(r"[ ./-]", "", candidate))
+
+
 def _phone_ok(candidate: str) -> bool:
-    national = _PHONE_PREFIX_RE.sub("", re.sub(r"[ ./-]", "", candidate))
-    return 9 <= len(national) <= 11
+    return 9 <= len(_phone_national(candidate)) <= 11
+
+
+def _phone_kept(candidate: str) -> bool:
+    """An institutional number (switchboard range of the municipality), not a person's."""
+    national = _phone_national(candidate)
+    return any(national.startswith(p) for p in PII_KEEP_PHONE_PREFIXES)
 
 
 _ROLE_WORDS = {
@@ -116,7 +133,9 @@ def _mask(text: str, keep_institutional: bool) -> str:
     text = _EMAIL_RE.sub(
         lambda m: m.group(0) if keep_institutional and _email_kept(m.group(2)) else "[email]", text)
     text = _PHONE_INTL_RE.sub("[telefono]", text)
-    return _PHONE_RE.sub(lambda m: "[telefono]" if _phone_ok(m.group(0)) else m.group(0), text)
+    return _PHONE_RE.sub(
+        lambda m: m.group(0) if not _phone_ok(m.group(0)) or (keep_institutional and _phone_kept(m.group(0)))
+        else "[telefono]", text)
 
 
 def redact(text: str) -> str:
