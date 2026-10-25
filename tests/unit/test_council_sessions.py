@@ -78,7 +78,8 @@ def dynamic_file(tmp_path, monkeypatch):
     from api import rag
     f = tmp_path / "known_facts_dynamic.json"
     monkeypatch.setattr(rag, "KNOWN_FACTS_DYNAMIC_FILE", f)
-    monkeypatch.setitem(rag._DYNAMIC_FACTS, "checked", 0.0)
+    # -inf, not 0.0: on a machine up for less than a minute monotonic() is below the check interval
+    monkeypatch.setitem(rag._DYNAMIC_FACTS, "checked", float("-inf"))
     monkeypatch.setitem(rag._DYNAMIC_FACTS, "mtime", None)
     monkeypatch.setitem(rag._DYNAMIC_FACTS, "facts", [])
     return f
@@ -92,11 +93,11 @@ def test_api_reads_the_dynamic_file_when_it_changes(dynamic_file):
     dynamic_file.write_text(json.dumps([{"id": "d", "keywords": ["consiglio"], "title": "Dyn",
                                          "text": "calendario", "source": "https://www.example.org/c"}]),
                             encoding="utf-8")
-    rag._DYNAMIC_FACTS["checked"] = 0.0
+    rag._DYNAMIC_FACTS["checked"] = float("-inf")
     hits = rag._inject_known_facts("quando è il prossimo consiglio?")
     assert any(c["title"] == "Dyn" and c["score"] == 1.0 for c in hits)
     assert not any(c["title"] == "Dyn" for c in rag._inject_known_facts("come pago la TARI?"))
     # removed file → fact gone, after the check interval
     os.unlink(dynamic_file)
-    rag._DYNAMIC_FACTS["checked"] = 0.0
+    rag._DYNAMIC_FACTS["checked"] = float("-inf")
     assert not any(c["title"] == "Dyn" for c in rag._inject_known_facts("quando è il prossimo consiglio?"))

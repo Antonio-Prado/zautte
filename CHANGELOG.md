@@ -18,6 +18,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   as "si possono autenticare procure"). Inline tags are now unwrapped before the extraction, so their text
   stays in its sentence; non-breaking spaces become plain spaces. Pages are re-extracted at the next
   full sync.
+- The unit test of the dynamic known facts failed on a runner up for less than a minute (the reread
+  throttle compares `time.monotonic()` with 0).
 
 ## [0.10.0] - 2026-10-25
 
