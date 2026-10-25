@@ -919,7 +919,7 @@ class ResolveRequest(BaseModel):
     ts: str = Field(..., max_length=30)
     question: str = Field(..., max_length=1000)
     id: str | None = Field(None, max_length=32, description="identificativo della segnalazione")
-    note: str | None = Field(None, max_length=1000,
+    note: str | None = Field(None, max_length=2000,
                              description="nota per il collega, inclusa nell'email di riscontro")
     notify: bool = Field(True, description="invia l'email di riscontro a chi ha segnalato")
 
