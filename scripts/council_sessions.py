@@ -187,14 +187,14 @@ def build_fact(sessions: list[dict], today: date, url: str, site_name: str,
     }
 
 
-def _share_with_api(path: Path, mode: int) -> None:
-    """The job runs as the sync account and the API as another one: the file (or folder) gets
-    the shared group of data/ (SYNC_SHARED_GROUP, default zdata) and group read access, no
-    access for others. Without that group (a single-user installation) the mode alone is set."""
-    os.chmod(path, mode)
+def _share_with_api(fd: int, mode: int) -> None:
+    """The job runs as the sync account and the API as another one: the open file (or folder)
+    gets the shared group of data/ (SYNC_SHARED_GROUP, default zdata) and group read access,
+    nothing for others. Without that group (a single-user installation) only the mode is set."""
+    os.fchmod(fd, mode)
     name = os.environ.get("SYNC_SHARED_GROUP", "zdata")
     try:
-        os.chown(path, -1, grp.getgrnam(name).gr_gid)
+        os.fchown(fd, -1, grp.getgrnam(name).gr_gid)
     except (KeyError, PermissionError, OSError):
         pass   # no such group, or not a member of it: the owner's group stays
 
@@ -219,12 +219,16 @@ def upsert_fact(path: Path, fact: dict, dry_run: bool = False) -> bool:
         return True
     if not path.parent.exists():
         path.parent.mkdir(parents=True)
-        _share_with_api(path.parent, 0o750)
+        dfd = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            _share_with_api(dfd, 0o750)
+        finally:
+            os.close(dfd)
     fd, tmp = tempfile.mkstemp(prefix=".facts-", dir=str(path.parent))
     try:
+        _share_with_api(fd, 0o640)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(new_text)
-        _share_with_api(Path(tmp), 0o640)
         os.replace(tmp, path)
     except BaseException:
         with contextlib.suppress(OSError):
