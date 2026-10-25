@@ -200,6 +200,13 @@ def save_link_texts(observed: dict[str, list[str]]) -> int:
     return updated
 
 
+# Inline formatting must not break a sentence into lines: get_text() with a separator puts
+# the text of <strong>Non</strong> on a line of its own, and the line filter below drops it as
+# noise (shorter than 4 characters), so a negation disappeared from the index. These tags are
+# unwrapped before the extraction, so their text stays in the sentence.
+_INLINE_TAGS = ("a", "abbr", "b", "em", "i", "mark", "small", "span", "strong", "sub", "sup", "u")
+
+
 _NOISE_LINES = re.compile(
     r"^(vai alla pagina|leggi di più|leggi di piu|torna ai contenuti|"
     r"torna all'inizio|condividi|stampa|home|cerca|ricerca|accedi|"
@@ -273,7 +280,10 @@ def clean_text(html: str) -> str:
     if main is None:
         return ""
 
-    text = main.get_text(separator="\n", strip=True)
+    for tag in main.find_all(_INLINE_TAGS):
+        tag.unwrap()
+    main.smooth()   # joins the strings left side by side by unwrap into one
+    text = main.get_text(separator="\n", strip=True).replace("\xa0", " ")
 
     # Filter noisy lines
     lines = []
