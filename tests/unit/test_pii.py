@@ -1,5 +1,6 @@
 import pytest
 
+from api import pii
 from api.pii import contains_personal, redact
 
 
@@ -43,3 +44,21 @@ def test_hostile_input_is_fast():
         redact(t)
         contains_personal(t)
     assert time.time() - start < 2
+
+
+def test_institutional_phone_kept(monkeypatch):
+    monkeypatch.setattr(pii, "PII_KEEP_PHONE_PREFIXES", ["0735794"])
+    text = "Telefono: 0735 794 1 e +39 0735.794.567, oppure 0735 581234 o 333 123 4567"
+    out = redact(text)
+    assert "0735 794 1" in out
+    assert "+39 0735.794.567" in out
+    assert "0735 581234" not in out
+    assert "333 123 4567" not in out
+    # an institutional number is not personal data: the question is not blocked
+    assert not contains_personal("il numero 0735 7941234 è ancora attivo?")
+    assert contains_personal("richiamatemi al 333 123 4567")
+
+
+def test_phone_prefixes_disabled_by_default(monkeypatch):
+    monkeypatch.setattr(pii, "PII_KEEP_PHONE_PREFIXES", [])
+    assert "0735 794" not in redact("Telefono: 0735 7941234")

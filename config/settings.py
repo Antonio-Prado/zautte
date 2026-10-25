@@ -6,6 +6,7 @@ Edit this file to adapt the system to your environment.
 import datetime as _datetime
 import logging
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -236,10 +237,16 @@ BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
 # With PII_REDACTION on, tax codes, IBANs, payment cards, emails and
 # phone numbers are replaced by a placeholder before being sent to the model and
 # before being written to the logs. PII_KEEP_EMAIL_DOMAINS: institutional domains whose
-# emails stay in clear (e.g. "comune.example.it,pec.example.it").
+# emails stay in clear (e.g. "comune.example.it,pec.example.it"). PII_KEEP_PHONE_PREFIXES:
+# national prefixes of the institution's own numbers, digits only, that stay in clear
+# (e.g. "0735794" for the switchboard range 0735 794xxx); the answers quote them and they
+# must stay readable in the logs and in the conversation history.
 PII_REDACTION = os.getenv("PII_REDACTION", "true").strip().lower() in ("1", "true", "yes", "on")
 PII_KEEP_EMAIL_DOMAINS = [
     d.strip().lower().lstrip("@") for d in os.getenv("PII_KEEP_EMAIL_DOMAINS", "").split(",") if d.strip()
+]
+PII_KEEP_PHONE_PREFIXES = [
+    p for p in (re.sub(r"\D", "", d) for d in os.getenv("PII_KEEP_PHONE_PREFIXES", "").split(",")) if p
 ]
 # With PII_BLOCK on, a question that contains personal data (those
 # recognized by PII_REDACTION or a first-person introduction, such as
