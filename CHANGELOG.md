@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-10-26
+
+### Fixed
+- System prompts (Italian and English): a question that names an everyday thing is no longer treated as
+  generic. Asked «where can I pay the electricity bill?», the assistant replied that the question was
+  generic and asked whether it meant the nursery fees or the cemetery votive lights, because both were
+  among the retrieved passages. Now it answers the common meaning straight away and mentions services
+  of the organisation with a similar name at most in one line at the end.
+
 ## [0.10.6] - 2026-10-26
 
 ### Fixed
