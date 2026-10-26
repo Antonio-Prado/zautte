@@ -226,7 +226,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `BEDROCK_REWRITE_MODEL`| `BEDROCK_MODEL`                | Model used to rewrite follow-up questions (`bedrock` provider) |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
 | `PII_KEEP_EMAIL_DOMAINS` | empty                        | Institutional e-mail domains whose addresses are not masked |
-| `PII_KEEP_PHONE_PREFIXES` | empty                       | National prefixes (digits only, e.g. `0735794`) of the institution's own phone numbers, which are not masked: the answers quote them and they must stay readable in the logs and in the conversation history |
+| `PII_KEEP_PHONE_PREFIXES` | empty                       | National prefixes (digits only, comma-separated, e.g. `0735794`) of the institution's own phone numbers, which are not masked; a whole number keeps only that number (e.g. the waste or water company the answers point to): the answers quote them and they must stay readable in the logs and in the conversation history |
 | `PII_BLOCK`            | `true`                         | Refuses a question that contains personal data (no search, no model call, nothing logged), independently of `PII_REDACTION` |
 | `SYNC_CONTROL_DIR`     | `/var/db/zautte-sync`          | Where sync jobs that are not root leave `restart`/`reload` requests for the root watchdog |
 | `RETENTION_*_DAYS`     | `90` / `365` / `180` / `365` / `90` | Retention of question text, usage, gaps, feedback, and of the most frequent questions and per-user token records in `stats.json` (applied by the API itself) |
