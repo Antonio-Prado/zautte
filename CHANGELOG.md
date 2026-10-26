@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-10-26
+
+### Fixed
+- In-page chat of `dashboard.html`: after login the chat got only the height left under the title, the
+  intro and the footer, and showed 3 lines of an answer on a phone, 4 on a larger phone and 6 on a
+  1366×768 laptop. Now the chat is as tall as the window (at most 640 px, the widget default) and the
+  page scrolls; when the chat does not fit, the widget brings it into view after login and when a
+  question is sent (`inline` mode only). About 21 lines are visible on those screens.
+- While an answer arrives the chat no longer follows its end down to the 👍 👎 buttons: it follows the
+  text until the first line of the answer reaches the top of the area, then stays there, so the reader
+  starts from the beginning.
+
 ## [0.10.3] - 2026-10-26
 
 ### Fixed

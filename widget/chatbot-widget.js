@@ -829,6 +829,20 @@
     document.dispatchEvent(new CustomEvent("zautte:auth", {
       detail: { loggedIn: !!authToken, name: authName || "" },
     }));
+    if (authToken) revealInlinePanel(false);   // after the host page has laid out the logged-in view
+  }
+
+  /** Inline mode: when the chat does not fit in the window under the page header (phone,
+   *  short laptop screen) scrolls the page so that the whole chat is in view, input at the
+   *  bottom, like a chat app. */
+  function revealInlinePanel(smooth) {
+    if (!inlineHost) return;
+    requestAnimationFrame(() => {
+      const r = panel.getBoundingClientRect();
+      if (r.top >= 0 && r.bottom <= window.innerHeight + 1) return;
+      const still = !smooth || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      panel.scrollIntoView({ block: "end", behavior: still ? "auto" : "smooth" });
+    });
   }
 
   // References to the areas the login replaces
@@ -1118,6 +1132,15 @@
 
   function scrollToBottom() {
     messages.scrollTop = messages.scrollHeight;
+  }
+
+  /** Follows an answer while it arrives, but only until its first line reaches the top of
+   *  the area: from then on the reader starts from the beginning and scrolls down at their
+   *  own pace (in a short window the end of the text ran away, down to the 👍 👎 buttons). */
+  function followAnswer(wrap) {
+    const top = wrap.getBoundingClientRect().top - messages.getBoundingClientRect().top + messages.scrollTop;
+    const target = Math.min(messages.scrollHeight - messages.clientHeight, top - 8);
+    if (messages.scrollTop < target) messages.scrollTop = target;
   }
 
   /** Announces a text to screen readers (hidden status region). Clearing it
@@ -1638,6 +1661,7 @@
     if (suggestionsEl) suggestionsEl.remove();
 
     addMessage("user", question, null);
+    revealInlinePanel(true);
     if (Date.now() - maintenanceNoticeAt < 60000) {
       // Maintenance notice shown less than a minute ago: repeat it without calling the server
       maintenanceNoticeAt = 0;
@@ -1648,6 +1672,7 @@
     setLoading(true);
     announce(T.typing);
 
+    let answerWrap = null;   // the answer's message, once created
     // Long-wait indicator after 10 seconds
     let waitHint = null;
     const waitTimer = setTimeout(() => {
@@ -1721,6 +1746,7 @@
 
       // Create the bot bubble — appended to the DOM only at the first token
       const wrap = document.createElement("div");
+      answerWrap = wrap;
       wrap.className = `${WIDGET_ID}-msg bot`;
       const bubble = document.createElement("div");
       bubble.className = `${WIDGET_ID}-bubble`;
@@ -1765,7 +1791,7 @@
               }
               fullText += payload.token;
               bubble.innerHTML = formatText(fullText);
-              scrollToBottom();
+              followAnswer(wrap);
             } else if (payload.sources) {
               receivedSources = payload.sources;
               receivedRid = payload.rid || "";
@@ -1802,7 +1828,7 @@
                   srcDiv.appendChild(renderSource(s));
                 });
                 wrap.appendChild(srcDiv);
-                scrollToBottom();
+                followAnswer(wrap);
               }
             }
           } catch (_) {}
@@ -1841,7 +1867,7 @@
       clearTimeout(waitTimer);
       if (waitHint) waitHint.remove();
       setLoading(false);
-      scrollToBottom();
+      if (answerWrap && answerWrap.isConnected) followAnswer(answerWrap); else scrollToBottom();
       inputEl.focus();  // accessibility: restore focus to the input
     }
   }

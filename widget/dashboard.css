@@ -12,12 +12,19 @@ h1 { color: #003366; margin: 0 0 4px; font-size: 1.5em; line-height: 1.25; }
 body.user-view .brand-logo { margin: 0 auto 8px; }
 
 /* Colleague view: title, description and a chat filling the rest of the window */
-/* (compact page: the footer must stay visible even on short screens, 1366×768) */
+/* (compact page before login: the footer must stay visible even on short screens, 1366×768) */
 body.user-view { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-top: 14px; padding-bottom: 16px; }
 #chat-area { max-width: 640px; }
 body.user-view #chat-area { flex: 1; }
-/* Before login only the form height matters; afterwards the chat never drops below 300 px */
-body.user-view.logged-in #chat-area { min-height: 300px; }
+/* Before login only the form height matters. Afterwards the chat is as tall as the window
+   (at most 640 px, the widget default) and the page scrolls: in the space left under the title
+   and the intro a phone showed 3 lines of an answer, a 1366×768 laptop 6 */
+body.user-view.logged-in { height: auto; min-height: 100vh; min-height: 100dvh; }
+body.user-view.logged-in #chat-area {
+  flex: 1 0 auto;   /* grows into the free space of a tall window */
+  height: min(640px, calc(100vh - 16px));
+  height: min(640px, calc(100dvh - 16px));
+}
 
 /* Header with the logged-in user and the "Esci" button */
 .page-head {
@@ -59,5 +66,4 @@ body.user-view .zautte-name > summary { margin: 0 auto; }
   body { padding: 20px 16px 40px; }
   body.user-view h1 { font-size: 1.25em; }
   body.user-view #pilot-intro { font-size: 0.92em; }
-  body.user-view.logged-in #chat-area { min-height: 260px; }
 }
