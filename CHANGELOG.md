@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-10-26
+
+### Fixed
+- System prompts (Italian and English): a question that is incomplete or hastily written but has a clear
+  topic is not treated as generic. Asked «Per effettuare il ritiro della materiale ingombrante», the assistant
+  gave the full answer on bulky waste pickup but opened with «the question is a bit incomplete: do you want
+  to book the pickup or take them yourself?». Now it answers on the topic without remarking on the question.
+
+### Changed
+- `PII_KEEP_PHONE_PREFIXES` documented as a comma-separated list where a whole number keeps only that number,
+  for the public service companies the answers point to (e.g. waste collection).
+
 ## [0.10.8] - 2026-10-26
 
 ### Changed
