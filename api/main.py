@@ -51,6 +51,7 @@ from api.rag import (
     forget_usage_of,
     get_activity_stats,
     get_query_count,
+    shown_sources,
 )
 from api.safefile import dump_line, ensure_private, write_text_atomic
 from config.settings import (
@@ -608,12 +609,13 @@ def _log_usage(uid: str, question: str, lang: str | None = None,
 
 
 def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
-                partial: bool = False) -> None:
+                partial: bool = False, retrieved: list | None = None) -> None:
     """Records the answer given to a question in data/answers.jsonl (since 07/10/2026).
 
     One line per answer: time, opaque user id, the question's `rid` (the same as in
     usage.jsonl), answer text as the user saw it, and sources
-    (title and link). Only for authenticated users, like usage.jsonl. With
+    (title and link): `sources` those shown under the answer, `retrieved` those of every passage
+    given to the model. Only for authenticated users, like usage.jsonl. With
     `partial` the answer was interrupted (error or user gone) and the text
     is what arrived up to that point. The answer goes through the same masking as the
     question (institutional addresses kept), in case the model echoed a personal datum the
@@ -633,6 +635,9 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
             "sources": [{"title": s.get("title", ""), "url": s.get("url", "")}
                         for s in (sources or []) if isinstance(s, dict)],
         }
+        if retrieved is not None:
+            entry["retrieved"] = [{"title": s.get("title", ""), "url": s.get("url", "")}
+                                  for s in retrieved if isinstance(s, dict)]
         if partial:
             entry["partial"] = True
         with file_lock(f), open(f, "a", encoding="utf-8") as fh:
@@ -1119,6 +1124,8 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
         if a:
             m["a"] = a.get("a", "")
             m["sources"] = a.get("sources", [])
+            if "retrieved" in a:   # since 0.10.8: every passage given to the model, not only the cited ones
+                m["retrieved"] = a["retrieved"]
             if a.get("partial"):
                 m["partial"] = True
         msgs.append(m)
@@ -1270,9 +1277,9 @@ async def chat(request: Request, req: ChatRequest,
         await asyncio.to_thread(_log_usage, user.get("uid"), question, _lang,
                                 int((_time.monotonic() - _t0) * 1000), rid=rid)
         await asyncio.to_thread(_log_answer, user.get("uid"), rid, result.get("answer", ""),
-                                result.get("sources"))
+                                result.get("sources"), retrieved=result.get("retrieved"))
         conversations.add_turn(user.get("uid", ""), cid, question, result.get("answer", ""))
-        return {**result, "rid": rid, "cid": cid}
+        return {**{k: v for k, v in result.items() if k != "retrieved"}, "rid": rid, "cid": cid}
     except ValueError as e:
         quota.give_back(key)
         raise HTTPException(status_code=400, detail=str(e))
@@ -1355,7 +1362,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                 completed = True
                 maintenance.recovered()
                 conversations.add_turn(user.get("uid", ""), cid, question, "".join(parts))
-                await queue.put(("sources", None))
+                await queue.put(("sources", shown_sources("".join(parts), sources)))
                 await queue.put(("done", None))
             except Exception as exc:
                 quota.give_back(key)
@@ -1372,8 +1379,10 @@ async def chat_stream(request: Request, req: ChatRequest,
                 # what was generated, marked as partial.
                 # The response generator cancels this task right after the last event: plain
                 # to_thread() work can still be pending then, and a cancelled job never runs.
-                await to_thread_uncancellable(_log_answer, user.get("uid"), rid, "".join(parts),
-                                              sources, partial=not completed)
+                text = "".join(parts)
+                await to_thread_uncancellable(_log_answer, user.get("uid"), rid, text,
+                                              shown_sources(text, sources), partial=not completed,
+                                              retrieved=sources)
 
         task = _asyncio.create_task(_produce())
         try:
@@ -1389,8 +1398,7 @@ async def chat_stream(request: Request, req: ChatRequest,
                     yield f"data: {json.dumps({'token': value}, ensure_ascii=False)}\n\n"
                 elif kind == "sources":
                     sources_data = json.dumps(
-                        {"sources": [s.__dict__ if hasattr(s, '__dict__') else s
-                                     for s in sources],
+                        {"sources": value,   # the cited ones, see shown_sources()
                          "rid": rid, "cid": cid, "language": language},
                         ensure_ascii=False,
                     )

@@ -92,7 +92,7 @@ async def eval_full(question: str, expected_keywords: list[str], min_chunks: int
     elapsed = (time.perf_counter() - t0) * 1000
 
     answer_text = result.get("answer", "").lower()
-    chunks_found = len(result.get("sources", []))
+    chunks_found = len(result.get("retrieved", result.get("sources", [])))
     keywords_hit = [kw for kw in expected_keywords if kw in answer_text]
     keyword_score = len(keywords_hit) / len(expected_keywords) if expected_keywords else 1.0
 
