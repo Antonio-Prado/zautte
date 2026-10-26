@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-10-26
+
+### Fixed
+- `POST /feedback/resolve` accepted a note of up to 2000 characters since 0.10.2, but still cut it at
+  1000 before saving it and sending it in the acknowledgement email, so a longer note reached the person
+  who reported truncated mid-word. The limit is now one constant, checked on the request only, and the
+  note is saved and sent whole.
+
 ## [0.10.5] - 2026-10-26
 
 ### Changed

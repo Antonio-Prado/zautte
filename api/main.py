@@ -915,11 +915,15 @@ async def feedback_negative(limit: int = 200, _: None = Security(require_admin))
     return {"items": items, "total_negative": open_negative, "total": total}
 
 
+# Longest resolution note: checked on the request only, the record and the email keep it whole.
+_RESOLVE_NOTE_MAX = 2000
+
+
 class ResolveRequest(BaseModel):
     ts: str = Field(..., max_length=30)
     question: str = Field(..., max_length=1000)
     id: str | None = Field(None, max_length=32, description="identificativo della segnalazione")
-    note: str | None = Field(None, max_length=2000,
+    note: str | None = Field(None, max_length=_RESOLVE_NOTE_MAX,
                              description="nota per il collega, inclusa nell'email di riscontro")
     notify: bool = Field(True, description="invia l'email di riscontro a chi ha segnalato")
 
@@ -953,7 +957,7 @@ def _resolve_locked(f, req: "ResolveRequest", background_tasks: BackgroundTasks)
     if key in done or (entry and fs.is_resolved(entry, done)):
         return {"ok": True, "notified": False}
 
-    note = (req.note or "").strip()[:1000]
+    note = (req.note or "").strip()
     record = {"key": key, "ts": req.ts, "resolved_at": fs.now_iso()}
     if note:
         record["note"] = note
