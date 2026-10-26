@@ -44,12 +44,22 @@ python3.11 -m venv venv
 
 pip install --upgrade pip setuptools wheel
 
-# orjson 3.11.9 and later require Rust 1.95: with an older Rust, stay on 3.11.8
+# orjson 3.11.9 and later require Rust 1.95 (on FreeBSD it is built from source): with an older
+# Rust, install from a copy of the lock where orjson is pinned to 3.11.8 with the hash of its source
+# archive (a constraint would contradict the version pinned in the lock, and pip refuses both)
 if rustc --version 2>/dev/null | awk '{split($2, v, "."); exit !(v[1] == 1 && v[2] < 95)}'; then
-    CONSTRAINTS="$(mktemp)"
-    echo "orjson<=3.11.8" > "$CONSTRAINTS"
-    pip install -r requirements-lock.txt -c "$CONSTRAINTS"
-    rm -f "$CONSTRAINTS"
+    LOCK_OLD_RUST="$(mktemp)"
+    awk '
+        /^orjson==/ {
+            print "orjson==3.11.8 \\"
+            print "    --hash=sha256:96163d9cdc5a202703e9ad1b9ae757d5f0ca62f4fa0cc93d1f27b0e180cc404e"
+            skip = 1; next
+        }
+        skip && /^[[:space:]]+--hash=/ { next }
+        { skip = 0; print }
+    ' requirements-lock.txt > "$LOCK_OLD_RUST"
+    pip install -r "$LOCK_OLD_RUST"
+    rm -f "$LOCK_OLD_RUST"
 else
     pip install -r requirements-lock.txt
 fi

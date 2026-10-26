@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-10-26
+
+### Changed
+- `requirements-lock.txt`: orjson 3.13.0 (was 3.11.8).
+
+### Fixed
+- `scripts/setup_freebsd.sh` with a Rust older than 1.95 (needed by orjson 3.11.9 and later, which is built
+  from source on FreeBSD): it installed with the constraint `orjson<=3.11.8`, which contradicts the version
+  pinned in the lock as soon as that is newer, and pip refused the installation. It now installs from a copy
+  of the lock where orjson is pinned to 3.11.8 with the hash of its source archive.
+
 ## [0.10.4] - 2026-10-26
 
 ### Fixed
