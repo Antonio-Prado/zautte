@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-10-26
+
+### Fixed
+- The assistant could talk as if it were a person: asked for emotional support, it answered "I'm not
+  the right person" and "you deserve real support, from a person in flesh and blood", with a feminine
+  adjective in Italian, and said it was a program only when asked why it claimed to be a person. The
+  system prompts now say it is an automated program that never says or implies otherwise (and, in
+  Italian, speaks of itself in the masculine).
+- When someone shares a personal difficulty, the answer now says plainly that the assistant cannot
+  offer a listening ear, points to the services found in the retrieved content and suggests someone
+  they trust or their family doctor; with an immediate danger it points to 112, the only number it may
+  give without a source. Before, it gave helpline numbers from the model's own memory, which the rules
+  forbid.
+
 ## [0.10.2] - 2026-10-25
 
 ### Changed
