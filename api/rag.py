@@ -265,6 +265,7 @@ def _parse_known_facts(entries: list[dict]) -> list[dict]:
                 "source":   source,
                 "score":    1.0,
                 "category": e.get("category", "pagina"),
+                "known":    True,
             },
         })
     return result
@@ -409,6 +410,44 @@ def build_context_block(chunks: list[dict]) -> str:
 
 
 _URL_HOST_RE = re.compile(r"https?://([^\s/:?#)\]>\"\']+)", re.IGNORECASE)
+_URL_RE = re.compile(r"https?://[^\s)\]>\"'*<]+", re.IGNORECASE)
+
+
+def _url_key(url: str) -> str:
+    """The same page with and without www., over http or https, with or without the final slash."""
+    return re.sub(r"^https?://(?:www\.)?", "", url.strip(), flags=re.IGNORECASE).rstrip("/").lower()
+
+
+def _links_in(text: str) -> set[str]:
+    """The pages a text links to, as _url_key() keys; a bare host (a home page) is not a page."""
+    keys = {_url_key(u.rstrip(".,;:!?")) for u in _URL_RE.findall(text or "")}
+    return {k for k in keys if "/" in k}
+
+
+def shown_sources(answer_text: str, sources: list[dict]) -> list[dict]:
+    """The sources listed under an answer: those it cites, not every passage the model was given.
+
+    Listing all of them put under the answer old news items and unrelated files that only
+    happened to be retrieved. A source is cited when the answer carries its link or its title, or a
+    link written inside its passage (a known fact pointing to a page of its own); a bare host, as in
+    "visit https://www.example.it", cites nothing. When the answer cites none (it asks to be more
+    specific, finds nothing, quotes only a fact's phone numbers) the known facts it was given are
+    listed: they are written by the administrator, any other passage would be noise. Takes the
+    sources returned by answer() and drops their internal fields.
+    """
+    links = _links_in(answer_text)
+    text = (answer_text or "").lower()
+
+    def cited(s: dict) -> bool:
+        if s.get("url") and _url_key(s["url"]) in links:
+            return True
+        if links & set(s.get("links", ())):
+            return True
+        title = (s.get("title") or "").split(" - ")[0].strip().lower()
+        return len(title) >= 15 and title in text
+
+    picked = [s for s in sources if cited(s)] or [s for s in sources if s.get("known")]
+    return [{k: v for k, v in s.items() if k not in ("known", "links")} for s in picked]
 
 
 _EXAMPLE_HOSTS = {"esempio.it", "example.it", "example.com", "example.org", "example.net"}
@@ -1036,8 +1075,11 @@ async def answer(
     """
     Answers a question using RAG.
 
-    If stream=False: returns a dict with the answer and sources.
-    If stream=True: returns (AsyncGenerator[str], sources, answer language, link hosts).
+    If stream=False: returns a dict with the answer, the sources it cites (see shown_sources()) and
+    "retrieved", the sources of every passage given to the model (for the answers log).
+    If stream=True: returns (AsyncGenerator[str], sources, answer language, link hosts); the sources
+    are those of every passage, with internal fields: pass them through shown_sources() with the
+    text of the answer before showing them.
     Link hosts: the hosts the answer may link to (see link_hosts()); the widget shows no link to any other.
 
     history: list of {"role": "user"|"assistant", "content": str}
@@ -1095,26 +1137,26 @@ async def answer(
                             topic_query=retrieval_query)
 
     # Hide the source URL on migrated domains: the link would be dead, so
-    # the source is shown by title only (empty url).
-    sources = [
-        {
-            "title": c.get("display_title") or c["title"],
-            "url": "" if is_migrated_source(c.get("source", "")) else c.get("source", ""),
-            "score": c["score"],
-        }
-        for c in chunks
-    ]
-    seen = set()
-    unique_sources = []
-    for s in sources:
+    # the source is shown by title only (empty url). "known" and "links" (the pages linked from the
+    # passages) are internal: shown_sources() uses them to keep only the cited sources, then drops them.
+    unique_sources: list[dict] = []
+    by_key: dict[str, dict] = {}
+    for c in chunks:
+        url = "" if is_migrated_source(c.get("source", "")) else c.get("source", "")
+        title = c.get("display_title") or c["title"]
         # Dedup by URL when present; by title when the link is hidden —
         # "title-only" documents have an empty url and must not be collapsed into one.
         # The same file with and without www. (or http/https) counts once.
-        key = (re.sub(r"^https?://(?:www\.)?", "", s["url"]).rstrip("/")
-               if s["url"] else f"title::{s['title']}")
-        if key not in seen:
-            seen.add(key)
-            unique_sources.append(s)
+        key = _url_key(url) if url else f"title::{title}"
+        links = _links_in(c.get("text", ""))
+        if key in by_key:
+            by_key[key]["links"] = sorted(set(by_key[key]["links"]) | links)
+            continue
+        by_key[key] = {"title": title, "url": url, "score": c["score"],
+                       "known": bool(c.get("known")), "links": sorted(links)}
+        unique_sources.append(by_key[key])
+    # What was retrieved, kept in the answers log: the shown sources alone do not tell why an answer went wrong
+    retrieved = [{"title": s["title"], "url": s["url"]} for s in unique_sources]
 
     # Only the identifier: the text stays in the data/ files, which have an
     # expiry and can be cleaned on request (the API log cannot).
@@ -1152,7 +1194,7 @@ async def answer(
                 yield fallback
 
             return _no_context_gen(), unique_sources, language, hosts
-        return {"answer": fallback, "sources": unique_sources, "language": language, "link_hosts": hosts}
+        return {"answer": fallback, "sources": [], "retrieved": [], "language": language, "link_hosts": hosts}
 
     if stream:
         if _USES_CLAUDE:
@@ -1172,7 +1214,8 @@ async def answer(
         if len(_response_times) > 100:
             _response_times.pop(0)
 
-        result = {"answer": text, "sources": unique_sources, "language": language, "link_hosts": hosts}
+        result = {"answer": text, "sources": shown_sources(text, unique_sources), "retrieved": retrieved,
+                  "language": language, "link_hosts": hosts}
         if use_cache:
             _cache_set(query, result)
         _save_stats()

@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-10-26
+
+### Changed
+- The sources listed under an answer are those the answer cites, not every passage given to the model:
+  a source counts when the answer carries its link or its title, or a link written inside its passage (a
+  known fact pointing to a page of its own); a bare host such as the site's home page cites nothing. When
+  the answer cites none (it asks to be more specific, finds nothing, quotes only phone numbers) the known
+  facts it was given are listed, otherwise nothing. Before, about six sources were listed under each answer
+  while the text cited less than one on average, so old news items and unrelated files sat under correct
+  answers. `answers.jsonl` keeps every retrieved source in `retrieved`, shown by `GET /usage/messages`;
+  `scripts/eval.py` counts the retrieved passages from it.
+
 ## [0.10.7] - 2026-10-26
 
 ### Fixed

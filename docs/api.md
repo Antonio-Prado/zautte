@@ -85,7 +85,7 @@ Complete response (non-streaming). Waits for the full response before replying.
 
 If `PII_BLOCK` is on and the question contains personal data, the reply is a fixed refusal message with `"blocked": true` and an empty `sources` list. The question is not searched, sent to the model, stored, or counted against the daily limit. On `/chat/stream` the same message arrives as a single `token` event followed by `sources` (with `blocked: true`) and `done`.
 
-In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `answers.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
+`sources` lists the sources the answer cites (by link, by title, or through a link written inside the passage), not every passage given to the model; when it cites none, the known facts it was given, otherwise nothing (since 0.10.8). In `sources`, `url` is empty for documents on `MIGRATED_DOMAINS` (title only). `rid` identifies the question in `usage.jsonl`, `answers.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the API log; pass it to `POST /feedback` so that the question can later be deleted everywhere with `POST /usage/forget`.
 
 Messages with no question in them (greetings, thanks, compliments, goodbyes, insults: "ciao", "grazie", "bravo", "sei inutile") get a fixed reply with no retrieval and no model call, and are not logged as content gaps (`api/smalltalk.py`). A message counts as such only if it is short and made only of those words plus a few fillers: a single content word ("grazie, e per la TARI?") sends it down the normal path.
 
@@ -258,7 +258,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `POST /applications/reject` | admin | Body `{"id"}`: marks it as not selected (nothing is sent) |
 | `POST /feedback/resolve` | admin | Body `{"ts", "question", "id"?, "note"?, "notify"?}` (`id` is the one returned by `GET /feedback/negative`; the mark is kept under it, older marks under time and question): marks a negative feedback as resolved and, unless `notify` is `false`, emails the reporter with the optional note |
 | `GET /usage/summary` | admin | Per-user usage (messages, active days, first/last seen, including registered users who never wrote) and daily totals |
-| `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) |
+| `GET /usage/messages?limit=300` | admin | Questions typed by logged-in users, newest first, each with the answer given (`a`, `sources`, `partial` if it was cut short; since 7 October 2026) and `retrieved`, the sources of every passage given to the model (since 0.10.8) |
 | `GET /crawl-history` | admin | Recent crawl/indexing events read from `/var/log/chatbot-sync.log`, plus the current progress |
 | `POST /admin/reload` | admin | Reloads the vector store from disk without restarting the API (used by `scripts.sync news`); returns the store statistics plus `reloaded` (`false` if the files were unreadable and the previous store stays in memory) |
 | `GET /` | public | `302` redirect to `/widget/dashboard.html` (also answers `HEAD`) |
