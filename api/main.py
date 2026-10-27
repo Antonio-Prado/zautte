@@ -1089,7 +1089,8 @@ async def usage_summary(_: None = Security(require_admin)):
 
 
 @app.get("/usage/messages")
-async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
+async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = True,
+                         _: None = Security(require_admin)):
     """Log of the messages typed by users (text + timestamp + user) with the
     answer given by Zautte — admin only.
 
@@ -1097,6 +1098,10 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
     `rid` the answer and sources from data/answers.jsonl (since 07/10/2026; before
     that `a` is missing). Older entries (recorded before the question text
     was introduced) are ignored.
+
+    Most recent first: `offset` skips that many messages, so a page reads the next
+    `limit` ones. `retrieved=false` leaves out the passages given to the model (about
+    half of the payload), which the panel never shows.
     """
     usage_file = _DATA_DIR / "usage.jsonl"
     answers_file = _DATA_DIR / "answers.jsonl"
@@ -1124,16 +1129,16 @@ async def usage_messages(limit: int = 300, _: None = Security(require_admin)):
         if a:
             m["a"] = a.get("a", "")
             m["sources"] = a.get("sources", [])
-            if "retrieved" in a:   # since 0.10.8: every passage given to the model, not only the cited ones
+            if retrieved and "retrieved" in a:   # since 0.10.8: every passage given to the model, not only the cited ones
                 m["retrieved"] = a["retrieved"]
             if a.get("partial"):
                 m["partial"] = True
         msgs.append(m)
 
     total = len(msgs)
-    recent = msgs[-limit:]
-    recent.reverse()  # most recent first
-    return {"messages": recent, "total": total}
+    msgs.reverse()  # most recent first
+    start = max(offset, 0)
+    return {"messages": msgs[start:start + max(limit, 0)], "total": total}
 
 
 @app.post("/usage/forget")

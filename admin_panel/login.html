@@ -87,8 +87,11 @@
       const chat = document.getElementById('chat-area');
       chat.style.display = '';
       chat.insertAdjacentHTML('beforebegin', _panel.html);
+      // the chat has a tab of its own in the panel; an older panel without it gets it at the end
+      const slot = document.getElementById('chat-slot');
       const grid = document.getElementById('admin-grid');
-      if (grid) grid.after(chat);
+      if (slot) slot.appendChild(chat);
+      else if (grid) grid.after(chat);
       const s = document.createElement('script');
       s.textContent = _panel.js;
       document.body.appendChild(s);

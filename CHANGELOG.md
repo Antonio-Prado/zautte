@@ -9,6 +9,34 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-27
+
+### Changed
+- The restricted area is organised in tabs instead of one long page: Overview (what needs attention first — open
+  reports, applications to decide, maintenance — then the key numbers as tiles, questions by hour, most frequent
+  questions), Reports, Messages, People (applications and users), System (service, index, token costs, crawl
+  history), Chat and Changelog. The tab bar stays at the top and scrolls sideways on a phone; Reports and People
+  carry the number of items waiting; the open tab is kept in the address (`#messages`), and the arrow keys move
+  between tabs.
+- The message log is a list of cards grouped by day instead of a three-column table that could not be read on a
+  phone: search in questions, answers and request ids, filter by user, 30 cards at a time with «Show more», then
+  older pages on request. The question opens the answer, with bold text and clickable addresses.
+- Reports are resolved with a form in the page (a note of several lines with a counter up to 2000 characters,
+  «Resolve and send email», «Resolve without email») instead of a browser prompt.
+- Each tab is read when shown and refreshed only while on screen, nothing while the page is in the background.
+  Before, the panel downloaded the last 500 messages with their retrieved passages every 30 seconds (about 1.2 MB),
+  also on a phone and with the log out of sight.
+- `GET /usage/messages` takes `offset` (to read the next page) and `retrieved=false` (leaves out the retrieved
+  passages, about half of the payload). Without them the answer is the same as before.
+- The changelog of the installation shows the newest 20 entries, the rest on request; the token history the latest
+  10 questions. The users list and the applications load without a further click.
+
+### Fixed
+- The checkbox «also show accepted and rejected» was smaller than the 24 px a target needs (WCAG 2.2): the
+  accessibility check now covers every tab of the restricted area, the tab keys and a 320 px screen.
+- In the widget's login form, «Forgot password?» and «Apply» were about 23 px tall with some fonts, under the 24 px
+  target size (WCAG 2.2): they are now at least 24 px. Found by the same check on the chat tab of the restricted area.
+
 ## [0.10.11] - 2026-10-27
 
 ### Fixed
