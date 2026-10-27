@@ -193,6 +193,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 |------------------------|--------------------------------|------------------------------------------------------|
 | `SITE_URL`             | *(from .env)*                  | Root URL for crawling                                |
 | `SITE_NAME`            | *(from .env)*                  | Organization name, used in the prompts and the API title |
+| `FEATURE_REQUEST_CONTACT` | *(empty)*                   | Whom to consult about features the assistant does not have (alerts, reminders, saving the conversation…), written as the answer should name them, e.g. `Mario Rossi, the project manager`; empty = the assistant only says the feature is not available. Read at start: changing it needs a restart |
 | `CRAWL_MAX_PAGES`      | `0`                            | Maximum pages to crawl (0 = no limit)                |
 | `CRAWL_DELAY_SECONDS`  | `0.3`                          | Pause between requests (~3 pages/s)                  |
 | `CRAWL_ALLOWED_DOMAINS`| *(from .env)*                  | Domains allowed during crawl: the domain itself and its subdomains, never a look-alike (`example.it.evil.org`) |

@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-27
+
+### Added
+- `FEATURE_REQUEST_CONTACT` in `.env`: whom to consult about features the assistant does not have, written as the
+  answer should name them. Asked «will there be a notification feature?» or «can you send me an alert when the
+  agenda is published?», the assistant says the feature is not available at the moment, without promising or
+  ruling it out, and that new features are a matter for that contact. Empty (the default) = it only says the
+  feature is not available. The name stays in the installation's `.env`, never in the code.
+
 ## [0.11.1] - 2026-10-27
 
 ### Changed
