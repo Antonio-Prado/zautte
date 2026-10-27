@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-27
+
+### Added
+- `TEST_ACCOUNTS` in `.env` (ids, names or e-mails): the accounts used to try the assistant. `GET /usage/summary`
+  returns `recent`, the users' questions of today, of the last 7 and of the last 30 days and the users active in the
+  last 30, without them (`test_messages` counts theirs, and their rows carry `test`).
+
+### Changed
+- Restricted area, Overview: the «Questions» tile showed the counter of `/health`, every question since the start,
+  test questions and the months before login included (819 when the users' log had 505, 112 of them tests), so it
+  said little about use. It now shows the users' questions of today, then 7 and 30 days, and keeps the total since
+  the start on a second line. The unanswered questions moved to System; test accounts are marked in the users list.
+
 ## [0.12.1] - 2026-10-27
 
 ### Fixed

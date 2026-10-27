@@ -103,6 +103,9 @@ AUTH_TOKEN_TTL_DAYS=7
 DAILY_QUESTION_LIMIT=20
 # Accounts not subject to the daily limit (test accounts): ids, names or e-mails, comma-separated
 #DAILY_LIMIT_EXEMPT=
+# Accounts used to try the assistant (ids, names or e-mails): left out of the users' questions of today, 7 and 30 days
+# in the restricted area (still logged and billed)
+#TEST_ACCOUNTS=
 # Wrong passwords before an account refuses logins, and the window/duration (seconds); reset emails per account per hour
 #LOGIN_MAX_FAILURES=10
 #LOGIN_LOCK_SECONDS=900

@@ -20,10 +20,11 @@
           <div class="tile-value"><span class="dot" id="dot"></span><span id="backend-status">checking…</span></div>
           <div class="tile-sub"><span id="latency"></span> · up <span id="uptime">—</span></div>
         </div>
-        <div class="tile">
-          <div class="tile-label">Questions</div>
-          <div class="tile-value" id="query-count">—</div>
-          <div class="tile-sub"><span id="gaps-count">—</span> unanswered (<span id="gaps-pct">—</span>)</div>
+        <div class="tile" title="Questions of logged-in users, without the test accounts (TEST_ACCOUNTS)">
+          <div class="tile-label">Users' questions today</div>
+          <div class="tile-value" id="q-today">—</div>
+          <div class="tile-sub">7 days <span id="q-7d">—</span> · 30 days <span id="q-30d">—</span></div>
+          <div class="tile-sub">since the start <span id="query-count">—</span>, tests included</div>
         </div>
         <div class="tile">
           <div class="tile-label">Feedback 👍</div>
@@ -109,6 +110,7 @@
             <tr><th scope="row">LLM model</th><td><span id="model-name">—</span> <span class="muted" id="llm-provider"></span></td></tr>
             <tr><th scope="row">Hybrid search</th><td><span id="hybrid">—</span></td></tr>
             <tr><th scope="row">Last indexing</th><td><span id="last-indexed">—</span></td></tr>
+            <tr><th scope="row">Unanswered</th><td><span id="gaps">—</span></td></tr>
           </table>
         </div>
         <div class="card">

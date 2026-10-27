@@ -67,6 +67,7 @@ from config.settings import (
     LLM_PROVIDER,
     OLLAMA_MODEL,
     SITE_NAME,
+    TEST_ACCOUNTS,
     now_local,
 )
 from indexer.vector_store import EMBEDDINGS_FILE, get_stats, get_top_doc, is_bm25_active
@@ -576,6 +577,23 @@ def _load_user_names() -> dict[str, str]:
     return names
 
 
+def _test_uids() -> set[str]:
+    """Ids of the accounts listed in TEST_ACCOUNTS (by id, name or e-mail), from data/users.json;
+    an id that is no longer there counts as well."""
+    if not TEST_ACCOUNTS:
+        return set()
+    uids = set(TEST_ACCOUNTS)
+    users_file = _DATA_DIR / "users.json"
+    if users_file.exists():
+        try:
+            for u in json.loads(users_file.read_text(encoding="utf-8")):
+                if any(str(u.get(k) or "").strip().lower() in TEST_ACCOUNTS for k in ("id", "name", "email")):
+                    uids.add(u.get("id"))
+        except (OSError, ValueError, TypeError, AttributeError) as e:
+            log.warning("users.json not readable: %s", e)
+    return uids
+
+
 def _log_usage(uid: str, question: str, lang: str | None = None,
                response_ms: int | None = None, rid: str | None = None) -> None:
     """Records a per-user usage event in data/usage.jsonl.
@@ -1035,12 +1053,29 @@ async def usage_summary(_: None = Security(require_admin)):
     total = 0
 
     entries = await asyncio.to_thread(_read_jsonl, usage_file) if usage_file.exists() else []
+    # the users' questions of today, of the last 7 and of the last 30 days (server calendar), without
+    # the test accounts: the counter of /health is everything since the start, tests included
+    tests = _test_uids()
+    today = now_local().date()
+    since = {k: (today - datetime.timedelta(days=n - 1)).isoformat()
+             for k, n in (("today", 1), ("last_7_days", 7), ("last_30_days", 30))}
+    recent = dict.fromkeys(since, 0)
+    recent_users: set[str] = set()
+    test_messages = 0
     for e in entries:
         uid = e.get("uid")
         ts = e.get("ts", "")
         if not uid:
             continue
         day = ts[:10]
+        if uid in tests:
+            test_messages += 1
+        else:
+            for k, first in since.items():
+                if day >= first:
+                    recent[k] += 1
+            if day >= since["last_30_days"]:
+                recent_users.add(uid)
         u = per_user[uid]
         u["messages"] += 1
         u["days"].add(day)
@@ -1065,6 +1100,7 @@ async def usage_summary(_: None = Security(require_admin)):
             "active_days": len(u["days"]),
             "first_seen": u["first_seen"],
             "last_seen": u["last_seen"],
+            **({"test": True} if uid in tests else {}),
         }
         for uid, u in per_user.items()
     ]
@@ -1085,6 +1121,8 @@ async def usage_summary(_: None = Security(require_admin)):
         "total_active": active,
         "users": users_out,
         "daily": daily[-30:],
+        "recent": {**recent, "users_30_days": len(recent_users)},
+        "test_messages": test_messages,
     }
 
 
