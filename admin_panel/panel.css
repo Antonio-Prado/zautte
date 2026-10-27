@@ -6,8 +6,11 @@ h2 { color: #003366; font-size: 0.95em; margin: 0 0 12px; text-transform: upperc
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.adm { max-width: 960px; }
-body.admin-view .page-head { max-width: 960px; }
+/* the message log takes the whole width of the window; the other tabs stay at a readable 960 px */
+.adm { max-width: none; }
+.adm-panel { max-width: 960px; }
+#panel-messages { max-width: none; }
+body.admin-view .page-head { max-width: none; }
 body.admin-view .zautte-name { order: 1; flex-basis: 100%; max-width: 640px; }
 
 /* Tab bar: sticky, scrolls sideways on a phone instead of wrapping */
@@ -243,6 +246,20 @@ body.admin-view #chat-area { height: calc(100vh - 190px); height: calc(100dvh - 
 }
 @media (min-width: 481px) {
   .adm-tabs { margin-left: -40px; margin-right: -40px; padding-left: 40px; padding-right: 40px; }
+}
+/* phone: message cards from edge to edge, the text aligned with the search field */
+@media (max-width: 760px) {
+  #panel-messages .msg-list { margin-left: -40px; margin-right: -40px; }
+  #panel-messages .msg-card { border-radius: 0; border-left: 0; border-right: 0; }
+  #panel-messages .msg-card > summary, #panel-messages .msg-card.plain, #panel-messages .msg-answer-text { padding-left: 40px; padding-right: 40px; }
+  #panel-messages .msg-sources { margin-left: 40px; margin-right: 40px; }
+  #panel-messages .msg-foot { padding-left: 40px; padding-right: 40px; }
+}
+@media (max-width: 480px) {
+  #panel-messages .msg-list { margin-left: -16px; margin-right: -16px; }
+  #panel-messages .msg-card > summary, #panel-messages .msg-card.plain, #panel-messages .msg-answer-text { padding-left: 16px; padding-right: 16px; }
+  #panel-messages .msg-sources { margin-left: 16px; margin-right: 16px; }
+  #panel-messages .msg-foot { padding-left: 16px; padding-right: 16px; }
 }
 @media (min-width: 760px) {
   .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
