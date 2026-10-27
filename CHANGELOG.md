@@ -9,6 +9,24 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.10] - 2026-10-27
+
+### Fixed
+- System prompts (Italian and English): when the answer is not in the context, the assistant no longer sends the
+  user to pages of the organisation's site, nor to its home page, to look for it. Those pages are what it reads,
+  so the user would not find the answer there either. Asked which assessori belong to a party, it said it did not
+  know and pointed to the page of the Giunta it had just read; asked how new smart bins open, it closed with
+  «visit the Comune's site». Now it says plainly that it did not find the information and points to who can
+  answer (office, phone, email). A link to a page is given only to do something (a form, a booking, an online
+  service). The fallback contact no longer includes the site's address.
+- System prompts: the assistant does not infer from silence. Asked whether a party was in the Giunta, it answered
+  «no» because the party did not appear in the passages it had. It now says the pages do not show it, does not
+  extend to one case what the pages say about another, and when in doubt says it did not find the information:
+  better one answer fewer than a wrong or invented one.
+- System prompts: told «you were wrong» with no reason, the assistant apologised, changed its answer and said it
+  «had not yet received the context». It now checks the previous answer against the context, corrects only what
+  is unsupported and confirms the rest with the source.
+
 ## [0.10.9] - 2026-10-26
 
 ### Fixed
