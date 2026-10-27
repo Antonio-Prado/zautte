@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-27
+
+### Changed
+- Restricted area: the message log takes the whole width of the window on a computer (the other tabs stay at
+  960 px, where tiles and tables read better), and on a phone its cards run from edge to edge with the text
+  aligned to the search field.
+
 ## [0.11.0] - 2026-10-27
 
 ### Changed
