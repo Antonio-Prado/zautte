@@ -292,6 +292,33 @@ def main() -> int:
         page.wait_for_selector("#admin-grid", state="visible")
         page.wait_for_timeout(500)
         axe(page, "admin area, administrator view")
+        # one section at a time behind tabs: every tab, the arrow keys, the open tab kept in the address
+        tabs = page.eval_on_selector_all(".adm-tabs [role=tab]", "ts => ts.map(t => t.dataset.tab)")
+        for name in tabs[1:]:
+            page.click(f"#tab-{name}")
+            page.wait_for_timeout(200)
+            axe(page, f"admin area, «{name}» tab")
+        check(page.evaluate("location.hash") == "#" + tabs[-1]
+              and page.locator(".adm-panel:not([hidden])").count() == 1,
+              "admin area: one section shown, the open tab in the address")
+        page.focus(f"#tab-{tabs[0]}")
+        page.keyboard.press("ArrowRight")
+        check(page.evaluate("document.activeElement.id") == f"tab-{tabs[1]}"
+              and page.get_attribute(f"#tab-{tabs[1]}", "aria-selected") == "true",
+              "admin area: the right arrow opens the next tab")
+        page.keyboard.press("End")
+        check(page.get_attribute(f"#tab-{tabs[-1]}", "aria-selected") == "true", "admin area: End opens the last tab")
+        page.close()
+
+        page = new_page(browser, viewport={"width": 320, "height": 640})
+        page.add_init_script("sessionStorage.setItem('zautte_admin_key', 'k')")
+        mock_api(page, base)
+        page.goto(base + "/admin_panel/login.html#messages")
+        page.wait_for_selector("#panel-messages", state="visible")
+        page.wait_for_timeout(300)
+        check(page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
+              "admin area, 320 px: no horizontal scrolling, the address opens the «messages» tab")
+        axe(page, "admin area, 320 px, «messages» tab")
         page.close()
 
         page = new_page(browser, viewport={"width": 1280, "height": 800})

@@ -1,185 +1,168 @@
-  <div class="grid" id="admin-grid">
+  <div class="adm" id="admin-grid">
 
-    <!-- Service status -->
-    <div class="card">
-      <h2>Service status</h2>
-      <table>
-        <tr><td>Backend</td><td><span class="dot" id="dot"></span><span id="backend-status">checking…</span><span class="latency" id="latency"></span></td></tr>
-        <tr><td>Uptime</td><td><span id="uptime">—</span></td></tr>
-        <tr><td>Maintenance</td><td><span id="maintenance">—</span></td></tr>
-        <tr><td>LLM model</td><td><span id="model-name">—</span> <span style="color:#666;font-size:.8em" id="llm-provider"></span></td></tr>
-        <tr><td>Hybrid search</td><td><span id="hybrid">—</span></td></tr>
-        <tr><td>Last indexing</td><td><span id="last-indexed">—</span></td></tr>
-      </table>
-      <div class="refresh-note">auto-refresh every 30s · <span id="last-update">—</span></div>
+    <!-- One section at a time: on a phone the whole panel was a page several screens long -->
+    <div class="adm-tabs" role="tablist" aria-label="Restricted area">
+      <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview">Overview</button>
+      <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" data-tab="reports">Reports <span class="tab-badge" id="badge-reports" hidden></span></button>
+      <button type="button" role="tab" id="tab-messages" aria-controls="panel-messages" data-tab="messages">Messages</button>
+      <button type="button" role="tab" id="tab-people" aria-controls="panel-people" data-tab="people">People <span class="tab-badge" id="badge-people" hidden></span></button>
+      <button type="button" role="tab" id="tab-system" aria-controls="panel-system" data-tab="system">System</button>
+      <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" data-tab="chat">Chat</button>
+      <button type="button" role="tab" id="tab-changelog" aria-controls="panel-changelog" data-tab="changelog">Changelog</button>
     </div>
 
-    <!-- Indexed content -->
-    <div class="card">
-      <h2>Indexed content</h2>
-      <table>
-        <tr><td>Source documents</td><td><span id="unique-sources">—</span></td></tr>
-        <tr><td>Total chunks</td><td><span id="chunk-count">—</span></td></tr>
-        <tr><td>Breakdown</td><td><span id="doc-types">—</span></td></tr>
-        <tr><td>Largest document</td><td><span id="top-doc">—</span></td></tr>
-      </table>
-    </div>
-
-    <!-- Activity -->
-    <div class="card">
-      <h2>Activity (cumulative)</h2>
-      <div class="stats-row">
-        <div class="stat-item">
-          <div class="stat-big" id="query-count">—</div>
-          <div class="stat-label">questions received</div>
+    <!-- Overview: what needs attention, then the key numbers -->
+    <section class="adm-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
+      <div class="attention" id="attention" aria-live="polite"></div>
+      <div class="tiles">
+        <div class="tile">
+          <div class="tile-label">Service</div>
+          <div class="tile-value"><span class="dot" id="dot"></span><span id="backend-status">checking…</span></div>
+          <div class="tile-sub"><span id="latency"></span> · up <span id="uptime">—</span></div>
         </div>
-        <div class="stat-item">
-          <div class="stat-big" id="gaps-count">—</div>
-          <div class="stat-label">unanswered</div>
+        <div class="tile">
+          <div class="tile-label">Questions</div>
+          <div class="tile-value" id="query-count">—</div>
+          <div class="tile-sub"><span id="gaps-count">—</span> unanswered (<span id="gaps-pct">—</span>)</div>
         </div>
-        <div class="stat-item">
-          <div class="stat-big" style="font-size:1.1em" id="gaps-pct">—</div>
-          <div class="stat-label">% gap</div>
+        <div class="tile">
+          <div class="tile-label">Feedback 👍</div>
+          <div class="tile-value" id="fb-pct">—</div>
+          <div class="tile-sub"><span id="fb-pos">—</span> of <span id="fb-total">—</span> · <span id="fb-res">—</span> resolved</div>
         </div>
-        <div class="stat-item">
-          <div class="stat-big" style="font-size:1.1em" id="avg-resp">—</div>
-          <div class="stat-label">avg LLM ms</div>
+        <div class="tile">
+          <div class="tile-label">Answer time</div>
+          <div class="tile-value" id="avg-resp">—</div>
+          <div class="tile-sub">average, model only</div>
         </div>
-      </div>
-    </div>
-
-    <!-- Feedback -->
-    <div class="card">
-      <h2>User feedback</h2>
-      <div class="feedback-layout">
-        <div class="feedback-stats">
-          <div class="stats-row">
-            <div class="stat-item">
-              <div class="stat-big" id="fb-total">—</div>
-              <div class="stat-label">total</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-big" style="color:#43a047" id="fb-pos">—</div>
-              <div class="stat-label">👍 positive</div>
-            </div>
-            <div class="stat-item">
-              <div class="stat-big" style="color:#e53935" id="fb-neg">—</div>
-              <div class="stat-label">👎 open negative</div>
-              <div class="stat-label" id="fb-res" style="margin-top:2px"></div>
-            </div>
-          </div>
+        <div class="tile">
+          <div class="tile-label">API cost</div>
+          <div class="tile-value" id="tok-cost">—</div>
+          <div class="tile-sub">USD, total</div>
         </div>
-        <div id="fb-donut"></div>
-      </div>
-    </div>
-
-    <!-- Peak hours -->
-    <div class="card">
-      <h2>Questions by hour of day</h2>
-      <div class="hours-chart" id="hours-chart"></div>
-      <div class="hours-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
-    </div>
-
-    <!-- Most frequent queries -->
-    <div class="card">
-      <h2>Most frequent queries (session)</h2>
-      <div id="top-queries"><span style="color:#666;font-size:.85em">none yet</span></div>
-    </div>
-
-    <!-- Negative feedback -->
-    <div class="card wide">
-      <h2>Questions with negative feedback 👎 <span id="neg-fb-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
-      <ul class="neg-list" id="neg-fb-list">
-        <li><span class="neg-q" style="color:#666">loading…</span></li>
-      </ul>
-    </div>
-
-    <!-- Applications (pilot volunteers, POST /apply) -->
-    <div class="card wide">
-      <h2>Volunteer applications <span id="apps-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
-      <ul class="app-list" id="apps-list">
-        <li><span class="app-name" style="color:#666">loading…</span></li>
-      </ul>
-      <div class="refresh-note"><label><input type="checkbox" id="apps-show-all"> also show accepted and rejected</label> · refresh every 60s</div>
-    </div>
-
-    <!-- Users (pilot project, login enabled) -->
-    <div class="card wide">
-      <h2>Users (logged-in access) <span id="usage-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
-      <div id="usage-body">
-        <button id="usage-load-btn" class="btn-resolve">Show users (requires admin key)</button>
-        <div style="color:#666;font-size:.8em;margin-top:8px">Only visible if the backend has <code>AUTH_ENABLED=true</code>.</div>
-      </div>
-    </div>
-
-    <!-- User message log -->
-    <div class="card wide">
-      <h2>User message log <span id="msg-status" style="font-size:0.78em;color:#666;font-weight:normal;text-transform:none;letter-spacing:0"></span></h2>
-      <div id="msg-body" style="max-height:460px;overflow:auto">
-        <span style="color:#666;font-size:.85em">loading…</span>
-      </div>
-    </div>
-
-    <!-- API tokens & costs -->
-    <div class="card wide">
-      <h2>Tokens &amp; Anthropic API costs</h2>
-      <div class="stats-row" style="margin-bottom:12px">
-        <div class="stat-item">
-          <div class="stat-big" id="tok-in">—</div>
-          <div class="stat-label">input tokens (total)</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-big" id="tok-out">—</div>
-          <div class="stat-label">output tokens (total)</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-big" id="tok-avg-in" style="font-size:1.1em">—</div>
-          <div class="stat-label">avg input/query</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-big" id="tok-avg-out" style="font-size:1.1em">—</div>
-          <div class="stat-label">avg output/query</div>
-        </div>
-        <div class="stat-item">
-          <div class="cost-total" id="tok-cost">—</div>
-          <div class="stat-label">total cost (USD)</div>
+        <div class="tile">
+          <div class="tile-label">Index</div>
+          <div class="tile-value" id="chunk-count">—</div>
+          <div class="tile-sub"><span id="unique-sources">—</span> sources</div>
         </div>
       </div>
-      <div id="cost-chart-wrap" style="display:none">
-        <div style="font-size:0.78em;color:#666;margin-top:4px">Cost per session (USD)</div>
-        <div class="cost-chart" id="cost-chart"></div>
+      <div class="cards">
+        <div class="card">
+          <h2>Questions by hour of day</h2>
+          <div class="hours-chart" id="hours-chart"></div>
+          <div class="hours-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+        </div>
+        <div class="card">
+          <h2>Most frequent questions</h2>
+          <div id="top-queries"><span class="muted">none yet</span></div>
+        </div>
       </div>
-      <table class="token-table">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>User</th>
-            <th>Model</th>
-            <th>Input tok</th>
-            <th>Output tok</th>
-            <th>Cost USD</th>
-          </tr>
-        </thead>
-        <tbody id="token-history-body">
-          <tr><td colspan="6" style="color:#666;text-align:center;padding:8px">no data yet</td></tr>
-        </tbody>
-      </table>
-    </div>
+      <div class="refresh-note">updated <span id="last-update">—</span> · every 30 s while the page is open</div>
+    </section>
 
-    <!-- Crawl history -->
-    <div class="card wide">
-      <h2>Crawl &amp; indexing history</h2>
-      <div id="crawl-progress-html" class="crawl-progress" style="display:none">
-        <span id="crawl-html-label">—</span>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill html" id="crawl-html-bar" style="width:0%"></div></div>
+    <!-- Reports (👎 with comment and links) -->
+    <section class="adm-panel" role="tabpanel" id="panel-reports" aria-labelledby="tab-reports" tabindex="0" hidden>
+      <div class="card">
+        <h2>Open reports 👎 <span class="h-status" id="neg-fb-status"></span></h2>
+        <ul class="neg-list" id="neg-fb-list">
+          <li><span class="muted">loading…</span></li>
+        </ul>
       </div>
-      <div id="crawl-progress-pdf" class="crawl-progress" style="display:none;margin-top:6px">
-        <span id="crawl-pdf-label">—</span>
-        <div class="progress-bar-wrap"><div class="progress-bar-fill pdf" id="crawl-pdf-bar" style="width:0%"></div></div>
-      </div>
-      <ul class="timeline" id="crawl-timeline">
-        <li><span class="tl-label" style="color:#666">loading…</span></li>
-      </ul>
-    </div>
+    </section>
 
-  </div><!-- /grid -->
+    <!-- Message log: questions and answers, searchable, a page at a time -->
+    <section class="adm-panel" role="tabpanel" id="panel-messages" aria-labelledby="tab-messages" tabindex="0" hidden>
+      <h2 class="visually-hidden">Message log</h2>
+      <div class="msg-tools">
+        <label class="visually-hidden" for="msg-search">Search questions and answers</label>
+        <input type="search" id="msg-search" placeholder="Search questions and answers" autocomplete="off">
+        <label class="visually-hidden" for="msg-user">User</label>
+        <select id="msg-user"><option value="">All users</option></select>
+      </div>
+      <div class="msg-status" id="msg-status" aria-live="polite"></div>
+      <div id="msg-body"><span class="muted">loading…</span></div>
+      <div class="msg-more"><button type="button" class="btn" id="msg-more" hidden></button></div>
+    </section>
+
+    <!-- People: volunteer applications and logged-in users -->
+    <section class="adm-panel" role="tabpanel" id="panel-people" aria-labelledby="tab-people" tabindex="0" hidden>
+      <div class="card">
+        <h2>Volunteer applications <span class="h-status" id="apps-status"></span></h2>
+        <ul class="app-list" id="apps-list">
+          <li><span class="muted">loading…</span></li>
+        </ul>
+        <div class="refresh-note"><label><input type="checkbox" id="apps-show-all"> also show accepted and rejected</label></div>
+      </div>
+      <div class="card">
+        <h2>Users <span class="h-status" id="usage-status"></span></h2>
+        <div id="usage-body"><span class="muted">loading…</span></div>
+      </div>
+    </section>
+
+    <!-- System: service, index, costs, crawl -->
+    <section class="adm-panel" role="tabpanel" id="panel-system" aria-labelledby="tab-system" tabindex="0" hidden>
+      <div class="cards">
+        <div class="card">
+          <h2>Service status</h2>
+          <table class="kv">
+            <tr><th scope="row">Maintenance</th><td><span id="maintenance">—</span></td></tr>
+            <tr><th scope="row">LLM model</th><td><span id="model-name">—</span> <span class="muted" id="llm-provider"></span></td></tr>
+            <tr><th scope="row">Hybrid search</th><td><span id="hybrid">—</span></td></tr>
+            <tr><th scope="row">Last indexing</th><td><span id="last-indexed">—</span></td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Indexed content</h2>
+          <table class="kv">
+            <tr><th scope="row">Breakdown</th><td><span id="doc-types">—</span></td></tr>
+            <tr><th scope="row">Largest document</th><td><span id="top-doc">—</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Tokens &amp; API costs</h2>
+        <div class="stats-row">
+          <div class="stat-item"><div class="stat-big" id="tok-in">—</div><div class="stat-label">input tokens</div></div>
+          <div class="stat-item"><div class="stat-big" id="tok-out">—</div><div class="stat-label">output tokens</div></div>
+          <div class="stat-item"><div class="stat-big" id="tok-avg-in">—</div><div class="stat-label">avg input / question</div></div>
+          <div class="stat-item"><div class="stat-big" id="tok-avg-out">—</div><div class="stat-label">avg output / question</div></div>
+        </div>
+        <div id="cost-chart-wrap" hidden>
+          <div class="stat-label">Cost of the latest questions (USD)</div>
+          <div class="cost-chart" id="cost-chart"></div>
+        </div>
+        <table class="token-table">
+          <thead><tr><th scope="col">When</th><th scope="col">User</th><th scope="col" class="col-model">Model</th><th scope="col">In</th><th scope="col">Out</th><th scope="col">USD</th></tr></thead>
+          <tbody id="token-history-body"><tr><td colspan="6" class="muted">no data yet</td></tr></tbody>
+        </table>
+        <div class="msg-more"><button type="button" class="btn" id="tok-more" hidden>Show all</button></div>
+      </div>
+      <div class="card">
+        <h2>Crawl &amp; indexing history</h2>
+        <div id="crawl-progress-html" class="crawl-progress" hidden>
+          <span id="crawl-html-label">—</span>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill html" id="crawl-html-bar"></div></div>
+        </div>
+        <div id="crawl-progress-pdf" class="crawl-progress" hidden>
+          <span id="crawl-pdf-label">—</span>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill pdf" id="crawl-pdf-bar"></div></div>
+        </div>
+        <ul class="timeline" id="crawl-timeline"><li><span class="tl-label muted">loading…</span></li></ul>
+        <div class="msg-more"><button type="button" class="btn" id="crawl-more" hidden>Show all events</button></div>
+      </div>
+    </section>
+
+    <!-- Chat: the same assistant the users see, to try a question -->
+    <section class="adm-panel" role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" tabindex="0" hidden>
+      <h2 class="visually-hidden">Try the assistant</h2>
+      <div id="chat-slot"></div>
+    </section>
+
+    <!-- Changelog of the installation (optional file, moved here at start) -->
+    <section class="adm-panel" role="tabpanel" id="panel-changelog" aria-labelledby="tab-changelog" tabindex="0" hidden>
+      <h2 class="visually-hidden">Changelog</h2>
+      <div id="changelog-slot"><p class="muted">This installation has no changelog.</p></div>
+      <div class="msg-more"><button type="button" class="btn" id="changelog-more" hidden></button></div>
+    </section>
+
+  </div><!-- /admin -->
