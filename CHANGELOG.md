@@ -20,7 +20,9 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   answer (office, phone, email). A link to a page is given only to do something (a form, a booking, an online
   service). The fallback contact no longer includes the site's address.
 - System prompts: the assistant does not infer from silence. Asked whether a party was in the Giunta, it answered
-  «no» because the party did not appear in the passages it had. It now says the pages do not show it.
+  «no» because the party did not appear in the passages it had. It now says the pages do not show it, does not
+  extend to one case what the pages say about another, and when in doubt says it did not find the information:
+  better one answer fewer than a wrong or invented one.
 - System prompts: told «you were wrong» with no reason, the assistant apologised, changed its answer and said it
   «had not yet received the context». It now checks the previous answer against the context, corrects only what
   is unsupported and confirms the rest with the source.
