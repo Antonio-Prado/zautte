@@ -15,6 +15,9 @@ def test_contact_is_named_in_both_prompts(monkeypatch):
         s = _reload(monkeypatch, "Mario Rossi, the project manager")
         assert "per le funzioni nuove bisogna consultare Mario Rossi, the project manager\n" in s.SYSTEM_PROMPT_IT
         assert "new features are a matter for Mario Rossi, the project manager\n" in s.SYSTEM_PROMPT_EN
+        # an email in the contact is allowed although it is not in the context
+        assert "i recapiti indicati sopra per le funzioni nuove" in s.SYSTEM_PROMPT_IT
+        assert "the contact given above for new features" in s.SYSTEM_PROMPT_EN
     finally:
         monkeypatch.delenv("FEATURE_REQUEST_CONTACT")
         importlib.reload(settings)
@@ -26,6 +29,8 @@ def test_without_contact_the_feature_is_only_said_unavailable(monkeypatch):
         assert "non c'è, senza promettere né escludere che arrivi\n" in s.SYSTEM_PROMPT_IT
         assert "per le funzioni nuove" not in s.SYSTEM_PROMPT_IT
         assert "without promising or ruling out that it will come\n" in s.SYSTEM_PROMPT_EN
+        assert "(unica eccezione: il 112 per le emergenze)" in s.SYSTEM_PROMPT_IT
+        assert "(the only exception: 112 for emergencies)" in s.SYSTEM_PROMPT_EN
     finally:
         monkeypatch.delenv("FEATURE_REQUEST_CONTACT")
         importlib.reload(settings)
