@@ -10,8 +10,8 @@ authors:
 repository-code: "https://github.com/Antonio-Prado/zautte"
 doi: 10.5281/zenodo.23452491
 license: MIT
-version: 0.10.9
-date-released: 2026-10-26
+version: 0.10.10
+date-released: 2026-10-27
 keywords:
   - chatbot
   - RAG
