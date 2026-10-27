@@ -34,6 +34,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 ### Fixed
 - The checkbox «also show accepted and rejected» was smaller than the 24 px a target needs (WCAG 2.2): the
   accessibility check now covers every tab of the restricted area, the tab keys and a 320 px screen.
+- In the widget's login form, «Forgot password?» and «Apply» were about 23 px tall with some fonts, under the 24 px
+  target size (WCAG 2.2): they are now at least 24 px. Found by the same check on the chat tab of the restricted area.
 
 ## [0.10.11] - 2026-10-27
 
