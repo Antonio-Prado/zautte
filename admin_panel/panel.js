@@ -68,7 +68,6 @@
 
     function onTabShown(name) {
       if (name === 'messages') { if (_loaded.messages) refreshMessages(); else { _loaded.messages = true; loadMessages(); } }
-      if (name === 'people') loadUsage();
       if (name === 'system') updateCrawlHistory();
     }
 
@@ -155,8 +154,8 @@
           const q = d.queries_since_restart ?? 0;
           const g = d.gaps_total ?? 0;
           document.getElementById('query-count').textContent = fmtNum(q);
-          document.getElementById('gaps-count').textContent = fmtNum(g);
-          document.getElementById('gaps-pct').textContent = q > 0 ? Math.round(g / q * 100) + '%' : '—';
+          document.getElementById('gaps').textContent = fmtNum(g) + ' of ' + fmtNum(q) + ' questions'
+            + (q > 0 ? ' (' + Math.round(g / q * 100) + '%)' : '');
 
           const act = d.activity || {};
           document.getElementById('avg-resp').textContent =
@@ -532,13 +531,20 @@
           const users = data.users || [];
           const reg = data.total_registered != null ? data.total_registered : (data.total_users || 0);
           const act = data.total_active != null ? data.total_active : users.length;
-          status.textContent = '— ' + reg + ' registered · ' + act + ' active · ' + (data.total_messages || 0) + ' messages';
+          status.textContent = '— ' + reg + ' registered · ' + act + ' active · ' + (data.total_messages || 0) + ' messages'
+            + (data.test_messages ? ' (' + data.test_messages + ' from test accounts)' : '');
+          // Overview: the users' questions of today, 7 and 30 days, without the test accounts
+          const rc = data.recent || {};
+          document.getElementById('q-today').textContent = fmtNum(rc.today);
+          document.getElementById('q-7d').textContent = fmtNum(rc.last_7_days);
+          document.getElementById('q-30d').textContent = fmtNum(rc.last_30_days);
           if (!users.length) {
             body.innerHTML = '<span class="muted">No registered users (or login disabled: AUTH_ENABLED).</span>';
             return;
           }
           body.innerHTML = '<ul class="user-list">' + users.map(u =>
-            '<li' + (u.messages ? '' : ' class="idle"') + '><span>' + _esc(u.name) + '</span>'
+            '<li' + (u.messages ? '' : ' class="idle"') + '><span>' + _esc(u.name)
+            + (u.test ? ' <span class="app-badge">test</span>' : '') + '</span>'
             + '<span class="user-meta">' + _esc(u.messages) + ' messages · ' + _esc(u.active_days) + ' days · last '
             + _esc(u.last_seen ? fmtTs(u.last_seen) : 'never') + '</span></li>'
           ).join('') + '</ul>';
@@ -659,6 +665,7 @@
       updateStats();
       loadNegativeFeedback();
       loadApplications();
+      loadUsage();
       let tick = 0;
       setInterval(() => {
         if (document.hidden) return;
@@ -667,15 +674,16 @@
         if (tick % 2) return;
         loadNegativeFeedback();
         loadApplications();
+        loadUsage();
         if (activeTab === 'messages') refreshMessages();
         if (activeTab === 'system') updateCrawlHistory();
-        if (activeTab === 'people' && tick % 10 === 0) loadUsage();
       }, 30000);
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
         updateStats();
         loadNegativeFeedback();
         loadApplications();
+        loadUsage();
         if (activeTab === 'messages' && _loaded.messages) refreshMessages();
       });
     };

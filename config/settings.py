@@ -365,6 +365,9 @@ DAILY_QUESTION_LIMIT = int(os.getenv("DAILY_QUESTION_LIMIT", "20"))
 # Accounts not subject to the daily limit (test accounts): ids, names or e-mails, comma-separated,
 # compared without regard to case. Their questions are still logged and billed.
 DAILY_LIMIT_EXEMPT = frozenset(e.strip().lower() for e in os.getenv("DAILY_LIMIT_EXEMPT", "").split(",") if e.strip())
+# Accounts used to try the assistant (ids, names or e-mails, comma-separated): their questions stay out of the
+# users' counts of the restricted area (today, 7 and 30 days). They are still logged and billed.
+TEST_ACCOUNTS = frozenset(e.strip().lower() for e in os.getenv("TEST_ACCOUNTS", "").split(",") if e.strip())
 # Period of the pilot as free text for the invitation email ("dal 22 ottobre al 18 dicembre
 # 2026"); empty = the email does not mention a period.
 PILOT_PERIOD = os.getenv("PILOT_PERIOD", "").strip()
