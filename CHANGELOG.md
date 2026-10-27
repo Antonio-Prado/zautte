@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.10.11] - 2026-10-27
+
+### Fixed
+- System prompts (Italian and English): told «you were wrong», the assistant now checks its previous answer
+  without announcing it. With 0.10.10 it confirmed the right answer with its source, but opened with «I am
+  checking my previous answer against the current context», talking about the context the prompts tell it
+  never to mention.
+
 ## [0.10.10] - 2026-10-27
 
 ### Fixed
