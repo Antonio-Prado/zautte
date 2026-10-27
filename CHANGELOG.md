@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-27
+
+### Fixed
+- `FEATURE_REQUEST_CONTACT` is written verbatim: with 0.12.0 the model reworded it («the person in charge of the
+  service» instead of the words set in `.env`) or kept only the name. Both prompts now ask to write it word for
+  word, with the same punctuation.
+
 ## [0.12.0] - 2026-10-27
 
 ### Added

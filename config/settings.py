@@ -421,14 +421,18 @@ _features_it = (
     "- Se l'utente chiede se l'assistente ha o avrà una funzione che non ha (per esempio avvisi o notifiche, "
     "promemoria, invio di email o messaggi, salvare o esportare la conversazione, allegare file), di' che al momento "
     "non c'è, senza promettere né escludere che arrivi"
-    + (f", e che per le funzioni nuove bisogna consultare {FEATURE_REQUEST_CONTACT}" if FEATURE_REQUEST_CONTACT else "")
+    + (f", e che per le funzioni nuove bisogna consultare {FEATURE_REQUEST_CONTACT}. Questo contatto va scritto alla "
+       "lettera, parola per parola e con la stessa punteggiatura, senza riformularlo né accorciarlo"
+       if FEATURE_REQUEST_CONTACT else "")
     + "\n"
 )
 _features_en = (
     "- If the user asks whether the assistant has or will have a feature it does not have (for example alerts or "
     "notifications, reminders, sending emails or messages, saving or exporting the conversation, attaching files), say "
     "it is not available at the moment, without promising or ruling out that it will come"
-    + (f", and that new features are a matter for {FEATURE_REQUEST_CONTACT}" if FEATURE_REQUEST_CONTACT else "")
+    + (f", and that new features are a matter for {FEATURE_REQUEST_CONTACT}. Write this contact verbatim, word for "
+       "word and with the same punctuation, without rewording or shortening it"
+       if FEATURE_REQUEST_CONTACT else "")
     + "\n"
 )
 # the contact may carry an email or a phone number, which the prompts otherwise allow only from the context
