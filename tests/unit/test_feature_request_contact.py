@@ -13,8 +13,9 @@ def _reload(monkeypatch, value):
 def test_contact_is_named_in_both_prompts(monkeypatch):
     try:
         s = _reload(monkeypatch, "Mario Rossi, the project manager")
-        assert "per le funzioni nuove bisogna consultare Mario Rossi, the project manager\n" in s.SYSTEM_PROMPT_IT
-        assert "new features are a matter for Mario Rossi, the project manager\n" in s.SYSTEM_PROMPT_EN
+        assert "per le funzioni nuove bisogna consultare Mario Rossi, the project manager. Questo contatto va scritto alla "\
+               "lettera" in s.SYSTEM_PROMPT_IT
+        assert "new features are a matter for Mario Rossi, the project manager. Write this contact verbatim" in s.SYSTEM_PROMPT_EN
         # an email in the contact is allowed although it is not in the context
         assert "i recapiti indicati sopra per le funzioni nuove" in s.SYSTEM_PROMPT_IT
         assert "the contact given above for new features" in s.SYSTEM_PROMPT_EN
