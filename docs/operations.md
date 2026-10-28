@@ -31,9 +31,12 @@ python -m scripts.sync reembed
 # News published since the last run (see "News in near real time" below);
 # --backfill indexes the whole archive of the news sources (one-off)
 python -m scripts.sync news [--backfill]
+
+# Registers of acts of a Nuvola portal, one passage per act (see "Registers of acts" below)
+python -m scripts.sync acts
 ```
 
-Every mode except `news` ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. `news` instead asks the running API to reload the store from disk (`POST /admin/reload`, no restart, no 502). The sync log is `/var/log/chatbot-sync.log`. Run as the unprivileged `zsync` account (see [Running the sync jobs without root](#running-the-sync-jobs-without-root)), the syncs leave the reload or restart to the watchdog.
+Every mode except `news` and `acts` ends by killing the `uvicorn api.main:app` processes so that the API reloads the vector store; the watchdog starts the service again within a minute. `news` and `acts` instead ask the running API to reload the store from disk (`POST /admin/reload`, no restart, no 502). The sync log is `/var/log/chatbot-sync.log`. Run as the unprivileged `zsync` account (see [Running the sync jobs without root](#running-the-sync-jobs-without-root)), the syncs leave the reload or restart to the watchdog.
 
 ### News in near real time (`scripts/news_sync.py`)
 
@@ -46,11 +49,17 @@ For every new or modified item it indexes the article (text prefixed with "Notiz
 
 `scripts/news_sync.sh` is the cron wrapper: same lock as the weekly syncs, so while one of them is running the news run just skips.
 
+### Registers of acts (`scripts/acts_sync.py`)
+
+Many municipalities publish their resolutions on a Nuvola portal (PalItalsoft): each register is a search form, the link to an act carries a token that expires, and the search by subject only finds the exact word of the title («eventi» does not find «Iniziative culturali autunno 2026»). The crawler cannot follow such pages. `scripts.sync acts` reads, for each register configured in `crawl_extra.json` under `acts` and for the last `years` years (default 2), the full index of the year (two requests: the form, for its token, then the results without filters) and indexes every act as a passage of its own: kind, number, date, subject, publication date and how to open it (the search page of the register, number and year). The address of a passage is the search page with a fragment (`?page_id=35564#atto-2026-151`), so every act is a separate source. The passages carry `origin: acts` and `category: atto`, with the date of the act: the weekly and monthly syncs do not remove them; the job replaces an act whose subject changes and removes one that is no longer in the index of a year read correctly (a year that cannot be read, or comes back empty when acts were known, keeps its acts). A run with nothing new does not load the vector store; otherwise it asks the API to reload it, like `news`.
+
+It also writes the dynamic known fact `acts-latest` in `KNOWN_FACTS_DYNAMIC_FILE`: the last `latest` acts (default 10) of each register, injected when a question about acts asks for the latest ones («quali sono le ultime delibere di Giunta?»). The state lives in `data/crawl_cache/acts_state.json`. `venv/bin/python -m scripts.acts_sync --dry-run` reads the registers and prints a few passages and the fact without writing. `scripts/acts_sync.sh` is the cron wrapper (same lock as the other syncs; a run takes about a minute, then the embeddings of the new acts).
+
 ### Council sessions calendar (`scripts/council_sessions.py`)
 
 "When was the last council session and when is the next one?" needs today's date and the list of convocations, two things the crawled page cannot give reliably (the page lists the sessions of several years and the year is only in the headings). Every hour `scripts.council_sessions` downloads the page configured in `crawl_extra.json` under `council.convocations_url`, parses the session links (`dd/mm/yyyy`, or `d month` with the year taken from the nearest "anno YYYY" heading or from the link address), and writes one known fact in `KNOWN_FACTS_DYNAMIC_FILE` (`data/facts/known_facts_dynamic.json`): last session held, next one convened (or "not yet published"), the calendar of the current and the previous year, with a warning that the older dates belong to the previous year. The file has the format of `known_facts.json` plus an `id` per fact (`council-sessions`), so other jobs can add their own facts to it; the API checks its modification time once a minute and rereads it when it changes, no reload or restart needed. The job keeps the previous file when the page cannot be read or no session is found (exit 1 and 2). `--dry-run` prints the fact without writing, `--html <file>` parses a saved copy of the page. It runs as the sync account (started as root it drops privileges like the other sync scripts) and writes only `data/facts/`, which it creates.
 
-Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. They also cap the memory of the job (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB; 0 lifts it): a hostile document that makes a parser blow up ends the job, not the API. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
+Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`, `acts_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 30 for the acts, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. They also cap the memory of the job (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB; 0 lifts it): a hostile document that makes a parser blow up ends the job, not the API. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
 LOCK=/var/db/zautte-sync/sync.lock; [ -d /var/db/zautte-sync ] || LOCK=/var/run/chatbot-sync.lock
@@ -70,6 +79,7 @@ The sync jobs download and parse documents from the Internet, so they should not
 30       2    *    *     1    zsync /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
 0        3    1    *     *    zsync /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    zsync /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
+50       7,14 *    *     *    zsync /opt/chatbot/scripts/acts_sync.sh >/dev/null 2>&1
 7        *    *    *     *    zsync cd /opt/chatbot && ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync venv/bin/python -m scripts.council_sessions >>/var/log/chatbot-sync.log 2>&1
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
@@ -85,6 +95,7 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
 | every 15 minutes               | `news_sync.sh`          | New articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
+| 07:50 and 14:50 every day      | `acts_sync.sh`          | Registers of acts (resolutions) → one passage per act and the «latest acts» fact; hot reload of the API when something changed; skipped while another sync holds the lock |
 | every hour (minute 7)          | `scripts.council_sessions` | Calendar of the council sessions from the convocations page → dynamic known fact; no lock needed (one HTTP request, writes only `data/facts/`) |
 
 Two jobs of `scripts/cron_setup.sh` below are **not** in the production crontab: `sync inbox` is run by hand after dropping documents into `data/inbox/` (nobody does that continuously, and run as root it restarts the API like the other syncs), and `purge_logs` stays off until the retention periods are approved by the data protection officer (try it with `--dry-run`; to enable it add `15 2 * * * root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1`).

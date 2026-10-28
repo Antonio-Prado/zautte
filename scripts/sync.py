@@ -10,6 +10,8 @@ Modes:
   news         → new items from the Bulletin and the feeds, with pages and attachments
                  (every 15 minutes from cron; --backfill = whole archive);
                  hot-reloads the index in the API instead of restarting it
+  acts         → the registers of acts of a Nuvola portal, one passage per act (daily
+                 from cron); hot-reloads the index like news
 
 Usage:
   python -m scripts.sync full
@@ -17,6 +19,7 @@ Usage:
   python -m scripts.sync inbox
   python -m scripts.sync full-index
   python -m scripts.sync news [--backfill]
+  python -m scripts.sync acts
 """
 
 import argparse
@@ -48,6 +51,7 @@ from indexer.vector_store import (
     remove_sources,
     update_embeddings,
 )
+from scripts.acts_sync import run_acts
 from scripts.inbox_indexer import process_inbox
 from scripts.news_sync import run_news
 
@@ -175,6 +179,12 @@ async def run_sync(mode: str, backfill: bool = False):
         if not any(news[k] for k in ("posts", "pages", "attachments", "chunks")):
             return   # nothing new: no summary, no reload
 
+    elif mode == "acts":
+        print_separator("Phase 1/1: Registers of acts")
+        acts = run_acts()
+        if not (acts["new"] or acts["changed"] or acts["removed"]):
+            return   # nothing new: no summary, no reload
+
     elif mode == "full-index":
         print_separator("Phase 1/2: Reset and reindex from existing files")
         index = load_index()
@@ -197,9 +207,9 @@ async def run_sync(mode: str, backfill: bool = False):
     log.info(f"Total chunks in DB:   {stats['total_chunks']}")
     log.info(f"Completed at:         {now_local().strftime('%Y-%m-%d %H:%M:%S')}")
     print_separator()
-    if mode == "news":
+    if mode in ("news", "acts"):
         _request_service("reload")
-        if backfill:
+        if mode == "news" and backfill:
             _notify(f"Zautte: archivio notizie indicizzato ({news['posts']} articoli)",
                     f"Modalità: news --backfill\nArticoli: {news['posts']}\nPagine: {news['pages']}\n"
                     f"Allegati: {news['attachments']}\nChunk inseriti: {news['chunks']}\n"
@@ -277,14 +287,15 @@ def main():
     )
     parser.add_argument(
         "mode",
-        choices=["full", "incremental", "inbox", "full-index", "reembed", "news"],
+        choices=["full", "incremental", "inbox", "full-index", "reembed", "news", "acts"],
         help=(
             "full=full crawl + reindex everything | "
             "incremental=changes only | "
             "inbox=new documents only | "
             "full-index=reindex without crawling | "
             "reembed=re-embed chunks with zero vector | "
-            "news=new items from the Bulletin and feeds"
+            "news=new items from the Bulletin and feeds | "
+            "acts=registers of acts, one passage per act"
         )
     )
     parser.add_argument("--backfill", action="store_true",

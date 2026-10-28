@@ -125,6 +125,10 @@ CRAWL_PDF_EXCLUDE_PATTERNS: list[str] = []
 # crawl_extra.json → {"wordpress_api": ".../wp-json/wp/v2", "rss": [...],
 # "attachment_hosts": [...], "section": "..."}
 NEWS_SOURCES: dict = {}
+# Registers of acts on a Nuvola (PalItalsoft) portal, indexed one act per passage (scripts/acts_sync.py):
+# "acts" key of crawl_extra.json → {"portal": "https://….nuvolapalitalsoft.it/", "years": 2,
+# "registers": [{"page_id": 35564, "name": "Delibera di Giunta comunale", "plural": "delibere di Giunta"}]}
+ACTS_SOURCES: dict = {}
 # Council sessions calendar (scripts/council_sessions.py): "council" key of crawl_extra.json →
 # {"convocations_url": "...", "link_pattern": "consiglio", "keywords": [...], "require_any": [...]}
 COUNCIL_SESSIONS: dict = {}
@@ -143,6 +147,7 @@ try:
         CRAWL_SECTION_RULES += _crawl_extra.get("section_rules", [])
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))
+        ACTS_SOURCES.update(_crawl_extra.get("acts", {}))
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)

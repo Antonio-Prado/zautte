@@ -177,7 +177,7 @@ For each chunk:
 - Noise lines are removed (navigation, "access the service", "with SPID", etc.)
 - Chunks shorter than **80 characters** are discarded
 
-Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf`, or `document` for inbox TXT/DOCX), `chunk_index`, `chunk_total`; HTML chunks add `category`, `section`, `date`, `service_status`; crawled PDF chunks add `pdf_pages`; inbox chunks add `category`, `filename` and `origin: "inbox"`.
+Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf`, or `document` for inbox TXT/DOCX), `chunk_index`, `chunk_total`; HTML chunks add `category`, `section`, `date`, `service_status`; crawled PDF chunks add `pdf_pages`; inbox chunks add `category`, `filename` and `origin: "inbox"`; news chunks carry `origin: "news"` and the chunks of the registers of acts (`scripts.sync acts`) `origin: "acts"`, `category: "atto"` and the date of the act.
 
 The `title` of a crawled PDF is its internal `/Title`, or the cached file name (URL path plus a hash, such as `Engine_RAServeFile.php_f__Allegato_B_2022.pdf_bca21d565d62`) when there is none. Many `/Title` values say nothing (the organization's name, "Layout 1", "Microsoft Word - …"), so search results also carry a `display_title`, chosen at query time by `indexer/titles.py`: the `/Title` when it is informative and not shared by 5 or more PDFs, otherwise the file name taken from the URL and cleaned up ("Rendiconto consolidato 2020"), cut at 90 characters. When the file name is generic too ("Allegato B 2022", "DD 665-25"), the title comes from the start of the document (the first chunk): the "Oggetto:" line of resolutions and decrees, or the first line after the letterhead, followed by the file name in brackets ("Piano Dettagliato degli Obiettivi P.D.O. 2022 (Allegato B 2022)"). The text of the link that points to the PDF on the site (`data/crawl_cache/pdf_link_texts.json`, written by the crawler) comes first when it has at least three words or is not shorter than the other candidates: it is the label the site's editors chose ("Delibera di Giunta n. 75 del 12/05/2016 …"). PDFs linked only from pages that are no longer crawled, such as those on `MIGRATED_DOMAINS`, have no link text. The sources and the LLM context use `display_title`; the stored title and the ranking do not change.
 
@@ -231,7 +231,7 @@ python -m scripts.inbox_indexer --watch
 }
 ```
 
-Processed files are moved to `data/inbox/processed/` (or `data/inbox/errors/` on failure, or with less than 100 characters of text). Inbox chunks are marked `origin: "inbox"`, so the stale-source cleanup of the syncs never removes them. The `full`, `incremental`, `full-index` and `inbox` modes of `scripts.sync` also process the inbox (`news` and `reembed` do not).
+Processed files are moved to `data/inbox/processed/` (or `data/inbox/errors/` on failure, or with less than 100 characters of text). Inbox chunks are marked `origin: "inbox"`, so the stale-source cleanup of the syncs never removes them. The `full`, `incremental`, `full-index` and `inbox` modes of `scripts.sync` also process the inbox (`news`, `acts` and `reembed` do not).
 
 ---
 
