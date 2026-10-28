@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
+### Added
+- Registers of acts (`scripts/acts_sync.py`, `python -m scripts.sync acts`, cron wrapper `scripts/acts_sync.sh`): the
+  resolutions published on a Nuvola portal (PalItalsoft) become one passage per act, with number, date, subject,
+  publication date and how to open the act. The portal's search by subject only finds the exact word of the title
+  («eventi» does not find «Iniziative culturali autunno 2026») and its links expire, so the crawler could not use
+  it: asked whether the executive had passed a resolution on the autumn events, the assistant could only explain
+  how to search. The job reads the full index of each configured register for the last `years` years, indexes new
+  and changed acts, removes those gone from a year read correctly, and hot-reloads the API like the news sync.
+  Passages carry `origin: acts`, which the weekly and monthly syncs keep. It also writes the dynamic known fact
+  `acts-latest` with the last acts of each register, for «what are the latest resolutions?». Configuration: `acts`
+  in `crawl_extra.json` (`portal`, `registers`, `years`, `latest`).
+
 ## [0.13.1] - 2026-10-28
 
 ### Fixed

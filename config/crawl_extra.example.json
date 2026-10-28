@@ -17,6 +17,18 @@
     ],
     "section": "Notizie"
   },
+  "acts": {
+    "portal": "https://example.nuvolapalitalsoft.it/",
+    "years": 2,
+    "latest": 10,
+    "registers": [
+      {
+        "page_id": 35564,
+        "name": "Delibera di Giunta comunale",
+        "plural": "delibere di Giunta comunale"
+      }
+    ]
+  },
   "section_rules": [
     {
       "host_contains": "suap",

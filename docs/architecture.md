@@ -156,8 +156,9 @@ zautte/                       # deployed as /opt/chatbot
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │
 ├── scripts/
-│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news)
+│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news, acts)
 │   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
+│   ├── acts_sync.py          # Registers of acts of a Nuvola portal: one passage per act + «latest acts» dynamic fact
 │   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
@@ -172,6 +173,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── full_sync.sh          # Monthly full sync (zero downtime, sync lock)
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
 │   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
+│   ├── acts_sync.sh          # Registers of acts twice a day (same lock)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
 │   ├── setup_sync_user.sh    # Creates the unprivileged account of the sync jobs (run once as root)
 │   ├── make_sync_env.py      # Builds .env.sync from an allowlist (no secrets)
