@@ -35,6 +35,7 @@ from config.settings import (
     CRAWL_SECTION_RULES,
     CRAWL_URL_ALIASES,
     DOCUMENTS_DIR,
+    NEWS_SOURCES,
     SECTION_DEFAULT,
     SITE_URL,
 )
@@ -99,6 +100,16 @@ async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     got 400 Bad Request. No crawled page requires cookies."""
     client.cookies.clear()
     return await get_limited_async(client, url, CRAWL_ALLOWED_DOMAINS)
+
+
+# The pages of the news site (the Bulletin) are indexed by scripts/news_sync.py, with the text of the
+# API, the date and origin=news, which the syncs keep: the crawler follows their links but does not
+# index them, or its copy (menus and related articles included, no origin) would replace theirs.
+_NEWS_HOST = urlparse(NEWS_SOURCES.get("wordpress_api", "")).hostname or ""
+
+
+def indexed_by_news_sync(url: str) -> bool:
+    return bool(_NEWS_HOST) and urlparse(url).hostname == _NEWS_HOST
 
 
 def should_skip(url: str) -> bool:
@@ -258,9 +269,11 @@ def clean_text(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     drop_invisible(soup)
 
-    # Remove useless tags
+    # Remove useless tags. <link> and <meta> have no text but may have an id: a stylesheet
+    # <link id="main-styles-css"> was taken as the main element below, the text came out empty
+    # and every page of the WordPress sites (turismo, bum) was dropped as too short.
     for tag in soup.find_all(["script", "style", "nav", "header", "footer",
-                               "aside", "noscript", "iframe", "form"]):
+                               "aside", "noscript", "iframe", "form", "link", "meta"]):
         tag.decompose()
 
     # Remove feedback/rating widgets
@@ -270,13 +283,15 @@ def clean_text(html: str) -> str:
     )):
         tag.decompose()
 
-    main = (
-        soup.find("main") or
-        soup.find(id=re.compile(r"content|main|body", re.IGNORECASE)) or
-        soup.find(class_=re.compile(r"content|main|article", re.IGNORECASE)) or
-        soup.find("article") or
-        soup.body
+    # The first candidate with some text: an empty element whose class only looks like content
+    # (an icon <div class="tdb-main-sub-icon-fake">) emptied the page just the same
+    candidates = (
+        soup.find("main"),
+        soup.find(id=re.compile(r"content|main|body", re.IGNORECASE)),
+        soup.find(class_=re.compile(r"content|main|article", re.IGNORECASE)),
+        soup.find("article"),
     )
+    main = next((c for c in candidates if c is not None and c.get_text(strip=True)), soup.body)
     if main is None:
         return ""
 
@@ -479,6 +494,9 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                         pdf_urls.add(pdf_url)
                         if link_text:
                             pdf_link_texts.setdefault(pdf_url, []).append(link_text)
+
+                    if indexed_by_news_sync(url):
+                        continue
 
                     # Skip if content unchanged (incremental mode only)
                     if incremental and not state.is_changed(url, page_hash):

@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-10-28
+
+### Fixed
+- Crawler: the pages of WordPress sites came out without text and were dropped as too short. The main element was
+  looked for as the first one with an id like content/main/body, and the first one was a stylesheet
+  `<link id="main-styles-css">`; on other pages it was an empty icon whose class contains «main». No page of the
+  tourism site was in the index (2,459 visited in the last full crawl, none indexed), so the events calendar was
+  unknown to the assistant. `<link>` and `<meta>` are now removed with the other tags without text, and an empty
+  candidate is skipped. Pages that already had text come out exactly as before.
+- The crawler follows the links of the news site (`news.wordpress_api` in `crawl_extra.json`) but no longer indexes
+  its pages: they are indexed by the news sync with the text of the API, the date and `origin=news`. Until now the
+  bug above kept them out by chance; with it fixed, the crawler's copy would have replaced the news chunks.
+
 ## [0.13.0] - 2026-10-27
 
 ### Added
