@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-10-29
+
+### Fixed
+- Hybrid search: a text already taken is skipped while the candidates are collected. The same passage is often
+  indexed under several addresses of one page (www and bare host, `/index.php/`, `?type=3`): the copies took up to
+  18 of the 21 candidates and were removed only afterwards, so a question on contributions for the families of
+  people in care homes reached the model with 4 passages, without the second measure and the news item that
+  describes both. Now the candidates are 21 different texts. On 100 questions with a known right page, retrieval
+  only: the right page is among the 7 passages for 88 instead of 82 (with 0.15.1), in the first 3 for 83 instead of
+  79, MRR 0.699 → 0.731, passages per answer 6.6 → 7.0; no question loses its page.
+
 ## [0.15.1] - 2026-10-29
 
 ### Fixed

@@ -669,11 +669,17 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
             bm25_weight  * bm25_rrf.get(idx, 0.0)
         )
 
-    top_indices = sorted(fused, key=fused.__getitem__, reverse=True)[:top_k]
-
+    # The same passage is often indexed under several addresses of one page (www and bare host,
+    # /index.php/, ?type=3): only its best copy counts, otherwise the copies fill every place and
+    # the other pages never reach the context
     results = []
-    for idx in top_indices:
+    seen_texts: set[str] = set()
+    for idx in sorted(fused, key=fused.__getitem__, reverse=True):
         meta = _metadata[idx]
+        text = meta.get("text", "").strip()
+        if text in seen_texts:
+            continue
+        seen_texts.add(text)
         results.append({
             "text":     meta.get("text", ""),
             "source":   meta.get("source", ""),
@@ -684,6 +690,8 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
             "date":     meta.get("date", ""),   # shown to the model (build_context_block)
             "score":    float(vec_scores[idx]),  # semantic score for the MIN_SIMILARITY filter
         })
+        if len(results) == top_k:
+            break
 
     return results
 
