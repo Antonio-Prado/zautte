@@ -259,6 +259,10 @@ def _parse_known_facts(entries: list[dict]) -> list[dict]:
         result.append({
             "keywords":    set(e["keywords"]),
             "require_any": set(e.get("require_any", e["keywords"])),
+            # Phrases removed from the question before matching this fact: "storico" is meant for
+            # "stato di famiglia storico", not for "centro storico".
+            "ignore":      [re.compile(r"\b" + r"\s+".join(map(re.escape, p.lower().split())) + r"\b")
+                            for p in e.get("ignore_phrases", []) if p.strip()],
             "chunk": {
                 "text":     e["text"],
                 "title":    e["title"],
@@ -316,11 +320,18 @@ def _dynamic_known_facts() -> list[dict]:
 
 def _inject_known_facts(query: str) -> list[dict]:
     """Returns the known facts relevant to the query (static ones first, then the dynamic ones)."""
-    q = set(re.findall(r"\w+", query.lower()))
+    lowered = query.lower()
+    words = set(re.findall(r"\w+", lowered))
     results = []
     for fact in _KNOWN_FACTS + _dynamic_known_facts():
         keywords = fact["keywords"]
         require_any = fact.get("require_any", keywords)
+        q = words
+        if fact.get("ignore"):
+            text = lowered
+            for pattern in fact["ignore"]:
+                text = pattern.sub(" ", text)
+            q = set(re.findall(r"\w+", text))
         if q & keywords and q & require_any:
             results.append(fact["chunk"])
     return results

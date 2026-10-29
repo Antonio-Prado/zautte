@@ -2,6 +2,7 @@
   {
     "keywords": ["orari", "apertura", "aperto"],
     "require_any": ["municipio", "sede"],
+    "ignore_phrases": ["sede legale"],
     "text": "Opening hours of the town hall\n\nMonday to Friday 9:00-13:00. Phone: 000 000000.",
     "title": "Town hall opening hours",
     "source": "https://www.example.org/opening-hours",

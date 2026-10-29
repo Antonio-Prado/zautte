@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-29
+
+### Added
+- Known facts: optional `ignore_phrases`, removed from the question before its `keywords` and `require_any` are
+  checked. A fact on certificates requires `storico` for «stato di famiglia storico», so it was added to a question
+  on a chimney flue for a shop «in centro storico» (the old town); the answer cited nothing and the certificates
+  page was the only source shown under it. Phrases are matched as whole words, case and spacing aside; facts
+  without the field match exactly as before. The dynamic facts written by jobs accept the same field.
+
 ## [0.14.0] - 2026-10-28
 
 ### Added
