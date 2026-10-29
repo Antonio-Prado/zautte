@@ -73,7 +73,7 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 
 ### Query Expansion
 
-`expand_query()` appends the synonyms of every `config/synonyms.json` key found in the question (plain substring match). Examples:
+`expand_query()` appends the synonyms of every `config/synonyms.json` key that starts a word of the question (a key can be a stem: `"nubend"` matches «nubendi»; it never matches inside a word, so `"cie"` does not match «autosufficienti»). Examples:
 
 - `"carta identità"` → `"documento identità CIE carta d'identità elettronica"`
 - `"tari"` → `"tassa rifiuti raccolta rifiuti smaltimento rifiuti tributo rifiuti"`
