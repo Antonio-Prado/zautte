@@ -69,7 +69,7 @@ With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRI
 
 The four files in `config/` that describe a specific organisation (`known_facts.json`, `synonyms.json`, `offices.json`, `crawl_extra.json`) are not part of the repository (they live in the folder of `INSTANCE_DIR`, see [Configuration](configuration.md)): copy each `*.example.json` to the same name without `.example` and fill it in. Without them Zautte still starts, with no known facts, synonyms, offices or crawl overrides.
 
-`config/known_facts.json` holds curated texts for topics the site covers poorly (opening hours, procedures, links). An entry is added to the context, ahead of the retrieved chunks and with score 1.0, when the question contains one of its `keywords` and one of its `require_any` words (whole single words: multi-word keywords never match). Retrieved chunks from the same source are dropped.
+`config/known_facts.json` holds curated texts for topics the site covers poorly (opening hours, procedures, links). An entry is added to the context, ahead of the retrieved chunks and with score 1.0, when the question contains one of its `keywords` and one of its `require_any` words (whole single words: multi-word keywords never match). The optional `ignore_phrases` are removed from the question before that check, for words that mean something else inside a phrase: with `"ignore_phrases": ["centro storico"]` a fact on certificates that requires `storico` («stato di famiglia storico») is no longer added to a question about a chimney in the old town. Retrieved chunks from the same source are dropped.
 
 ### Query Expansion
 
