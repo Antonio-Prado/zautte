@@ -188,7 +188,9 @@ def expand_query(query: str) -> str:
     query_lower = query.lower()
     expansions = []
     for term, synonyms in _SYNONYMS.items():
-        if term in query_lower:
+        # A term is the start of a word ("nubend" for "nubendi"), never its middle: "cie" inside
+        # "autosufficienti" added the identity card, "rata" inside "deliberata" the TARI instalments
+        if re.search(r"\b" + re.escape(term), query_lower):
             expansions.extend(synonyms)
     if expansions:
         return query + " " + " ".join(expansions)

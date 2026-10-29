@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-29
+
+### Fixed
+- Query expansion: a synonym matches only at the start of a word, no longer anywhere inside one. «cie» (the
+  identity card) matched inside «autosufficienti», so a question on the allowance for elderly people who are not
+  self-sufficient was searched together with the identity card, and news on identity cards took three of its seven
+  passages; «rata» inside «deliberata» added the waste-tax instalments to a question on a resolution, «tari» inside
+  «segretario» or «assegnataria» the waste tax. Stems still work («nubend» for «nubendi»). Of the 295 questions
+  asked in the pilot, 13 change: in 12 the synonym had matched by mistake.
+
 ## [0.15.0] - 2026-10-29
 
 ### Added
