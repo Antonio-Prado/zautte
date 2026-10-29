@@ -34,7 +34,7 @@ User question
      ├─ known facts          — curated texts from config/known_facts.json (score 1.0)
      ├─ expand_query()       — appends synonyms from config/synonyms.json
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
-     ├─ hybrid_search()      — 21 candidates (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
+     ├─ hybrid_search()      — 21 different texts (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
      ├─ rerank()             — title boost, "servizio" category boost, PDF, news and retired-domain penalties, same-source penalty
      └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
@@ -266,7 +266,7 @@ final_score(doc) = 0.6 × RRF_vector(doc) + 0.4 × RRF_bm25(doc)
 RRF(rank) = 1 / (60 + rank + 1)
 ```
 
-Each ranking considers top_k × 20 candidates. Results are ordered by fused score, but each hit's `score` is its cosine similarity, which `MIN_SIMILARITY` and `RETRIEVAL_CONFIDENCE` use.
+Each ranking considers top_k × 20 candidates. Results are ordered by fused score, but each hit's `score` is its cosine similarity, which `MIN_SIMILARITY` and `RETRIEVAL_CONFIDENCE` use. A text already taken is skipped while the top_k results are collected: a page indexed under several addresses (www and bare host, `/index.php/`, `?type=3`) gives one result, not one per address, so its copies do not push the other pages out.
 
 The BM25 index (`BM25Okapi`, lowercase letter-only tokens: numbers are not indexed) is built when the store is loaded and rebuilt before the next search whenever chunks were added or removed. It requires the `rank-bm25` package; without it the search uses the vector ranking only.
 
