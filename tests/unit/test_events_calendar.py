@@ -49,6 +49,9 @@ def test_fact_text():
     fact = ec.build_fact(ec.parse_events(ITEMS, TODAY), TODAY, HORIZON, CAL, "Comune di Esempio")
     text = fact["text"]
     assert "letto automaticamente venerdì 30 ottobre 2026" in text
+    # exhibitions open over a period count for every day of it, a series only on the days of its programme
+    assert "3) le mostre e le altre iniziative aperte per un periodo («fino al 31 dicembre»" in text
+    assert "Una rassegna che in quei giorni non ha appuntamenti non va presentata come evento di quei giorni" in text
     assert ("EVENTO: Halloween Tour\nQuando: da sabato 31 ottobre a domenica 1 novembre 2026\n"
             "Dove: Pineta Buozzi, Viale Buozzi\nPagina dell'evento: https://tourism.example.org/evento/halloween-tour/\n"
             "Descrizione:\nIl 31 ottobre dalle 18:00 alle 24:00.\n- ingresso gratuito\n") in text
