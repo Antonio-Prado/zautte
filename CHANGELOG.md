@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-30
+
+### Fixed
+- Events fact: how to read the list now says what to include for the days asked: the events of those days, the
+  appointments a series or festival schedules on them, and the exhibitions open over a period that covers them
+  («fino al 31 dicembre»), even inside a festival; a series with no appointment on those days is not presented as an
+  event of those days. Asked for the events of the weekend, the assistant named the Halloween tour but left out an
+  exhibition open every day until 31 December, because it was described in the programme of a festival whose
+  dates were the whole period.
+
 ## [0.16.0] - 2026-10-30
 
 ### Added

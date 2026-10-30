@@ -165,8 +165,14 @@ def build_fact(events: list[dict], today: date, horizon: date, calendar_url: str
               f"{_day(horizon)}, in ordine di inizio."),
              ("Come leggere l'elenco: per «oggi», «domani», «stasera», «questo weekend» o «questo fine "
               "settimana» confronta le date con la data di oggi. Rassegne, festival, corsi e stagioni teatrali "
-              "hanno come date il periodo complessivo: un singolo appuntamento cade in un certo giorno solo se "
-              "il programma nella descrizione lo dice; altrimenti indica il periodo e la pagina dell'evento. "
+              "hanno come date il periodo complessivo: guarda il programma nella descrizione. Per i giorni "
+              "chiesti elenca: 1) gli eventi che cadono in quei giorni; 2) gli appuntamenti che il programma di "
+              "una rassegna o di un festival mette in quei giorni; 3) le mostre e le altre iniziative aperte per "
+              "un periodo («fino al 31 dicembre», «dal 16 novembre al 6 dicembre») che comprende quei giorni, "
+              "anche quando fanno parte di un festival, con il luogo. Una rassegna che in quei giorni non ha "
+              "appuntamenti non va presentata come evento di quei giorni: se serve, indicane a parte il "
+              "prossimo appuntamento. Se il programma non dice nulla dei giorni chiesti, indica il periodo e "
+              "la pagina dell'evento. "
               "Se la riga «Quando» non ha l'orario, gli orari sono quelli scritti nella descrizione, se ci sono. "
               "Il calendario non indica quali eventi hanno il patrocinio del Comune, e iniziative non "
               "pubblicate nel calendario non compaiono qui."), ""]
