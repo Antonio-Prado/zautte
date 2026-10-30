@@ -184,9 +184,9 @@ def build_feedback_resolved(entry: dict, name: str = "", note: str = "",
         lines += ["", "Pagine che avevi indicato:"] + [f"  {u}" for u in entry["urls"]]
     if note:
         lines += ["", "Nota di chi ha risolto:", f"  {note.strip()}"]
-    lines += ["", "Puoi verificare ponendo di nuovo la domanda all'assistente"
-              + (f": {login_url}" if login_url else "."),
-              "Se la risposta non ti convince ancora, rispondi a questa email oppure usa di nuovo",
+    # No invitation to ask the question again: every repeated question costs tokens
+    # (and the colleague has already read the note); the way back is the email or the 👎.
+    lines += ["", "Se qualcosa non ti convince ancora, rispondi a questa email oppure usa di nuovo",
               "il 👎 con il modulo di segnalazione."]
     if news_channel_text():
         lines += [news_channel_text().rstrip("\n")]
