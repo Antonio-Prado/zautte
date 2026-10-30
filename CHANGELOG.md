@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-10-30
+
+### Fixed
+- Events fact: exhibitions open on the days asked and the appointments of a series count as events and
+  «manifestazioni», also when the question asks for the hours, and no event is called «the only one» of those
+  days while the list has others. Asked again «elenca tutte le manifestazioni … con luogo ed orari» for the
+  weekend after 0.16.1, the assistant still named only the Halloween tour and added that it was the only event,
+  although it listed the exhibition open until 31 December when asked «cosa posso fare questo weekend?».
+
 ## [0.16.1] - 2026-10-30
 
 ### Fixed

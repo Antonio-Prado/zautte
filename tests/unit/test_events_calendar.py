@@ -52,6 +52,9 @@ def test_fact_text():
     # exhibitions open over a period count for every day of it, a series only on the days of its programme
     assert "3) le mostre e le altre iniziative aperte per un periodo («fino al 31 dicembre»" in text
     assert "Una rassegna che in quei giorni non ha appuntamenti non va presentata come evento di quei giorni" in text
+    # an exhibition is a «manifestazione» too, and no event is «the only one» while the list has others
+    assert "Tutte e tre contano come eventi e manifestazioni" in text
+    assert "non dire che un evento è l'unico dei giorni chiesti" in text
     assert ("EVENTO: Halloween Tour\nQuando: da sabato 31 ottobre a domenica 1 novembre 2026\n"
             "Dove: Pineta Buozzi, Viale Buozzi\nPagina dell'evento: https://tourism.example.org/evento/halloween-tour/\n"
             "Descrizione:\nIl 31 ottobre dalle 18:00 alle 24:00.\n- ingresso gratuito\n") in text
