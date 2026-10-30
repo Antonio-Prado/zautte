@@ -42,5 +42,10 @@
   "council": {
     "convocations_url": "https://www.example.org/it/public_documents/convocazioni-consiglio-comunale",
     "link_pattern": "consiglio"
+  },
+  "events": {
+    "api_url": "https://tourism.example.org/wp-json/tribe/events/v1/events",
+    "calendar_url": "https://tourism.example.org/events/",
+    "days_ahead": 60
   }
 }
