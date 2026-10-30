@@ -6,7 +6,7 @@ from api import rag
 
 
 def _question(monkeypatch, day, language):
-    monkeypatch.setattr(rag, "now_local", lambda: datetime.datetime(*day, 10, 0))
+    monkeypatch.setattr(rag, "now_local", lambda: datetime.datetime(*day, 10, 0, tzinfo=datetime.UTC))
     messages = rag.build_prompt("Cosa c'è questo weekend?", "un brano", language=language)
     return messages[-1]["content"]
 
