@@ -386,6 +386,30 @@
       setBadge('badge-messages', 0);
       renderAttention();
     }
+    // The new messages are highlighted in the log until each one is clicked, so they can be
+    // read without hunting for them: keys kept in this browser, so a reload keeps them too.
+    const MSG_FRESH_KEY = 'zautte_admin_msgs_fresh', MSG_FRESH_MAX = 300;
+    const _msgFresh = new Set((() => { try { return JSON.parse(localStorage.getItem(MSG_FRESH_KEY) || '[]'); } catch (_) { return []; } })());
+    function _saveFresh() {
+      try { localStorage.setItem(MSG_FRESH_KEY, JSON.stringify([..._msgFresh].slice(-MSG_FRESH_MAX))); } catch (_) { /* private window */ }
+    }
+    // Messages after the mark of the last look are new (the first visit has no mark: nothing is new)
+    function _noteFresh(msgs, seen) {
+      if (!seen) return;
+      let changed = false;
+      msgs.forEach(m => { if (!m.test && m.ts > seen && !_msgFresh.has(_msgKey(m))) { _msgFresh.add(_msgKey(m)); changed = true; } });
+      if (changed) _saveFresh();
+    }
+    function _forgetFresh(card) {
+      const key = card.dataset.key;
+      if (!key || !_msgFresh.has(key)) return;
+      _msgFresh.delete(key);
+      _saveFresh();
+      card.classList.remove('fresh');
+      const tag = card.querySelector('.msg-new');
+      if (tag) tag.remove();
+      _renderMsgStatus();
+    }
     function countNewMessages() {
       if (activeTab === 'messages') return;  // the log on screen marks itself as seen
       const seen = _msgSeen();
@@ -402,7 +426,11 @@
 
     function loadMessages() {
       _fetchMessages(0)
-        .then(d => { _msg.items = d.messages || []; _msg.total = d.total || 0; _fillUserFilter(); renderMessages(); _markMessagesSeen(d.latest || ''); })
+        .then(d => {
+          _msg.items = d.messages || []; _msg.total = d.total || 0;
+          _noteFresh(_msg.items, _msgSeen());
+          _fillUserFilter(); renderMessages(); _markMessagesSeen(d.latest || '');
+        })
         .catch(() => { document.getElementById('msg-body').innerHTML = '<p class="muted">Error loading the log.</p>'; });
     }
 
@@ -415,6 +443,7 @@
         const rest = _msg.items.filter(m => !keys.has(_msgKey(m)) && m.ts < oldest);
         _msg.items = page.concat(rest);
         _msg.total = d.total || 0;
+        _noteFresh(page, _msgSeen());
         _fillUserFilter();
         renderMessages(true);
         _markMessagesSeen(d.latest || '');
@@ -471,21 +500,34 @@
 
     function _msgCard(m, open) {
       const key = _msgKey(m);
+      const fresh = _msgFresh.has(key);
       const meta = '<span class="msg-meta">' + _esc((m.ts || '').slice(11, 16)) + ' · ' + _esc(m.name || m.uid || '—')
+        + (fresh ? ' <span class="msg-new">new</span>' : '')
         + (m.partial ? ' · <span class="msg-partial">answer interrupted</span>' : '') + '</span>';
       const q = '<span class="msg-q">' + _esc(m.q) + '</span>';
+      const cls = 'msg-card' + (fresh ? ' fresh' : '');
       // Since 07/10/2026 the answer is recorded too (answers.jsonl): the question opens it
-      if (typeof m.a !== 'string') return '<div class="msg-card plain">' + meta + q + '</div>';
+      if (typeof m.a !== 'string') return '<div class="' + cls + ' plain" data-key="' + _esc(key) + '">' + meta + q + '</div>';
       const src = (m.sources || []).map(s => {
         const t = _esc(s.title || s.url || '');
         return '<li>' + (s.url ? '<a href="' + _href(s.url) + '" target="_blank" rel="noopener">' + t + '</a>' : t) + '</li>';
       }).join('');
-      return '<details class="msg-card" data-key="' + _esc(key) + '"' + (open.has(key) ? ' open' : '') + '>'
+      return '<details class="' + cls + '" data-key="' + _esc(key) + '"' + (open.has(key) ? ' open' : '') + '>'
         + '<summary>' + meta + q + '</summary>'
         + '<div class="msg-answer-text">' + _answerHtml(m.a) + '</div>'
         + (src ? '<ul class="msg-sources">' + src + '</ul>' : '')
         + (m.rid ? '<div class="msg-foot">rid ' + _esc(m.rid) + '</div>' : '')
         + '</details>';
+    }
+
+    function _renderMsgStatus(list) {
+      list = list || _filteredMessages();
+      const filtering = list.length !== _msg.items.length;
+      const fresh = _msg.items.filter(m => _msgFresh.has(_msgKey(m))).length;
+      document.getElementById('msg-status').textContent = (filtering ? list.length + ' found in ' : '')
+        + 'the latest ' + _msg.items.length + ' of ' + _msg.total + ' messages'
+        + (fresh ? ' · ' + fresh + ' new, highlighted until opened' : '')
+        + (filtering && _msg.items.length < _msg.total ? ' · load older messages to search further back' : '');
     }
 
     function renderMessages(fromRefresh) {
@@ -497,10 +539,7 @@
       if (fromRefresh && sig === _msg.sig) return;
       _msg.sig = sig;
       const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.key));
-      const filtering = list.length !== _msg.items.length;
-      document.getElementById('msg-status').textContent = (filtering ? list.length + ' found in ' : '')
-        + 'the latest ' + _msg.items.length + ' of ' + _msg.total + ' messages'
-        + (filtering && _msg.items.length < _msg.total ? ' · load older messages to search further back' : '');
+      _renderMsgStatus(list);
       // new messages arrive at the top: keep what is on screen where it is
       const before = document.documentElement.scrollHeight;
       const below = window.scrollY > body.getBoundingClientRect().top + window.scrollY;
@@ -534,6 +573,11 @@
       }
     }
 
+    // a click on a new message (to open it, or on a question without a recorded answer) ends its highlight
+    document.getElementById('msg-body').addEventListener('click', ev => {
+      const card = ev.target.closest('.msg-card');
+      if (card) _forgetFresh(card);
+    });
     document.getElementById('msg-more').addEventListener('click', ev => {
       const btn = ev.currentTarget;
       if (btn.dataset.act === 'older') { _loadOlderMessages(btn); return; }

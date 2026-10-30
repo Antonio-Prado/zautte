@@ -56,6 +56,9 @@ def test_since_counts_the_messages_arrived_after_the_mark_without_test_accounts(
     assert d["messages"] == [] and d["total"] == 5
     assert d["latest"] == "2026-10-27T10:09:00+01:00"
     assert d["new"] == 2  # 10:02 and 10:03; the test account at 10:09 does not count
+    page = _get(limit=2, offset=0, retrieved=False)["messages"]
+    assert page[0]["uid"] == "zz-test" and page[0]["test"] is True  # 0.18.0: the panel skips it when highlighting
+    assert "test" not in page[1]
     assert _get(limit=0, offset=0, retrieved=False, since="2026-10-27T08:30:00Z")["new"] == 4  # UTC mark (09:30 local): same instant rules
     assert _get(limit=0, offset=0, retrieved=False, since="")["new"] == 4  # unreadable mark: everything is new
     assert "new" not in _get(limit=1, offset=0, retrieved=False)

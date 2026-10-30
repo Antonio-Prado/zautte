@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-30
+
+### Added
+- Restricted area: in the Messages tab the messages arrived since the last look at the log are highlighted
+  (red edge and a «new» pill) until each one is clicked to open it, so they can be read without hunting
+  for them among the ones already seen; the status line says how many are still highlighted. The marks
+  are kept in the browser, so a reload keeps them. `GET /usage/messages` flags the messages of the test
+  accounts with `test: true`, which the panel does not highlight (they are not counted by the badge either).
+
 ## [0.17.0] - 2026-10-30
 
 ### Added
