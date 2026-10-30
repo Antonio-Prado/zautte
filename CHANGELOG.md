@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.16.3] - 2026-10-30
+
+### Changed
+- Acknowledgement email to the colleague who reported an answer: it no longer invites to ask the question
+  again to check the fix (each repeated question costs tokens, and the note of who resolved it already says
+  what changed); the closing line keeps the two ways back, a reply to the email or a new 👎 with the form.
+
 ## [0.16.2] - 2026-10-30
 
 ### Fixed
