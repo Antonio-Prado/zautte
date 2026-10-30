@@ -160,6 +160,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
 │   ├── acts_sync.py          # Registers of acts of a Nuvola portal: one passage per act + «latest acts» dynamic fact
 │   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
+│   ├── events_calendar.py    # Events in progress and coming up from The Events Calendar REST API → dynamic known fact (hourly cron)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade

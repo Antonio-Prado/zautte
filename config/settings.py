@@ -132,6 +132,10 @@ ACTS_SOURCES: dict = {}
 # Council sessions calendar (scripts/council_sessions.py): "council" key of crawl_extra.json →
 # {"convocations_url": "...", "link_pattern": "consiglio", "keywords": [...], "require_any": [...]}
 COUNCIL_SESSIONS: dict = {}
+# Events in progress and coming up (scripts/events_calendar.py, The Events Calendar REST API): "events" key of
+# crawl_extra.json → {"api_url": ".../wp-json/tribe/events/v1/events", "calendar_url": "...", "days_ahead": 60,
+# "max_description": 4000, "keywords": [...], "require_any": [...]}
+EVENTS_CALENDAR: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -149,6 +153,7 @@ try:
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))
         ACTS_SOURCES.update(_crawl_extra.get("acts", {}))
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
+        EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 

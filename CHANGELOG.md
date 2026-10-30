@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-30
+
+### Added
+- Events in progress and coming up: `scripts/events_calendar.py` reads, every hour from cron, the public REST API
+  of The Events Calendar (WordPress, `/wp-json/tribe/events/v1/events`) configured under `events` in
+  `crawl_extra.json`, and writes the dynamic known fact `events-upcoming`: the events that end today or later and
+  start within `days_ahead` days (default 60), each with its dates and weekday, hours when the calendar has them,
+  place, cost, page and description, plus how to read the period of a season or festival. Asked on a Friday
+  morning for the events of «questo weekend», the assistant had found nothing (no page says «questo weekend», and
+  «patrocinate» led to calls for sponsors), linked the summer programme of June and then guessed that there might
+  be no events at all, while the tourism calendar listed a Halloween tour on Saturday and Sunday and four series in
+  progress. The fact is injected for questions about events (eventi, manifestazioni, spettacoli, concerti, mostre,
+  weekend, stasera…, or «settimana» with «fare», «succede» or «uscire»); the API rereads it without a restart, and
+  the job keeps the previous one when the calendar cannot be read.
+
 ## [0.15.3] - 2026-10-30
 
 ### Fixed
