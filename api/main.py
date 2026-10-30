@@ -1128,7 +1128,7 @@ async def usage_summary(_: None = Security(require_admin)):
 
 @app.get("/usage/messages")
 async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = True,
-                         _: None = Security(require_admin)):
+                         since: str | None = None, _: None = Security(require_admin)):
     """Log of the messages typed by users (text + timestamp + user) with the
     answer given by Zautte — admin only.
 
@@ -1140,6 +1140,11 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     Most recent first: `offset` skips that many messages, so a page reads the next
     `limit` ones. `retrieved=false` leaves out the passages given to the model (about
     half of the payload), which the panel never shows.
+
+    `latest` is the timestamp of the most recent message (server clock). With `since`
+    (a timestamp, usually a previous `latest`) the answer also carries `new`: how many
+    messages arrived after it, test accounts left out (since 0.17.0: the badge on the
+    Messages tab of the restricted area, read with `limit=0`).
     """
     usage_file = _DATA_DIR / "usage.jsonl"
     answers_file = _DATA_DIR / "answers.jsonl"
@@ -1176,7 +1181,23 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     total = len(msgs)
     msgs.reverse()  # most recent first
     start = max(offset, 0)
-    return {"messages": msgs[start:start + max(limit, 0)], "total": total}
+    result = {"messages": msgs[start:start + max(limit, 0)], "total": total,
+              "latest": msgs[0]["ts"] if msgs else ""}
+    if since is not None:
+        mark = _parse_ts(since)
+        tests = _test_uids()
+        result["new"] = sum(1 for m in msgs if m["uid"] not in tests
+                            and (t := _parse_ts(m["ts"])) is not None and (mark is None or t > mark))
+    return result
+
+
+def _parse_ts(value: str) -> datetime.datetime | None:
+    """ISO timestamp → aware datetime (naive ones count as UTC); None if unreadable."""
+    try:
+        t = datetime.datetime.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=datetime.UTC)
 
 
 @app.post("/usage/forget")

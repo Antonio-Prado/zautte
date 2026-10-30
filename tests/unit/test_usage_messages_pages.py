@@ -42,3 +42,20 @@ def test_offset_reads_the_next_page_and_retrieved_can_be_left_out(tmp_path, monk
     assert first["total"] == second["total"] == 5
     assert _get(limit=2, offset=9, retrieved=False)["messages"] == []
     assert _get(limit=2, offset=-3, retrieved=False)["messages"] == first["messages"]
+
+
+def test_since_counts_the_messages_arrived_after_the_mark_without_test_accounts(tmp_path, monkeypatch):
+    """0.17.0: the badge on the Messages tab asks `limit=0&since=<latest seen>` and reads `new`;
+    `latest` is the server timestamp of the newest message, used as the next mark."""
+    monkeypatch.setattr(main, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(main, "TEST_ACCOUNTS", {"zz-test"})
+    _write(tmp_path, 4)
+    with open(tmp_path / "usage.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": "2026-10-27T10:09:00+01:00", "uid": "zz-test", "q": "prova", "rid": "rt"}) + "\n")
+    d = _get(limit=0, offset=0, retrieved=False, since="2026-10-27T10:01:00+01:00")
+    assert d["messages"] == [] and d["total"] == 5
+    assert d["latest"] == "2026-10-27T10:09:00+01:00"
+    assert d["new"] == 2  # 10:02 and 10:03; the test account at 10:09 does not count
+    assert _get(limit=0, offset=0, retrieved=False, since="2026-10-27T08:30:00Z")["new"] == 4  # UTC mark (09:30 local): same instant rules
+    assert _get(limit=0, offset=0, retrieved=False, since="")["new"] == 4  # unreadable mark: everything is new
+    assert "new" not in _get(limit=1, offset=0, retrieved=False)

@@ -104,6 +104,7 @@
       if (mi.active) items.push(['', '<strong>Maintenance</strong> active since ' + _esc(mi.since || '?') + ' — ' + _esc(mi.reason || ''), 'system']);
       if (_negOpen) items.push(['', '<strong>' + _negOpen + '</strong> open report' + (_negOpen > 1 ? 's' : '') + ' 👎', 'reports']);
       if (_appsPending) items.push(['warn', '<strong>' + _appsPending + '</strong> application' + (_appsPending > 1 ? 's' : '') + ' to decide', 'people']);
+      if (_msgNew) items.push(['', '<strong>' + _msgNew + '</strong> new message' + (_msgNew > 1 ? 's' : '') + ' since your last look at the log', 'messages']);
       if (!items.length) {
         box.innerHTML = (_negOpen === null || _appsPending === null) ? ''
           : '<div class="attn ok">✓ Nothing to handle: no open reports, no applications to decide</div>';
@@ -371,9 +372,37 @@
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
+    // Messages arrived since the last look at the log: badge on the tab and a line in the
+    // overview, like open reports and applications. The mark is the server timestamp of the
+    // newest message shown (kept in this browser), so clocks never disagree; the first visit
+    // starts from the newest message, without a backlog. Test accounts are not counted.
+    const MSG_SEEN_KEY = 'zautte_admin_msgs_seen';
+    let _msgNew = null;
+    function _msgSeen() { try { return localStorage.getItem(MSG_SEEN_KEY) || ''; } catch (_) { return ''; } }
+    function _markMessagesSeen(ts) {
+      if (!ts || ts <= _msgSeen()) { if (_msgNew) { _msgNew = 0; setBadge('badge-messages', 0); renderAttention(); } return; }
+      try { localStorage.setItem(MSG_SEEN_KEY, ts); } catch (_) { /* private window: no memory between visits */ }
+      _msgNew = 0;
+      setBadge('badge-messages', 0);
+      renderAttention();
+    }
+    function countNewMessages() {
+      if (activeTab === 'messages') return;  // the log on screen marks itself as seen
+      const seen = _msgSeen();
+      fetch(apiBase + '/usage/messages?limit=0&retrieved=false&since=' + encodeURIComponent(seen), { headers: adminHeaders() })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(d => {
+          if (!seen) { _markMessagesSeen(d.latest || ''); return; }
+          _msgNew = d.new || 0;
+          setBadge('badge-messages', _msgNew);
+          renderAttention();
+        })
+        .catch(() => { /* keep the last count */ });
+    }
+
     function loadMessages() {
       _fetchMessages(0)
-        .then(d => { _msg.items = d.messages || []; _msg.total = d.total || 0; _fillUserFilter(); renderMessages(); })
+        .then(d => { _msg.items = d.messages || []; _msg.total = d.total || 0; _fillUserFilter(); renderMessages(); _markMessagesSeen(d.latest || ''); })
         .catch(() => { document.getElementById('msg-body').innerHTML = '<p class="muted">Error loading the log.</p>'; });
     }
 
@@ -388,6 +417,7 @@
         _msg.total = d.total || 0;
         _fillUserFilter();
         renderMessages(true);
+        _markMessagesSeen(d.latest || '');
       }).catch(() => { /* keep what is shown */ });
     }
 
@@ -666,6 +696,7 @@
       loadNegativeFeedback();
       loadApplications();
       loadUsage();
+      countNewMessages();
       let tick = 0;
       setInterval(() => {
         if (document.hidden) return;
@@ -675,6 +706,7 @@
         loadNegativeFeedback();
         loadApplications();
         loadUsage();
+        countNewMessages();
         if (activeTab === 'messages') refreshMessages();
         if (activeTab === 'system') updateCrawlHistory();
       }, 30000);
@@ -684,6 +716,7 @@
         loadNegativeFeedback();
         loadApplications();
         loadUsage();
+        countNewMessages();
         if (activeTab === 'messages' && _loaded.messages) refreshMessages();
       });
     };

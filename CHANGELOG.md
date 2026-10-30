@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-30
+
+### Added
+- Restricted area: the Messages tab shows a red counter with the messages arrived since the last look
+  at the log, like Reports and People do for open reports and applications to decide, and the overview
+  lists them among the things to look at. The mark is the server timestamp of the newest message shown,
+  kept in the browser, so the first visit starts without a backlog and clocks never disagree; test accounts
+  are not counted. `GET /usage/messages` returns `latest` and, with `since`, the count in `new`.
+
 ## [0.16.3] - 2026-10-30
 
 ### Changed
