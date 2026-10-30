@@ -1144,7 +1144,8 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     `latest` is the timestamp of the most recent message (server clock). With `since`
     (a timestamp, usually a previous `latest`) the answer also carries `new`: how many
     messages arrived after it, test accounts left out (since 0.17.0: the badge on the
-    Messages tab of the restricted area, read with `limit=0`).
+    Messages tab of the restricted area, read with `limit=0`). Messages of the test
+    accounts carry `test: true` (since 0.18.0: the panel does not highlight them as new).
     """
     usage_file = _DATA_DIR / "usage.jsonl"
     answers_file = _DATA_DIR / "answers.jsonl"
@@ -1154,6 +1155,7 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     answers = (await asyncio.to_thread(_read_jsonl, answers_file)
                if answers_file.exists() else [])
     by_rid = {a.get("rid"): a for a in answers if a.get("rid")}
+    tests = _test_uids()
     msgs: list[dict] = []
     for e in entries:
         if "q" not in e:  # old entries without the question text
@@ -1168,6 +1170,8 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
             "response_ms": e.get("response_ms"),
             "rid": e.get("rid", ""),
         }
+        if uid in tests:  # since 0.18.0: the panel highlights the new messages, the test accounts left out
+            m["test"] = True
         a = by_rid.get(e.get("rid"))
         if a:
             m["a"] = a.get("a", "")
@@ -1185,7 +1189,6 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
               "latest": msgs[0]["ts"] if msgs else ""}
     if since is not None:
         mark = _parse_ts(since)
-        tests = _test_uids()
         result["new"] = sum(1 for m in msgs if m["uid"] not in tests
                             and (t := _parse_ts(m["ts"])) is not None and (mark is None or t > mark))
     return result

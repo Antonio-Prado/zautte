@@ -215,6 +215,12 @@ table { border-collapse: collapse; width: 100%; }
 .msg-sources { margin: 0 12px 8px; padding-left: 18px; font-size: .85em; color: #555; overflow-wrap: anywhere; }
 .msg-foot { padding: 0 12px 10px; font-size: .75em; color: #666; }
 .msg-partial { color: #a33; font-size: .85em; }
+/* messages arrived since the last look: a red edge and a «new» pill until the card is clicked */
+.msg-card.fresh { box-shadow: inset 4px 0 0 #c62828; background: #fff8f6; }
+.msg-new {
+  display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 10px; vertical-align: middle;
+  background: #c62828; color: #fff; font-size: .78em; font-weight: bold; line-height: 1.5; text-transform: uppercase;
+}
 .msg-more { text-align: center; margin: 12px 0 4px; }
 
 /* Chat tab */
