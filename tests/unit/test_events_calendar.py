@@ -95,7 +95,8 @@ def test_the_api_picks_the_fact_up(tmp_path, monkeypatch):
     fact = ec.build_fact(ec.parse_events(ITEMS, TODAY), TODAY, HORIZON, CAL, "Comune di Esempio")
     assert upsert_fact(path, fact) is True
     monkeypatch.setattr(rag, "KNOWN_FACTS_DYNAMIC_FILE", path)
-    monkeypatch.setattr(rag, "_DYNAMIC_FACTS", {"facts": [], "mtime": None, "checked": 0.0})
+    # -inf, not 0.0: on a machine up for less than a minute monotonic() is below the check interval
+    monkeypatch.setattr(rag, "_DYNAMIC_FACTS", {"facts": [], "mtime": None, "checked": float("-inf")})
     titles = lambda q: [c["title"] for c in rag._inject_known_facts(q)]
     assert fact["title"] in titles("Cosa c'è da fare questo weekend?")
     assert fact["title"] in titles("Quali eventi ci sono questo fine settimana?")
