@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-10-30
+
+### Fixed
+- Prompt: today's date given to the model now carries the day of the week («Data di oggi: venerdì 30/10/2026»).
+  Asked on a Friday for the events of «questo weekend», the model had only «30/10/2026» and had to work out the
+  weekday by itself; questions with «domani», «sabato» or «questo fine settimana» depend on the same arithmetic.
+
 ## [0.15.2] - 2026-10-29
 
 ### Fixed

@@ -485,6 +485,10 @@ def link_hosts(messages: list[dict], query: str, chunks: list[dict] | None = Non
     return sorted(hosts)
 
 
+_WEEKDAYS_IT = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
+_WEEKDAYS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+
+
 def build_prompt(
     query: str,
     context: str,
@@ -503,8 +507,11 @@ def build_prompt(
     system = SYSTEM_PROMPT_IT if language == "it" else SYSTEM_PROMPT_EN
 
     office_hint = suggest_office(topic_query or query)
-    # Today's date: lets the model tell whether deadlines and calls have already passed
-    today = f"(Data di oggi: {now_local():%d/%m/%Y})\n" if language == "it" else f"(Today's date: {now_local():%Y-%m-%d})\n"
+    # Today's date: lets the model tell whether deadlines and calls have already passed. The day of
+    # the week too, so that "this weekend" or "tomorrow" need no calendar arithmetic by the model.
+    now = now_local()
+    today = (f"(Data di oggi: {_WEEKDAYS_IT[now.weekday()]} {now:%d/%m/%Y})\n" if language == "it"
+             else f"(Today's date: {_WEEKDAYS_EN[now.weekday()]} {now:%Y-%m-%d})\n")
 
     if context:
         # The competent office is provided even when context is present, as a
