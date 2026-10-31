@@ -1245,8 +1245,21 @@
         }
         if (brUrl) return linkAllowed(brUrl) ? linkHtml(brUrl, brUrl) : brUrl;
         if (url) {
-          const tail = (url.match(/[.,;:!?]+$/) || [""])[0];   // trailing punctuation outside the link
-          const clean = url.slice(0, url.length - tail.length);
+          // Trailing punctuation stays outside the link; so do asterisks and a closing
+          // bracket without its opening one (the model writes "*(Fonte: https://…)*",
+          // and the address with ")*" at the end gave «Pagina non trovata»).
+          let clean = url;
+          let tail = "";
+          for (;;) {
+            const t = (clean.match(/[.,;:!?*]+$|[)\]]$/) || [""])[0];
+            if (!t) break;
+            if (t === ")" || t === "]") {
+              const open = t === ")" ? "(" : "[";
+              if (clean.split(t).length <= clean.split(open).length) break;   // balanced: part of the address
+            }
+            clean = clean.slice(0, clean.length - t.length);
+            tail = t + tail;
+          }
           return (linkAllowed(clean) ? linkHtml(clean, clean) : clean) + tail;
         }
         // an address at any other host stays plain text, like a link

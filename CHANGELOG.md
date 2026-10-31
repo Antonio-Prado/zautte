@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-31
+
+### Fixed
+- Widget: a bare address followed by `)*` or by a `)` without its opening bracket (the model closes its
+  citations with «*(Fonte: https://…)*») was linked with those characters inside the address, so the link
+  opened «Pagina non trovata» although the page exists. Closing brackets without an opening one and trailing
+  asterisks now stay outside the link, like the trailing punctuation already did; balanced brackets
+  (Wikipedia-style addresses) are kept.
+
 ## [0.18.0] - 2026-10-30
 
 ### Added
