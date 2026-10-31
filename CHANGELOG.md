@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-31
+
+### Changed
+- System prompt (Italian and English): the assistant no longer takes the user's premises for granted when the
+  context does not confirm them («the referendum is under way», «the call is open», «my card has expired»): it
+  checks them against today's date and the dates in the context, says in one sentence when a premise is false or
+  refers to a past event, and answers the part of the question that still stands. A question written as if a
+  referendum were under way got back the extraordinary opening hours of the office from a news item of March.
+
 ## [0.19.1] - 2026-10-31
 
 ### Changed
