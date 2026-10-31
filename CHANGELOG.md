@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-31
+
+### Changed
+- System prompt (Italian and English): the assistant gives no value judgements, in no form: no opinions,
+  strengths and weaknesses, «positive and negative aspects», rankings or comparisons about the town, the
+  organisation, its services, people, acts or political choices, not even by reporting documents of the
+  context that contain them (a tourism plan listed the «weaknesses» of the local offer and a trick question
+  got them back). When asked, it says it gives information about services, not assessments, and offers the
+  practical information it has on the topic.
+
 ## [0.19.0] - 2026-10-31
 
 ### Changed
