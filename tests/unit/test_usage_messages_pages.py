@@ -62,3 +62,45 @@ def test_since_counts_the_messages_arrived_after_the_mark_without_test_accounts(
     assert _get(limit=0, offset=0, retrieved=False, since="2026-10-27T08:30:00Z")["new"] == 4  # UTC mark (09:30 local): same instant rules
     assert _get(limit=0, offset=0, retrieved=False, since="")["new"] == 4  # unreadable mark: everything is new
     assert "new" not in _get(limit=1, offset=0, retrieved=False)
+
+
+def test_seen_mark_and_highlighted_messages_live_on_the_server(tmp_path, monkeypatch):
+    """0.19.0: the mark of the last look and the messages still highlighted as new are kept in
+    data/messages_seen.json, so a phone and a PC of the administrator show the same marks."""
+    monkeypatch.setattr(main, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(main, "TEST_ACCOUNTS", {"zz-test"})
+    _write(tmp_path, 4)
+    with open(tmp_path / "usage.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": "2026-10-27T10:09:00+01:00", "uid": "zz-test", "q": "prova", "rid": "rt"}) + "\n")
+    first = _get(limit=0, offset=0, retrieved=False)
+    assert first["seen"] == "" and first["fresh"] == [] and "new" not in first   # no mark yet: nothing is new
+
+    # first look: the mark is set, nothing is highlighted (no backlog)
+    st = asyncio.run(main.usage_messages_seen(main.MessagesSeenRequest(ts="2026-10-27T10:01:00+01:00"), _=None))
+    assert st == {"seen": "2026-10-27T10:01:00+01:00", "fresh": []}
+    d = _get(limit=0, offset=0, retrieved=False)
+    assert d["seen"] == "2026-10-27T10:01:00+01:00" and d["new"] == 2   # 10:02 and 10:03, not the test account
+
+    # second look (from any device): the messages arrived in between become fresh, the test account left out
+    st = asyncio.run(main.usage_messages_seen(main.MessagesSeenRequest(ts=d["latest"]), _=None))
+    assert st["seen"] == "2026-10-27T10:09:00+01:00"
+    assert st["fresh"] == ["r2|2026-10-27T10:02:00+01:00|u1", "r3|2026-10-27T10:03:00+01:00|u1"]
+    # an older mark does not move it back
+    st = asyncio.run(main.usage_messages_seen(main.MessagesSeenRequest(ts="2026-10-27T10:00:00+01:00"), _=None))
+    assert st["seen"] == "2026-10-27T10:09:00+01:00" and len(st["fresh"]) == 2
+
+    # opened on one device: gone for the other one too
+    r = asyncio.run(main.usage_message_opened(main.MessageOpenedRequest(key="r2|2026-10-27T10:02:00+01:00|u1"), _=None))
+    assert r == {"fresh": ["r3|2026-10-27T10:03:00+01:00|u1"]}
+    other = _get(limit=0, offset=0, retrieved=False)
+    assert other["fresh"] == ["r3|2026-10-27T10:03:00+01:00|u1"] and other["new"] == 0
+    assert json.loads((tmp_path / "messages_seen.json").read_text())["fresh"] == ["r3|2026-10-27T10:03:00+01:00|u1"]
+
+
+def test_seen_mark_rejects_an_unreadable_timestamp(tmp_path, monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+    monkeypatch.setattr(main, "_DATA_DIR", tmp_path)
+    with pytest.raises(HTTPException):
+        asyncio.run(main.usage_messages_seen(main.MessagesSeenRequest(ts="ieri"), _=None))
+    assert not (tmp_path / "messages_seen.json").exists()
