@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-31
+
+### Changed
+- Restricted area: the mark of the last look at the Messages tab and the list of the messages still
+  highlighted as new are kept on the server (`data/messages_seen.json`) instead of in the browser, so the
+  badge and the «new» marks are the same on every device of the administrator: a message opened on the
+  PC is no longer new on the phone. `GET /usage/messages` returns `seen` and `fresh` (and counts `new`
+  against the stored mark when `since` is not given); `POST /usage/messages/seen {ts}` moves the mark and
+  highlights what arrived in between, `POST /usage/messages/opened {key}` clears one message. Nothing
+  to migrate: the first look after the update sets the mark without a backlog.
+
 ## [0.18.1] - 2026-10-31
 
 ### Fixed

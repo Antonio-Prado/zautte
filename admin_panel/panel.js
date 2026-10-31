@@ -374,49 +374,56 @@
 
     // Messages arrived since the last look at the log: badge on the tab and a line in the
     // overview, like open reports and applications. The mark is the server timestamp of the
-    // newest message shown (kept in this browser), so clocks never disagree; the first visit
-    // starts from the newest message, without a backlog. Test accounts are not counted.
-    const MSG_SEEN_KEY = 'zautte_admin_msgs_seen';
+    // newest message shown, so clocks never disagree; the first visit starts from the newest
+    // message, without a backlog. Test accounts are not counted. Since 0.19.0 the mark and the
+    // keys of the messages still highlighted live on the server (every answer of
+    // /usage/messages carries `seen` and `fresh`): a message read on one device is read on all.
     let _msgNew = null;
-    function _msgSeen() { try { return localStorage.getItem(MSG_SEEN_KEY) || ''; } catch (_) { return ''; } }
+    let _msgSeenTs = '';
+    const _msgFresh = new Set();
+    function _msgSeen() { return _msgSeenTs; }
+    function _syncMsgState(d) {
+      if (typeof d.seen === 'string') _msgSeenTs = d.seen;
+      if (Array.isArray(d.fresh)) { _msgFresh.clear(); d.fresh.forEach(k => _msgFresh.add(k)); }
+    }
+    function _postMsgState(path, body) {
+      return fetch(apiBase + path, { method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    }
     function _markMessagesSeen(ts) {
       if (!ts || ts <= _msgSeen()) { if (_msgNew) { _msgNew = 0; setBadge('badge-messages', 0); renderAttention(); } return; }
-      try { localStorage.setItem(MSG_SEEN_KEY, ts); } catch (_) { /* private window: no memory between visits */ }
+      _msgSeenTs = ts;   // at once, so a second call does not repeat the request
       _msgNew = 0;
       setBadge('badge-messages', 0);
       renderAttention();
+      _postMsgState('/usage/messages/seen', { ts })
+        .then(d => { _syncMsgState(d); if (activeTab === 'messages') renderMessages(true); })
+        .catch(() => { /* the next answer of the log brings the state of the server */ });
     }
     // The new messages are highlighted in the log until each one is clicked, so they can be
-    // read without hunting for them: keys kept in this browser, so a reload keeps them too.
-    const MSG_FRESH_KEY = 'zautte_admin_msgs_fresh', MSG_FRESH_MAX = 300;
-    const _msgFresh = new Set((() => { try { return JSON.parse(localStorage.getItem(MSG_FRESH_KEY) || '[]'); } catch (_) { return []; } })());
-    function _saveFresh() {
-      try { localStorage.setItem(MSG_FRESH_KEY, JSON.stringify([..._msgFresh].slice(-MSG_FRESH_MAX))); } catch (_) { /* private window */ }
-    }
-    // Messages after the mark of the last look are new (the first visit has no mark: nothing is new)
+    // read without hunting for them. Messages after the mark of the last look are marked here
+    // at once (the first visit has no mark: nothing is new); the server keeps the same list.
     function _noteFresh(msgs, seen) {
       if (!seen) return;
-      let changed = false;
-      msgs.forEach(m => { if (!m.test && m.ts > seen && !_msgFresh.has(_msgKey(m))) { _msgFresh.add(_msgKey(m)); changed = true; } });
-      if (changed) _saveFresh();
+      msgs.forEach(m => { if (!m.test && m.ts > seen) _msgFresh.add(_msgKey(m)); });
     }
     function _forgetFresh(card) {
       const key = card.dataset.key;
       if (!key || !_msgFresh.has(key)) return;
       _msgFresh.delete(key);
-      _saveFresh();
       card.classList.remove('fresh');
       const tag = card.querySelector('.msg-new');
       if (tag) tag.remove();
       _renderMsgStatus();
+      _postMsgState('/usage/messages/opened', { key }).catch(() => { /* still new elsewhere until the next look */ });
     }
     function countNewMessages() {
       if (activeTab === 'messages') return;  // the log on screen marks itself as seen
-      const seen = _msgSeen();
-      fetch(apiBase + '/usage/messages?limit=0&retrieved=false&since=' + encodeURIComponent(seen), { headers: adminHeaders() })
+      fetch(apiBase + '/usage/messages?limit=0&retrieved=false', { headers: adminHeaders() })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => {
-          if (!seen) { _markMessagesSeen(d.latest || ''); return; }
+          _syncMsgState(d);
+          if (!_msgSeen()) { _markMessagesSeen(d.latest || ''); return; }
           _msgNew = d.new || 0;
           setBadge('badge-messages', _msgNew);
           renderAttention();
@@ -428,6 +435,7 @@
       _fetchMessages(0)
         .then(d => {
           _msg.items = d.messages || []; _msg.total = d.total || 0;
+          _syncMsgState(d);
           _noteFresh(_msg.items, _msgSeen());
           _fillUserFilter(); renderMessages(); _markMessagesSeen(d.latest || '');
         })
@@ -443,6 +451,7 @@
         const rest = _msg.items.filter(m => !keys.has(_msgKey(m)) && m.ts < oldest);
         _msg.items = page.concat(rest);
         _msg.total = d.total || 0;
+        _syncMsgState(d);   // marks opened on another device go away here
         _noteFresh(page, _msgSeen());
         _fillUserFilter();
         renderMessages(true);
@@ -535,7 +544,7 @@
       const list = _filteredMessages();
       const shown = list.slice(0, _msg.shown);
       // a refresh that changes nothing leaves the page alone (scroll position, open answers)
-      const sig = shown.map(m => _msgKey(m) + ':' + (typeof m.a === 'string' ? m.a.length : '-')).join(',') + '#' + _msg.total;
+      const sig = shown.map(m => _msgKey(m) + ':' + (typeof m.a === 'string' ? m.a.length : '-') + (_msgFresh.has(_msgKey(m)) ? '*' : '')).join(',') + '#' + _msg.total;
       if (fromRefresh && sig === _msg.sig) return;
       _msg.sig = sig;
       const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.key));

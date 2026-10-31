@@ -407,6 +407,14 @@ class ChatResponse(BaseModel):
     link_hosts: list[str] = []
 
 
+class MessagesSeenRequest(BaseModel):
+    ts: str = Field(..., max_length=64, description="timestamp of the newest message shown (the `latest` of GET /usage/messages)")
+
+
+class MessageOpenedRequest(BaseModel):
+    key: str = Field(..., max_length=256, description="`rid|ts|uid` of the message opened in the log")
+
+
 class ForgetRequest(BaseModel):
     rids: list[str] = Field(default_factory=list, max_length=1000)
     uid: str | None = Field(None, max_length=64)
@@ -1146,6 +1154,11 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     messages arrived after it, test accounts left out (since 0.17.0: the badge on the
     Messages tab of the restricted area, read with `limit=0`). Messages of the test
     accounts carry `test: true` (since 0.18.0: the panel does not highlight them as new).
+
+    Since 0.19.0 the answer also carries `seen` (the mark of the last look at the log) and
+    `fresh` (keys `rid|ts|uid` of the messages still highlighted as new), kept on the server
+    in data/messages_seen.json so every device of the administrator sees the same marks;
+    without `since`, `new` is counted against the stored mark (none → no `new`).
     """
     usage_file = _DATA_DIR / "usage.jsonl"
     answers_file = _DATA_DIR / "answers.jsonl"
@@ -1185,13 +1198,102 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     total = len(msgs)
     msgs.reverse()  # most recent first
     start = max(offset, 0)
+    state = await asyncio.to_thread(_read_msg_state)
     result = {"messages": msgs[start:start + max(limit, 0)], "total": total,
-              "latest": msgs[0]["ts"] if msgs else ""}
+              "latest": msgs[0]["ts"] if msgs else "",
+              "seen": state["seen"], "fresh": state["fresh"]}
+    if since is None and state["seen"]:
+        since = state["seen"]
     if since is not None:
         mark = _parse_ts(since)
         result["new"] = sum(1 for m in msgs if m["uid"] not in tests
                             and (t := _parse_ts(m["ts"])) is not None and (mark is None or t > mark))
     return result
+
+
+# Since 0.19.0: the mark of the last look at the log and the messages still highlighted as new
+# live on the server (data/messages_seen.json), not in the browser: the administrator opens the
+# restricted area from several devices and a message read on one is read on all of them.
+_MSG_FRESH_MAX = 300
+
+
+def _msg_key(m: dict) -> str:
+    """Key of a message in the log, the same the panel builds: `rid|ts|uid`."""
+    return "|".join((m.get("rid") or "", m.get("ts") or "", m.get("uid") or ""))
+
+
+def _read_msg_state() -> dict:
+    f = _DATA_DIR / "messages_seen.json"
+    try:
+        d = json.loads(f.read_text(encoding="utf-8"))
+        seen = d.get("seen") or ""
+        fresh = [k for k in d.get("fresh") or [] if isinstance(k, str)]
+    except (OSError, ValueError, AttributeError):
+        seen, fresh = "", []
+    return {"seen": seen if isinstance(seen, str) else "", "fresh": fresh}
+
+
+def _write_msg_state(state: dict) -> None:
+    f = _DATA_DIR / "messages_seen.json"
+    state["fresh"] = state["fresh"][-_MSG_FRESH_MAX:]
+    write_text_atomic(f, json.dumps(state, ensure_ascii=False))
+
+
+def _mark_messages_seen(ts: str) -> dict:
+    """Moves the mark forward to `ts`; the messages (not of test accounts) arrived after the
+    previous mark become `fresh`. The first mark highlights nothing: no backlog."""
+    f = _DATA_DIR / "messages_seen.json"
+    new_mark = _parse_ts(ts)
+    if new_mark is None:
+        raise HTTPException(status_code=400, detail="Timestamp non valido")
+    with file_lock(f):
+        state = _read_msg_state()
+        old_mark = _parse_ts(state["seen"]) if state["seen"] else None
+        if old_mark is not None and new_mark <= old_mark:
+            return state
+        if old_mark is not None:
+            usage_file = _DATA_DIR / "usage.jsonl"
+            entries = _read_jsonl(usage_file) if usage_file.exists() else []
+            tests = _test_uids()
+            have = set(state["fresh"])
+            for e in entries:
+                if "q" not in e or e.get("uid", "") in tests:
+                    continue
+                t = _parse_ts(e.get("ts", ""))
+                if t is None or t <= old_mark or t > new_mark:
+                    continue
+                k = _msg_key(e)
+                if k not in have:
+                    state["fresh"].append(k)
+                    have.add(k)
+        state["seen"] = ts.strip()
+        _write_msg_state(state)
+        return state
+
+
+def _forget_fresh_message(key: str) -> dict:
+    f = _DATA_DIR / "messages_seen.json"
+    with file_lock(f):
+        state = _read_msg_state()
+        if key in state["fresh"]:
+            state["fresh"] = [k for k in state["fresh"] if k != key]
+            _write_msg_state(state)
+        return state
+
+
+@app.post("/usage/messages/seen")
+async def usage_messages_seen(req: MessagesSeenRequest, _: None = Security(require_admin)):
+    """The log has been looked at up to `ts` (the `latest` of GET /usage/messages) — admin
+    only, since 0.19.0. Returns the mark and the keys of the messages still to open."""
+    return await asyncio.to_thread(_mark_messages_seen, req.ts)
+
+
+@app.post("/usage/messages/opened")
+async def usage_message_opened(req: MessageOpenedRequest, _: None = Security(require_admin)):
+    """A highlighted message has been opened: it is no longer new on any device — admin
+    only, since 0.19.0. Returns the keys still to open."""
+    state = await asyncio.to_thread(_forget_fresh_message, req.key)
+    return {"fresh": state["fresh"]}
 
 
 def _parse_ts(value: str) -> datetime.datetime | None:
