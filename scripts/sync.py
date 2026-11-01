@@ -7,7 +7,7 @@ Modes:
   incremental  → incremental crawl + index only the changes (periodic use)
   inbox        → process only the documents in the inbox folder
   full-index   → no crawl, reindex from scratch everything already downloaded
-  news         → new items from the Bulletin and the feeds, with pages and attachments
+  news         → new items from the Bulletin, the feeds and the Telegram channel, with pages and attachments
                  (every 15 minutes from cron; --backfill = whole archive);
                  hot-reloads the index in the API instead of restarting it
   acts         → the registers of acts of a Nuvola portal, one passage per act (daily
@@ -176,7 +176,7 @@ async def run_sync(mode: str, backfill: bool = False):
     elif mode == "news":
         print_separator("Phase 1/1: News" + (" (full archive)" if backfill else ""))
         news = run_news(backfill=backfill)
-        if not any(news[k] for k in ("posts", "pages", "attachments", "chunks")):
+        if not any(news[k] for k in ("posts", "pages", "attachments", "telegram", "chunks")):
             return   # nothing new: no summary, no reload
 
     elif mode == "acts":
