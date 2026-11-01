@@ -62,7 +62,7 @@ class _FakeSMTP:
     def __init__(self, host, port, timeout=None):
         self.calls = []
         self.extensions = {"starttls"}
-        self.starttls_error = None
+        self.starttls_fails = False
         _FakeSMTP.instances.append(self)
 
     def __enter__(self):
@@ -79,8 +79,8 @@ class _FakeSMTP:
 
     def starttls(self, context=None):
         self.calls.append("starttls")
-        if isinstance(self.starttls_error, Exception):
-            raise self.starttls_error
+        if self.starttls_fails:
+            raise ssl.SSLError("bad certificate")
 
     def login(self, *a):
         self.calls.append("login")
@@ -110,7 +110,7 @@ def test_failed_opportunistic_starttls_falls_back_to_a_plain_connection(relay, m
     def init(self, *a, **k):
         orig_init(self, *a, **k)
         if len(_FakeSMTP.instances) == 1:
-            self.starttls_error = ssl.SSLError("bad certificate")
+            self.starttls_fails = True
     monkeypatch.setattr(_FakeSMTP, "__init__", init)
     mailer.send_email("a@example.org", "Oggetto", "Testo")
     first, second = relay.instances
