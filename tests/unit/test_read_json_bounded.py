@@ -58,15 +58,17 @@ def test_link_fifo_size_and_type_are_refused(tmp_path):
 def dynamic_file(tmp_path, monkeypatch):
     f = tmp_path / "known_facts_dynamic.json"
     monkeypatch.setattr(rag, "KNOWN_FACTS_DYNAMIC_FILE", f)
-    monkeypatch.setattr(rag, "_DYNAMIC_FACTS", {"facts": [], "mtime": None, "checked": 0.0})
+    # "checked" far in the past: on a machine booted less than a minute ago (a CI runner)
+    # time.monotonic() is below the 60 s recheck interval, and 0.0 would skip the read
+    monkeypatch.setattr(rag, "_DYNAMIC_FACTS", {"facts": [], "mtime": None, "checked": -1e9})
     return f
 
 
 def test_dynamic_facts_malformed_shapes_do_not_raise(dynamic_file):
     for content in ('{"a": 1}', '"text"', "[1, [2]]", "5", "null"):
         dynamic_file.write_text(content, encoding="utf-8")
-        rag._DYNAMIC_FACTS.update(mtime=None, checked=0.0)
-        assert rag._dynamic_known_facts() == []   # logged and skipped, never an error on a question
+        rag._DYNAMIC_FACTS.update(facts=[{"stale": True}], mtime=None, checked=-1e9)
+        assert rag._dynamic_known_facts() == []   # read, logged and skipped, never an error on a question
 
 
 def test_dynamic_facts_fifo_does_not_block(dynamic_file):
