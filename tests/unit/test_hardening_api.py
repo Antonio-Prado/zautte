@@ -79,7 +79,7 @@ class _FakeSMTP:
 
     def starttls(self, context=None):
         self.calls.append("starttls")
-        if self.starttls_error:
+        if isinstance(self.starttls_error, Exception):
             raise self.starttls_error
 
     def login(self, *a):
