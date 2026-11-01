@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-01
+
+### Changed
+- System prompt (Italian and English): a current notice (weather alert, closure, deadline, ordinance) is reported
+  with what it says; advice, recommendations or details taken from an older news item of the same kind are not
+  added to it unless named and cited. Asked about the weather alert of 2 November, the assistant appended the
+  precautions («avoid the seafront, piers, tree-lined avenues») of an orange alert of December 2023 to the message
+  of the day, citing only the latter.
+
 ## [0.20.0] - 2026-11-01
 
 ### Added
