@@ -90,9 +90,16 @@ def _sweep(now: float, force: bool = False) -> None:
 MIN_KEY_LENGTH = 16
 
 
+# Placeholders that appeared in .env.example and in the docs: an installation that copied one
+# would otherwise start with a key anybody can read on GitHub.
+_PLACEHOLDER_KEYS = frozenset({"chiave-segreta-qui", "your-secret-key-here"})
+
+
 def admin_key_ok() -> bool:
-    """False for an empty, short or placeholder key (the one in .env.example)."""
-    return len(ADMIN_API_KEY) >= MIN_KEY_LENGTH and not ADMIN_API_KEY.lower().startswith("cambia")
+    """False for an empty, short or placeholder key (one of .env.example or of the docs)."""
+    key = ADMIN_API_KEY.strip().lower()
+    return (len(ADMIN_API_KEY) >= MIN_KEY_LENGTH and not key.startswith("cambia")
+            and key not in _PLACEHOLDER_KEYS)
 
 
 def check_admin_key(request: Request, key: str | None) -> bool:

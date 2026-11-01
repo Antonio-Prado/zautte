@@ -20,7 +20,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Security
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Security
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -63,6 +63,7 @@ from config.settings import (
     BEDROCK_MODEL,
     CLAUDE_MODEL,
     DAILY_QUESTION_LIMIT,
+    FRAME_ANCESTORS,
     INSTANCE_DIR,
     LLM_PROVIDER,
     OLLAMA_MODEL,
@@ -70,6 +71,7 @@ from config.settings import (
     TEST_ACCOUNTS,
     now_local,
 )
+from indexer.embedder import query_embedding_status
 from indexer.vector_store import EMBEDDINGS_FILE, get_stats, get_top_doc, is_bm25_active
 
 logging.basicConfig(
@@ -96,6 +98,12 @@ async def require_admin(request: Request, key: str | None = Security(_api_key_he
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
 
 
+def _loopback_only(hosts: str) -> bool:
+    """True if every address in API_HOST (comma-separated) is a loopback one."""
+    names = [h.strip().strip("[]").lower() for h in hosts.split(",") if h.strip()]
+    return bool(names) and all(h in ("127.0.0.1", "::1", "localhost") for h in names)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
@@ -106,6 +114,11 @@ async def lifespan(app: FastAPI):
     if ADMIN_API_KEY and not admin_key_ok():
         raise RuntimeError("ADMIN_API_KEY is a placeholder or shorter than 16 characters: refusing to start "
                            "(generate one, e.g. python -c 'import secrets; print(secrets.token_urlsafe(32))')")
+    from config.settings import ADMIN_AUTH_DISABLED, API_HOST
+    if ADMIN_AUTH_DISABLED and not _loopback_only(API_HOST):
+        # a development switch must not survive into an installation reachable from the network
+        raise RuntimeError("ADMIN_AUTH_DISABLED=true opens every admin route: allowed only with API_HOST on "
+                           "loopback (127.0.0.1, ::1): refusing to start")
     from api.auth import _read_users
     if not AUTH_ENABLED and (_read_users() or []) and os.getenv("ALLOW_ANONYMOUS", "").lower() != "true":
         # accounts exist but the gate is off: .env was probably not read (permissions after a deploy)
@@ -225,6 +238,13 @@ async def _security_headers(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    # Framing: CSP frame-ancestors says it, but only while CSP_MODE enforces it; the older header
+    # keeps the pages out of foreign frames in every mode (omitted when FRAME_ANCESTORS names
+    # other sites: there CSP is the only way to say it)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        xfo = {"'none'": "DENY", "'self'": "SAMEORIGIN"}.get(FRAME_ANCESTORS)
+        if xfo:
+            response.headers.setdefault("X-Frame-Options", xfo)
     # Anything asked with a key or a token (statistics, messages, answers) is for that
     # requester only: no proxy or browser cache may keep it
     if request.headers.get("x-admin-key") or request.headers.get("authorization"):
@@ -282,6 +302,10 @@ class _RevalidatedStaticFiles(StaticFiles):
 def _with_csp(response):
     """Content-Security-Policy on the HTML pages, computed from the file being served."""
     file = getattr(response, "path", None)
+    if file and str(file).lower().endswith(".svg") and response.status_code == 200:
+        # an SVG opened directly is a document that could run scripts: none allowed
+        response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+        return response
     if file and str(file).lower().endswith(".html") and response.status_code == 200:
         try:
             text = Path(file).read_text(encoding="utf-8")
@@ -688,18 +712,14 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
     if not is_admin:
         return base
 
-    stats = get_stats()
     base["maintenance_info"] = maintenance.status()   # since when and why: admin only
     llm_info = {"ollama": OLLAMA_MODEL, "bedrock": BEDROCK_MODEL}.get(LLM_PROVIDER, CLAUDE_MODEL)
-    last_indexed = None
-    if EMBEDDINGS_FILE.exists():
-        mtime = EMBEDDINGS_FILE.stat().st_mtime
-        last_indexed = (datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC)
-                        .astimezone().strftime("%d/%m/%Y %H:%M"))
-
+    activity = get_activity_stats()   # in-memory counters of this process: read on the loop
+    # Walking the whole index and reading the data files takes a while: in a worker thread,
+    # so the other requests are not held up meanwhile.
+    slow = await asyncio.to_thread(_health_admin_details)
     # Token history: resolve the user id to a name (only here, admin view).
-    activity = get_activity_stats()
-    names = _load_user_names()
+    names = slow.pop("names")
     activity["token_history"] = [
         {**e, "user": names.get(e.get("uid"), e.get("uid", "")) or ""}
         for e in activity.get("token_history", [])
@@ -708,19 +728,34 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
     base.update({
         "llm_provider": LLM_PROVIDER,
         "hybrid_search": is_bm25_active(),
+        "llm_model": llm_info,
+        "queries_since_restart": get_query_count(),
+        "activity": activity,
+        "embedding": query_embedding_status(),
+        **slow,
+    })
+    return base
+
+
+def _health_admin_details() -> dict:
+    """The slow part of the admin view of /health (index walk, data files), off the event loop."""
+    stats = get_stats()
+    last_indexed = None
+    if EMBEDDINGS_FILE.exists():
+        mtime = EMBEDDINGS_FILE.stat().st_mtime
+        last_indexed = (datetime.datetime.fromtimestamp(mtime, tz=datetime.UTC)
+                        .astimezone().strftime("%d/%m/%Y %H:%M"))
+    return {
         "indexed_chunks": stats["total_chunks"],
         "unique_sources": stats["unique_sources"],
         "doc_types": stats["doc_types"],
-        "llm_model": llm_info,
         "last_indexed": last_indexed,
-        "queries_since_restart": get_query_count(),
         "gaps_total": _read_gaps_count(),
         "gaps_recent": _read_recent_gaps(5),
         "feedback": _read_feedback_summary(),
-        "activity": activity,
         "top_doc": get_top_doc(),
-    })
-    return base
+        "names": _load_user_names(),
+    }
 
 
 @app.get("/client-ip")
@@ -754,7 +789,7 @@ async def stats(_: None = Security(require_admin)):
 
 
 @app.get("/gaps")
-async def gaps(limit: int = 50, _: None = Security(require_admin)):
+async def gaps(limit: int = Query(50, ge=1, le=10000), _: None = Security(require_admin)):
     """Unanswered queries — useful to identify content gaps."""
     gaps_file = _DATA_DIR / "gaps.jsonl"
     if not gaps_file.exists():
@@ -857,6 +892,11 @@ def _notify_application(entry: dict) -> None:
     from config.settings import APPLY_NOTIFY_EMAIL
     if not APPLY_NOTIFY_EMAIL or not smtp_configured():
         return
+    from api import notify_guard
+    if not notify_guard.application_ok():
+        log.info("Application %s: notification skipped (hourly limit reached; it is in the restricted area)",
+                 entry.get("id", ""))
+        return
     # The restricted area accepts or rejects with a click (card "Volunteer applications")
     area = f"{public_base()}{ADMIN_PATH}" if ADMIN_PATH and public_base() else ""
     how = (f"Per accettarla (crea l'account e invia il link per la password) o rifiutarla apri "
@@ -919,6 +959,11 @@ def _notify_feedback(entry: dict) -> None:
     from config.settings import FEEDBACK_NOTIFY_EMAIL, PILOT_LOGIN_URL
     if not FEEDBACK_NOTIFY_EMAIL or not smtp_configured():
         return
+    from api import notify_guard
+    if not notify_guard.feedback_ok(str(entry.get("id", ""))):
+        log.info("Feedback %s: notification skipped (limit reached; the report is in the restricted area)",
+                 entry.get("id", ""))
+        return
     try:
         named = {**entry, "user": _load_user_names().get(entry.get("uid", "")) or entry.get("user", "")}
         send_feedback_notification(FEEDBACK_NOTIFY_EMAIL, named, PILOT_LOGIN_URL)
@@ -938,7 +983,7 @@ def _load_resolved_negative() -> set[str]:
 
 
 @app.get("/feedback/negative")
-async def feedback_negative(limit: int = 200, _: None = Security(require_admin)):
+async def feedback_negative(limit: int = Query(200, ge=1, le=10000), _: None = Security(require_admin)):
     """Questions with negative feedback not yet resolved, with author, comment
     and links reported by the colleague. Admin only."""
     from api import feedback_store as fs
@@ -1023,11 +1068,13 @@ def _notify_resolved(to: str, name: str, entry: dict, note: str) -> None:
     try:
         send_feedback_resolved(to, name, entry, note, PILOT_LOGIN_URL, reply_to=FEEDBACK_NOTIFY_EMAIL)
     except Exception:
-        log.warning("Acknowledgement email not sent to %s", to, exc_info=True)
+        # the user id, not the address: the API log is kept far longer than this failure matters
+        log.warning("Acknowledgement email not sent (feedback %s, user %s)", entry.get("id", ""),
+                    entry.get("uid", ""), exc_info=True)
 
 
 @app.get("/feedback/list")
-async def feedback_list(limit: int = 100, _: None = Security(require_admin)):
+async def feedback_list(limit: int = Query(100, ge=1, le=10000), _: None = Security(require_admin)):
     """List of feedback received — admin only. One vote per user and answer."""
     from api.feedback_store import dedup
     feedback_file = _DATA_DIR / "feedback.jsonl"

@@ -9,6 +9,58 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-01
+
+### Security
+- Startup: `ADMIN_AUTH_DISABLED=true` is refused unless `API_HOST` is loopback only, and the two admin key
+  placeholders that appeared in the docs (`chiave-segreta-qui`, `your-secret-key-here`) are refused like the
+  `cambia…` one of `.env.example`.
+- Account lockout: when the table of failed logins is full, the entries with the fewest failures go first
+  (expired ones before them), so a burst of other addresses no longer erases the count of an account under
+  attack. At most 16 logins or password resets run or wait for a password check: beyond that a quick 503.
+- `POST /auth/logout` is rate limited (30/minute) and rewrites the revocation list in a worker thread.
+- `GET /gaps`, `/feedback/list` and `/feedback/negative`: `limit` must be between 1 and 10000 (0 or a negative
+  value returned the whole file).
+- Browser: `X-Frame-Options` on the HTML pages whenever `FRAME_ANCESTORS` is `'none'` or `'self'`, so they stay
+  out of foreign frames in every `CSP_MODE`; SVG files under `/widget/` get a CSP that runs no script.
+  Widget: no link in an answer until the server has sent the allowed hosts, the source links follow the same
+  list, single quotes are escaped, and `ChatbotConfig` values are escaped or checked before going into markup
+  and CSS. Restricted area: timestamps escaped like every other value.
+- Crawler: more ways of hiding text are dropped before indexing (the 1px `clip` of screen-reader text,
+  opacity below 0.2, font sizes of 3px or below 0.3 of a unit, `transform: scale(0)`, transparent text not
+  painted by its background, `<template>`). Dynamic facts keep only http(s) links (a convocation link or an
+  event link that is not, is replaced by the page or dropped), the council and events jobs ignore proxies
+  set in the environment, and `scripts/cleanup_index.py` uses the crawler's own `should_skip`.
+- The sync jobs started as root stop when the sync account is missing, instead of going on as root with a
+  warning; `ALLOW_ROOT_SYNC=1` keeps the old behaviour.
+- Dependencies: pypdf 6.21.4 (seven advisories fixed in 6.21.3 and 6.21.4).
+
+### Added
+- Limits on the notification e-mails to the administrator: one per report in `FEEDBACK_NOTIFY_GAP_SECONDS`
+  (default 600), at most `FEEDBACK_NOTIFY_MAX_PER_HOUR` (30) report e-mails and `APPLY_NOTIFY_MAX_PER_HOUR` (10)
+  application e-mails per hour; reports and applications are stored and shown in the restricted area anyway.
+- E-mail: STARTTLS is used when the relay offers it even if `SMTP_STARTTLS` is off (a failed handshake falls
+  back to a plain connection, with a warning; never with a password).
+- `OLLAMA_CHAT_TIMEOUT` (default 240 s): the longest Ollama chat answer, below the lifetime of a model slot;
+  connecting and each wait for data are bounded too (they were 600 s each).
+- Admin view of `/health`: `embedding`, whether questions are being searched by words only because the
+  embedding service failed.
+- CI: a job that checks the locks against the known advisories (pip-audit); the tools of the CI jobs come from
+  hashed locks (`requirements-ci-lock.txt`, `requirements-a11y-lock.txt`, `requirements-audit-lock.txt`) and
+  axe-core from `package-lock.json`. `requirements-bedrock-lock.txt`: the extra packages of
+  `LLM_PROVIDER=bedrock`, pinned with hashes. `scripts/update_lock_hashes.py` takes the lock files to update.
+
+### Changed
+- The embedding of a question is one attempt with a deadline; after a failure the next questions are searched
+  by words only for a minute instead of each waiting through the retries of the indexer, and the first failure
+  of an outage is an error in the log.
+- The admin view of `/health` and the statistics file are computed and written off the event loop.
+- Log lines about a failed e-mail name the user id, not the address.
+- `scripts/setup_freebsd.sh` installs with `--require-hashes` explicitly, no longer upgrades pip from an
+  unchecked source, and suggests `python -m api.serve` instead of uvicorn on all interfaces.
+- Matomo: the browser that opened the restricted area is marked (`zautte_no_stats` in local storage, not a
+  secret) and not counted; the old check looked for the admin key in local storage, where it no longer is.
+
 ## [0.20.2] - 2026-11-01
 
 ### Security

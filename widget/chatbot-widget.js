@@ -64,6 +64,13 @@
     },
     window.ChatbotConfig || {}
   );
+  // The values go into markup and CSS: on a site where page editors fill ChatbotConfig from a CMS
+  // they must stay values. Texts are escaped where they are written; the others are checked here.
+  if (cfg.position !== "left") cfg.position = "right";
+  cfg.zIndex = parseInt(cfg.zIndex, 10) || 99999;
+  if (!/^#[0-9a-fA-F]{3,8}$/.test(String(cfg.primaryColor))) cfg.primaryColor = "#003366";
+  if (!/^[^\s@<>"'&]+@[^\s@<>"'&]+\.[^\s@<>"'&]+$/.test(String(cfg.contactEmail || ""))) cfg.contactEmail = "";
+  if (cfg.logoUrl && !/^(https?:\/\/|\/|\.{0,2}\/?[\w-])[^\s"'<>]*$/i.test(String(cfg.logoUrl))) cfg.logoUrl = "";
 
   // Language detection: config override or browser
   const browserLang = cfg.lang ||
@@ -714,16 +721,16 @@
       ${iconChat}
     </button>
 
-    <div id="${WIDGET_ID}-panel" role="dialog" aria-label="${cfg.title}" lang="${isItalian ? "it" : "en"}">
+    <div id="${WIDGET_ID}-panel" role="dialog" aria-label="${escapeHtml(String(cfg.title))}" lang="${isItalian ? "it" : "en"}">
       <div id="${WIDGET_ID}-header">
         <div id="${WIDGET_ID}-header-icon">
           ${cfg.logoUrl
-            ? `<img src="${cfg.logoUrl}" alt="${cfg.title}" loading="lazy">`
+            ? `<img src="${escapeHtml(String(cfg.logoUrl))}" alt="${escapeHtml(String(cfg.title))}" loading="lazy">`
             : iconChat}
         </div>
         <div id="${WIDGET_ID}-header-text">
-          <div id="${WIDGET_ID}-header-title">${cfg.title}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">${isItalian ? "IA" : "AI"}</span><span class="${WIDGET_ID}-sr">${T.aiBadge}</span></span></div>
-          <div id="${WIDGET_ID}-header-subtitle">${cfg.subtitle}</div>
+          <div id="${WIDGET_ID}-header-title">${escapeHtml(String(cfg.title))}<span class="${WIDGET_ID}-ai-badge" title="${T.aiBadge}"><span aria-hidden="true">${isItalian ? "IA" : "AI"}</span><span class="${WIDGET_ID}-sr">${T.aiBadge}</span></span></div>
+          <div id="${WIDGET_ID}-header-subtitle">${escapeHtml(String(cfg.subtitle || ""))}</div>
         </div>
         <div id="${WIDGET_ID}-header-actions">
           <button class="${WIDGET_ID}-icon-btn" id="${WIDGET_ID}-new" title="${T.clearChat}" aria-label="${T.clearChat}">
@@ -859,7 +866,7 @@
     "padding:11px 12px;border:1px solid #8a8a8a;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;";
   const labelStyle = "display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:4px;";
   loginEl.innerHTML = `
-    <h2 style="margin:0;font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle} ${cfg.title}</h2>
+    <h2 style="margin:0;font-weight:600;font-size:16px;color:${p};text-align:center;">${T.loginTitle} ${escapeHtml(String(cfg.title))}</h2>
     ${cfg.loginSubtitle ? `<div style="font-size:13px;opacity:.75;line-height:1.4;text-align:center;">${escapeHtml(cfg.loginSubtitle)}</div>` : ""}
     <div>
       <label for="${WIDGET_ID}-login-email" style="${labelStyle}">${T.loginEmail}</label>
@@ -1185,7 +1192,8 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   /** Links to "Come funziona" and to the privacy notice, only if configured.
@@ -1212,8 +1220,9 @@
     /([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/.source,
   ].join("|"), "g");
 
-  /** Hosts the current answer may link to, sent by the server before the first token
-   *  (null = unknown, an older server: every http(s) link is allowed). */
+  /** Hosts the current answer may link to, sent by the server before the first token. During an
+   *  answer it is a list (empty until that event arrives: no links); null outside answers, for the
+   *  texts of the page author (welcome, disclaimer), whose links are all allowed. */
   let linkHosts = null;
 
   function hostOf(url) {
@@ -1349,7 +1358,8 @@
   // text (document on a migrated domain, whose link is no longer valid).
   function renderSource(s) {
     let el;
-    if (s.url && /^https?:\/\//i.test(s.url)) {   // never a javascript: or file: link
+    // never a javascript: or file: link, and only to a host the server allowed for this answer
+    if (s.url && /^https?:\/\//i.test(s.url) && linkAllowed(s.url)) {
       el = document.createElement("a");
       el.href = s.url;
       el.target = "_blank";
@@ -1773,7 +1783,7 @@
       let receivedBlocked = false;
       let firstToken = true;
 
-      linkHosts = null;   // set again by the first event of this stream
+      linkHosts = [];   // no links until the first event of this stream says which hosts are allowed
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -1792,7 +1802,7 @@
             const payload = JSON.parse(line.slice(6));
 
             if (payload.link_hosts !== undefined) {
-              linkHosts = Array.isArray(payload.link_hosts) ? payload.link_hosts : null;
+              linkHosts = Array.isArray(payload.link_hosts) ? payload.link_hosts : [];
             } else if (payload.token !== undefined) {
               if (firstToken) {
                 removeTypingIndicator();

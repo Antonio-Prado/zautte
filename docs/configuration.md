@@ -64,7 +64,7 @@ QUERY_REWRITE=true
 #CLAUDE_REWRITE_MODEL=
 #BEDROCK_REWRITE_MODEL=
 
-# Claude on AWS Bedrock (pip install "anthropic[bedrock]"); the "eu." inference
+# Claude on AWS Bedrock (pip install --require-hashes -r requirements-lock.txt -r requirements-bedrock-lock.txt); the "eu." inference
 # profile keeps processing inside EU regions. AWS credentials come from the
 # standard chain (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, ...).
 BEDROCK_AWS_REGION=eu-south-1
@@ -142,6 +142,12 @@ PILOT_PERIOD=
 PUBLIC_BASE_URL=
 # Address notified of every report sent from the widget (empty = none)
 FEEDBACK_NOTIFY_EMAIL=
+# Limits on the notification e-mails (the reports and applications are stored anyway): one e-mail per
+# report in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR report e-mails and
+# APPLY_NOTIFY_MAX_PER_HOUR application e-mails per hour (0 = no hourly cap)
+#FEEDBACK_NOTIFY_GAP_SECONDS=600
+#FEEDBACK_NOTIFY_MAX_PER_HOUR=30
+#APPLY_NOTIFY_MAX_PER_HOUR=10
 # Maintenance mode: when the model provider refuses to serve (API credit exhausted, key not valid) the chat
 # answers "service under maintenance" (HTTP 503, neutral text) for this many seconds, then tries again;
 # the alert e-mail (default FEEDBACK_NOTIFY_EMAIL) goes out at most once an hour, plus one when the service is back
@@ -176,9 +182,11 @@ API_DOCS=false
 # Admin key (X-Admin-Key header) for /stats, /gaps, /feedback/{list,negative,resolve},
 # /usage/{summary,messages}, /crawl-history and the detailed /health.
 # With an empty key all admin requests are refused; set ADMIN_AUTH_DISABLED=true
-# to open them instead (development only). At least 16 characters, generated, e.g.
+# to open them instead (development only: refused at startup unless API_HOST is loopback only).
+# At least 16 characters, generated, e.g.
 #   python -c "import secrets; print(secrets.token_urlsafe(32))"
-# A shorter key, or one that starts with "cambia", stops the API from starting.
+# A shorter key, one that starts with "cambia", or a placeholder of the docs ("chiave-segreta-qui",
+# "your-secret-key-here") stops the API from starting.
 ADMIN_API_KEY=
 ADMIN_AUTH_DISABLED=false
 # Address of the restricted admin area, e.g. /area-riservata (empty = the area is off; the path is
@@ -223,6 +231,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `RETRIEVAL_TOP_K`      | `7`                            | Chunks passed to the LLM per query                   |
 | `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
 | `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
+| `OLLAMA_CHAT_TIMEOUT`  | `240`                          | Longest time for one answer of the Ollama chat model (seconds) |
 | `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Claude API model                                     |
 | `LLM_EFFORT`           | `low`                          | Reasoning effort (`low`/`medium`/`high`) for adaptive-reasoning models (Sonnet 5.x, Opus 4.7 and later) |
 | `QUERY_REWRITE`        | `true`                         | Rewrite follow-up questions as standalone queries before retrieval |

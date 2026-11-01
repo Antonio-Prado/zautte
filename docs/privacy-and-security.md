@@ -44,7 +44,7 @@ With `CONSENT_REQUIRED=true` a logged-in user cannot ask anything until, once, t
 ## Using Claude in a public administration
 
 - **Direct Anthropic API** (`LLM_PROVIDER=claude`): EEA customers contract with Anthropic Ireland; the Data Processing Addendum (with EU Standard Contractual Clauses) is part of the Commercial Terms; API data is not used for training and is deleted within 30 days (up to 2 years for content flagged for usage-policy violations). Processing can take place outside the EU (no EU data-residency option as of October 2026), and the service is not in the Italian ACN catalogue of qualified cloud services.
-- **Claude on AWS Bedrock** (`LLM_PROVIDER=bedrock`, requires `pip install "anthropic[bedrock]"`): with the `eu.` inference profile called from `eu-south-1` (Milan) requests are processed only in EU regions; AWS does not store prompts or completions and does not share them with Anthropic. AWS machine-learning services, Bedrock included, are ACN-qualified (QC2).
+- **Claude on AWS Bedrock** (`LLM_PROVIDER=bedrock`, requires the extra packages of `requirements-bedrock-lock.txt`, installed with `pip install --require-hashes -r requirements-lock.txt -r requirements-bedrock-lock.txt`): with the `eu.` inference profile called from `eu-south-1` (Milan) requests are processed only in EU regions; AWS does not store prompts or completions and does not share them with Anthropic. AWS machine-learning services, Bedrock included, are ACN-qualified (QC2).
 - In both cases the municipality is the data controller: it needs a DPIA, a record of processing activities and a privacy notice, and must purchase the service in line with public procurement rules.
 
 ## Rate Limiting

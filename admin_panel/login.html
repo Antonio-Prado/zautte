@@ -133,6 +133,8 @@
       if (await _validateAdminKey(key)) {
         _adminKey = key;
         try { sessionStorage.setItem(ADMIN_KEY_LS, key); } catch (_) {}
+        // not a secret: only tells widget/matomo.js not to count this browser's page views
+        try { localStorage.setItem('zautte_no_stats', '1'); } catch (_) {}
         startAdminView();
       } else {
         msg.textContent = _keyError;
@@ -142,6 +144,7 @@
 
     (async function init() {
       if (_adminKey && await _validateAdminKey(_adminKey)) {
+        try { localStorage.setItem('zautte_no_stats', '1'); } catch (_) {}
         startAdminView();
       } else {
         _adminKey = null;

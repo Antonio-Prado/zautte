@@ -51,7 +51,9 @@ def check(ok: bool, what: str) -> None:
 
 def sse(answer: str, language: str) -> str:
     chunks = [answer[i:i + 25] for i in range(0, len(answer), 25)]
-    body = "".join(f"data: {json.dumps({'token': c})}\n\n" for c in chunks)
+    # like the API: the hosts the answer may link to come first (the widget links nothing before them)
+    body = "data: " + json.dumps({"link_hosts": ["example.org"]}) + "\n\n"
+    body += "".join(f"data: {json.dumps({'token': c})}\n\n" for c in chunks)
     body += "data: " + json.dumps({"sources": SOURCES, "rid": "a1b2c3d4e5f6", "language": language}) + "\n\n"
     return body + 'data: {"done": true}\n\n'
 

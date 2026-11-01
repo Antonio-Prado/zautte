@@ -42,7 +42,8 @@ cd "$CHATBOT_DIR"
 python3.11 -m venv venv
 . venv/bin/activate
 
-pip install --upgrade pip setuptools wheel
+# The pip that comes with the venv: an unpinned `pip install --upgrade pip` would fetch the very tool
+# that checks the hashes from an unchecked source
 
 # orjson 3.11.9 and later require Rust 1.95 (on FreeBSD it is built from source): with an older
 # Rust, install from a copy of the lock where orjson is pinned to 3.11.8 with the hash of its source
@@ -58,10 +59,10 @@ if rustc --version 2>/dev/null | awk '{split($2, v, "."); exit !(v[1] == 1 && v[
         skip && /^[[:space:]]+--hash=/ { next }
         { skip = 0; print }
     ' requirements-lock.txt > "$LOCK_OLD_RUST"
-    pip install -r "$LOCK_OLD_RUST"
+    pip install --require-hashes -r "$LOCK_OLD_RUST"
     rm -f "$LOCK_OLD_RUST"
 else
-    pip install -r requirements-lock.txt
+    pip install --require-hashes -r requirements-lock.txt
 fi
 
 echo "[4/5] Creating data directories..."
@@ -78,6 +79,6 @@ fi
 
 echo ""
 echo "=== Setup completed ==="
-echo "To start the backend:"
-echo "  . venv/bin/activate"
-echo "  uvicorn api.main:app --host 0.0.0.0 --port 8000"
+echo "To start the backend (it listens on API_HOST of .env: loopback by default):"
+echo "  venv/bin/python -m api.serve api.main:app"
+echo "As a service: scripts/chatbot_rcd (see docs/operations.md)."

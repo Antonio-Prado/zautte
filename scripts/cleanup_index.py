@@ -19,53 +19,17 @@ import json
 import logging
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.privdrop import drop_to_sync_user
 
 drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
 
-from config.settings import (
-    CRAWL_ALLOWED_DOMAINS,
-    CRAWL_CACHE_DIR,
-    CRAWL_DOMAIN_MAX_PATH_DEPTH,
-    CRAWL_EXCLUDE_PATTERNS,
-    CRAWL_MAX_PATH_DEPTH,
-    DOCUMENTS_DIR,
-)
+from config.settings import CRAWL_CACHE_DIR, DOCUMENTS_DIR
+from crawler.crawler import should_skip  # the crawler's own rule (a copy here had drifted from it)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
-
-
-def should_skip(url: str) -> bool:
-    """Exact replica of the updated crawler's should_skip() logic."""
-    parsed = urlparse(url)
-
-    if parsed.scheme not in ("http", "https"):
-        return True
-
-    if "@" in parsed.netloc:
-        return True
-
-    if not any(d in parsed.netloc for d in CRAWL_ALLOWED_DOMAINS):
-        return True
-
-    full = parsed.path + ("?" + parsed.query if parsed.query else "")
-    if any(pat in full for pat in CRAWL_EXCLUDE_PATTERNS):
-        return True
-
-    segments = [s for s in parsed.path.split("/") if s]
-    domain_key = next(
-        (k for k in CRAWL_DOMAIN_MAX_PATH_DEPTH if k in parsed.netloc), None
-    )
-    max_depth = CRAWL_DOMAIN_MAX_PATH_DEPTH[domain_key] if domain_key else CRAWL_MAX_PATH_DEPTH
-    if len(segments) > max_depth:
-        return True
-
-    non_numeric = [s for s in segments if not s.isdigit()]
-    return len(non_numeric) != len(set(non_numeric))
 
 
 def cleanup(dry_run: bool = False):
