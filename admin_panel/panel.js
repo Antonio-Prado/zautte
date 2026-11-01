@@ -292,7 +292,7 @@
     function _reportItem(e) {
       const li = document.createElement('li');
       let html = '<div class="neg-q">' + _esc(e.question || '') + '</div>';
-      const meta = [fmtTs(e.ts), e.user ? '👤 ' + _esc(e.user) : ''].filter(Boolean).join(' · ');
+      const meta = [_esc(fmtTs(e.ts)), e.user ? '👤 ' + _esc(e.user) : ''].filter(Boolean).join(' · ');
       if (meta) html += '<div class="neg-meta">' + meta + '</div>';
       if (e.comment) html += '<div class="neg-comment">' + _esc(e.comment) + '</div>';
       if (e.urls && e.urls.length) {
@@ -660,7 +660,7 @@
           items.forEach(a => {
             const st = String(a.status || 'new');
             const li = document.createElement('li');
-            const meta = [fmtTs(a.ts), _esc(a.email), a.age ? _esc(a.age) + ' years' : '', a.district ? _esc(a.district) : '']
+            const meta = [_esc(fmtTs(a.ts)), _esc(a.email), a.age ? _esc(a.age) + ' years' : '', a.district ? _esc(a.district) : '']
               .filter(Boolean).join(' · ');
             li.innerHTML = '<span class="app-name">' + _esc(a.name) + '</span> <span class="app-badge ' + _esc(st) + '">' + _esc(st) + '</span>'
               + '<div class="app-meta">' + meta + '</div>' + (a.usage ? '<div class="app-usage">' + _esc(a.usage) + '</div>' : '');

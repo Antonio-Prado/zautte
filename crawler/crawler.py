@@ -234,22 +234,39 @@ _NOISE_LINES = re.compile(
 # for the model (indirect prompt injection). aria-hidden is not here on purpose: it hides
 # a decorative element from screen readers, not from the eye.
 _INVISIBLE_STYLE = re.compile(
-    r"display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*(?:0(?![.\d])|[12]px)|opacity\s*:\s*0(?![.\d])|"
-    r"(?:left|top|text-indent)\s*:\s*-\d{3,}|clip(?:-path)?\s*:\s*(?:rect\(\s*0|inset\(\s*50%)|"
+    r"display\s*:\s*none|visibility\s*:\s*hidden|"
+    # 0, 1px, 2px, 3px, or below 0.3 of any unit (.2em, 0.1rem…): unreadable
+    r"font-size\s*:\s*(?:0(?![.\d])|[123]px|0?\.[0-2]\d*\s*[a-z%]*)|"
+    r"opacity\s*:\s*(?:0(?![.\d])|0?\.[01]\d*)|"   # up to 0.19: not meant to be read
+    r"(?:left|top|text-indent)\s*:\s*-\d{3,}|"
+    r"clip(?:-path)?\s*:\s*(?:rect\(\s*[01]px|rect\(\s*0|inset\(\s*50%)|"   # also the 1px «sr-only» clip
+    r"transform\s*:\s*[^;\"]*scale\(\s*0(?![.\d])|"
     r"(?:height|width)\s*:\s*0(?![.\d])[^\"]*overflow\s*:\s*hidden",
     re.IGNORECASE,
 )
+# Transparent text, unless painted by its background (gradient headings with background-clip: text
+# are visible). Not background-color or border-color: those do not hide the text.
+_TRANSPARENT_TEXT = re.compile(r"(?<![-\w])color\s*:\s*transparent", re.IGNORECASE)
+
+
+def _hidden_style(style: str) -> bool:
+    if _INVISIBLE_STYLE.search(style):
+        return True
+    return bool(_TRANSPARENT_TEXT.search(style)) and "background-clip" not in style.lower()
 # Classes of the common frameworks that hide an element from the eye (screen-reader-only text included:
 # it is navigation noise for the index, and as good a place as any to hide instructions)
 _INVISIBLE_CLASS = re.compile(r"^(?:d-none|sr-only|visually-hidden|screen-reader-text|u-hidden|hidden)$", re.IGNORECASE)
 
 
 def drop_invisible(soup: BeautifulSoup) -> None:
+    # a <template> is never rendered: its content is markup kept for scripts
+    for tag in soup.find_all("template"):
+        tag.decompose()
     for tag in soup.find_all(True):
         if tag.decomposed:
             continue   # inside an element that was already removed
         classes = tag.get("class") or []
-        if (tag.has_attr("hidden") or _INVISIBLE_STYLE.search(tag.get("style") or "")
+        if (tag.has_attr("hidden") or _hidden_style(tag.get("style") or "")
                 or any(_INVISIBLE_CLASS.match(c) for c in classes)):
             tag.decompose()
 

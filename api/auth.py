@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import hashlib
 import hmac
 import html
@@ -155,6 +156,23 @@ _DUMMY_HASH = hash_password(secrets.token_hex(16))
 
 # At most this many password checks at once, each in a worker thread (not in the event loop)
 _password_slots = asyncio.Semaphore(4)
+# ...and at most this many requests running or waiting for one: beyond it a burst gets a quick 503
+# instead of a queue that grows without end (every login would then wait for the whole burst)
+_PASSWORD_QUEUE_MAX = 16
+_password_queue = {"n": 0}
+
+
+@contextlib.asynccontextmanager
+async def _password_slot():
+    if _password_queue["n"] >= _PASSWORD_QUEUE_MAX:
+        raise HTTPException(status_code=503, detail="Troppi accessi in questo momento: riprova tra poco.",
+                            headers={"Retry-After": "5"})
+    _password_queue["n"] += 1
+    try:
+        async with _password_slots:
+            yield
+    finally:
+        _password_queue["n"] -= 1
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +419,7 @@ async def login(request: Request, req: LoginRequest):
     locked = account_guard.login_locked(req.email)
     # a locked account is checked against the dummy hash: same time, same answer as a wrong password
     stored = user["pw_hash"] if user and not locked else _DUMMY_HASH
-    async with _password_slots:   # a few at a time: scrypt is deliberately heavy
+    async with _password_slot():   # a few at a time: scrypt is deliberately heavy
         ok = await asyncio.to_thread(verify_password_uniform, req.password, stored)
     if not user or not ok or locked:
         if not locked:
@@ -423,10 +441,12 @@ async def login(request: Request, req: LoginRequest):
 
 
 @router.post("/logout")
-async def logout(user: dict = Security(require_user)):
+@limiter.limit("30/minute")
+async def logout(request: Request, user: dict = Security(require_user)):
     """Ends the session: this token stops working even before it expires."""
     if user.get("exp"):
-        revoke_token(user)
+        # rewriting the revocation list takes a file lock and an fsync: in a worker thread
+        await asyncio.to_thread(revoke_token, user)
     return {"ok": True}
 
 
@@ -574,7 +594,8 @@ def _send_reset_email(user: dict) -> None:
             return
         send_password_reset_link(user["email"], user.get("name", ""), link, _RESET_TTL_MINUTES)
     except Exception:
-        log.warning("Password reset email not sent to %s", user.get("email"), exc_info=True)
+        # the user id, not the address: the API log is kept far longer than this failure matters
+        log.warning("Password reset email not sent (user %s)", user.get("id"), exc_info=True)
 
 
 @router.post("/forgot")
@@ -719,7 +740,7 @@ async def reset_password(request: Request, req: ResetRequest):
     if len(req.password) < _MIN_PASSWORD:
         raise HTTPException(status_code=400,
                             detail=f"La password deve avere almeno {_MIN_PASSWORD} caratteri.")
-    async with _password_slots:
+    async with _password_slot():
         done = await asyncio.to_thread(consume_reset_token, req.token, req.password)
     if done is None:
         raise HTTPException(status_code=400, detail="Il link non è valido o è scaduto.")

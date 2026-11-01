@@ -18,6 +18,7 @@ is cut to _CUT_STEPS characters in sequence until Ollama accepts it
 it is not needed, but it stays for short-context models.
 """
 
+import datetime
 import logging
 import random
 import re
@@ -111,13 +112,54 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     return all_embeddings
 
 
+# The embedding of a user question is on the path of every answer: one attempt, with a deadline,
+# and after a failure the next questions skip it for QUERY_COOLDOWN seconds (search by words only,
+# see api/rag.retrieve_context) instead of each waiting through the retries of the indexer. The
+# state is shown in the admin view of /health; the first failure of an outage is an error in the log.
+QUERY_TIMEOUT = 30.0
+QUERY_COOLDOWN = 60.0
+_query_state: dict = {"failures": 0, "down_until": 0.0, "last_error": "", "last_failure": None,
+                      "skipped": 0}
+
+
 def embed_query(query: str) -> list[float]:
-    """Generate an embedding for a single user query."""
-    with httpx.Client(timeout=30.0) as client:
-        result = _try_batch(client, [query])
-        if result:
-            return result[0]
-        return _embed_one(client, query)
+    """Embedding of a single user question; a zero vector when Ollama does not give one (the caller
+    then searches by words only)."""
+    now = time.monotonic()
+    if now < _query_state["down_until"]:
+        _query_state["skipped"] += 1
+        return _zero()
+    try:
+        with httpx.Client(timeout=QUERY_TIMEOUT) as client:
+            resp = client.post(f"{OLLAMA_BASE_URL}/api/embed", json=_body(input=[_clean(query)], truncate=True))
+            resp.raise_for_status()
+            vec = resp.json()["embeddings"][0]
+            if not vec:
+                raise ValueError("empty embedding")
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+        first = _query_state["failures"] == 0
+        _query_state.update(failures=_query_state["failures"] + 1, down_until=now + QUERY_COOLDOWN,
+                            last_error=type(exc).__name__,
+                            last_failure=datetime.datetime.now().astimezone().isoformat(timespec="seconds"))
+        (log.error if first else log.warning)(
+            "Embedding of the question failed (%s): search by words only for %d s", type(exc).__name__,
+            int(QUERY_COOLDOWN))
+        return _zero()
+    if _query_state["failures"]:
+        log.warning("Embedding of the questions works again after %d failures", _query_state["failures"])
+        _query_state.update(failures=0, down_until=0.0, skipped=0)
+    return vec
+
+
+def query_embedding_status() -> dict:
+    """For the admin view of /health: whether questions are searched by words only right now."""
+    return {
+        "degraded": time.monotonic() < _query_state["down_until"],
+        "consecutive_failures": _query_state["failures"],
+        "skipped_since_failure": _query_state["skipped"],
+        "last_error": _query_state["last_error"],
+        "last_failure": _query_state["last_failure"],
+    }
 
 
 def _try_batch(client: httpx.Client, texts: list[str]) -> list[list[float]] | None:

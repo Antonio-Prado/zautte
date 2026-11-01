@@ -51,16 +51,21 @@ def drop_to_sync_user() -> None:
     write in folders owned by the sync account, which could plant links there. Started as
     root they become that account (SYNC_USER, default zsync) before anything else, so before
     config.settings reads the secrets of .env: the account's own .env.sync is used instead.
-    An installation with no such account yet keeps running as before, with a warning."""
+    Without that account the script stops: parsing documents from the Internet as root is what the
+    account exists to avoid. ALLOW_ROOT_SYNC=1 in the environment runs it as root anyway (an
+    installation that has not created the account yet), with a warning."""
     if os.geteuid() != 0:
         return
     name = os.environ.get("SYNC_USER", "zsync").strip() or "zsync"
     try:
         pw = pwd.getpwnam(name)
     except KeyError:
-        print(f"warning: no account '{name}': running as root. Create it with scripts/setup_sync_user.sh.",
-              file=sys.stderr)
-        return
+        if os.environ.get("ALLOW_ROOT_SYNC", "").strip() == "1":
+            print(f"warning: no account '{name}': running as root (ALLOW_ROOT_SYNC=1). "
+                  "Create it with scripts/setup_sync_user.sh.", file=sys.stderr)
+            return
+        raise SystemExit(f"No account '{name}' for the sync jobs: create it with scripts/setup_sync_user.sh "
+                         "(or set ALLOW_ROOT_SYNC=1 to run this as root anyway).") from None
     if pw.pw_uid == 0:
         raise SystemExit("SYNC_USER cannot be root.")
     _become(pw)

@@ -30,7 +30,7 @@ import sys
 import tempfile
 from datetime import date
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -129,7 +129,10 @@ def parse_sessions(page: str, base_url: str, link_pattern: str = "consiglio") ->
         elif "straordinari" in low:
             note = "seduta straordinaria"
         if d not in found:
-            found[d] = {"date": d, "url": urljoin(base_url, html.unescape(href)), "text": text, "note": note}
+            link = urljoin(base_url, html.unescape(href))
+            if urlsplit(link).scheme not in ("http", "https"):
+                link = base_url   # a javascript: or data: "link" never reaches the fact: the page instead
+            found[d] = {"date": d, "url": link, "text": text, "note": note}
     return [found[k] for k in sorted(found)]
 
 
@@ -247,7 +250,8 @@ def upsert_fact(path: Path, fact: dict, dry_run: bool = False) -> bool:
 
 
 def fetch(url: str) -> str:
-    with httpx.Client(timeout=30, headers={"User-Agent": "Zautte council-sessions"}) as client:
+    # trust_env=False: a proxy set in the environment would see (and could alter) every request
+    with httpx.Client(timeout=30, headers={"User-Agent": "Zautte council-sessions"}, trust_env=False) as client:
         r = get_limited(client, url, CRAWL_ALLOWED_DOMAINS)
         r.raise_for_status()
         return r.text

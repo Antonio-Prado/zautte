@@ -16,6 +16,7 @@ Authenticated SMTP (e.g. Carbonio):
 
 from __future__ import annotations
 
+import logging
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -35,6 +36,8 @@ from config.settings import (
     SMTP_STARTTLS,
     SMTP_USER,
 )
+
+log = logging.getLogger(__name__)
 
 
 def smtp_configured() -> bool:
@@ -69,8 +72,31 @@ def send_email(to: str, subject: str, body: str, reply_to: str = "") -> None:
         if SMTP_STARTTLS and not SMTP_SSL:
             s.starttls(context=ssl.create_default_context())
             s.ehlo()
+        elif not SMTP_SSL and SMTP_HOST not in _LOOPBACK and s.has_extn("starttls"):
+            # STARTTLS not required, but the relay offers it: the bodies (questions, names,
+            # applications) should not cross the network in clear text when they need not
+            try:
+                s.starttls(context=ssl.create_default_context())
+                s.ehlo()
+            except (ssl.SSLError, smtplib.SMTPException, OSError) as exc:
+                log.warning("SMTP: the relay offers STARTTLS but it failed (%s): sending without TLS", exc)
+                _send_plain(msg)
+                return
+        elif not SMTP_SSL and SMTP_HOST not in _LOOPBACK:
+            log.warning("SMTP: the relay %s does not offer STARTTLS: e-mail sent in clear text", SMTP_HOST)
         if SMTP_USER:
             s.login(SMTP_USER, SMTP_PASSWORD)
+        s.send_message(msg)
+
+
+_LOOPBACK = ("localhost", "127.0.0.1", "::1")
+
+
+def _send_plain(msg: EmailMessage) -> None:
+    """A new connection without TLS, after an opportunistic STARTTLS failed (never with a password:
+    send_email refuses SMTP_USER without SMTP_SSL/SMTP_STARTTLS before getting here)."""
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+        s.ehlo()
         s.send_message(msg)
 
 

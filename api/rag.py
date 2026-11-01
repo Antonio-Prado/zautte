@@ -12,6 +12,7 @@ import asyncio
 import logging
 import re
 import sys
+import threading
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -34,6 +35,7 @@ from config.settings import (
     LLM_EFFORT,
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
+    OLLAMA_CHAT_TIMEOUT,
     OLLAMA_MODEL,
     QUERY_REWRITE,
     RETENTION_STATS_DAYS,
@@ -688,6 +690,10 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
 # Generation with Ollama
 # ---------------------------------------------------------------------------
 
+# Connecting and each wait for data are bounded; the whole answer within OLLAMA_CHAT_TIMEOUT.
+_OLLAMA_HTTP_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+
+
 async def generate_ollama(messages: list[dict]) -> str:
     """Calls Ollama in non-streaming mode and returns the complete answer."""
     payload = {
@@ -701,7 +707,7 @@ async def generate_ollama(messages: list[dict]) -> str:
             "num_ctx": 4096,
         },
     }
-    async with httpx.AsyncClient(timeout=600.0) as client:
+    async with asyncio.timeout(OLLAMA_CHAT_TIMEOUT), httpx.AsyncClient(timeout=_OLLAMA_HTTP_TIMEOUT) as client:
         resp = await client.post(f"{OLLAMA_BASE_URL}/api/chat", json=payload)
         resp.raise_for_status()
         data = resp.json()
@@ -718,16 +724,20 @@ async def stream_ollama(messages: list[dict]) -> AsyncGenerator[str, None]:
         "options": {"temperature": 0.3, "top_p": 0.9, "num_predict": 512, "num_ctx": 3072},
     }
     last_exc: Exception = RuntimeError("Ollama non disponibile")
+    deadline = _asyncio.get_running_loop().time() + OLLAMA_CHAT_TIMEOUT
     for attempt in range(2):
         if attempt > 0:
             await _asyncio.sleep(3)
         try:
             async with (
-                httpx.AsyncClient(timeout=600.0) as client,
+                httpx.AsyncClient(timeout=_OLLAMA_HTTP_TIMEOUT) as client,
                 client.stream("POST", f"{OLLAMA_BASE_URL}/api/chat", json=payload) as resp,
             ):
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():
+                    if _asyncio.get_running_loop().time() > deadline:
+                        log.warning("Ollama answer stopped after %d s", OLLAMA_CHAT_TIMEOUT)
+                        return
                     if not line:
                         continue
                     try:
@@ -972,11 +982,18 @@ def _expire_stats():
     _token_history[:] = [e for e in _token_history if str(e.get("ts", "")) >= cutoff]
 
 
+_stats_write_lock = threading.Lock()
+_stats_seq = 0
+
+
 def _save_stats():
+    """Snapshot of the statistics, written to stats.json. On the event loop the write (a temporary
+    file, fsync, rename) goes to a worker thread, so a question does not wait for the disk; a write
+    that a newer snapshot has overtaken is skipped, so the file never goes back in time."""
+    global _stats_seq
     _expire_stats()
     try:
-        _STATS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        write_text_atomic(_STATS_FILE, _json.dumps({
+        text = _json.dumps({
                 "query_count":      _query_count,
                 "response_times":   _response_times[-100:],
                 "query_freq":       dict(_query_freq.most_common(100)),
@@ -986,9 +1003,29 @@ def _save_stats():
                 "token_out_total":  _token_out_total,
                 "token_cost_total": _token_cost_total,
                 "token_history":    _token_history[-_TOKEN_HISTORY_MAX:],
-            }))
-    except (OSError, TypeError, ValueError) as e:
+            })
+    except (TypeError, ValueError) as e:
         log.warning(f"Could not save stats: {e}")
+        return
+    _stats_seq += 1
+    seq = _stats_seq
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _write_stats(text, seq)   # scripts, tests, shutdown: synchronous
+        return
+    loop.run_in_executor(None, _write_stats, text, seq)
+
+
+def _write_stats(text: str, seq: int) -> None:
+    with _stats_write_lock:
+        if seq != _stats_seq:
+            return   # a newer snapshot follows
+        try:
+            _STATS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            write_text_atomic(_STATS_FILE, text)
+        except OSError as e:
+            log.warning(f"Could not save stats: {e}")
 
 
 _load_stats()

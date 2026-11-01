@@ -9,7 +9,7 @@ LOGIN_MAX_FAILURES within LOGIN_LOCK_SECONDS the account refuses logins (with th
 answer as a wrong password, so nothing is revealed) until that time has passed, and a
 correct login clears the count. Reset emails are limited to RESET_EMAILS_PER_HOUR per
 account; the others are dropped silently. Counts live in memory (they restart with the
-service) and the tables are bounded, oldest entries first.
+service) and the tables are bounded (expired entries first, then those with the fewest failures).
 """
 
 import threading
@@ -36,9 +36,19 @@ def _recent(table: dict[str, list[float]], key: str, window: float, now: float) 
     return times
 
 
-def _bound(table: dict[str, list[float]]) -> None:
-    for k in list(table)[:max(0, len(table) - _MAX_TRACKED)]:
+def _bound(table: dict[str, list[float]], window: float, now: float) -> None:
+    """Keeps the table within _MAX_TRACKED. Expired entries go first; then the accounts with the
+    fewest failures in the window (oldest first). Evicting by insertion order let anyone erase the
+    count of an account under attack by sending enough other addresses; now that costs as many
+    wrong passwords per address as the account has collected."""
+    if len(table) <= _MAX_TRACKED:
+        return
+    for k in [k for k, v in table.items() if not v or now - v[-1] >= window]:
         del table[k]
+    excess = len(table) - int(_MAX_TRACKED * 0.9)   # trim to 90%: not a sort on every call
+    if excess > 0:
+        for k in sorted(table, key=lambda k: (len(table[k]), table[k][-1]))[:excess]:
+            del table[k]
 
 
 def login_locked(email: str) -> bool:
@@ -53,7 +63,7 @@ def login_failed(email: str) -> None:
         times = _recent(_failures, _key(email), LOGIN_LOCK_SECONDS, now)
         times.append(now)
         _failures[_key(email)] = times
-        _bound(_failures)
+        _bound(_failures, LOGIN_LOCK_SECONDS, now)
 
 
 def login_ok(email: str) -> None:
@@ -70,5 +80,5 @@ def reset_email_allowed(email: str) -> bool:
             return False
         times.append(now)
         _reset_sent[_key(email)] = times
-        _bound(_reset_sent)
+        _bound(_reset_sent, 3600.0, now)
         return True

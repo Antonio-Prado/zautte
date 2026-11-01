@@ -223,6 +223,9 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 # Ollama (local)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+# Longest time for one answer from the Ollama chat model (seconds), below the 300 s lifetime of a
+# model slot (api/llm_gate.py): a slow or stuck Ollama gives the slot back instead of holding it
+OLLAMA_CHAT_TIMEOUT = int(os.getenv("OLLAMA_CHAT_TIMEOUT", "240"))
 
 # Claude API (requires a DPA with Anthropic for use in public administration)
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -412,6 +415,12 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 # visible in the dashboard anyway (administrator view).
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
 APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
+# Limits on those e-mails (api/notify_guard.py; the data is stored and shown anyway): one e-mail per
+# feedback in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR feedback e-mails and
+# APPLY_NOTIFY_MAX_PER_HOUR application e-mails per hour (0 = no hourly cap)
+FEEDBACK_NOTIFY_GAP_SECONDS = int(os.getenv("FEEDBACK_NOTIFY_GAP_SECONDS", "600"))
+FEEDBACK_NOTIFY_MAX_PER_HOUR = int(os.getenv("FEEDBACK_NOTIFY_MAX_PER_HOUR", "30"))
+APPLY_NOTIFY_MAX_PER_HOUR = int(os.getenv("APPLY_NOTIFY_MAX_PER_HOUR", "10"))
 # Maintenance mode (api/maintenance.py): when the model provider refuses to serve (API
 # credit exhausted, key not valid) the chat answers "service under maintenance" for
 # MAINTENANCE_HOLD_SECONDS, then tries the model again; the administrator gets an alert

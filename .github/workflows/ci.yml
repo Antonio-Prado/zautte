@@ -23,11 +23,8 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install ruff==0.16.9 pytest==9.1.1
-          pip install --require-hashes -r requirements-lock.txt
+      - name: Install dependencies (every file checked against its hash)
+        run: pip install --require-hashes -r requirements-lock.txt -r requirements-ci-lock.txt
 
       - name: Ruff — lint
         run: ruff check .
@@ -57,9 +54,31 @@ jobs:
 
       - name: Install Playwright (Chromium) and axe-core
         run: |
-          pip install playwright==1.63.0
+          pip install --require-hashes -r requirements-a11y-lock.txt
           python -m playwright install --with-deps chromium
-          npm install --no-save axe-core@4.10.2
+          npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Widget and pages — axe-core, keyboard, announcements, answer structure
         run: python tests/a11y/check.py
+
+  audit:
+    name: Known vulnerabilities in the dependencies (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit (hashed)
+        run: |
+          python -m venv /tmp/audit
+          /tmp/audit/bin/pip install --require-hashes -r requirements-audit-lock.txt
+
+      - name: Audit the locks against the advisory databases
+        run: |
+          /tmp/audit/bin/pip-audit --strict --disable-pip --require-hashes -r requirements-lock.txt
+          /tmp/audit/bin/pip-audit --strict --disable-pip --require-hashes -r requirements-bedrock-lock.txt

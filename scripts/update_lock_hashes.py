@@ -1,12 +1,14 @@
 """
-Adds the SHA-256 of every published file to requirements-lock.txt.
+Adds the SHA-256 of every published file to requirements-lock.txt (or to the lock files named on the
+command line: requirements-ci-lock.txt, requirements-a11y-lock.txt, requirements-audit-lock.txt,
+requirements-bedrock-lock.txt).
 
 With a hash on each line pip checks what it downloads against the list and refuses anything
 else (a changed or substituted package), on any platform: the list holds the wheels and the
 source archive of each pinned version.
 
-Usage (needs the network; run after changing a version in requirements-lock.txt):
-    python scripts/update_lock_hashes.py
+Usage (needs the network; run after changing a version in a lock file):
+    python scripts/update_lock_hashes.py [lock files...]
 """
 
 import json
@@ -27,8 +29,15 @@ def hashes(name: str, version: str) -> list[str]:
 
 
 def main() -> int:
+    for lock in [Path(a) for a in sys.argv[1:]] or [LOCK]:
+        if update(lock):
+            return 1
+    return 0
+
+
+def update(lock: Path) -> int:
     out: list[str] = []
-    for line in LOCK.read_text(encoding="utf-8").splitlines():
+    for line in lock.read_text(encoding="utf-8").splitlines():
         m = PIN.match(line)
         if not m:
             if not line.startswith("    --hash="):
@@ -41,7 +50,7 @@ def main() -> int:
         pin = f"{m.group(1)}=={m.group(2)}"
         out.append(pin + " \\")
         out.extend(f"    --hash=sha256:{h}" + (" \\" if i < len(found) - 1 else "") for i, h in enumerate(found))
-    LOCK.write_text("\n".join(out) + "\n", encoding="utf-8")
+    lock.write_text("\n".join(out) + "\n", encoding="utf-8")
     return 0
 
 

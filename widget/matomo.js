@@ -16,7 +16,7 @@
  * IP anonymisation is set in the Matomo server (Privacy → Anonymize data).
  *
  * Not counted: pages outside https (local tests, accessibility tests) and the
- * browser where the restricted-area key is stored, except Matomo's «Test
+ * browser that opened the restricted area (marked by it), except Matomo's «Test
  * installation» (?tracker_install_check=… in the address), which is launched
  * from that very browser.
  */
@@ -30,8 +30,9 @@
   if (location.protocol !== "https:") return;
   var installCheck = /[?&]tracker_install_check=[a-f0-9]{32}(&|$)/i.test(location.search);
   try {
-    if (!installCheck && localStorage.getItem("zautte_admin_key")) return;
-  } catch (_) { /* localStorage blocked: count as usual */ }
+    // the restricted area marks the administrator's browser (its key lives only in the tab)
+    if (!installCheck && (localStorage.getItem("zautte_no_stats") || sessionStorage.getItem("zautte_admin_key"))) return;
+  } catch (_) { /* storage blocked: count as usual */ }
 
   var _paq = window._paq = window._paq || [];
   _paq.push(["disableCookies"]);

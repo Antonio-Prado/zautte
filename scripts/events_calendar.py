@@ -27,7 +27,7 @@ import re
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -117,6 +117,12 @@ def when(start: datetime, end: datetime, all_day: bool) -> str:
     return f"da {_day(first, year=first.year != last.year)} alle {_hour(start)} a {_day(last)} alle {_hour(end)}"
 
 
+def _http_url(value) -> str:
+    """The event link only if it is an http(s) address (never javascript:, data: or garbage)."""
+    url = str(value or "").strip()
+    return url if urlsplit(url).scheme in ("http", "https") and " " not in url else ""
+
+
 def _venue(event: dict) -> str:
     v = event.get("venue")
     if isinstance(v, list):
@@ -148,7 +154,7 @@ def parse_events(items: list[dict], today: date) -> list[dict]:
         events.append({
             "title": re.sub(r"\s+", " ", html.unescape(_TAG_RE.sub("", str(e.get("title") or "")))).strip(),
             "start": start, "end": end, "all_day": bool(e.get("all_day")),
-            "url": str(e.get("url") or ""), "venue": _venue(e),
+            "url": _http_url(e.get("url")), "venue": _venue(e),
             "cost": html.unescape(str(e.get("cost") or "")).strip(),
             "description": str(e.get("description") or ""),
         })
@@ -216,7 +222,8 @@ def build_fact(events: list[dict], today: date, horizon: date, calendar_url: str
 
 
 def fetch_json(url: str) -> dict:
-    with httpx.Client(timeout=30, headers={"User-Agent": "Zautte events-calendar",
+    # trust_env=False: a proxy set in the environment would see (and could alter) every request
+    with httpx.Client(timeout=30, trust_env=False, headers={"User-Agent": "Zautte events-calendar",
                                            "Accept": "application/json"}) as client:
         r = get_limited(client, url, CRAWL_ALLOWED_DOMAINS)
         r.raise_for_status()
