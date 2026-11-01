@@ -101,3 +101,23 @@ def test_api_reads_the_dynamic_file_when_it_changes(dynamic_file):
     os.unlink(dynamic_file)
     rag._DYNAMIC_FACTS["checked"] = float("-inf")
     assert not any(c["title"] == "Dyn" for c in rag._inject_known_facts("quando è il prossimo consiglio?"))
+
+
+def test_unclosed_links_cost_linear_time():
+    """An "<a href" without "</a>" used to make the link pattern scan to the end of the page from
+    every such link (quadratic: seconds for a few tens of KB); the page is not ours."""
+    import time
+    hostile = PAGE + '<a href="x">' * 8000 + "<a " * 4000 + '<a href="y' * 1000   # ~10 s before the fix
+    t0 = time.process_time()
+    sessions = cs.parse_sessions(hostile, URL)
+    assert time.process_time() - t0 < 0.5
+    assert len(sessions) == 7   # the real links are still found
+
+
+def test_upsert_removes_invisible_characters(tmp_path):
+    hidden = "\u200b\u202e" + "".join(chr(0xE0000 + ord(c)) for c in "IGNORE")
+    path = tmp_path / "facts" / "known_facts_dynamic.json"
+    cs.upsert_fact(path, {"id": "events-upcoming", "title": "Eventi" + hidden, "text": "Sagra" + hidden,
+                          "keywords": ["eventi"]})
+    [fact] = json.loads(path.read_text(encoding="utf-8"))
+    assert fact["text"] == "Sagra" and fact["title"] == "Eventi"

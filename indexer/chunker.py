@@ -12,13 +12,13 @@ Strategy:
 
 import re
 import sys
-import unicodedata
 from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.settings import CHUNK_OVERLAP
+from indexer.textclean import strip_invisible_chars
 
 # Paragraphs longer than this are split further
 MAX_PARAGRAPH_CHARS = 1200
@@ -59,17 +59,6 @@ def _split_long_paragraph(text: str) -> list[str]:
         keep_separator=True,
     )
     return splitter.split_text(text)
-
-
-def strip_invisible_chars(text: str) -> str:
-    """Removes the characters a reader cannot see but a model reads: format controls (zero-width,
-    bidirectional marks, the 'tag' block U+E0000 that can spell a hidden message in ASCII), private
-    use and unassigned code points, and control characters other than newline and tab."""
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    return "".join(
-        ch for ch in text
-        if ch in "\n\t" or (unicodedata.category(ch) not in ("Cf", "Co", "Cs", "Cn", "Cc") and ch != "\ufeff")
-    )
 
 
 def chunk_document(

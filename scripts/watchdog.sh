@@ -21,6 +21,16 @@ ENVFILE=/opt/chatbot/.env
 
 stamp() { date '+%Y-%m-%d %H:%M:%S'; }
 
+# One run at a time: if a run is still going (a service command that hangs), the next ones exit
+# at once instead of piling up root processes every minute.
+if [ -z "$ZAUTTE_WATCHDOG_LOCKED" ]; then
+    export ZAUTTE_WATCHDOG_LOCKED=1
+    exec lockf -s -t 0 /var/run/zautte-watchdog.lock /bin/sh "$0" "$@"
+fi
+# lockf holds the lock until this run ends; no descriptor beyond stdio is passed on, so neither the
+# service started below nor the background reload can keep the lock after this run is over
+exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&-
+
 # If the service is in maintenance, do nothing
 if [ -f "$MAINTENANCE" ]; then
     exit 0
@@ -53,7 +63,9 @@ fi
 # Check whether the process is alive
 if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
     # Process alive — check that it responds
-    STATUS=$(fetch -q -o - "$HEALTH_URL" 2>/dev/null)
+    # With a deadline: an API that accepts the connection but never answers (a blocked event loop)
+    # must count as not responding, not hold this run for ever
+    STATUS=$(fetch -T 10 -q -o - "$HEALTH_URL" 2>/dev/null)
     if echo "$STATUS" | grep -q '"status":"ok"'; then
         if [ -f "$CONTROL/reload" ]; then
             last=$(cat "$STATE.reload" 2>/dev/null || echo 0)

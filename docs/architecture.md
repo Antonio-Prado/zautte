@@ -175,6 +175,8 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
 │   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
 │   ├── acts_sync.sh          # Registers of acts twice a day (same lock)
+│   ├── council_sessions.sh   # Council sessions job every hour (own lock, memory ceiling, time limit)
+│   ├── events_calendar.sh    # Events job every hour (own lock, memory ceiling, time limit)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
 │   ├── setup_sync_user.sh    # Creates the unprivileged account of the sync jobs (run once as root)
 │   ├── make_sync_env.py      # Builds .env.sync from an allowlist (no secrets)

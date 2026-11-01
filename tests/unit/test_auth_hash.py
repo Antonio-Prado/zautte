@@ -40,3 +40,28 @@ def test_empty_revocation_file_is_an_empty_list(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "_revoked_state", {"mtime": None, "keys": {}})
     assert auth._revoked_keys() == {}
     assert auth._revoked_state["mtime"] is not None   # read once, not complained about at every request
+
+
+def test_failed_login_costs_the_same_for_an_older_hash(monkeypatch):
+    """An older hash (N=2**14) is padded to the work of the current N, as the decoy hash costs:
+    the time of a wrong password does not tell which e-mails are registered."""
+    salt = secrets.token_bytes(16)
+    dk = hashlib.scrypt(b"old-password", salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    old = f"scrypt$16384$8$1${base64.b64encode(salt).decode()}${base64.b64encode(dk).decode()}"
+    work = []
+    real = hashlib.scrypt
+
+    def counting(*args, **kwargs):
+        work.append(kwargs["n"])
+        return real(*args, **kwargs)
+    monkeypatch.setattr(auth.hashlib, "scrypt", counting)
+    assert auth.verify_password_uniform("old-password", old)
+    assert sum(work) == auth._SCRYPT_N
+    work.clear()
+    assert not auth.verify_password_uniform("wrong", old)
+    assert sum(work) == auth._SCRYPT_N
+    work.clear()
+    assert not auth.verify_password_uniform("wrong", auth._DUMMY_HASH)
+    assert sum(work) == auth._SCRYPT_N
+    work.clear()
+    assert not auth.verify_password_uniform("x", "garbage")   # malformed: no padding, no error

@@ -105,3 +105,35 @@ def ensure_private(paths: list[Path]) -> list[str]:
                 except OSError as e:
                     problems.append(f"{p.name}: cannot restrict permissions ({e.strerror})")
     return problems
+
+
+def read_json_bounded(path: Path, max_bytes: int, expect: type | tuple[type, ...]):
+    """Reads a JSON file written by another, less trusted account (the sync jobs) without trusting
+    it: a link is not followed, a FIFO or any other non-regular file is refused without blocking,
+    the size is bounded and the type of the top-level value checked.
+
+    Raises OSError (FileNotFoundError when the file is missing) or ValueError."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0))
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            raise ValueError(f"{path} is not a regular file")
+        if st.st_size > max_bytes:
+            raise ValueError(f"{path} is larger than {max_bytes} bytes")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(1 << 16, max_bytes + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > max_bytes:   # it grew while being read
+                raise ValueError(f"{path} is larger than {max_bytes} bytes")
+    finally:
+        os.close(fd)
+    data = json.loads(b"".join(chunks).decode("utf-8"))
+    if not isinstance(data, expect):
+        # ValueError like any other malformed content: the callers treat them the same way
+        raise ValueError(f"{path}: unexpected content ({type(data).__name__})")  # noqa: TRY004
+    return data

@@ -19,9 +19,9 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import smalltalk
+from api import maintenance, smalltalk
 from api.filelock import file_lock
-from api.safefile import dump_line, write_text_atomic
+from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
     ANTHROPIC_API_KEY,
     BEDROCK_AWS_REGION,
@@ -45,6 +45,7 @@ from config.settings import (
     now_local,
 )
 from indexer.embedder import embed_query
+from indexer.textclean import strip_invisible_chars
 from indexer.vector_store import hybrid_search
 
 log = logging.getLogger(__name__)
@@ -248,6 +249,8 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
 def _parse_known_facts(entries: list[dict]) -> list[dict]:
     result = []
     for e in entries:
+        if not isinstance(e, dict):
+            continue   # a malformed entry (the dynamic file is written by another account): skipped
         # Explicit precedence: "source" (full URL) takes priority; otherwise
         # "source_path" relative to SITE_URL; otherwise no source.
         # (It used to be a single expression with wrong precedence: facts with
@@ -266,8 +269,9 @@ def _parse_known_facts(entries: list[dict]) -> list[dict]:
             "ignore":      [re.compile(r"\b" + r"\s+".join(map(re.escape, p.lower().split())) + r"\b")
                             for p in e.get("ignore_phrases", []) if p.strip()],
             "chunk": {
-                "text":     e["text"],
-                "title":    e["title"],
+                # characters a reader cannot see but a model reads, as in every indexed passage
+                "text":     strip_invisible_chars(str(e["text"])),
+                "title":    strip_invisible_chars(str(e["title"])),
                 "source":   source,
                 "score":    1.0,
                 "category": e.get("category", "pagina"),
@@ -284,7 +288,7 @@ def _load_known_facts() -> list[dict]:
         return []
     try:
         return _parse_known_facts(_j.loads(f.read_text(encoding="utf-8")))
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         log.warning(f"Could not load known_facts.json: {exc}")
         return []
 
@@ -294,25 +298,28 @@ _KNOWN_FACTS = _load_known_facts()
 # a minute and reread when it changes, so the API never needs a restart for them.
 _DYNAMIC_FACTS: dict = {"facts": [], "mtime": None, "checked": 0.0}
 _DYNAMIC_CHECK_SECONDS = 60
+# The file is written by the sync account, not by this one: it is read without following a link,
+# refused if it is not a regular file (a FIFO would block the retrieval thread) or bigger than this.
+_DYNAMIC_FACTS_MAX_BYTES = 4 * 1024 * 1024
 
 
 def _dynamic_known_facts() -> list[dict]:
-    import json as _j
     import time as _t
     now = _t.monotonic()
     if now - _DYNAMIC_FACTS["checked"] < _DYNAMIC_CHECK_SECONDS:
         return _DYNAMIC_FACTS["facts"]
     _DYNAMIC_FACTS["checked"] = now
     try:
-        mtime = KNOWN_FACTS_DYNAMIC_FILE.stat().st_mtime
+        mtime = KNOWN_FACTS_DYNAMIC_FILE.lstat().st_mtime
     except OSError:
         mtime = None
     if mtime != _DYNAMIC_FACTS["mtime"]:
         facts: list[dict] = []
         if mtime is not None:
             try:
-                facts = _parse_known_facts(_j.loads(KNOWN_FACTS_DYNAMIC_FILE.read_text(encoding="utf-8")))
-            except (OSError, ValueError, KeyError, TypeError) as exc:
+                facts = _parse_known_facts(read_json_bounded(
+                    KNOWN_FACTS_DYNAMIC_FILE, _DYNAMIC_FACTS_MAX_BYTES, list))
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
                 log.warning(f"Could not load {KNOWN_FACTS_DYNAMIC_FILE.name}: {exc}")
         _DYNAMIC_FACTS["facts"] = facts
         _DYNAMIC_FACTS["mtime"] = mtime
@@ -761,6 +768,7 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
         messages=user_messages,
         **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=1024),
     )
+    maintenance.recovered()   # the provider answered: a maintenance incident, if any, is over
     try:
         if response.usage:
             _record_tokens(response.usage.input_tokens, response.usage.output_tokens,
@@ -793,6 +801,7 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
         async for text in stream.text_stream:
             sent = sent or bool(text)
             yield text
+        maintenance.recovered()   # the provider streamed a whole answer: the incident, if any, is over
         try:
             final = await stream.get_final_message()
         except (AttributeError, TypeError, ValueError) as exc:

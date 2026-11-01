@@ -31,8 +31,12 @@ for d in vectorstore crawl_cache documents inbox backups; do
     # also linked from somewhere else (it could be one the sync account must not own)
     [ -d "$DATA/$d" ] && find "$DATA/$d" \( -type d -o \( -type f -links 1 \) \) -exec chown $SYNC_USER:$SYNC_USER {} +
 done
-mkdir -p /var/log/chatbot && find /var/log/chatbot \( -type d -o \( -type f -links 1 \) \) -exec chown $SYNC_USER:$SYNC_USER {} +
-touch /var/log/chatbot-sync.log && chown $SYNC_USER:$APP_USER /var/log/chatbot-sync.log && chmod 640 /var/log/chatbot-sync.log
+# The logs of the sync jobs sit directly in /var/log (root's folder), never in a folder the sync
+# account owns: root's newsyslog rotates them (see scripts/newsyslog-chatbot.conf)
+for f in /var/log/chatbot-sync.log /var/log/chatbot-full.log; do
+    [ -L "$f" ] && rm -f "$f"
+    touch "$f" && chown $SYNC_USER:$APP_USER "$f" && chmod 640 "$f"
+done
 
 # The sync account's own environment file: an allowlist of the settings the jobs need
 # (scripts/make_sync_env.py); no secret of the API, the admin area, SMTP or the cloud
@@ -45,4 +49,5 @@ chown root:$SYNC_USER $APP/.env.sync && chmod 640 $APP/.env.sync
 chown root:$SHARED_GROUP $DATA && chmod 1770 $DATA
 
 echo "done. Now: sed the sync lines of /etc/crontab from root to $SYNC_USER, and set"
-echo "'root:$SYNC_USER' -> '$SYNC_USER:$APP_USER' for chatbot-sync.log in /etc/newsyslog.conf.d/chatbot.conf."
+echo "'$SYNC_USER:$APP_USER' for chatbot-sync.log and chatbot-full.log in /etc/newsyslog.conf.d/chatbot.conf"
+echo "(copy scripts/newsyslog-chatbot.conf); /var/log/chatbot/, if it is there, is no longer used."

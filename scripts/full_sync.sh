@@ -11,7 +11,9 @@ CONTROL=/var/db/zautte-sync
 if [ -d "$CONTROL" ]; then LOCKFILE=$CONTROL/sync.lock; else LOCKFILE=/var/run/chatbot-sync.lock; fi
 # The unprivileged sync account reads the copy of .env without the API secrets, if there is one
 if [ "$(id -u)" != 0 ] && [ -r /opt/chatbot/.env.sync ]; then export ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync; fi
-LOGFILE=/var/log/chatbot/sync_full.log
+# In /var/log itself (root's folder), not in a folder of the sync account: root's newsyslog rotates
+# and compresses this file, and in a folder the sync account owns it could swap the names for links
+LOGFILE=/var/log/chatbot-full.log
 WAIT_SECONDS=43200
 
 cd /opt/chatbot || exit 1

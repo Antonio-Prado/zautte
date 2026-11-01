@@ -85,8 +85,8 @@ The sync jobs download and parse documents from the Internet, so they should not
 0        3    1    *     *    zsync /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    zsync /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
 50       7,14 *    *     *    zsync /opt/chatbot/scripts/acts_sync.sh >/dev/null 2>&1
-7        *    *    *     *    zsync cd /opt/chatbot && ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync venv/bin/python -m scripts.council_sessions >>/var/log/chatbot-sync.log 2>&1
-12       *    *    *     *    zsync cd /opt/chatbot && ZAUTTE_ENV_FILE=/opt/chatbot/.env.sync venv/bin/python -m scripts.events_calendar >>/var/log/chatbot-sync.log 2>&1
+7        *    *    *     *    zsync /opt/chatbot/scripts/council_sessions.sh >>/var/log/chatbot-sync.log 2>&1
+12       *    *    *     *    zsync /opt/chatbot/scripts/events_calendar.sh >>/var/log/chatbot-sync.log 2>&1
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
 
@@ -99,11 +99,11 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 | every minute                   | `watchdog.sh`           | Restarts the API if it is down or unresponsive; reloads or restarts it when a sync asks for it |
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
-| 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot/sync_full.log` |
+| 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot-full.log` |
 | every 15 minutes               | `news_sync.sh`          | New articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
 | 07:50 and 14:50 every day      | `acts_sync.sh`          | Registers of acts (resolutions) → one passage per act and the «latest acts» fact; hot reload of the API when something changed; skipped while another sync holds the lock |
-| every hour (minute 7)          | `scripts.council_sessions` | Calendar of the council sessions from the convocations page → dynamic known fact; no lock needed (one HTTP request, writes only `data/facts/`) |
-| every hour (minute 12)         | `scripts.events_calendar` | Events in progress and coming up from the events calendar API → dynamic known fact; no lock needed (a few HTTP requests, writes only `data/facts/`) |
+| every hour (minute 7)          | `council_sessions.sh`   | Calendar of the council sessions from the convocations page → dynamic known fact; writes only `data/facts/`; own lock (skipped while the previous run is still going), memory ceiling and a 10-minute limit (`HOURLY_JOB_TIMEOUT`), since the page is not ours |
+| every hour (minute 12)         | `events_calendar.sh`    | Events in progress and coming up from the events calendar API → dynamic known fact; writes only `data/facts/`; own lock, memory ceiling and time limit as above |
 
 Two jobs of `scripts/cron_setup.sh` below are **not** in the production crontab: `sync inbox` is run by hand after dropping documents into `data/inbox/` (nobody does that continuously, and run as root it restarts the API like the other syncs), and `purge_logs` stays off until the retention periods are approved by the data protection officer (try it with `--dry-run`; to enable it add `15 2 * * * root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1`).
 
@@ -121,7 +121,7 @@ An alternative for installations that run the service as a dedicated `chatbot` u
 
 The script predates the `zsync` account: prefer the `/etc/crontab` lines above, with `zsync`, for the syncs.
 
-Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Question a1b2c3d4e5f6 | 36 characters | lang=it | chunks=7 | provider=claude`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the full sync also writes `/var/log/chatbot/sync_full.log` (rotated by newsyslog). `/var/log/chatbot/` belongs to the sync account: never send the output of a root job there (on FreeBSD the owner of the folder could redirect it through a link); root jobs write to `/var/log/chatbot-sync.log` or to `/dev/null`.
+Logs: the API writes to `/var/log/chatbot.log` (each question appears only as its 12-character id, `Question a1b2c3d4e5f6 | 36 characters | lang=it | chunks=7 | provider=claude`, never as text); sync, watchdog and backup events go to `/var/log/chatbot-sync.log`; the full sync also writes `/var/log/chatbot-full.log` (rotated by newsyslog). Every log sits directly in `/var/log`, which only root writes: never put a log that a root job writes, or that root's newsyslog rotates, in a folder the sync account owns (on FreeBSD the owner of the folder could redirect it through a link). The folder `/var/log/chatbot/` of earlier versions is no longer used.
 
 ### Vector Store Backup
 
@@ -148,11 +148,11 @@ service chatbot restart
 
 - if `/var/run/chatbot.maintenance` exists (created by `service chatbot stop`, removed by `service chatbot start`) it does nothing
 - if the daemon in `/var/run/chatbot.pid` is not running, it runs `service chatbot start`
-- if it is running but `GET http://127.0.0.1:8000/health` does not return `"status":"ok"`, it kills the daemon and the uvicorn processes (`kill -9`) and starts the service again
+- if it is running but `GET http://127.0.0.1:8000/health` does not return `"status":"ok"` within 10 seconds, it kills the daemon and the uvicorn processes (`kill -9`) and starts the service again (not in the first 5 minutes after a start, while the index loads)
 - if a `restart` file exists in `/var/db/zautte-sync/` (left by a sync job that is not root) it removes it and runs `service chatbot restart`
 - if a `reload` file exists and the API is healthy, it removes it and calls `POST /admin/reload` with `ADMIN_API_KEY` read from `/opt/chatbot/.env`
 
-The watchdog uses port 8000 and `/var/db/zautte-sync` whatever `API_PORT` and `SYNC_CONTROL_DIR` say: keep the defaults.
+Only one run at a time (`lockf` on `/var/run/zautte-watchdog.lock`): if a run is still going, the next ones exit at once. The watchdog uses port 8000 and `/var/db/zautte-sync` whatever `API_PORT` and `SYNC_CONTROL_DIR` say: keep the defaults.
 
 Events go to `/var/log/chatbot-sync.log`. The watchdog is also what brings the API back after every sync.
 
@@ -212,7 +212,7 @@ chgrp zautte /var/log/chatbot-sync.log                           # read by /craw
 
 ### Running the sync jobs without root
 
-`scripts/setup_sync_user.sh` (run once as root, idempotent) creates the account `zsync` and the group `zdata` (both the API account and `zsync` belong to it, so both can create files in `data/`; the sticky bit keeps each from touching the other's). `zsync` owns only what the sync writes: `vectorstore`, `crawl_cache`, `documents`, `inbox`, `backups`, `/var/log/chatbot/` and the sync log. It reads `.env.sync`, which `scripts/make_sync_env.py` builds from an allowlist of the settings the jobs need (`CRAWL_*`, `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_MODEL`, `SITE_NAME`, `SITE_URL`, `MIGRATED_DOMAINS`, `INSTANCE_DIR`, `API_PORT`, `SYNC_CONTROL_DIR`), read with the application's own `.env` parser: no API, admin, SMTP or provider secret can reach it (the wrappers select it with `ZAUTTE_ENV_FILE`; summary emails are therefore sent only when the job runs as root), so a flaw in a PDF or Office parser reaches neither the API nor its secrets. Edit `.env.sync` again when `.env` changes (run the script again).
+`scripts/setup_sync_user.sh` (run once as root, idempotent) creates the account `zsync` and the group `zdata` (both the API account and `zsync` belong to it, so both can create files in `data/`; the sticky bit keeps each from touching the other's). `zsync` owns only what the sync writes: `vectorstore`, `crawl_cache`, `documents`, `inbox`, `backups`, and its two logs (`/var/log/chatbot-sync.log`, `/var/log/chatbot-full.log`: files in root's `/var/log`, not a folder of its own). It reads `.env.sync`, which `scripts/make_sync_env.py` builds from an allowlist of the settings the jobs need (`CRAWL_*`, `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_MODEL`, `SITE_NAME`, `SITE_URL`, `MIGRATED_DOMAINS`, `INSTANCE_DIR`, `API_PORT`, `SYNC_CONTROL_DIR`), read with the application's own `.env` parser: no API, admin, SMTP or provider secret can reach it (the wrappers select it with `ZAUTTE_ENV_FILE`; summary emails are therefore sent only when the job runs as root), so a flaw in a PDF or Office parser reaches neither the API nor its secrets. Edit `.env.sync` again when `.env` changes (run the script again).
 
 Since `zsync` can neither signal the API nor use its admin key, `scripts/sync.py` leaves an empty request file (`reload` or `restart`) in `/var/db/zautte-sync/`; the root watchdog looks for it every minute, removes it, and reloads the index (`POST /admin/reload`) or runs `service chatbot restart`. The sync lock lives in the same folder. Start the manual syncs as that account, under the same lock:
 
@@ -238,6 +238,7 @@ Rotation configured:
 |-----------------------------|-----------------------|----------------------|-------------|
 | `/var/log/chatbot.log`      | every day at midnight | 90 files (90 days)   | bzip2 (J)   |
 | `/var/log/chatbot-sync.log` | above 100 MB          | 14 files             | bzip2 (J)   |
+| `/var/log/chatbot-full.log` | above 10 MB           | 6 files              | bzip2 (J)   |
 
 `/var/log/chatbot.log` holds the client IP addresses (uvicorn access log), so it is kept for 90 days and then deleted (change the file count in `scripts/newsyslog-chatbot.conf` to match the retention in your privacy notice). newsyslog sends `SIGHUP` to the daemon in `/var/run/chatbot.pid`, which reopens the file; the service must have been started by the rc.d script with `-H` .
 
