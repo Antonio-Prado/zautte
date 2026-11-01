@@ -3,6 +3,6 @@
   "private": true,
   "description": "Only for the accessibility tests in CI (tests/a11y/check.py): axe-core, installed with npm ci from package-lock.json.",
   "devDependencies": {
-    "axe-core": "4.10.2"
+    "axe-core": "4.14.0"
   }
 }
