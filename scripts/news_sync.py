@@ -7,7 +7,11 @@ This module reads the sources configured in `config/crawl_extra.json`
 
   - a WordPress news site, for example an organisation's bulletin
     (`wordpress_api`): full articles through the `wp/v2/posts` REST API;
-  - the RSS feeds of the institutional site (`rss`): title, link and date.
+  - the RSS feeds of the institutional site (`rss`): title, link and date;
+  - the public web preview of a Telegram channel (`telegram`, `https://t.me/s/<channel>`):
+    some notices (an extended weather alert, a closure) are posted only there. Only the
+    messages that do not link to a page of the site are indexed: the others are
+    announcements of news already indexed from the Bulletin or the site.
 
 For each new or modified news item it indexes:
   1. the Bulletin article;
@@ -88,6 +92,9 @@ MONTHS_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "lugl
              "agosto", "settembre", "ottobre", "novembre", "dicembre"]
 _BLOCK_TAGS = ["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "figcaption", "td", "pre"]
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Zautte/1.0)"}
+TELEGRAM_MIN_TEXT_LEN = 40          # shorter messages are stickers, greetings, a bare link
+TELEGRAM_ALERT_AFTER = 24 * 3600    # seconds without a readable preview before the log shouts
+_TELEGRAM_PREVIEW_RE = re.compile(r"^https://t\.me/s/[A-Za-z0-9_]{5,}/?$")
 
 
 # --------------------------------------------------------------------------- state
@@ -332,6 +339,7 @@ def _fetch_domains() -> set[str]:
     """Hosts the news sync may fetch from: the attachment hosts, and the sources named in
     crawl_extra.json (trusted; what they link to is not, and must pass _attachment_hosts)."""
     trusted = {urlparse(u).hostname or "" for u in [NEWS_SOURCES.get("wordpress_api", ""),
+                                                    _telegram_preview_url(),
                                                     *NEWS_SOURCES.get("rss", [])] if u}
     return _attachment_hosts() | trusted
 
@@ -362,6 +370,93 @@ def find_links(html: str, base_url: str) -> tuple[list[str], list[tuple[str, str
         elif not should_skip(url) and url not in pages and url.rstrip("/") != base_url.rstrip("/"):
             pages.append(url)
     return pages[:MAX_LINKED_PAGES], attachments
+
+
+# --------------------------------------------------------------------------- telegram
+
+def _telegram_preview_url() -> str:
+    """The configured preview address (`https://t.me/s/<channel>`), or "" when absent or malformed."""
+    url = str(NEWS_SOURCES.get("telegram", "")).strip()
+    if not url:
+        return ""
+    if not _TELEGRAM_PREVIEW_RE.match(url):
+        log.warning(f"  Telegram source ignored, expected https://t.me/s/<channel>: {url[:80]}")
+        return ""
+    return url.rstrip("/")
+
+
+def parse_telegram_preview(html: str) -> tuple[str, list[dict]]:
+    """(channel name, messages) from the public web preview of a channel (t.me/s/<channel>):
+    the last twenty or so messages, oldest first. A message is {url (permalink), date (local,
+    ISO), text (lines), links (http(s) addresses in the text, Telegram's own excluded)}.
+    Messages without text (a photo without caption, a sticker) are left out."""
+    soup = BeautifulSoup(html, "lxml")
+    drop_invisible(soup)
+    owner = soup.select_one(".tgme_channel_info_header_title, .tgme_widget_message_owner_name")
+    channel = owner.get_text(" ", strip=True) if owner else ""
+    local_tz = now_local().tzinfo
+    posts: list[dict] = []
+    for msg in soup.select("div.tgme_widget_message[data-post]"):
+        post_id = (msg.get("data-post") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_]+/\d+", post_id):
+            continue
+        body = msg.select_one(".tgme_widget_message_text")
+        if body is None:
+            continue
+        for br in body.find_all("br"):
+            br.replace_with("\n")
+        lines = [" ".join(ln.split()) for ln in body.get_text("").splitlines()]
+        text = "\n".join(ln for ln in lines if ln)
+        if not text:
+            continue
+        links = []
+        for a in body.find_all("a", href=True):
+            href = a["href"].strip()
+            host = (urlparse(href).hostname or "").lower()
+            if href.startswith(("http://", "https://")) and host not in ("t.me", "telegram.me", "telegram.org"):
+                links.append(href)
+        when = msg.select_one("time[datetime]")
+        try:
+            stamp = datetime.fromisoformat((when.get("datetime") if when else "") or "")
+            day = stamp.astimezone(local_tz).date().isoformat()
+        except ValueError:
+            day = ""
+        posts.append({"url": f"https://t.me/{post_id}", "date": day, "text": text, "links": links})
+    return channel, posts
+
+
+def telegram_announces_site_page(post: dict, hosts: set[str]) -> bool:
+    """True when the message links to a page of the site or of the news sources: the content
+    lives there and is indexed from there, the message is only its announcement."""
+    return any(_host_ok(link, hosts) for link in post["links"])
+
+
+def _telegram_title(text: str, limit: int = 100) -> str:
+    """The first line without the leading emoji, or the beginning of the message when that line
+    is just a label («AVVISO»), cut at a word boundary."""
+    first = re.sub(r"^[^\w«\"']+", "", text.splitlines()[0]).strip(" .:;,-")
+    if len(first) < 25:
+        first = re.sub(r"^[^\w«\"']+", "", " ".join(text.split()))
+    if len(first) <= limit:
+        return first
+    cut = first[:limit + 1]
+    return (cut[:cut.rfind(" ")] if " " in cut else cut[:limit]).rstrip(" .:;,-")
+
+
+def telegram_doc(post: dict, channel: str) -> dict | None:
+    body = " ".join(post["text"].split())
+    if len(body) < TELEGRAM_MIN_TEXT_LEN:
+        return None
+    where = f"canale Telegram «{channel}»" if channel else "canale Telegram"
+    title = f"{_telegram_title(post['text'])} - {channel or 'Telegram'}"
+    # one paragraph: the chunker makes one chunk per paragraph and drops the short ones
+    head = f"Messaggio del {date_it(post['date'])} sul {where}" if post["date"] else f"Messaggio sul {where}"
+    chunks = chunk_document(
+        text=f"{head}. {body}", source_url=post["url"], title=title, doc_type="html",
+        extra_metadata={"category": "notizia", "section": NEWS_SOURCES.get("section", "bollettino"),
+                        "date": post["date"], "origin": "news", "channel": "telegram"},
+    )
+    return _doc(post["url"], chunks) if chunks else None
 
 
 # --------------------------------------------------------------------------- documents
@@ -450,7 +545,7 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
     new_items: dict = {}
     docs: list[dict] = []
     seen_urls: set[str] = set()
-    counts = {"posts": 0, "pages": 0, "attachments": 0}
+    counts = {"posts": 0, "pages": 0, "attachments": 0, "telegram": 0}
     link_texts: dict[str, list[str]] = {}
     wp_cursor = state.get("wp_cursor", "")
 
@@ -528,18 +623,56 @@ def collect(client: httpx.Client, state: dict, backfill: bool) -> tuple[list[dic
             except (httpx.HTTPError, httpx.InvalidURL, ValueError, OSError) as e:
                 log.warning(f"  News attachments not followed: {item['url']} — {e}")
 
+    telegram_ok = state.get("telegram_ok", "")
+    preview = _telegram_preview_url()
+    if preview:
+        resp = _get(client, preview)
+        channel, posts = parse_telegram_preview(resp.text) if resp is not None else ("", [])
+        if resp is not None and posts:
+            telegram_ok = now_local().isoformat(timespec="seconds")
+        else:
+            _telegram_unreadable(preview, telegram_ok)
+        for post in posts:
+            if post["url"] in seen_urls or telegram_announces_site_page(post, hosts):
+                continue
+            digest = _digest(post["text"], post["date"])
+            if items.get(post["url"], {}).get("hash") == digest:
+                continue
+            doc = telegram_doc(post, channel)
+            if doc is None:
+                continue
+            log.info(f"  NEW [telegram {post['date']}]: '{doc['chunks'][0]['metadata']['title'][:80]}'")
+            add(doc, "telegram")
+            new_items[post["url"]] = {"hash": digest, "ts": now_local().isoformat(timespec="seconds")}
+
     if link_texts:
         save_link_texts(link_texts)
     new_state = {"wp_cursor": wp_cursor, "items": {**items, **new_items},
                  "last_run": now_local().isoformat(timespec="seconds")}
+    if preview:
+        new_state["telegram_ok"] = telegram_ok
     return docs, new_state, counts
+
+
+def _telegram_unreadable(preview: str, last_ok: str) -> None:
+    """A run that could not read the channel: a warning, or an error when it has been going on
+    for a day (Telegram changed the page, or blocked the reader)."""
+    try:
+        silent = (now_local() - datetime.fromisoformat(last_ok)).total_seconds() if last_ok else None
+    except ValueError:
+        silent = None
+    if silent is not None and silent < TELEGRAM_ALERT_AFTER:
+        log.warning(f"  Telegram preview not readable, last read {last_ok[:16]}: {preview}")
+    else:
+        log.error(f"  Telegram preview not readable for more than a day (last read {last_ok[:16] or 'never'}): "
+                  f"{preview} — check the page by hand")
 
 
 def run_news(backfill: bool = False) -> dict:
     """One run: news → index. Returns the counters (0 if nothing new)."""
     if not NEWS_SOURCES:
         log.warning("No news source configured (crawl_extra.json → \"news\")")
-        return {"posts": 0, "pages": 0, "attachments": 0, "chunks": 0}
+        return {"posts": 0, "pages": 0, "attachments": 0, "telegram": 0, "chunks": 0}
     state = load_state()
     if backfill:
         state = {"wp_cursor": "", "items": {}}
@@ -551,7 +684,7 @@ def run_news(backfill: bool = False) -> dict:
         save_state(new_state)
         return {**counts, "chunks": 0}
     log.info(f"News: {counts['posts']} articles, {counts['pages']} pages, "
-             f"{counts['attachments']} attachments to index")
+             f"{counts['attachments']} attachments, {counts['telegram']} Telegram messages to index")
     _, inserted = _index_documents(docs, "NEWS", lambda d: d["chunks"], skip_existing=False)
     save_state(new_state)
     return {**counts, "chunks": inserted}

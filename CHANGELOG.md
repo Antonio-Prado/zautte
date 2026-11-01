@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-01
+
+### Added
+- News sync: the public web preview of a Telegram channel (`telegram` in the `news` key of `crawl_extra.json`,
+  `https://t.me/s/<channel>`) as a third source next to the WordPress bulletin and the RSS feeds. Some notices
+  are posted only there (today: the extension of a weather alert, with no article on the bulletin). Messages
+  that link to a page of the site are announcements of news indexed from there and are skipped; the others
+  become one passage each, with the permalink of the message as source, replaced when edited. A warning
+  when the preview cannot be read, an error after a day. No bot, account or API key needed.
+
 ## [0.19.4] - 2026-11-01
 
 ### Changed

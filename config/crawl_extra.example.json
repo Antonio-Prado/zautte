@@ -12,6 +12,7 @@
     "rss": [
       "https://www.example.org/feed/"
     ],
+    "telegram": "https://t.me/s/example_org",
     "attachment_hosts": [
       "files.example.org"
     ],
