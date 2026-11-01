@@ -9,6 +9,45 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-11-01
+
+### Security
+- `POST /feedback/resolve` took the file lock on the event loop and held it across an `await`: a second
+  resolve, or a `POST /usage/forget` touching a feedback, arriving meanwhile blocked the loop for good and the
+  single API process stopped answering. The lock is now taken and released in the worker thread, and
+  `/usage/forget` rewrites the files in a worker thread too.
+- `scripts/council_sessions.py`: the pattern that reads the links of the convocations page was quadratic on links
+  left without `</a>` (seconds of CPU for a few tens of KB, far more up to the 20 MB page limit). It is now linear.
+  `council_sessions` and `events_calendar` run through new wrappers (`scripts/council_sessions.sh`,
+  `scripts/events_calendar.sh`) with their own lock, a memory ceiling and a time limit (`HOURLY_JOB_TIMEOUT`,
+  default 10 minutes), like the other sync jobs; update the two crontab lines (see Operations).
+- Login: a failed login against a password hash made with the older scrypt cost (N=2**14, upgraded only at
+  the next successful login) took half the time of the decoy check used for unknown addresses, which told
+  registered addresses apart. The cost is now padded to the current N.
+- `DAILY_LIMIT_EXEMPT` and `TEST_ACCOUNTS` no longer match the display name, which an applicant types in the
+  public application form: ids or e-mails only. For a session token the e-mail is now looked up by id, so an
+  account listed by e-mail is exempt when asking questions too, not only in the limit shown at login.
+- Dynamic known facts (events calendar, latest acts) now lose invisible Unicode characters (zero-width,
+  bidirectional, tag block) like every indexed passage, when the job writes them and when the API reads them.
+- Files written by the sync account and read by the API (`data/facts/known_facts_dynamic.json`,
+  `data/crawl_cache/pdf_link_texts.json`) are read without following a link; a FIFO or other non-regular file is
+  refused without blocking, the size is bounded and the content type checked. A malformed facts file no longer
+  turns a question into an error 500, and a FIFO in place of the link texts no longer blocks every search.
+- The full sync log moved from `/var/log/chatbot/sync_full.log` (a folder of the sync account, rotated by root's
+  newsyslog) to `/var/log/chatbot-full.log`; `scripts/setup_sync_user.sh` creates it and
+  `scripts/newsyslog-chatbot.conf` rotates it. `/var/log/chatbot/` is no longer used.
+- Watchdog: the health probe has a 10-second timeout, and runs never overlap (`lockf`), so an API that accepts
+  connections but does not answer is restarted instead of holding a new watchdog run every minute.
+
+### Fixed
+- A maintenance incident (provider refusing for credit or credentials) was closed, with the «back in service»
+  e-mail, by any answer that did not call the model (a greeting, a cached answer, a question without passages).
+  It is now closed only after a successful provider answer.
+
+### Documentation
+- Reverse proxy: it must append the client address to `X-Forwarded-For`, not pass on the client's header, and
+  how to check it from outside with `GET /client-ip`.
+
 ## [0.20.1] - 2026-11-01
 
 ### Changed

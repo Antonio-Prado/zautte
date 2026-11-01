@@ -11,7 +11,7 @@ Configuration: the "council" key of config/crawl_extra.json
     {"convocations_url": "https://www.example.org/it/public_documents/convocazioni-consiglio-comunale",
      "link_pattern": "consiglio",            # regex a session link's text must match (default)
      "keywords": [...], "require_any": [...]} # optional: when the fact is injected
-Run (hourly from cron, as the sync account):
+Run (hourly from cron, as the sync account, through scripts/council_sessions.sh: lock, memory ceiling, time limit):
     venv/bin/python -m scripts.council_sessions [--dry-run]
 Exit codes: 0 written or unchanged, 1 fetch or configuration error, 2 no session found (the
 previous file is kept).
@@ -48,6 +48,7 @@ from config.settings import (
     now_local,
 )
 from crawler.netpolicy import get_limited
+from indexer.textclean import strip_invisible_chars
 
 log = logging.getLogger("council_sessions")
 
@@ -57,7 +58,11 @@ MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio"
 WEEKDAYS = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 _MONTH_NO = {m: i + 1 for i, m in enumerate(MONTHS)}
 
-_ANCHOR_RE = re.compile(r'<a\b[^>]*?href="([^"]+)"[^>]*>(.*?)</a>', re.DOTALL | re.IGNORECASE)
+# Each part stops at the next tag (or, for the link text, at the next "<a"), so an "<a href" left
+# without its "</a>" costs only the distance to the following link: with "(.*?)</a>" and DOTALL
+# every such opener scanned to the end of the page, quadratic in its size (the page is not ours).
+_ANCHOR_RE = re.compile(r'<a\b[^<>]*?href="([^"<>]+)"[^<>]*>((?:(?!<a\b|</a>).)*)</a>',
+                        re.DOTALL | re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
 _YEAR_MARK_RE = re.compile(r"\banno\s+(20\d{2})\b", re.IGNORECASE)
 _DATE_NUM_RE = re.compile(r"\b(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})\b")
@@ -202,6 +207,10 @@ def _share_with_api(fd: int, mode: int) -> None:
 def upsert_fact(path: Path, fact: dict, dry_run: bool = False) -> bool:
     """Replaces the fact with the same id in the file (other dynamic facts are kept). Returns
     True when the file was written, False when its content was already the same."""
+    # Portal text (event descriptions, act subjects) is treated like every indexed passage:
+    # characters a reader cannot see but a model reads are removed before the API reads the fact.
+    fact = {**fact, "text": strip_invisible_chars(str(fact.get("text", ""))),
+            "title": strip_invisible_chars(str(fact.get("title", "")))}
     facts: list[dict] = []
     if path.exists():
         try:

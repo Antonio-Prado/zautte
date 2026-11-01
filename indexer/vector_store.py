@@ -29,6 +29,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from api.safefile import read_json_bounded
 from config.settings import CRAWL_CACHE_DIR, RETRIEVAL_TOP_K, VECTOR_STORE_DIR
 from indexer.titles import LINK_TEXTS_FILE, display_title, is_weak, title_from_text, with_text_title
 
@@ -522,14 +523,23 @@ def inbox_sources() -> set[str]:
 _REPEATED_TITLE_MIN = 5
 
 
+# The link texts are written by the sync account and read here, under the search lock: the file is
+# read without following a link, refused if it is not a regular file (a FIFO would block every
+# search) or bigger than this, and only string pairs are kept.
+_LINK_TEXTS_MAX_BYTES = 32 * 1024 * 1024
+
+
 def _load_link_texts() -> dict[str, str]:
     """Link texts pointing to PDFs saved by the crawler (see crawler.save_link_texts)."""
     path = CRAWL_CACHE_DIR / LINK_TEXTS_FILE
     try:
-        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        data = read_json_bounded(path, _LINK_TEXTS_MAX_BYTES, dict)
+    except FileNotFoundError:
+        return {}
     except (OSError, ValueError):
         log.warning(f"{path} unreadable: PDF titles without the link texts")
         return {}
+    return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}
 
 
 def _title(meta: dict) -> str:

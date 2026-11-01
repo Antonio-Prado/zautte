@@ -102,6 +102,28 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
+def _stored_n(stored: str) -> int:
+    try:
+        return int(stored.split("$")[1])
+    except (IndexError, ValueError):
+        return _SCRYPT_N
+
+
+def verify_password_uniform(password: str, stored: str) -> bool:
+    """verify_password(), then the scrypt work that a hash made with a smaller N saved, so that a
+    failed login costs the same for an older hash (2**14, upgraded only at the next login) as for
+    the decoy and the current hashes (2**15): the response time does not reveal which e-mails
+    belong to accounts that have not logged in since. The work of scrypt is linear in N."""
+    ok = verify_password(password, stored)
+    n = _stored_n(stored)
+    if 2 <= n < _SCRYPT_N and n & (n - 1) == 0:
+        while n < _SCRYPT_N:   # n + n + 2n + ... + N/2 = N
+            hashlib.scrypt(b"", salt=b"zautte-timing-pad", n=n, r=_SCRYPT_R, p=_SCRYPT_P,
+                           dklen=_SCRYPT_DKLEN, maxmem=_SCRYPT_MAXMEM)
+            n *= 2
+    return ok
+
+
 def needs_rehash(stored: str) -> bool:
     """True if the stored hash was made with weaker parameters than the current ones."""
     try:
@@ -380,7 +402,7 @@ async def login(request: Request, req: LoginRequest):
     # a locked account is checked against the dummy hash: same time, same answer as a wrong password
     stored = user["pw_hash"] if user and not locked else _DUMMY_HASH
     async with _password_slots:   # a few at a time: scrypt is deliberately heavy
-        ok = await asyncio.to_thread(verify_password, req.password, stored)
+        ok = await asyncio.to_thread(verify_password_uniform, req.password, stored)
     if not user or not ok or locked:
         if not locked:
             account_guard.login_failed(req.email)

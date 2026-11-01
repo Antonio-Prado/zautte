@@ -586,8 +586,8 @@ def _load_user_names() -> dict[str, str]:
 
 
 def _test_uids() -> set[str]:
-    """Ids of the accounts listed in TEST_ACCOUNTS (by id, name or e-mail), from data/users.json;
-    an id that is no longer there counts as well."""
+    """Ids of the accounts listed in TEST_ACCOUNTS (by id or e-mail, never by the name the applicant
+    typed), from data/users.json; an id that is no longer there counts as well."""
     if not TEST_ACCOUNTS:
         return set()
     uids = set(TEST_ACCOUNTS)
@@ -595,7 +595,7 @@ def _test_uids() -> set[str]:
     if users_file.exists():
         try:
             for u in json.loads(users_file.read_text(encoding="utf-8")):
-                if any(str(u.get(k) or "").strip().lower() in TEST_ACCOUNTS for k in ("id", "name", "email")):
+                if any(str(u.get(k) or "").strip().lower() in TEST_ACCOUNTS for k in ("id", "email")):
                     uids.add(u.get("id"))
         except (OSError, ValueError, TypeError, AttributeError) as e:
             log.warning("users.json not readable: %s", e)
@@ -968,8 +968,14 @@ async def feedback_resolve(req: ResolveRequest, background_tasks: BackgroundTask
 
     f = _resolved_negative_file()
     f.parent.mkdir(parents=True, exist_ok=True)
+    # The lock is taken and released in the worker thread, never held by the event loop across an
+    # await: a second request waiting for it would otherwise block the loop, and with it the release.
+    return await asyncio.to_thread(_resolve_under_lock, f, req, background_tasks)
+
+
+def _resolve_under_lock(f, req: "ResolveRequest", background_tasks: BackgroundTasks) -> dict:
     with file_lock(f):   # purge_logs and forget rewrite the same file from another process
-        return await asyncio.to_thread(_resolve_locked, f, req, background_tasks)
+        return _resolve_locked(f, req, background_tasks)
 
 
 def _resolve_locked(f, req: "ResolveRequest", background_tasks: BackgroundTasks) -> dict:
@@ -1320,12 +1326,16 @@ async def usage_forget(req: ForgetRequest, _: None = Security(require_admin)):
     """
     if not req.rids and not (req.uid and (req.last or req.all or req.ts)):
         raise HTTPException(status_code=400, detail="Indicare rids oppure uid con last, all o ts")
-    # Synchronous on purpose: while it rewrites the files this process does not append
-    # other lines (writes from the other process are recovered by rewrite_jsonl).
+    # In a worker thread: rewriting the files takes their locks, and the event loop must never wait
+    # on a lock (the appends of this process take the same locks and simply wait their turn; lines
+    # written meanwhile by another process are recovered by rewrite_jsonl).
     from api.datalog import answer_owner
-    owners = {req.uid} if req.uid else {answer_owner(r) for r in req.rids} - {None}
-    result = forget(rids=req.rids, uid=req.uid, last=req.last, every=req.all, ts=req.ts,
-                    dry_run=req.dry_run)
+    if req.uid:
+        owners = {req.uid}
+    else:
+        owners = await asyncio.to_thread(lambda: {answer_owner(r) for r in req.rids} - {None})
+    result = await asyncio.to_thread(forget, rids=req.rids, uid=req.uid, last=req.last,
+                                     every=req.all, ts=req.ts, dry_run=req.dry_run)
     memory = 0
     if not req.dry_run:
         memory = forget_queries([q["q"] for q in result["questions"]])
@@ -1441,7 +1451,6 @@ async def chat(request: Request, req: ChatRequest,
         _t0 = _time.monotonic()
         result = await answer(question, stream=False, history=history,
                               uid=user.get("uid"), rid=rid)
-        maintenance.recovered()
         _lang = result.get("language") if isinstance(result, dict) else None
         await asyncio.to_thread(_log_usage, user.get("uid"), question, _lang,
                                 int((_time.monotonic() - _t0) * 1000), rid=rid)
@@ -1529,7 +1538,6 @@ async def chat_stream(request: Request, req: ChatRequest,
                     parts.append(token)
                     await queue.put(("token", token))
                 completed = True
-                maintenance.recovered()
                 conversations.add_turn(user.get("uid", ""), cid, question, "".join(parts))
                 await queue.put(("sources", shown_sources("".join(parts), sources)))
                 await queue.put(("done", None))

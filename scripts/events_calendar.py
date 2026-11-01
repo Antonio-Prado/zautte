@@ -14,7 +14,7 @@ Configuration: the "events" key of config/crawl_extra.json
      "days_ahead": 60,                  # events starting up to this many days from today (default)
      "max_description": 4000,           # characters of each description kept (default)
      "keywords": [...], "require_any": [...]}   # optional: when the fact is injected
-Run (hourly from cron, as the sync account):
+Run (hourly from cron, as the sync account, through scripts/events_calendar.sh: lock, memory ceiling, time limit):
     venv/bin/python -m scripts.events_calendar [--dry-run]
 Exit codes: 0 written or unchanged, 1 fetch or configuration error (the previous file is kept).
 """

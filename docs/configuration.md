@@ -101,9 +101,10 @@ AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
-# Accounts not subject to the daily limit (test accounts): ids, names or e-mails, comma-separated
+# Accounts not subject to the daily limit (test accounts): ids or e-mails, comma-separated (not names:
+# the name is typed by the applicant in the public application form)
 #DAILY_LIMIT_EXEMPT=
-# Accounts used to try the assistant (ids, names or e-mails): left out of the users' questions of today, 7 and 30 days
+# Accounts used to try the assistant (ids or e-mails, not names): left out of the users' questions of today, 7 and 30 days
 # in the restricted area (still logged and billed)
 #TEST_ACCOUNTS=
 # Wrong passwords before an account refuses logins, and the window/duration (seconds); reset emails per account per hour

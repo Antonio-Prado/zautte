@@ -79,13 +79,29 @@ def load() -> None:
 
 
 def exempt(user: dict) -> bool:
-    """True for an account listed in DAILY_LIMIT_EXEMPT (by id, name or e-mail): no daily
-    limit. The session token carries the id (`uid`) and the name; users.json rows carry
-    `id`, `name` and `email`: all are checked."""
+    """True for an account listed in DAILY_LIMIT_EXEMPT (by id or e-mail): no daily limit.
+
+    Never by name: the name is the one the applicant typed in the public application form, so it
+    must not be able to match an entry of the list. The session token carries the id (`uid`);
+    users.json rows carry `id` and `email`; for a token the e-mail is looked up by id."""
     if not DAILY_LIMIT_EXEMPT:
         return False
-    return any(str(user.get(k) or "").strip().lower() in DAILY_LIMIT_EXEMPT
-               for k in ("uid", "id", "name", "email"))
+    keys = [user.get("uid"), user.get("id"), user.get("email")]
+    if not user.get("email") and user.get("uid"):
+        keys.append(_email_of(user["uid"]))
+    return any(str(k or "").strip().lower() in DAILY_LIMIT_EXEMPT for k in keys)
+
+
+def _email_of(uid: str) -> str:
+    """E-mail of the account with this id ("" if unknown), from the cached users.json."""
+    try:
+        from api.auth import _users_cached  # here: api.auth imports this module
+    except ImportError:
+        return ""
+    for u in _users_cached() or []:
+        if isinstance(u, dict) and u.get("id") == uid:
+            return str(u.get("email") or "")
+    return ""
 
 
 def limit_for(user: dict) -> int:
