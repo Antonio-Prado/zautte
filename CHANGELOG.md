@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.19.3] - 2026-11-01
+
+### Changed
+- System prompt (Italian and English): a detail given in a previous answer that no longer appears in the
+  context is not declared invented or retracted; the assistant says it cannot confirm it right now and names the
+  office to ask. Asked why it had «changed its mind» about a deadline it had read in a known fact one turn earlier,
+  the assistant wrote that it had made the date up, although the date was right. Relative time words
+  («yesterday», «expired N days ago») are checked against today's date, or replaced by the plain date.
+
 ## [0.19.2] - 2026-10-31
 
 ### Changed
