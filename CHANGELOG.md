@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.19.4] - 2026-11-01
+
+### Changed
+- System prompt (Italian and English): relative time words («yesterday», «the day before yesterday», «tomorrow»,
+  «expired N days ago») are no longer used; the assistant writes the full date and, if needed, says only whether it
+  is past or future. After 0.19.3 the assistant still wrote «the deadline was yesterday, 30 October» on 1 November.
+
 ## [0.19.3] - 2026-11-01
 
 ### Changed
