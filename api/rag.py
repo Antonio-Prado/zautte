@@ -248,7 +248,9 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
 # Known facts always available, independent of retrieval.
 # Useful for basic information that the embedding does not retrieve well
 # (addresses, opening hours, institutional contacts). Loaded from config/known_facts.json.
-def _parse_known_facts(entries: list[dict]) -> list[dict]:
+def _parse_known_facts(entries: list[dict], written_by_admin: bool = False) -> list[dict]:
+    """written_by_admin: the facts of config/known_facts.json, whose addresses may become links
+    (see link_hosts()); not those of the dynamic file, which a job builds from pages it reads."""
     result = []
     for e in entries:
         if not isinstance(e, dict):
@@ -278,6 +280,7 @@ def _parse_known_facts(entries: list[dict]) -> list[dict]:
                 "score":    1.0,
                 "category": e.get("category", "pagina"),
                 "known":    True,
+                "admin":    written_by_admin,
             },
         })
     return result
@@ -289,7 +292,7 @@ def _load_known_facts() -> list[dict]:
     if not f.exists():
         return []
     try:
-        return _parse_known_facts(_j.loads(f.read_text(encoding="utf-8")))
+        return _parse_known_facts(_j.loads(f.read_text(encoding="utf-8")), written_by_admin=True)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         log.warning(f"Could not load known_facts.json: {exc}")
         return []
@@ -476,12 +479,13 @@ _EXAMPLE_HOSTS = {"esempio.it", "example.it", "example.com", "example.org", "exa
 
 
 def link_hosts(messages: list[dict], query: str, chunks: list[dict] | None = None) -> list[str]:
-    """Hosts the answer may link to: the site's own, the hosts in the instructions (the known
-    facts, written by the administrator) and the hosts of the sources of the passages. Not the
-    hosts written inside the passages: a document anybody can publish must not be able to make an
-    address of its own clickable. A link to any other address is something the model made up or
-    was talked into."""
+    """Hosts the answer may link to: the site's own, the hosts in the instructions, the hosts
+    written in the known facts of config/known_facts.json (written by the administrator) and the
+    hosts of the sources of the passages. Not the hosts written inside the other passages, the
+    dynamic facts included: a document anybody can publish must not be able to make an address of
+    its own clickable. A link to any other address is something the model made up or was talked into."""
     given = " ".join(m["content"] for m in messages if m["role"] == "system")
+    given += " " + " ".join(str(c.get("text", "")) for c in chunks or [] if c.get("admin") is True)
     hosts = {h.lower().rstrip(".") for h in _URL_HOST_RE.findall(given)} - _EXAMPLE_HOSTS   # the example in the instructions
     for c in chunks or []:
         m = _URL_HOST_RE.match(str(c.get("source", "")))
