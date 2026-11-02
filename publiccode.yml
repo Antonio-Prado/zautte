@@ -4,7 +4,7 @@ name: Zautte
 url: "https://github.com/Antonio-Prado/zautte"
 landingURL: "https://github.com/Antonio-Prado/zautte"
 releaseDate: "2026-11-02"
-softwareVersion: "0.21.1"
+softwareVersion: "0.21.2"
 developmentStatus: beta
 softwareType: "standalone/web"
 platforms:
