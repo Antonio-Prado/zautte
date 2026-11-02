@@ -15,6 +15,9 @@ updates:
       # pyee only comes in through Playwright, which pins pyee<14
       - dependency-name: "pyee"
         update-types: ["version-update:semver-major"]
+      # anthropic 2.x sends API version 2026-10-21: no temperature, and Bedrock only for Claude 4.7+
+      - dependency-name: "anthropic"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
