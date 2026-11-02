@@ -24,6 +24,9 @@ updates:
       # botocore (Bedrock) requires python-dateutil<3
       - dependency-name: "python-dateutil"
         update-types: ["version-update:semver-major"]
+      # langsmith (via langchain-core) requires uuid-utils<1.0
+      - dependency-name: "uuid-utils"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
