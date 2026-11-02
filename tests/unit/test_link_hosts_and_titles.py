@@ -19,8 +19,8 @@ def test_hosts_written_in_admin_known_facts_are_allowed_but_not_in_dynamic_ones(
                                    "text": "Biglietti su https://biglietti-finti.tld/x"}])
     chunks = [static[0]["chunk"], dynamic[0]["chunk"]]
     hosts = set(link_hosts([{"role": "user", "content": "DOMANDA: social?"}], "social?", chunks))
-    assert "www.facebook.com" in hosts
-    assert "biglietti-finti.tld" not in hosts
+    assert {"www.facebook.com"} <= hosts
+    assert not {"biglietti-finti.tld"} & hosts
 
 
 def test_cache_stems_old_and_new_are_recognised():
