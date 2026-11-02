@@ -11,6 +11,10 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      # pyee only comes in through Playwright, which pins pyee<14
+      - dependency-name: "pyee"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
