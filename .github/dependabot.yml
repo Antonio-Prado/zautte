@@ -21,6 +21,9 @@ updates:
       # Deprecated 3.x requires Python 3.12 (CI and production run 3.11)
       - dependency-name: "deprecated"
         update-types: ["version-update:semver-major"]
+      # botocore (Bedrock) requires python-dateutil<3
+      - dependency-name: "python-dateutil"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
