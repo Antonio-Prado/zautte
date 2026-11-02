@@ -18,6 +18,9 @@ updates:
       # anthropic 2.x sends API version 2026-10-21: no temperature, and Bedrock only for Claude 4.7+
       - dependency-name: "anthropic"
         update-types: ["version-update:semver-major"]
+      # Deprecated 3.x requires Python 3.12 (CI and production run 3.11)
+      - dependency-name: "deprecated"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: github-actions
