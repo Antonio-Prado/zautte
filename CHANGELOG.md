@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-11-02
+
+### Fixed
+- Prompt: the passages found for a question are not things said earlier in the conversation. The model had
+  presented two documents retrieved for the current question as if the user had talked about them before
+  ("that is exactly what happened today…").
+- Prompt: questions about the assistant itself and provocations get a short answer, not a point-by-point one.
+- English prompt: a missing line break had merged the rule on official documents with the one on value judgements.
+
 ## [0.21.0] - 2026-11-01
 
 ### Security
