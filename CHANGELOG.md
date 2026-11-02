@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-11-02
+
+### Fixed
+- Links: the addresses written in the known facts of `config/known_facts.json` are clickable again in the
+  answers. `link_hosts()` looked for them in the system message, but the known facts reach the model as
+  passages of the context, so a fact's social profiles or app store links were shown as plain text. The
+  dynamic facts, built by jobs from pages they read, still cannot make an address of their own clickable.
+
 ## [0.21.1] - 2026-11-02
 
 ### Fixed
