@@ -24,7 +24,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, Sec
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 from slowapi import _rate_limit_exceeded_handler
@@ -91,11 +91,31 @@ _DATA_DIR = Path(__file__).parent.parent / "data"
 _api_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
 
 
-async def require_admin(request: Request, key: str | None = Security(_api_key_header)):
-    """Dependency protecting the admin endpoints with an API key (with a limit on
-    wrong attempts, see api/admin_guard.py)."""
-    if not check_admin_key(request, key):
+_admin_bearer = HTTPBearer(auto_error=False)
+
+
+def admin_identity(request: Request, key: str | None,
+                   cred: HTTPAuthorizationCredentials | None) -> str | None:
+    """Who is asking for an admin route, or None. Two ways in: the session of an account with
+    the administrator role ("admin": true in users.json, checked on every request), or the
+    admin key (with a limit on wrong attempts, see api/admin_guard.py) for the scripts on the
+    server and as a fallback. A session without the role does not count: the key decides."""
+    if cred is not None and (cred.scheme or "").lower() == "bearer" and cred.credentials:
+        claims = auth.admin_claims(cred.credentials)
+        if claims is not None:
+            return f"{claims.get('name') or '?'} ({claims.get('uid')})"
+    return "admin key" if check_admin_key(request, key) else None
+
+
+async def require_admin(request: Request, key: str | None = Security(_api_key_header),
+                        cred: HTTPAuthorizationCredentials | None = Security(_admin_bearer)):
+    """Dependency protecting the admin endpoints: an administrator's session or the admin key.
+    Every change (anything but a read) is logged with who made it."""
+    who = admin_identity(request, key, cred)
+    if who is None:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    if request.method not in ("GET", "HEAD"):
+        log.info("Admin action %s %s by %s", request.method, request.url.path, who)
 
 
 def _loopback_only(hosts: str) -> bool:
@@ -697,7 +717,8 @@ def _log_answer(uid: str, rid: str, text: str, sources: list | None = None,
 
 
 @app.get("/health")
-async def health(request: Request, key: str | None = Security(_api_key_header)):
+async def health(request: Request, key: str | None = Security(_api_key_header),
+                 cred: HTTPAuthorizationCredentials | None = Security(_admin_bearer)):
     """Public liveness (minimal). Operational details (statistics, queries,
     feedback, costs) are returned ONLY with a valid admin key, so as not to
     expose them to anyone who knows the URL."""
@@ -708,7 +729,7 @@ async def health(request: Request, key: str | None = Security(_api_key_header)):
         "maintenance": maintenance.active(),
     }
 
-    is_admin = check_admin_key(request, key)
+    is_admin = admin_identity(request, key, cred) is not None
     if not is_admin:
         return base
 

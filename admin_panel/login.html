@@ -9,13 +9,17 @@
   <link rel="stylesheet" href="/widget/dashboard.css?v=20261019a">
   <style id="area-css"></style>
   <style>
-    #key-form { width: 100%; max-width: 640px; margin: 10px 0 14px; padding: 14px 20px; background: #fff;
+    #key-form, #user-form { width: 100%; max-width: 640px; margin: 10px 0 14px; padding: 14px 20px; background: #fff;
       border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.06); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    #key-form label { flex-basis: 100%; font-weight: bold; color: #003366; }
-    #key-form input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid #99a; border-radius: 6px; font-size: 1em; }
-    #key-form button { background: #003366; color: #fff; border: 0; border-radius: 6px; padding: 9px 18px; font-size: 1em; cursor: pointer; }
-    #key-form button:disabled { opacity: .5; cursor: default; }
-    #key-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; color: #c62828; font-size: .9em; }
+    #key-form label, #user-form label { flex-basis: 100%; font-weight: bold; color: #003366; }
+    #key-form input, #user-form input { flex: 1; min-width: 180px; padding: 8px 10px; border: 1px solid #99a; border-radius: 6px; font-size: 1em; }
+    #user-form input { flex-basis: 100%; }
+    #key-form button, #user-form button { background: #003366; color: #fff; border: 0; border-radius: 6px; padding: 9px 18px; font-size: 1em; cursor: pointer; }
+    #key-form button:disabled, #user-form button:disabled { opacity: .5; cursor: default; }
+    #key-msg, #user-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; color: #c62828; font-size: .9em; }
+    #key-form[hidden] { display: none; }
+    #key-toggle { width: 100%; max-width: 640px; margin: 0 0 14px; font-size: .9em; }
+    #key-toggle button { background: none; border: 0; padding: 0; color: #003366; text-decoration: underline; cursor: pointer; font-size: 1em; }
   </style>
 </head>
 <body class="user-view">
@@ -27,7 +31,17 @@
     </div>
   </div>
 
-  <form id="key-form" autocomplete="off">
+  <form id="user-form">
+    <label for="user-email">Email</label>
+    <input type="email" id="user-email" autocomplete="username" required>
+    <label for="user-password">Password</label>
+    <input type="password" id="user-password" autocomplete="current-password" required>
+    <button type="submit" id="user-btn">Log in</button>
+    <p id="user-msg" role="alert"></p>
+  </form>
+  <div id="key-toggle"><button type="button" id="key-toggle-btn" aria-expanded="false" aria-controls="key-form">Log in with the access key</button></div>
+
+  <form id="key-form" autocomplete="off" hidden>
     <label for="key-input">Access key</label>
     <input type="password" id="key-input" autocomplete="off" required>
     <button type="submit" id="key-btn">Log in</button>
@@ -39,31 +53,41 @@
   <script>
     const apiBase = window.location.origin;
     const ADMIN_KEY_LS = 'zautte_admin_key';
+    const ADMIN_TOKEN_SS = 'zautte_admin_token';
     let _adminKey = null;
-    // The key lives only as long as the tab (sessionStorage): an old copy left in localStorage is removed.
+    let _adminToken = null;   // session of an account with the administrator role
+    // Key and session live only as long as the tab (sessionStorage): an old key left in localStorage is removed.
     try { localStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
     try { _adminKey = sessionStorage.getItem(ADMIN_KEY_LS) || null; } catch (_) {}
+    try { _adminToken = sessionStorage.getItem(ADMIN_TOKEN_SS) || null; } catch (_) {}
 
-    // Only the name "gate": the rest (panel, scripts, styles) comes from the server
-    // only if the key is valid; after too many errors the address is blocked (429).
+    // Only the name "gate": the rest (panel, scripts, styles) comes from the server only with
+    // an administrator's session or a valid key; after too many wrong keys the address is blocked (429).
     function getAdminKey() { return _adminKey || ''; }
-    function adminHeaders() { return _adminKey ? { 'X-Admin-Key': _adminKey } : {}; }
+    function adminHeaders() {
+      if (_adminToken) return { 'Authorization': 'Bearer ' + _adminToken };
+      return _adminKey ? { 'X-Admin-Key': _adminKey } : {};
+    }
 
     let _keyError = '';
     let _panel = null;
-    async function _validateAdminKey(key) {
+    async function _validate(headers, refused) {
       _keyError = '';
       try {
-        const r = await fetch(apiBase + location.pathname.replace(/\/+$/, '') + '/dati', { headers: { 'X-Admin-Key': key } });
+        const r = await fetch(apiBase + location.pathname.replace(/\/+$/, '') + '/dati', { headers: headers });
         if (r.status === 429) {
           const m = Math.ceil((Number(r.headers.get('Retry-After')) || 0) / 60);
           _keyError = 'Too many attempts: try again in ' + (m || 'a few') + ' minutes.';
           return false;
         }
-        if (!r.ok) { _keyError = 'Invalid key.'; return false; }
+        if (!r.ok) { _keyError = refused; return false; }
         _panel = await r.json();
         return true;
       } catch (_) { _keyError = 'Service unreachable.'; return false; }
+    }
+    function _validateAdminKey(key) { return _validate({ 'X-Admin-Key': key }, 'Invalid key.'); }
+    function _validateAdminToken(token) {
+      return _validate({ 'Authorization': 'Bearer ' + token }, 'This account is not an administrator.');
     }
 
     let _user = { loggedIn: false, name: '' };
@@ -82,6 +106,8 @@
       if (_statsStarted || !_panel) return;
       _statsStarted = true;
       document.getElementById('key-form').style.display = 'none';
+      document.getElementById('user-form').style.display = 'none';
+      document.getElementById('key-toggle').style.display = 'none';
       document.getElementById('area-css').textContent = _panel.css;
       document.body.classList.replace('user-view', 'admin-view');
       const chat = document.getElementById('chat-area');
@@ -120,8 +146,46 @@
     document.getElementById('logout-btn').addEventListener('click', function () {
       if (window.ZautteChatbot) window.ZautteChatbot.logout();
       _adminKey = null;
-      try { sessionStorage.removeItem(ADMIN_KEY_LS); } catch (_) {}
+      _adminToken = null;
+      try { sessionStorage.removeItem(ADMIN_KEY_LS); sessionStorage.removeItem(ADMIN_TOKEN_SS); } catch (_) {}
       location.replace(location.pathname);
+    });
+
+    document.getElementById('key-toggle-btn').addEventListener('click', function () {
+      const form = document.getElementById('key-form');
+      form.hidden = !form.hidden;
+      this.setAttribute('aria-expanded', String(!form.hidden));
+      if (!form.hidden) document.getElementById('key-input').focus();
+    });
+
+    document.getElementById('user-form').addEventListener('submit', async function (ev) {
+      ev.preventDefault();
+      const btn = document.getElementById('user-btn');
+      const msg = document.getElementById('user-msg');
+      btn.disabled = true; msg.textContent = '';
+      let j = null;
+      try {
+        const r = await fetch(apiBase + '/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: document.getElementById('user-email').value,
+                                 password: document.getElementById('user-password').value }),
+        });
+        if (r.status === 429) msg.textContent = 'Too many attempts: try again in a few minutes.';
+        else if (!r.ok) msg.textContent = 'Invalid email or password.';
+        else j = await r.json();
+      } catch (_) { msg.textContent = 'Service unreachable.'; }
+      if (j && !j.admin) msg.textContent = 'This account is not an administrator.';
+      if (j && j.admin && await _validateAdminToken(j.token)) {
+        _adminToken = j.token;
+        try { sessionStorage.setItem(ADMIN_TOKEN_SS, j.token); } catch (_) {}
+        // the same session for the chat below the panel: no second login (the widget's own keys)
+        try { localStorage.setItem('zautte_token', j.token); localStorage.setItem('zautte_name', j.name || ''); } catch (_) {}
+        try { localStorage.setItem('zautte_no_stats', '1'); } catch (_) {}
+        startAdminView();
+        return;
+      }
+      if (j && j.admin) msg.textContent = _keyError;
+      btn.disabled = false;
     });
 
     document.getElementById('key-form').addEventListener('submit', async function (ev) {
@@ -143,6 +207,13 @@
     });
 
     (async function init() {
+      if (_adminToken && await _validateAdminToken(_adminToken)) {
+        try { localStorage.setItem('zautte_no_stats', '1'); } catch (_) {}
+        startAdminView();
+        return;
+      }
+      _adminToken = null;
+      try { sessionStorage.removeItem(ADMIN_TOKEN_SS); } catch (_) {}
       if (_adminKey && await _validateAdminKey(_adminKey)) {
         try { localStorage.setItem('zautte_no_stats', '1'); } catch (_) {}
         startAdminView();

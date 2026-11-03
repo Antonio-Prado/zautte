@@ -235,6 +235,24 @@ def verify_token(token: str) -> dict | None:
         return None
 
 
+def is_admin_account(user: dict | None) -> bool:
+    """True for an account with the administrator role: "admin": true in users.json."""
+    return bool(user) and user.get("admin") is True
+
+
+def admin_claims(token: str) -> dict | None:
+    """The claims of a valid session whose account has the administrator role, otherwise None.
+    The role is read from users.json on every call: taking it away (or changing the password)
+    closes the restricted area at once, without waiting for the session to expire."""
+    if not AUTH_ENABLED or not token:
+        return None
+    claims = verify_token(token)
+    if claims is None:
+        return None
+    user = next((u for u in _users_cached() or [] if u.get("id") == claims.get("uid")), None)
+    return claims if is_admin_account(user) else None
+
+
 # ---------------------------------------------------------------------------
 # Revoked tokens (logout): data/revoked_tokens.json, {key: exp}
 # ---------------------------------------------------------------------------
@@ -405,6 +423,7 @@ class LoginResponse(BaseModel):
     consent_required: bool = False   # the participation declaration is still to be made
     privacy_notice_url: str = ""
     daily_limit: int = 0             # questions per day, told to the user up front
+    admin: bool = False              # administrator role: the same session opens the restricted area
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -437,6 +456,7 @@ async def login(request: Request, req: LoginRequest):
         consent_required=not consent_ok(user["id"]),
         privacy_notice_url=PRIVACY_NOTICE_URL,
         daily_limit=quota.limit_for(user),
+        admin=is_admin_account(user),
     )
 
 
@@ -456,7 +476,9 @@ async def me(user: dict = Security(require_user)):
     declaration is still to be made."""
     return {"uid": user.get("uid"), "name": user.get("name"),
             "consent_required": not consent_ok(user.get("uid", "")),
-            "privacy_notice_url": PRIVACY_NOTICE_URL, "daily_limit": quota.limit_for(user)}
+            "privacy_notice_url": PRIVACY_NOTICE_URL, "daily_limit": quota.limit_for(user),
+            "admin": AUTH_ENABLED and is_admin_account(
+                next((u for u in _users_cached() or [] if u.get("id") == user.get("uid")), None))}
 
 
 # ---------------------------------------------------------------------------
