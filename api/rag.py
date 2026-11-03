@@ -498,6 +498,88 @@ def link_hosts(messages: list[dict], query: str, chunks: list[dict] | None = Non
     return sorted(hosts)
 
 
+# Phone numbers: an Italian landline (0 + area code), a mobile (3xx), a toll-free or shared-cost
+# number (80x, 84x), optionally with +39/0039, the groups split by spaces, dots or dashes.
+_PHONE_RE = re.compile(
+    r"(?<![\w.,/+-])(?:(?:\+|00)39[\s.-]?)?"
+    r"(?:0\d{1,3}|3\d{2}|8[04]\d)"
+    r"(?:[ \t.-]?\d{2,4}){1,4}"
+    r"(?![\w/]|[.,-]\d)"
+)
+# Not phone numbers: dates (03.11.2026), times (08.30-13.00), amounts with thousands (800.000)
+_NOT_PHONE_RE = re.compile(r"\d{1,2}[.-]\d{1,2}[.-]\d{2,4}"
+                           r"|\d{1,2}[.:]\d{2}(?:\s?-\s?\d{1,2}(?:[.:]\d{2})?)?"
+                           r"|\d{1,3}(?:\.\d{3})+")
+# "0735 794234-235": the second number differs only in its last digits
+_PHONE_RANGE_RE = re.compile(r"(\d[\d\s.]{4,}\d)\s?[-/]\s?(\d{1,4})(?!\d)")
+_AREA_CODE_RE = re.compile(r"^0\d{1,3}")
+PHONE_NOT_IN_SOURCES = {"it": "(numero non presente nelle fonti)", "en": "(number not in the sources)"}
+
+
+def _phone_digits(number: str) -> str:
+    digits = re.sub(r"\D", "", number)
+    return re.sub(r"^(?:0039|39)(?=[03]\d{5})", "", digits) if number.lstrip().startswith(("+", "00")) else digits
+
+
+def phone_digits_given(messages: list[dict], chunks: list[dict] | None = None) -> str:
+    """Every phone number the model was given (instructions, passages, known facts, the earlier
+    turns, the question), as digits joined by spaces: the numbers an answer may contain."""
+    given = " ".join(str(m.get("content", "")) for m in messages)
+    given += " " + " ".join(str(c.get("text", "")) for c in chunks or [])
+    found = []
+    for m in _PHONE_RANGE_RE.finditer(given):   # "794234-235" also gives 794235
+        first, tail = re.sub(r"\D", "", m.group(1)), m.group(2)
+        if len(tail) < len(first):
+            found.append(first[: len(first) - len(tail)] + tail)
+    found += [_phone_digits(m.group(0)) for m in _PHONE_RE.finditer(given)]
+    # also each run of digits split only by spaces or dots: "0735 7941" written over a line break
+    found += [re.sub(r"\D", "", r) for r in re.findall(r"\d[\d \t.]{4,}\d", given)]
+    return " " + " ".join(found) + " "
+
+
+def _phone_known(number: str, given: str) -> bool:
+    digits = _phone_digits(number)
+    if len(digits) < 6 or digits in given:
+        return True
+    local = _AREA_CODE_RE.sub("", digits)   # "0735 794451" when the source wrote only "794451"
+    return len(local) >= 6 and f" {local}" in given
+
+
+def guard_phones(text: str, given: str, language: str = "it") -> str:
+    """Replaces the phone numbers of an answer that the model was not given: a number it made up
+    (a «centralino 0735 794111» that exists nowhere) would send a citizen to a wrong number in the
+    name of the organisation. Dates, times and amounts are left alone."""
+    note = PHONE_NOT_IN_SOURCES.get(language, PHONE_NOT_IN_SOURCES["it"])
+
+    def fix(m: re.Match) -> str:
+        number = m.group(0)
+        if _NOT_PHONE_RE.fullmatch(number) or _phone_known(number, given):
+            return number
+        return note
+    return _PHONE_RE.sub(fix, text)
+
+
+# The tail of a streamed text that may still be the start of a phone number: digits, +, and the
+# separators between groups. Held back until the next token shows where the number ends.
+_OPEN_TAIL_RE = re.compile(r"[\d+][\d\s.+-]*$")
+
+
+async def guard_phones_stream(gen: AsyncGenerator[str, None], given: str,
+                              language: str = "it") -> AsyncGenerator[str, None]:
+    """guard_phones() on a streamed answer: a number is checked once it is complete, so the
+    trailing digits of each token wait for the next one."""
+    pending = ""
+    async for token in gen:
+        pending += token
+        m = _OPEN_TAIL_RE.search(pending)
+        cut = m.start() if m else len(pending)
+        if cut:
+            yield guard_phones(pending[:cut], given, language)
+            pending = pending[cut:]
+    if pending:
+        yield guard_phones(pending, given, language)
+
+
 _WEEKDAYS_IT = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
 _WEEKDAYS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 
@@ -1266,13 +1348,14 @@ async def answer(
             return _no_context_gen(), unique_sources, language, hosts
         return {"answer": fallback, "sources": [], "retrieved": [], "language": language, "link_hosts": hosts}
 
+    phones = phone_digits_given(messages, chunks)
     if stream:
         if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
         _save_stats()
-        return gen, unique_sources, language, hosts
+        return guard_phones_stream(gen, phones, language), unique_sources, language, hosts
 
     else:
         _t0 = _time.monotonic()
@@ -1280,6 +1363,7 @@ async def answer(
             text = await generate_claude(messages, uid=uid)
         else:
             text = await generate_ollama(messages)
+        text = guard_phones(text, phones, language)
         _response_times.append(_time.monotonic() - _t0)
         if len(_response_times) > 100:
             _response_times.pop(0)

@@ -30,7 +30,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.safefile import read_json_bounded
-from config.settings import CRAWL_CACHE_DIR, RETRIEVAL_TOP_K, VECTOR_STORE_DIR
+from config.settings import CRAWL_CACHE_DIR, RETRIEVAL_TOP_K, VECTOR_STORE_DIR, is_migrated_source
 from indexer.titles import LINK_TEXTS_FILE, display_title, is_weak, title_from_text, with_text_title
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ _pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (l
 _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
 _pdf_link_texts: dict[str, str] = {}      # PDF source → link text (from the crawler)
+_copy_of: dict[str, int] | None = None   # source of a copy → index of a passage of the kept document (lazy)
 
 # Deferred saving (see deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -147,7 +148,7 @@ def _file_identities() -> tuple:
 
 
 def _ensure_loaded():
-    global _embeddings, _metadata, _ids, _id_to_idx, _last_save_ts, _load_error
+    global _embeddings, _metadata, _ids, _id_to_idx, _last_save_ts, _load_error, _copy_of
     if _embeddings is not None:
         return
     VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
@@ -166,6 +167,7 @@ def _ensure_loaded():
         dim = _embeddings.shape[1] if _embeddings.ndim == 2 else 0
         log.info(f"Vector store loaded: {len(_ids)} chunks, dim={dim}")
         _build_bm25()
+        _copy_of = _find_copies(_metadata)
     _last_save_ts = time.time()
 
 
@@ -177,7 +179,7 @@ def reload() -> dict:
     search sees a half-built state. If the files are unreadable the old one
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
-    global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts
+    global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -188,18 +190,20 @@ def reload() -> dict:
         return {**get_stats(), "reloaded": False}
     embeddings, metadata, ids = loaded
     bm25 = _make_bm25(metadata)
+    copies = _find_copies(metadata)
     with _lock:
         _embeddings, _metadata, _ids = embeddings, metadata, ids
         _id_to_idx = {id_: i for i, id_ in enumerate(_ids)}
         _bm25, _bm25_dirty = bm25, False
         _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts = None, {}, {}, {}
+        _copy_of = copies
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
 
 
 def _reset_state():
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -207,6 +211,7 @@ def _reset_state():
     _bm25 = None
     _bm25_dirty = False
     _pdf_title_count = None
+    _copy_of = None
 
 
 def _tokenize(text: str) -> list[str]:
@@ -386,7 +391,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of
 
     if not chunks:
         return 0
@@ -465,6 +470,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     if inserted or updated or refreshed:
         _bm25_dirty = True
         _pdf_title_count = None
+        _copy_of = None
         _save()
     return inserted + updated
 
@@ -569,6 +575,62 @@ def _title(meta: dict) -> str:
             shown = with_text_title(shown, title_from_text(_pdf_first_text.get(source, ""), title))
         _pdf_display[source] = shown
     return _pdf_display[source]
+
+
+def _body(meta: dict) -> str:
+    """A passage's text without the title line the indexer puts first: for a crawled PDF that is
+    the cached file name, different for every copy of the same file."""
+    text = meta.get("text", "").strip()
+    title = meta.get("title", "")
+    if title and text.startswith(title + "\n"):
+        text = text[len(title):].lstrip()
+    return text
+
+
+def _kept_first(source: str) -> tuple:
+    """Which address of a document to keep: not on a retired domain, without /index.php/ or a
+    query string, on the www host, then the shortest."""
+    return (is_migrated_source(source), "/index.php/" in source, "?" in source,
+            not source.startswith("https://www."), len(source), source)
+
+
+def _find_copies(metadata: list[dict]) -> dict[str, int]:
+    """The same file published at several addresses (a regulation in two folders, the same PDF
+    as 2-x.pdf and 6-x.pdf): documents whose passages are all identical. For each copy, the index
+    of a passage of the document that is kept (see _kept_first()). Without this, the copies
+    filled several places of the context with one document under different names. The
+    administrator's inbox documents are left alone."""
+    texts: dict[str, list[tuple[int, str]]] = {}
+    first: dict[str, int] = {}
+    for i, m in enumerate(metadata):
+        src = m.get("source", "")
+        if not src or _is_inbox(m):
+            continue
+        texts.setdefault(src, []).append((m.get("chunk_index", 0) or 0, _body(m)))
+        first.setdefault(src, i)
+    groups: dict[str, list[str]] = {}
+    for src, parts in texts.items():
+        parts.sort()
+        digest = hashlib.sha256("\x00".join(t for _, t in parts).encode()).hexdigest()
+        groups.setdefault(digest, []).append(src)
+    copies: dict[str, int] = {}
+    for sources in groups.values():
+        if len(sources) < 2:
+            continue
+        kept = min(sources, key=_kept_first)
+        for src in sources:
+            if src != kept:
+                copies[src] = first[kept]
+    return copies
+
+
+def _kept_meta(meta: dict) -> dict:
+    """The passage's metadata, or that of the kept document when the passage is from a copy."""
+    global _copy_of
+    if _copy_of is None:
+        _copy_of = _find_copies(_metadata)
+    idx = _copy_of.get(meta.get("source", ""))
+    return meta if idx is None else _metadata[idx]
 
 
 def search(query_embedding: list[float], top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
@@ -686,15 +748,16 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     seen_texts: set[str] = set()
     for idx in sorted(fused, key=fused.__getitem__, reverse=True):
         meta = _metadata[idx]
-        text = meta.get("text", "").strip()
+        text = _body(meta)
         if text in seen_texts:
             continue
         seen_texts.add(text)
+        doc = _kept_meta(meta)   # a copy of a document is listed as the document itself
         results.append({
             "text":     meta.get("text", ""),
-            "source":   meta.get("source", ""),
-            "title":    meta.get("title", ""),
-            "display_title": _title(meta),
+            "source":   doc.get("source", ""),
+            "title":    doc.get("title", ""),
+            "display_title": _title(doc),
             "doc_type": meta.get("doc_type", ""),
             "category": meta.get("category", ""),
             "date":     meta.get("date", ""),   # shown to the model (build_context_block)
@@ -754,12 +817,13 @@ def get_stats() -> dict:
 
 def _apply_keep(keep: list[int]):
     """Reduces the store to the rows in `keep` (sorted indices) and realigns the indices."""
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count, _copy_of
     _embeddings = _embeddings[keep]
     _metadata   = [_metadata[i] for i in keep]
     _ids        = [_ids[i] for i in keep]
     _id_to_idx  = {id_: i for i, id_ in enumerate(_ids)}
     _bm25_dirty = True
+    _copy_of = None
     _pdf_title_count = None
 
 

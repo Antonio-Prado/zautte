@@ -25,7 +25,8 @@ Pages, PDFs and attachments are written by others, so what the model reads from 
 - a passage cannot imitate the labels and separators that frame the passages in the prompt, and titles are cut to one line;
 - text a visitor cannot see is not indexed: elements hidden with `hidden`, `display:none`, tiny or transparent text, off-screen positions, `sr-only`-style classes, hidden or deleted text in DOCX and ODT, and invisible Unicode characters (zero-width, bidirectional marks, the "tag" block);
 - with nothing relevant found there is no model call at all;
-- the widget links only to the hosts listed in `link_hosts`: the site's own domains, the hosts named in the known facts (written by the administrator) and the hosts of the sources of the passages given to the model, never an address found inside the text of a passage; an email address at any other host is shown as text too.
+- the widget links only to the hosts listed in `link_hosts`: the site's own domains, the hosts named in the known facts (written by the administrator) and the hosts of the sources of the passages given to the model, never an address found inside the text of a passage; an email address at any other host is shown as text too;
+- a phone number in an answer that is not in what the model was given (instructions, passages, known facts, the conversation) is replaced with "(numero non presente nelle fonti)", in streamed answers too.
 None of this makes a page that really says something false trustworthy: whoever can publish on the indexed site can still make the bot repeat it.
 
 ## Applications

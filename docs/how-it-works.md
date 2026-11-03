@@ -34,7 +34,8 @@ User question
      ├─ known facts          — curated texts from config/known_facts.json (score 1.0)
      ├─ expand_query()       — appends synonyms from config/synonyms.json
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
-     ├─ hybrid_search()      — 21 different texts (3 × top-k): RRF of cosine (0.6) and BM25 (0.4)
+     ├─ hybrid_search()      — 21 different texts (3 × top-k): RRF of cosine (0.6) and BM25 (0.4);
+     │                         a document published at several addresses is listed under one of them
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
      ├─ rerank()             — title boost, "servizio" category boost, PDF, news and retired-domain penalties, same-source penalty
      └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)

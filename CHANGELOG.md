@@ -9,6 +9,28 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-03
+
+### Fixed
+- Search: a document published at several addresses counts once. The same regional resolution, saved as
+  five PDFs in two folders, took four of the seven places of the context of a question, under four names.
+  Documents whose passages are all identical are now listed under one address (not on a retired domain,
+  without `/index.php/` or a query string, on the `www` host, then the shortest), so their passages share
+  the same-source penalty and the shown sources. Passages are compared without the title line the indexer
+  puts first, which for a crawled PDF is the cached file name and differs for every copy. On the pilot's
+  index about a quarter of the passages (6,774 addresses) were copies.
+
+## [0.22.0] - 2026-11-03
+
+### Added
+- Answers: a phone number the model was not given is replaced with "(numero non presente nelle fonti)".
+  Asked which office handles building works on a house, with no relevant passage found, the model had
+  written a switchboard number that exists nowhere ("0735 794111" instead of "0735 7941"). The numbers
+  allowed are those in the instructions, the passages, the known facts and the conversation, also when
+  written without the area code or as a range ("794234-235"); dates, times and amounts are left alone. The
+  check also runs on streamed answers: the trailing digits of a token wait for the next one, so a number
+  is checked once it is complete.
+
 ## [0.21.2] - 2026-11-02
 
 ### Fixed
