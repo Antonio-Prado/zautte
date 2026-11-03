@@ -81,7 +81,7 @@ Complete response (non-streaming). Waits for the full response before replying.
 }
 ```
 
-`link_hosts` lists the hosts the answer may link to: the site's own and those that appear in what the model was given, never one that only the user's question mentions. The widget shows a link to any other host as plain text with the host written out. When nothing relevant is found the reply is a fixed text with no model call, in `/chat` as in `/chat/stream`.
+`link_hosts` lists the hosts the answer may link to: the site's own and those that appear in what the model was given, never one that only the user's question mentions. The widget shows a link to any other host as plain text with the host written out. A phone number that is not in what the model was given is replaced in the answer with "(numero non presente nelle fonti)" ("(number not in the sources)" in English). When nothing relevant is found the reply is a fixed text with no model call, in `/chat` as in `/chat/stream`.
 
 If `PII_BLOCK` is on and the question contains personal data, the reply is a fixed refusal message with `"blocked": true` and an empty `sources` list. The question is not searched, sent to the model, stored, or counted against the daily limit. On `/chat/stream` the same message arrives as a single `token` event followed by `sources` (with `blocked: true`) and `done`.
 

@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-03
+
+### Added
+- Answers: a phone number the model was not given is replaced with "(numero non presente nelle fonti)".
+  Asked which office handles building works on a house, with no relevant passage found, the model had
+  written a switchboard number that exists nowhere ("0735 794111" instead of "0735 7941"). The numbers
+  allowed are those in the instructions, the passages, the known facts and the conversation, also when
+  written without the area code or as a range ("794234-235"); dates, times and amounts are left alone. The
+  check also runs on streamed answers: the trailing digits of a token wait for the next one, so a number
+  is checked once it is complete.
+
 ## [0.21.2] - 2026-11-02
 
 ### Fixed
