@@ -6,6 +6,14 @@
   "domain_max_path_depth": {},
   "extra_start_urls": [],
   "url_aliases": [],
+  "page_aliases": [
+    {
+      "hosts": ["example.org", "www.example.org"],
+      "canonical_host": "www.example.org",
+      "strip_path_prefix": "/index.php",
+      "drop_query_params": ["fromService"]
+    }
+  ],
   "pdf_exclude_patterns": [],
   "news": {
     "wordpress_api": "https://news.example.org/wp-json/wp/v2",

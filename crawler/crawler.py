@@ -15,7 +15,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from urllib.parse import urldefrag, urljoin, urlparse
+from urllib.parse import parse_qsl, urldefrag, urlencode, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -31,6 +31,7 @@ from config.settings import (
     CRAWL_MAX_PAGES,
     CRAWL_MAX_PATH_DEPTH,
     CRAWL_MAX_QUERY_VARIANTS,
+    CRAWL_PAGE_ALIASES,
     CRAWL_PDF_EXCLUDE_PATTERNS,
     CRAWL_SECTION_RULES,
     CRAWL_URL_ALIASES,
@@ -149,14 +150,29 @@ def should_skip(url: str) -> bool:
 def canonical_url(url: str) -> str:
     """Rewrite URLs of alias hosts (CRAWL_URL_ALIASES) onto the canonical host: the same
     attachment served by the organisation's site, an external portal and an S3 bucket becomes a
-    single URL, so it is downloaded and indexed only once."""
-    if not CRAWL_URL_ALIASES:
+    single URL, so it is downloaded and indexed only once. Then the forms of one page
+    (CRAWL_PAGE_ALIASES: with and without www., under /index.php/, with parameters that do not change
+    the page) become one: on the pilot's site each page was indexed under up to six addresses."""
+    if not CRAWL_URL_ALIASES and not CRAWL_PAGE_ALIASES:
         return url
     parsed = urlparse(url)
     for alias in CRAWL_URL_ALIASES:
         if (parsed.netloc in alias.get("hosts", [])
                 and parsed.path.startswith(alias.get("path_prefix", "/"))):
             return parsed._replace(scheme="https", netloc=alias["canonical_host"]).geturl()
+    for rule in CRAWL_PAGE_ALIASES:
+        if parsed.netloc not in rule.get("hosts", []):
+            continue
+        if rule.get("canonical_host"):
+            parsed = parsed._replace(scheme="https", netloc=rule["canonical_host"])
+        prefix = rule.get("strip_path_prefix", "").rstrip("/")
+        if prefix and parsed.path.startswith(prefix + "/"):
+            parsed = parsed._replace(path=parsed.path[len(prefix):])
+        drop = set(rule.get("drop_query_params", []))
+        if drop and parsed.query:
+            kept = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k not in drop]
+            parsed = parsed._replace(query=urlencode(kept))
+        return parsed.geturl()
     return url
 
 

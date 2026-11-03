@@ -170,7 +170,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── adduser.py            # Creates/updates/removes users (--send-email: invitation with a link, no password by email)
 │   ├── feedback_open.py      # Lists open negative feedback
 │   ├── check_version.py      # Checks that version.json, CHANGELOG, CITATION.cff and publiccode.yml agree (CI, release)
-│   ├── cleanup_index.py      # Purges crawl-cache entries now excluded by the crawler filters
+│   ├── cleanup_index.py      # Purges crawl-cache entries now excluded or rewritten by the crawler rules
 │   ├── full_sync.sh          # Monthly full sync (zero downtime, sync lock)
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
 │   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
