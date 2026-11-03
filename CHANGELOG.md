@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-11-03
+
+### Fixed
+- Search: a document published at several addresses counts once. The same regional resolution, saved as
+  five PDFs in two folders, took four of the seven places of the context of a question, under four names.
+  Documents whose passages are all identical are now listed under one address (not on a retired domain,
+  without `/index.php/` or a query string, on the `www` host, then the shortest), so their passages share
+  the same-source penalty and the shown sources. Passages are compared without the title line the indexer
+  puts first, which for a crawled PDF is the cached file name and differs for every copy. On the pilot's
+  index about a quarter of the passages (6,774 addresses) were copies.
+
 ## [0.22.0] - 2026-11-03
 
 ### Added
