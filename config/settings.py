@@ -134,6 +134,10 @@ NEWS_SOURCES: dict = {}
 # "acts" key of crawl_extra.json → {"portal": "https://….nuvolapalitalsoft.it/", "years": 2,
 # "registers": [{"page_id": 35564, "name": "Delibera di Giunta comunale", "plural": "delibere di Giunta"}]}
 ACTS_SOURCES: dict = {}
+# «Amministrazione trasparente» on a Nuvola portal, section by section (scripts/amt_sync.py): "amt" key of
+# crawl_extra.json → {"portal": "https://….nuvolapalitalsoft.it/", "page_id": 36046,
+# "sections": [{"voceamt": 56, "name": "Bilanci", "replaces": ["<prefix of an older copy>"]}]}
+AMT_SOURCES: dict = {}
 # Council sessions calendar (scripts/council_sessions.py): "council" key of crawl_extra.json →
 # {"convocations_url": "...", "link_pattern": "consiglio", "keywords": [...], "require_any": [...]}
 COUNCIL_SESSIONS: dict = {}
@@ -158,6 +162,7 @@ try:
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))
         ACTS_SOURCES.update(_crawl_extra.get("acts", {}))
+        AMT_SOURCES.update(_crawl_extra.get("amt", {}))
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
         EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:

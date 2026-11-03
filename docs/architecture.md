@@ -156,9 +156,10 @@ zautte/                       # deployed as /opt/chatbot
 │   └── zautte-logo-dark.svg  # White logo for GitHub's dark theme
 │
 ├── scripts/
-│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news, acts)
+│   ├── sync.py               # Orchestrator: crawl + indexing (full, incremental, inbox, full-index, reembed, news, acts, amt)
 │   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
 │   ├── acts_sync.py          # Registers of acts of a Nuvola portal: one passage per act + «latest acts» dynamic fact
+│   ├── amt_sync.py           # Amministrazione trasparente of a Nuvola portal: documents with the text of their PDFs (nightly)
 │   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
 │   ├── events_calendar.py    # Events in progress and coming up from The Events Calendar REST API → dynamic known fact (hourly cron)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
@@ -175,6 +176,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── incremental_sync.sh   # Weekly incremental sync (sync lock)
 │   ├── news_sync.sh          # News sync every 15 minutes (same lock, skips while a sync runs)
 │   ├── acts_sync.sh          # Registers of acts twice a day (same lock)
+│   ├── amt_sync.sh           # Amministrazione trasparente every night (same lock)
 │   ├── council_sessions.sh   # Council sessions job every hour (own lock, memory ceiling, time limit)
 │   ├── events_calendar.sh    # Events job every hour (own lock, memory ceiling, time limit)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD

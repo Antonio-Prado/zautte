@@ -501,11 +501,12 @@ def _is_inbox(meta: dict) -> bool:
 def _is_protected(meta: dict) -> bool:
     """Chunks that the crawl does not know and that syncs must not remove as
     «stale»: inbox documents, Bollettino news indexed by `scripts.news_sync`
-    (origin=news; their domain is not in the crawl) and the acts indexed by
+    (origin=news; their domain is not in the crawl), the transparency documents of
+    `scripts.amt_sync` (origin=amt) and the acts indexed by
     `scripts.acts_sync` (origin=acts; the registers are search results, not pages).
     Unlike the inbox, they remain replaceable by their own indexer when the text
     changes (see source_chunk_ids)."""
-    return _is_inbox(meta) or meta.get("origin") in ("news", "acts")
+    return _is_inbox(meta) or meta.get("origin") in ("news", "acts", "amt")
 
 
 def source_chunk_ids(source: str, include_inbox: bool = False) -> set[str]:

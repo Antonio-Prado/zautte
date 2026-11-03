@@ -38,6 +38,20 @@
       }
     ]
   },
+  "amt": {
+    "portal": "https://example.nuvolapalitalsoft.it/",
+    "page_id": 36046,
+    "section": "amministrazione_trasparente",
+    "max_documents": 200,
+    "max_minutes": 150,
+    "sections": [
+      {
+        "voceamt": 56,
+        "name": "Bilanci",
+        "replaces": ["old-transparency\\.example\\.org/.*/bilanci/"]
+      }
+    ]
+  },
   "section_rules": [
     {
       "host_contains": "suap",
