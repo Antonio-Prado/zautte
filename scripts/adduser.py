@@ -17,6 +17,11 @@ Usage:
     # removal
     python -m scripts.adduser --remove m.rossi@example.it
 
+    # administrator role: the user's own login also opens the restricted area (and closes
+    # it again, at once, when the role is taken away)
+    python -m scripts.adduser --admin m.rossi@example.it
+    python -m scripts.adduser --no-admin m.rossi@example.it
+
 The password is never stored in clear text: only the scrypt hash ends up in
 data/users.json. The data/ folder is already excluded from version control (.gitignore).
 """
@@ -59,6 +64,8 @@ def main() -> None:
     ap.add_argument("--invite-hours", type=int, default=72, help="validity of that link (default 72)")
     ap.add_argument("--list", action="store_true", help="list users")
     ap.add_argument("--remove", metavar="EMAIL", help="remove a user")
+    ap.add_argument("--admin", metavar="EMAIL", help="give the administrator role to an existing user")
+    ap.add_argument("--no-admin", metavar="EMAIL", help="take the administrator role away")
     args = ap.parse_args()
 
     with file_lock(USERS_FILE):
@@ -72,7 +79,23 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
         if not users:
             print("No users registered.")
         for u in users:
-            print(f"  {u.get('name', '?'):30} {u.get('email', '?'):35} (id={u.get('id')})")
+            role = "  [admin]" if u.get("admin") is True else ""
+            print(f"  {u.get('name', '?'):30} {u.get('email', '?'):35} (id={u.get('id')}){role}")
+        return
+
+    if args.admin or args.no_admin:
+        email = (args.admin or args.no_admin).strip().lower()
+        user = next((u for u in users if u.get("email", "").strip().lower() == email), None)
+        if user is None:
+            print(f"User not found: {email} (create it first)")
+            sys.exit(1)
+        if args.admin:
+            user["admin"] = True
+        else:
+            user.pop("admin", None)
+        write_users(users)
+        print(f"{'Administrator' if args.admin else 'No longer administrator'}: "
+              f"{user.get('name', '?')} <{email}>")
         return
 
     if args.remove:
@@ -86,7 +109,7 @@ def _run(args: argparse.Namespace, ap: argparse.ArgumentParser) -> None:
         return
 
     if not args.email or not args.name:
-        ap.error("--email e --name sono obbligatori (oppure usa --list / --remove)")
+        ap.error("--email e --name sono obbligatori (oppure usa --list / --remove / --admin / --no-admin)")
 
     email = args.email.strip().lower()
     if args.send_email and not smtp_configured():

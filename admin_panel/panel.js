@@ -343,11 +343,11 @@
       btns.forEach(b => { b.disabled = true; });
       fetch(apiBase + '/feedback/resolve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': getAdminKey() },
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         body: JSON.stringify({ ts: e.ts, question: e.question, id: e.id || null, note: note.trim(), notify }),
       })
         .then(r => {
-          if (r.status === 403) { _adminKey = null; throw new Error('Invalid admin key.'); }
+          if (r.status === 403) { _adminKey = null; _adminToken = null; throw new Error('Access refused: log in again.'); }
           if (!r.ok) throw new Error('HTTP ' + r.status);
           li.classList.add('resolving');
           setTimeout(() => { li.remove(); loadNegativeFeedback(); updateStats(); }, 320);
@@ -606,7 +606,7 @@
       const status = document.getElementById('usage-status');
       fetch(apiBase + '/usage/summary', { headers: adminHeaders() })
         .then(r => {
-          if (r.status === 403) { _adminKey = null; throw new Error('key'); }
+          if (r.status === 403) { _adminKey = null; _adminToken = null; throw new Error('key'); }
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
@@ -694,11 +694,11 @@
       btns.forEach(b => { b.disabled = true; });
       fetch(apiBase + '/applications/' + action, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Admin-Key': getAdminKey() },
+        headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         body: JSON.stringify({ id: a.id }),
       })
         .then(async r => {
-          if (r.status === 403) { _adminKey = null; throw new Error('Invalid admin key.'); }
+          if (r.status === 403) { _adminKey = null; _adminToken = null; throw new Error('Access refused: log in again.'); }
           if (!r.ok) {
             let detail = '';
             try { detail = (await r.json()).detail || ''; } catch (_) { /* no body */ }

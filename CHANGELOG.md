@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-03
+
+### Added
+- Administrator role: an account with `"admin": true` in `users.json` opens the restricted area with its
+  own email and password, as an alternative to the shared admin key. Every admin route and the detailed
+  `/health` accept that session; the role is read from `users.json` on every request, so taking it away
+  or changing the password closes the area at once. `python -m scripts.adduser --admin <email>` and
+  `--no-admin <email>` give and take the role; `--list` marks administrators. `POST /auth/login` and
+  `GET /auth/me` return `admin`.
+- The restricted-area page asks for email and password; the access key stays available behind a link,
+  for the scripts on the server and as a fallback. After an administrator's login the chat below the
+  panel uses the same session, with no second login.
+- Every admin request that changes something is logged with who made it (account name and id, or
+  `admin key`).
+
 ## [0.23.0] - 2026-11-03
 
 ### Added
