@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-03
+
+### Added
+- Crawler: `page_aliases` in `crawl_extra.json` turns the forms of one page into one address: hosts
+  rewritten to a `canonical_host` (with and without `www.`), a `strip_path_prefix` (`/index.php`) and
+  `drop_query_params` that do not change the page (`fromService`, `category_id`). On the pilot's site the
+  same page was indexed under up to six addresses (about 3,300 extra addresses).
+- `scripts/cleanup_index.py` also drops from the crawl cache the other forms of a page whose canonical form
+  is already there.
+
 ## [0.22.1] - 2026-11-03
 
 ### Fixed

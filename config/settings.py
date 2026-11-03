@@ -114,6 +114,11 @@ CRAWL_EXTRA_START_URLS: list[str] = []
 # [{"path_prefix": "/s3/…/", "hosts": [...], "canonical_host": "..."}]. The crawler
 # rewrites these URLs onto the canonical host, so a file is downloaded and indexed once.
 CRAWL_URL_ALIASES: list[dict] = []
+# Addresses of one page that a CMS serves in several forms (with and without www., under /index.php/,
+# with query parameters that only say where the visitor came from):
+# [{"hosts": [...], "canonical_host": "www.…", "strip_path_prefix": "/index.php", "drop_query_params": [...]}].
+# The crawler rewrites them to one form, so a page is fetched and indexed once.
+CRAWL_PAGE_ALIASES: list[dict] = []
 # "Section" metadata label derived from the host name, in order, the first rule wins:
 # [{"host_contains": "suap", "section": "suap"}]. With no rules SECTION_DEFAULT applies.
 CRAWL_SECTION_RULES: list[dict] = []
@@ -148,6 +153,7 @@ try:
         CRAWL_DOMAIN_MAX_PATH_DEPTH.update(_crawl_extra.get("domain_max_path_depth", {}))
         CRAWL_EXTRA_START_URLS += _crawl_extra.get("extra_start_urls", [])
         CRAWL_URL_ALIASES += _crawl_extra.get("url_aliases", [])
+        CRAWL_PAGE_ALIASES += _crawl_extra.get("page_aliases", [])
         CRAWL_SECTION_RULES += _crawl_extra.get("section_rules", [])
         CRAWL_PDF_EXCLUDE_PATTERNS += _crawl_extra.get("pdf_exclude_patterns", [])
         NEWS_SOURCES.update(_crawl_extra.get("news", {}))

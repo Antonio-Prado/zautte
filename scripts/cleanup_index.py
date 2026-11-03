@@ -4,7 +4,8 @@ Cleanup of the existing index after the crawler filters were updated.
 The script:
   1. Reads data/crawl_cache/index.json and data/crawl_cache/crawl_state.json
   2. Applies the same should_skip() logic as the updated crawler
-  3. Removes entries whose URLs are now blocked
+  3. Removes entries whose URLs are now blocked, and the other forms of a page whose canonical
+     form (canonical_url(), see page_aliases in crawl_extra.json) is already in the index
   4. Deletes the corresponding .json and .pdf files
   5. Saves the cleaned index.json and crawl_state.json
 
@@ -26,10 +27,24 @@ from api.privdrop import drop_to_sync_user
 drop_to_sync_user()   # as root: become the sync account before config.settings reads .env
 
 from config.settings import CRAWL_CACHE_DIR, DOCUMENTS_DIR
-from crawler.crawler import should_skip  # the crawler's own rule (a copy here had drifted from it)
+from crawler.crawler import (  # the crawler's own rules (a copy here had drifted from them)
+    canonical_url,
+    should_skip,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
+
+
+def make_drop_rule(known: set[str]):
+    """An address is dropped when the crawler now skips it, or when it is another form of a page
+    whose canonical form is also known (kept, so the page is not lost until the next crawl)."""
+    def drop(url: str) -> bool:
+        if should_skip(url):
+            return True
+        canonical = canonical_url(url)
+        return canonical != url and canonical in known
+    return drop
 
 
 def cleanup(dry_run: bool = False):
@@ -53,16 +68,19 @@ def cleanup(dry_run: bool = False):
     log.info(f"Current index: {len(pages_in)} pages, {len(pdfs_in)} PDFs")
     log.info(f"Current state:  {len(state)} tracked URLs")
 
+    known = {e["url"] for e in pages_in + pdfs_in} | set(state)
+    drop = make_drop_rule(known)
+
     pages_keep, pages_drop = [], []
     for entry in pages_in:
-        (pages_drop if should_skip(entry["url"]) else pages_keep).append(entry)
+        (pages_drop if drop(entry["url"]) else pages_keep).append(entry)
 
     pdfs_keep, pdfs_drop = [], []
     for entry in pdfs_in:
-        (pdfs_drop if should_skip(entry["url"]) else pdfs_keep).append(entry)
+        (pdfs_drop if drop(entry["url"]) else pdfs_keep).append(entry)
 
     # Count the URLs in the state that would be removed (including entries without a file)
-    state_drop = {url for url in state if should_skip(url)}
+    state_drop = {url for url in state if drop(url)}
 
     log.info(
         f"\nPages:   {len(pages_keep)} kept, {len(pages_drop)} removed"
