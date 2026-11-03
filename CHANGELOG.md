@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-04
+
+### Added
+- `scripts/amt_sync.py` (`scripts.sync amt`, nightly through `scripts/amt_sync.sh`): the «Amministrazione
+  trasparente» of a Nuvola portal, section by section. It walks the configured sections, and for every
+  new or changed document (recognised by the MD5 fingerprints of its attachments, since their links change
+  at every visit) reads the text of its PDFs and indexes it under the stable address of its page. The text
+  kept per document is shared among its attachments. At most `max_documents` documents or `max_minutes`
+  minutes per night; what is left goes on the next night. Passages carry `origin: amt` and are kept by the
+  other syncs.
+- A section can name the older copy of its documents (`replaces`, regular expressions on the address):
+  once the section is complete, those passages are removed. `--show-replaced` lists them first.
+
 ## [0.24.0] - 2026-11-03
 
 ### Added
