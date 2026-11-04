@@ -31,7 +31,15 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from api.safefile import read_json_bounded
 from config.settings import CRAWL_CACHE_DIR, RETRIEVAL_TOP_K, VECTOR_STORE_DIR, is_migrated_source
-from indexer.titles import LINK_TEXTS_FILE, display_title, is_weak, title_from_text, with_text_title
+from indexer.titles import (
+    LINK_TEXTS_FILE,
+    MAX_PAGE_ATTACHMENTS,
+    PAGE_ATTACHMENTS_FILE,
+    display_title,
+    is_weak,
+    title_from_text,
+    with_text_title,
+)
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +63,8 @@ _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chu
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
 _pdf_link_texts: dict[str, str] = {}      # PDF source → link text (from the crawler)
 _copy_of: dict[str, int] | None = None   # source of a copy → index of a passage of the kept document (lazy)
+_source_rows: dict[str, list[int]] | None = None   # source → its rows, in chunk order (lazy)
+_page_attachments: dict[str, list[str]] | None = None   # page → PDFs it links (lazy, from the crawler)
 
 # Deferred saving (see deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -180,6 +190,7 @@ def reload() -> dict:
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
+    global _source_rows, _page_attachments
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -197,13 +208,14 @@ def reload() -> dict:
         _bm25, _bm25_dirty = bm25, False
         _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts = None, {}, {}, {}
         _copy_of = copies
+        _source_rows, _page_attachments = None, None
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
 
 
 def _reset_state():
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -212,6 +224,7 @@ def _reset_state():
     _bm25_dirty = False
     _pdf_title_count = None
     _copy_of = None
+    _source_rows = None
 
 
 def _tokenize(text: str) -> list[str]:
@@ -391,7 +404,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
 
     if not chunks:
         return 0
@@ -471,6 +484,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         _bm25_dirty = True
         _pdf_title_count = None
         _copy_of = None
+        _source_rows = None
         _save()
     return inserted + updated
 
@@ -770,6 +784,92 @@ def _hybrid_search(query_embedding, query_text, top_k, vector_weight, bm25_weigh
     return results
 
 
+def _rows_by_source() -> dict[str, list[int]]:
+    global _source_rows
+    if _source_rows is None:
+        rows: dict[str, list[int]] = {}
+        for i, meta in enumerate(_metadata):
+            rows.setdefault(meta.get("source", ""), []).append(i)
+        for r in rows.values():
+            r.sort(key=lambda i: _metadata[i].get("chunk_index", 0))
+        _source_rows = rows
+    return _source_rows
+
+
+def _attachments_of_pages() -> dict[str, list[str]]:
+    """Page → PDFs it links, as saved by the crawler; pages linking too many are left out."""
+    global _page_attachments
+    if _page_attachments is None:
+        path = CRAWL_CACHE_DIR / PAGE_ATTACHMENTS_FILE
+        try:
+            data = read_json_bounded(path, _LINK_TEXTS_MAX_BYTES, dict)
+        except FileNotFoundError:
+            data = {}
+        except (OSError, ValueError):
+            log.warning(f"{path} unreadable: no passages from the attachments of the pages")
+            data = {}
+        _page_attachments = {
+            page: [u for u in pdfs if isinstance(u, str)]
+            for page, pdfs in data.items()
+            if isinstance(page, str) and isinstance(pdfs, list) and 0 < len(pdfs) <= MAX_PAGE_ATTACHMENTS
+        }
+    return _page_attachments
+
+
+def attachment_passages(pages: list[str], query_embedding: list[float], limit: int = 2,
+                        min_score: float = 0.0, skip_sources: set[str] | frozenset = frozenset()) -> list[dict]:
+    """The passages of the PDFs attached to the given pages that are closest to the query: the best
+    passage of each attachment, joined to the passage that follows it (a sentence or a table row cut
+    in two by the chunker), the `limit` best overall, above `min_score` (cosine). A page that cites
+    a regulation or a fee table brings the part of it that answers, which the search over the whole
+    index does not always find."""
+    with _lock:
+        _ensure_loaded()
+        if _embeddings is None or not _ids or limit <= 0:
+            return []
+        attached = _attachments_of_pages()
+        if not attached:
+            return []
+        q = np.array(query_embedding, dtype=np.float32)
+        norm = np.linalg.norm(q)
+        if norm == 0:
+            return []
+        q = q / norm
+        rows = _rows_by_source()
+        best: list[tuple[float, int, str]] = []
+        seen: set[str] = set()
+        for page in pages:
+            for pdf in attached.get(page, []):
+                if pdf in seen or pdf in skip_sources or pdf not in rows:
+                    continue
+                seen.add(pdf)
+                scores = _embeddings[rows[pdf]] @ q
+                j = int(np.argmax(scores))
+                best.append((float(scores[j]), j, pdf))
+        best.sort(key=lambda b: b[0], reverse=True)
+        out = []
+        for score, j, pdf in best[:limit]:
+            if score < min_score:
+                break
+            r = rows[pdf]
+            meta = _metadata[r[j]]
+            text = meta.get("text", "")
+            if j + 1 < len(r):
+                text += "\n" + _body(_metadata[r[j + 1]])
+            doc = _kept_meta(meta)
+            out.append({
+                "text":     text,
+                "source":   doc.get("source", ""),
+                "title":    doc.get("title", ""),
+                "display_title": _title(doc),
+                "doc_type": meta.get("doc_type", ""),
+                "category": meta.get("category", ""),
+                "date":     meta.get("date", ""),
+                "score":    score,
+            })
+        return out
+
+
 def get_indexed_sources() -> set[str]:
     """Returns the set of URLs (source) already present in the vector store."""
     _ensure_loaded()
@@ -818,13 +918,14 @@ def get_stats() -> dict:
 
 def _apply_keep(keep: list[int]):
     """Reduces the store to the rows in `keep` (sorted indices) and realigns the indices."""
-    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count, _copy_of
+    global _embeddings, _metadata, _ids, _id_to_idx, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
     _embeddings = _embeddings[keep]
     _metadata   = [_metadata[i] for i in keep]
     _ids        = [_ids[i] for i in keep]
     _id_to_idx  = {id_: i for i, id_ in enumerate(_ids)}
     _bm25_dirty = True
     _copy_of = None
+    _source_rows = None
     _pdf_title_count = None
 
 

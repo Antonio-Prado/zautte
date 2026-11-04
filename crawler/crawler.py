@@ -42,7 +42,7 @@ from config.settings import (
 )
 from crawler.netpolicy import get_limited_async, guard_async, url_allowed
 from crawler.state import CrawlState, content_hash, write_json_atomic
-from indexer.titles import LINK_TEXTS_FILE, best_link_text
+from indexer.titles import LINK_TEXTS_FILE, PAGE_ATTACHMENTS_FILE, best_link_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -206,6 +206,25 @@ def extract_pdf_links(html: str, base_url: str) -> list[tuple[str, str]]:
                 text = tag.get_text(" ", strip=True) or (tag.get("title") or "").strip()
                 pdfs.append((absolute, text))
     return pdfs
+
+
+def save_page_attachments(observed: dict[str, list[str]]) -> int:
+    """Update data/crawl_cache/page_attachments.json (page URL → PDFs it links): the pages read in
+    this crawl get their current list (none: removed), the others keep theirs. Returns the pages
+    with attachments."""
+    path = CRAWL_CACHE_DIR / PAGE_ATTACHMENTS_FILE
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError):
+        log.warning(f"{path} unreadable: rewriting it from scratch")
+        saved = {}
+    for page, pdfs in observed.items():
+        if pdfs:
+            saved[page] = list(dict.fromkeys(pdfs))
+        else:
+            saved.pop(page, None)
+    write_json_atomic(path, saved, indent=1)
+    return len(saved)
 
 
 def save_link_texts(observed: dict[str, list[str]]) -> int:
@@ -448,6 +467,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     variants: dict[tuple[str, str], int] = {}        # (host, path) -> query-string variants queued
     pdf_urls: set[str] = set()
     pdf_link_texts: dict[str, list[str]] = {}  # PDF URL → texts of the links that cite it
+    page_pdfs: dict[str, list[str]] = {}       # page URL → PDFs it links (page_attachments.json)
     results_pages = []
     results_pdfs = []
 
@@ -523,8 +543,10 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
                             continue
                         queued.add(link)
                         to_visit.append(link)
+                    page_pdfs[url] = []
                     for pdf_url, link_text in extract_pdf_links(raw_html, url):
                         pdf_urls.add(pdf_url)
+                        page_pdfs[url].append(pdf_url)
                         if link_text:
                             pdf_link_texts.setdefault(pdf_url, []).append(link_text)
 
@@ -651,6 +673,7 @@ async def crawl(start_url: str = SITE_URL, incremental: bool = False) -> dict:
     state.save()
     updated = save_link_texts(pdf_link_texts)
     log.info(f"PDF link texts: {len(pdf_link_texts)} PDFs cited, {updated} new or changed titles")
+    log.info(f"Pages with attachments: {save_page_attachments(page_pdfs)}")
     index = {"pages": results_pages, "pdfs": results_pdfs}
     write_json_atomic(index_path, index, indent=2)   # a run cut short never leaves a truncated index
     n_old = state.delete_orphans()

@@ -230,6 +230,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `OLLAMA_EMBED_MODEL`   | `bge-m3`                       | Embedding model (1024 dim)                           |
 | `EMBEDDING_DIMENSION`  | `1024`                         | Embedding vector dimension                           |
 | `RETRIEVAL_TOP_K`      | `7`                            | Chunks passed to the LLM per query                   |
+| `ATTACHMENT_PASSAGES`  | `2`                            | Passages added from the PDFs linked by the chosen pages (`.env`; 0 = off) |
 | `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
 | `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
 | `OLLAMA_CHAT_TIMEOUT`  | `240`                          | Longest time for one answer of the Ollama chat model (seconds) |

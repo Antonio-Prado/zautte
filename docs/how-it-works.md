@@ -38,7 +38,8 @@ User question
      │                         a document published at several addresses is listed under one of them
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
      ├─ rerank()             — title boost, "servizio" category boost, PDF, news and retired-domain penalties, same-source penalty
-     └─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
+     ├─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
+     └─ attachment passages  — up to ATTACHMENT_PASSAGES (2) from the PDFs linked by the chosen pages
      │
      ▼
 6. build_context_block()  — one header per chunk: title, type, link (no link for MIGRATED_DOMAINS)
@@ -93,6 +94,10 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 
 Each chunk keeps its cosine score, which the confidence check and the sources list use.
 
+### Passages of the attachments of the chosen pages
+
+A page often says what a service is and leaves the figures to a PDF it links: the regulation with the distances, the table of fees. The search over the whole index does not always reach that PDF passage: a table reads badly as text, a sentence can be cut between two passages, and the PDF penalty works against it. So, once the chunks are chosen, `retrieve_context()` looks at the pages among them (not PDFs, known facts included) and at the PDFs each page links (`data/crawl_cache/page_attachments.json`, written by the crawler; pages linking more than 20 PDFs, such as a list of forms, are left out). For each attached PDF not already in the context it takes the passage closest to the question (cosine with the query vector), joined to the passage that follows it, and adds the best `ATTACHMENT_PASSAGES` (default 2; 0 turns this off) whose similarity is at least `MIN_SIMILARITY`, after the other chunks.
+
 ### Office Suggestion
 
 `suggest_office()` matches the question against the keywords in `config/offices.json` (whole words, case-insensitive, first match wins) and returns the office with a link (`SITE_URL` + `path`, or `url`). When an office matches, the suggestion goes into the prompt: with context, as an instruction to point to that office if the context does not really answer; without context, after the "nothing found" note.
@@ -126,6 +131,7 @@ Questions with 0 chunks, and *weak* retrievals where even the best chunk is belo
 7. Updates state in `data/crawl_cache/crawl_state.json`
 8. Saves the index in `data/crawl_cache/index.json`
 9. Saves in `data/crawl_cache/pdf_link_texts.json` the text of the links to each PDF seen in this run (the most descriptive one, without "Download", "PDF" or file sizes); PDFs not linked in this run keep their previous text. Links on unchanged pages count too
+10. Saves in `data/crawl_cache/page_attachments.json`, for each page read in this run, the PDFs it links (the search uses them, see "Passages of the attachments of the chosen pages"); pages not read keep their list. `venv/bin/python -m scripts.page_attachments` fills the file for the pages already crawled, without a crawl
 
 ### Incremental Mode
 

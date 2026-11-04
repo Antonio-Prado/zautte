@@ -225,6 +225,9 @@ EMBEDDING_DIMENSION = 1024
 # numpy implementation (pure Python, no compilation required)
 VECTOR_STORE_DIR = DATA_DIR / "vectorstore"
 RETRIEVAL_TOP_K = 7            # chunks to retrieve for each query
+# Passages added from the PDFs attached to the pages the search picked (0 = off): the part of a regulation
+# or of a fee table that answers, when the search over the whole index does not reach it
+ATTACHMENT_PASSAGES = int(os.getenv("ATTACHMENT_PASSAGES", "2"))
 
 # --- LLM ---
 # Choose: "ollama" (local, full privacy), "claude" (direct Anthropic API)
