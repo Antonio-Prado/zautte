@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-11-04
+
+### Fixed
+- Restricted area: the badge of the Messages tab counts the messages still to read: those highlighted as
+  new until each one is opened, plus those arrived since the last look. It used to count only the second
+  ones and went back to zero as soon as the tab was opened, while the messages were still highlighted.
+  The overview line says the same number.
+- `GET /usage/messages` leaves out of `fresh` the highlighted messages no longer in the log (deleted on
+  request or by the retention periods), so they are not counted with nothing to click.
+
 ## [0.26.0] - 2026-11-04
 
 ### Added

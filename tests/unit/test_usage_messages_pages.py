@@ -104,3 +104,15 @@ def test_seen_mark_rejects_an_unreadable_timestamp(tmp_path, monkeypatch):
     with pytest.raises(HTTPException):
         asyncio.run(main.usage_messages_seen(main.MessagesSeenRequest(ts="ieri"), _=None))
     assert not (tmp_path / "messages_seen.json").exists()
+
+
+def test_highlighted_messages_deleted_from_the_log_are_not_counted(tmp_path, monkeypatch):
+    """0.26.1: the badge of the Messages tab counts the highlighted messages; one deleted on request
+    or by the retention periods must not stay among them with nothing to click."""
+    monkeypatch.setattr(main, "_DATA_DIR", tmp_path)
+    monkeypatch.setattr(main, "TEST_ACCOUNTS", set())
+    _write(tmp_path, 3)
+    (tmp_path / "messages_seen.json").write_text(json.dumps({
+        "seen": "2026-10-27T10:02:00+01:00",
+        "fresh": ["r1|2026-10-27T10:01:00+01:00|u1", "gone|2026-10-26T09:00:00+01:00|u1"]}))
+    assert _get(limit=0, offset=0, retrieved=False)["fresh"] == ["r1|2026-10-27T10:01:00+01:00|u1"]

@@ -1273,9 +1273,12 @@ async def usage_messages(limit: int = 300, offset: int = 0, retrieved: bool = Tr
     msgs.reverse()  # most recent first
     start = max(offset, 0)
     state = await asyncio.to_thread(_read_msg_state)
+    # only the highlighted messages still in the log: a question deleted on request (forget) or by
+    # the retention periods (purge_logs) must not stay counted as «to read» with nothing to click
+    present = {_msg_key(m) for m in msgs}
     result = {"messages": msgs[start:start + max(limit, 0)], "total": total,
               "latest": msgs[0]["ts"] if msgs else "",
-              "seen": state["seen"], "fresh": state["fresh"]}
+              "seen": state["seen"], "fresh": [k for k in state["fresh"] if k in present]}
     if since is None and state["seen"]:
         since = state["seen"]
     if since is not None:
