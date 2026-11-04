@@ -104,7 +104,8 @@
       if (mi.active) items.push(['', '<strong>Maintenance</strong> active since ' + _esc(mi.since || '?') + ' — ' + _esc(mi.reason || ''), 'system']);
       if (_negOpen) items.push(['', '<strong>' + _negOpen + '</strong> open report' + (_negOpen > 1 ? 's' : '') + ' 👎', 'reports']);
       if (_appsPending) items.push(['warn', '<strong>' + _appsPending + '</strong> application' + (_appsPending > 1 ? 's' : '') + ' to decide', 'people']);
-      if (_msgNew) items.push(['', '<strong>' + _msgNew + '</strong> new message' + (_msgNew > 1 ? 's' : '') + ' since your last look at the log', 'messages']);
+      const toRead = _msgToRead();
+      if (toRead) items.push(['', '<strong>' + toRead + '</strong> new message' + (toRead > 1 ? 's' : '') + ' to read', 'messages']);
       if (!items.length) {
         box.innerHTML = (_negOpen === null || _appsPending === null) ? ''
           : '<div class="attn ok">✓ Nothing to handle: no open reports, no applications to decide</div>';
@@ -372,8 +373,10 @@
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
 
-    // Messages arrived since the last look at the log: badge on the tab and a line in the
-    // overview, like open reports and applications. The mark is the server timestamp of the
+    // Messages to read: badge on the tab and a line in the overview, like open reports and
+    // applications. They are the messages still highlighted as new (until each one is clicked)
+    // plus those arrived since the last look at the log, which become highlighted when it is
+    // opened: opening the tab does not empty the badge, reading the messages does. The mark is the server timestamp of the
     // newest message shown, so clocks never disagree; the first visit starts from the newest
     // message, without a backlog. Test accounts are not counted. Since 0.19.0 the mark and the
     // keys of the messages still highlighted live on the server (every answer of
@@ -382,6 +385,8 @@
     let _msgSeenTs = '';
     const _msgFresh = new Set();
     function _msgSeen() { return _msgSeenTs; }
+    function _msgToRead() { return (_msgNew || 0) + _msgFresh.size; }
+    function _showMsgBadge() { setBadge('badge-messages', _msgToRead()); renderAttention(); }
     function _syncMsgState(d) {
       if (typeof d.seen === 'string') _msgSeenTs = d.seen;
       if (Array.isArray(d.fresh)) { _msgFresh.clear(); d.fresh.forEach(k => _msgFresh.add(k)); }
@@ -391,13 +396,12 @@
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
     function _markMessagesSeen(ts) {
-      if (!ts || ts <= _msgSeen()) { if (_msgNew) { _msgNew = 0; setBadge('badge-messages', 0); renderAttention(); } return; }
+      if (!ts || ts <= _msgSeen()) { _msgNew = 0; _showMsgBadge(); return; }
       _msgSeenTs = ts;   // at once, so a second call does not repeat the request
-      _msgNew = 0;
-      setBadge('badge-messages', 0);
-      renderAttention();
+      _msgNew = 0;       // they are highlighted now (_noteFresh): still counted, as fresh
+      _showMsgBadge();
       _postMsgState('/usage/messages/seen', { ts })
-        .then(d => { _syncMsgState(d); if (activeTab === 'messages') renderMessages(true); })
+        .then(d => { _syncMsgState(d); _showMsgBadge(); if (activeTab === 'messages') renderMessages(true); })
         .catch(() => { /* the next answer of the log brings the state of the server */ });
     }
     // The new messages are highlighted in the log until each one is clicked, so they can be
@@ -415,6 +419,7 @@
       const tag = card.querySelector('.msg-new');
       if (tag) tag.remove();
       _renderMsgStatus();
+      _showMsgBadge();
       _postMsgState('/usage/messages/opened', { key }).catch(() => { /* still new elsewhere until the next look */ });
     }
     function countNewMessages() {
@@ -425,8 +430,7 @@
           _syncMsgState(d);
           if (!_msgSeen()) { _markMessagesSeen(d.latest || ''); return; }
           _msgNew = d.new || 0;
-          setBadge('badge-messages', _msgNew);
-          renderAttention();
+          _showMsgBadge();
         })
         .catch(() => { /* keep the last count */ });
     }
