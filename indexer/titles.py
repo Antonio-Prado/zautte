@@ -284,6 +284,10 @@ def with_text_title(base: str, text_title: str) -> str:
 # first candidate for the title. Excluded: «PDF Scarica», «Leggi», file sizes.
 
 LINK_TEXTS_FILE = "pdf_link_texts.json"
+# Page → PDFs it links (data/crawl_cache/page_attachments.json), saved by the crawler: the search adds
+# the passages of the attachments of a page it cites (vector_store.attachment_passages)
+PAGE_ATTACHMENTS_FILE = "page_attachments.json"
+MAX_PAGE_ATTACHMENTS = 20   # a page linking more PDFs (a list of forms) is not a page with «its» attachments
 _LINK_NOISE = re.compile(
     r"\(?\b(?:formato\s+)?pdf\b[\s,:–-]*(?:\d+(?:[.,]\d+)?\s*(?:[kmg]i?b|bytes?)\b)?\)?"
     r"|\b\d+(?:[.,]\d+)?\s*(?:[kmg]i?b)\b|\[\s*\]|\(\s*\)",

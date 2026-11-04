@@ -160,6 +160,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── news_sync.py          # News in near real time: configurable sources (WordPress API, RSS), linked pages and attachments
 │   ├── acts_sync.py          # Registers of acts of a Nuvola portal: one passage per act + «latest acts» dynamic fact
 │   ├── amt_sync.py           # Amministrazione trasparente of a Nuvola portal: documents with the text of their PDFs (nightly)
+│   ├── page_attachments.py   # Page → PDFs it links, for the pages already crawled (the crawler keeps it up to date)
 │   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
 │   ├── events_calendar.py    # Events in progress and coming up from The Events Calendar REST API → dynamic known fact (hourly cron)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
@@ -191,7 +192,7 @@ zautte/                       # deployed as /opt/chatbot
 │   └── pf.conf.example       # Firewall template (pf)
 │
 └── data/                     # Auto-generated (do not commit)
-    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, news_state.json (written by the crawler and news_sync.py)
+    ├── crawl_cache/          # Page cache (pages/), index.json, crawl_state.json, pdf_link_texts.json, page_attachments.json, news_state.json (written by the crawler and news_sync.py)
     ├── documents/            # Downloaded PDFs
     ├── vectorstore/          # embeddings.npy, metadata.json, ids.json and manifest.json (size and SHA-256 of the three, written last); written by the sync jobs
     ├── inbox/                # Documents to index manually (processed/, errors/)

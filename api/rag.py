@@ -25,6 +25,7 @@ from api.filelock import file_lock
 from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
     ANTHROPIC_API_KEY,
+    ATTACHMENT_PASSAGES,
     BEDROCK_AWS_REGION,
     BEDROCK_MODEL,
     BEDROCK_REWRITE_MODEL,
@@ -48,7 +49,7 @@ from config.settings import (
 )
 from indexer.embedder import embed_query
 from indexer.textclean import strip_invisible_chars
-from indexer.vector_store import hybrid_search
+from indexer.vector_store import attachment_passages, hybrid_search
 
 log = logging.getLogger(__name__)
 
@@ -366,7 +367,8 @@ def _dedup_chunks(chunks: list[dict]) -> list[dict]:
 def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
-    Pipeline: known facts → expand → hybrid search → dedup → filter → rerank
+    Pipeline: known facts → expand → hybrid search → dedup → filter → rerank → passages of the
+    attachments of the chosen pages
     """
     known = _inject_known_facts(query)
 
@@ -392,7 +394,22 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     # Prepend the known facts, avoiding duplicates by source
     known_sources = {k["source"] for k in known}
     chunks = [c for c in chunks if c.get("source") not in known_sources]
-    return (known + chunks)[:top_k]
+    chosen = (known + chunks)[:top_k]
+    if ATTACHMENT_PASSAGES > 0 and not vec_is_zero:
+        # the PDFs linked by the chosen pages (a regulation, a fee table): their passage closest to
+        # the question, which the search over the whole index may have left out
+        pages = [c["source"] for c in chosen if c.get("source") and c.get("doc_type") != "pdf"]
+        try:
+            extra = attachment_passages(pages, query_vec, limit=ATTACHMENT_PASSAGES,
+                                        min_score=MIN_SIMILARITY,
+                                        skip_sources={c.get("source", "") for c in chosen})
+        except (ValueError, OSError) as e:
+            log.warning(f"Attachment passages skipped: {e}")
+            extra = []
+        if extra:
+            log.info(f"Attachment passages: {len(extra)} from {', '.join(c['source'][-60:] for c in extra)}")
+        chosen += extra
+    return chosen
 
 
 _FAKE_LABEL_RE = re.compile(r"^[ \t]*\[\s*Fonte\s+\d+\s*:", re.IGNORECASE | re.MULTILINE)

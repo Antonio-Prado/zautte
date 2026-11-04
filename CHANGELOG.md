@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-04
+
+### Added
+- Search: the passages of the PDFs attached to the chosen pages. A page often leaves the figures to a PDF
+  it links (a regulation, a fee table), and the search over the whole index did not always reach that
+  passage. Once the chunks are chosen, the best passage of each PDF linked by the pages among them,
+  joined to the next one (a sentence cut in two), is added when close enough to the question: up to
+  `ATTACHMENT_PASSAGES` (default 2, 0 = off), at least `MIN_SIMILARITY`. On the pilot's index the beach
+  regulation now gives the umbrella distances and the fee table of the urban planning certificate its
+  fees, both missed before.
+- The crawler saves, for each page, the PDFs it links (`data/crawl_cache/page_attachments.json`; pages
+  linking more than 20 PDFs are ignored by the search). `scripts/page_attachments.py` fills the file
+  for the pages already crawled.
+
 ## [0.25.0] - 2026-11-04
 
 ### Added
