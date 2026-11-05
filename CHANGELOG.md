@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-05
+
+### Fixed
+- PDFs encrypted with AES (readable without a password, but ciphered) were skipped with «cryptography>=3.1
+  is required»: `cryptography` is now a dependency, and `fonttools` too, which pypdf needs to parse the
+  encoding of CFF Type1 fonts (tens of thousands of warnings in the transparency runs, with the text of
+  those fonts read only in part). On FreeBSD `cryptography` is built from source: Rust and the OpenSSL
+  headers of the base system are enough.
+
 ## [0.30.0] - 2026-11-05
 
 ### Added

@@ -33,7 +33,7 @@ cd /opt/chatbot
 sh scripts/setup_freebsd.sh
 ```
 
-The script installs the system packages (`python311`, git, curl, wget and the build tools above), creates the virtualenv, installs `requirements-lock.txt` (with `orjson<=3.11.8` when Rust is older than 1.95), creates the `data/` directories and, if Ollama is already installed, pulls `bge-m3` and `llama3.1:8b`. Ollama itself must be installed separately.
+The script installs the system packages (`python311`, git, curl, wget and the build tools above), creates the virtualenv, installs `requirements-lock.txt` (with `orjson<=3.11.8` when Rust is older than 1.95); `cryptography` (encrypted PDFs) has no FreeBSD wheel and is built from source with Rust and the OpenSSL headers of the base system, which takes a few minutes, creates the `data/` directories and, if Ollama is already installed, pulls `bge-m3` and `llama3.1:8b`. Ollama itself must be installed separately.
 
 ## Manual Setup
 
