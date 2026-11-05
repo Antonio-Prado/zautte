@@ -6,9 +6,10 @@ its sub-sections as tiles («Accedi alla sezione») and its documents as blocks 
 description and the attachments. The link of an attachment carries a token that changes at every
 visit, so it cannot be stored or shown; its MD5 fingerprint, printed next to it, does not change.
 This job walks the configured sections, and for every document that is new or whose attachments
-changed it downloads the attachments, reads the text of the PDFs and indexes the document under the
-address of its page (stable, with a fragment that tells the documents of a page apart). Unchanged
-documents are not downloaded again; documents no longer on a page read without errors are removed.
+changed it downloads the attachments, reads the text of the PDFs (signed ones, .p7m, included) and
+indexes the document under the address of its page (stable, with a fragment that tells the documents
+of a page apart). Unchanged documents are not downloaded again; documents no longer on a page read
+without errors are removed.
 
 Sections that list their documents through a search table (`page_id=753`, loaded by JavaScript)
 are not read yet: they are reported in the log.
@@ -173,11 +174,15 @@ def section_limits(section: dict) -> dict:
 
 def doc_digest(doc: dict, limits: dict | None = None) -> str:
     """Changes when the title, the description or an attachment changes (not with the tokens), and
-    when the section's own text limits change, so its documents are read again with them."""
+    when the section's own text limits change, so its documents are read again with them. Documents
+    with signed attachments (.p7m) carry a mark too: they were indexed without that text before the
+    envelopes were opened (0.28.0), and the new digest reads them again once."""
     key = {"t": doc["title"], "d": doc["description"],
            "a": sorted(a["md5"] or a["name"] for a in doc["attachments"])}
     if limits:
         key["l"] = limits
+    if any(a["name"].lower().endswith(".p7m") for a in doc["attachments"]):
+        key["s"] = 1
     return hashlib.sha256(json.dumps(key, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -229,9 +234,13 @@ def walk(fetch, config: dict, root: int, name: str) -> tuple[list[dict], dict]:
 # --------------------------------------------------------------------------- documents
 
 def _pdf_text(data: bytes, max_chars: int) -> str:
-    """Text of a PDF (empty for anything else, or a PDF without text)."""
+    """Text of a PDF, also when signed (`.pdf.p7m`: the PDF is taken out of the envelope); empty for
+    anything else, or a PDF without text."""
     if not data.startswith(b"%PDF"):
-        return ""
+        from indexer.p7m import unwrap
+        data = unwrap(data) or b""
+        if not data.startswith(b"%PDF"):
+            return ""
     from indexer.pdf_extractor import extract_text_from_pdf
     CRAWL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix=".pdf", dir=CRAWL_CACHE_DIR, delete=True) as f:
