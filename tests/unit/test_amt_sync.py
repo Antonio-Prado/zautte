@@ -185,7 +185,7 @@ def test_walk_reads_small_tables_in_full_and_big_ones_as_cards(monkeypatch):
     cards, counts = m.walk(fetch, {**config, "max_table_details": 2}, 544, "x", post=post)
     assert all(d["card"] and not d["attachments"] for d in cards) and counts["rows"] == 3
     assert m.doc_text(cards[1], "Ente", []) == ("Ente, Amministrazione trasparente, sezione x > Bandi di concorso: Concorso n. 1.\n"
-                                               "Numero: 1; Data: 02/03/2026\nPubblicato dal 02/03/2026\n"
+                                               "Numero: 1; Data: 02/03/2026; Responsabile: Rossi\nPubblicato dal 02/03/2026.\n"
                                                f"Pagina del documento: {PORTAL}?page_id=36046&voceamt=544&dettaglio=1")
 
 
