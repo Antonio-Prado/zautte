@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-05
+
+### Added
+- Transparency job: the attachments that are not PDFs are read too. Spreadsheets (`.xlsx`, `.ods`, `.csv`)
+  become one line per row, sheet by sheet; word processor files (`.docx`, `.odt`) their paragraphs; a
+  `.zip` is opened and the files it holds are read (PDFs included, one level). Office Open XML and
+  OpenDocument are ZIP archives of XML, read with the standard library: no new dependency. Old binary
+  formats (`.xls`, `.doc`) and images are still listed by name only. On the pilot's portal about 300
+  attachments out of 3,400 are such files (payments, open budget data, lists). Documents with them get
+  a new digest, so they are read again once at the next runs.
+
 ## [0.28.0] - 2026-11-05
 
 ### Added

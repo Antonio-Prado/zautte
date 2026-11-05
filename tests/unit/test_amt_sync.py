@@ -103,3 +103,12 @@ def test_pdf_text_opens_a_signed_envelope(monkeypatch):
     monkeypatch.setattr(px, "extract_text_from_pdf", lambda path: path.read_bytes()[:8].decode())
     assert m._pdf_text(envelope(PDF), 100) == "%PDF-1.4"
     assert m._pdf_text(b"PK\x03\x04 a zip", 100) == ""
+
+
+def test_office_attachments_mark_the_digest_and_are_read(monkeypatch):
+    from tests.unit.test_office import DOCX
+    doc = m.parse_page(PAGE, PORTAL)["docs"][0]
+    office = {**doc, "attachments": [{**doc["attachments"][0], "name": "nota.docx"}]}
+    assert m.doc_digest(office) != m.doc_digest({**office, "attachments": [{**doc["attachments"][0], "name": "nota.pdf"}]})
+    texts = m.read_attachments(lambda url: DOCX, office, {"max_chars": 1000})
+    assert texts == [("nota.docx", "Relazione annuale\nSecondo paragrafo")]
