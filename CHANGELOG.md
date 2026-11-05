@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-05
+
+### Added
+- Transparency job: the sections that list their documents through a search table (registers of acts,
+  grants, calls) are read. The job asks the portal for the rows of the table, page after page, with the
+  request the page itself makes, and indexes every row as a short card: its description, the other
+  columns (number, date, office, type...) and the address of its detail page, nothing downloaded. Columns
+  that hold a fiscal code or a VAT number are left out, plus those named in `table_skip_columns`. A table
+  with at most `max_table_details` rows (default 300) is read in full instead: the detail page of each row
+  is parsed like any document page, attachments included, and read again only when the row changes. Cards
+  do not count against `max_documents`, only against the time. On the pilot's portal: about 42,800 rows in
+  seven tables, three of them read in full.
+
 ## [0.29.0] - 2026-11-05
 
 ### Added
