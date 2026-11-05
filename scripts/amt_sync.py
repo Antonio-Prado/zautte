@@ -6,9 +6,9 @@ its sub-sections as tiles («Accedi alla sezione») and its documents as blocks 
 description and the attachments. The link of an attachment carries a token that changes at every
 visit, so it cannot be stored or shown; its MD5 fingerprint, printed next to it, does not change.
 This job walks the configured sections, and for every document that is new or whose attachments
-changed it downloads the attachments, reads the text of the PDFs (signed ones, .p7m, included) and
-indexes the document under the address of its page (stable, with a fragment that tells the documents
-of a page apart). Unchanged documents are not downloaded again; documents no longer on a page read
+changed it downloads the attachments, reads their text (PDFs, signed ones included, spreadsheets,
+word processor files, archives: see indexer/office.py) and indexes the document under the address of
+its page (stable, with a fragment that tells the documents of a page apart). Unchanged documents are not downloaded again; documents no longer on a page read
 without errors are removed.
 
 Sections that list their documents through a search table (`page_id=753`, loaded by JavaScript)
@@ -71,6 +71,7 @@ from config.settings import (
 )
 from crawler.netpolicy import get_limited
 from indexer.chunker import chunk_document
+from indexer.office import extract, kind
 
 log = logging.getLogger(__name__)
 
@@ -176,13 +177,16 @@ def doc_digest(doc: dict, limits: dict | None = None) -> str:
     """Changes when the title, the description or an attachment changes (not with the tokens), and
     when the section's own text limits change, so its documents are read again with them. Documents
     with signed attachments (.p7m) carry a mark too: they were indexed without that text before the
-    envelopes were opened (0.28.0), and the new digest reads them again once."""
+    envelopes were opened (0.28.0), and the new digest reads them again once; the same for office
+    files and archives (0.29.0)."""
     key = {"t": doc["title"], "d": doc["description"],
            "a": sorted(a["md5"] or a["name"] for a in doc["attachments"])}
     if limits:
         key["l"] = limits
     if any(a["name"].lower().endswith(".p7m") for a in doc["attachments"]):
         key["s"] = 1
+    if any(kind(a["name"]) not in ("", "pdf") for a in doc["attachments"]):
+        key["o"] = 1          # office files and archives: read since 0.29.0
     return hashlib.sha256(json.dumps(key, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -281,7 +285,8 @@ def build_doc(doc: dict, config: dict, texts: list[tuple[str, str]]) -> dict:
 
 
 def read_attachments(get_bytes, doc: dict, config: dict) -> list[tuple[str, str]]:
-    """(name, text) of the attachments, up to the limits; an attachment that fails is skipped.
+    """(name, text) of the attachments, up to the limits; an attachment that fails or cannot be read
+    (an image, an old .doc) is skipped.
     The text kept for the document is shared among its attachments (the beginning of each, at
     least 4,000 characters): a long table of figures must not crowd out the report next to it."""
     attachments = doc["attachments"][:int(config.get("max_attachments", 25))]
@@ -292,7 +297,7 @@ def read_attachments(get_bytes, doc: dict, config: dict) -> list[tuple[str, str]
         if budget <= 0:
             break
         try:
-            text = _pdf_text(get_bytes(att["url"]), min(share, budget))
+            text = extract(att["name"], get_bytes(att["url"]), min(share, budget), _pdf_text)
         except (httpx.HTTPError, ValueError, OSError) as e:
             log.warning(f"    {att['name']}: not downloaded ({e})")
             continue
