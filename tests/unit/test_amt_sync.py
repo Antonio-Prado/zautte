@@ -88,3 +88,18 @@ def test_section_max_chars_keeps_more_text(monkeypatch):
     config = {"max_chars": 10000}
     texts = m.read_attachments(lambda url: b"y" * 50000, doc, {**config, **m.section_limits({"max_chars": 200000})})
     assert [len(t) for _, t in texts] == [50000, 50000]
+
+
+def test_signed_attachments_mark_the_digest():
+    doc = m.parse_page(PAGE, PORTAL)["docs"][0]
+    signed = {**doc, "attachments": [{**a, "name": a["name"] + ".p7m"} for a in doc["attachments"]]}
+    assert m.doc_digest(signed) != m.doc_digest({**signed, "attachments": doc["attachments"]})
+    assert m.doc_digest(doc) == m.doc_digest(doc, {})                  # plain PDFs: digest unchanged
+
+
+def test_pdf_text_opens_a_signed_envelope(monkeypatch):
+    import indexer.pdf_extractor as px
+    from tests.unit.test_p7m import PDF, envelope
+    monkeypatch.setattr(px, "extract_text_from_pdf", lambda path: path.read_bytes()[:8].decode())
+    assert m._pdf_text(envelope(PDF), 100) == "%PDF-1.4"
+    assert m._pdf_text(b"PK\x03\x04 a zip", 100) == ""

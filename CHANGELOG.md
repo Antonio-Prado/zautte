@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-05
+
+### Added
+- Transparency job: signed PDFs (`.pdf.p7m`, CAdES) are read too. The PDF is taken out of the signature
+  envelope (also when signed more than once, `.p7m.p7m`, and when the envelope is in Base64) by a small
+  reader of the CMS structure in `indexer/p7m.py`, with no new dependency; the signature is not checked.
+  On the pilot's portal about 550 attachments out of 3,400 are signed (determinations, opinions of the
+  auditors, reports), and their documents were indexed with the title only. Documents with signed
+  attachments get a new digest, so they are read again once at the next runs.
+
 ## [0.27.0] - 2026-11-05
 
 ### Added
