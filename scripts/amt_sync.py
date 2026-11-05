@@ -11,8 +11,14 @@ word processor files, archives: see indexer/office.py) and indexes the document 
 its page (stable, with a fragment that tells the documents of a page apart). Unchanged documents are not downloaded again; documents no longer on a page read
 without errors are removed.
 
-Sections that list their documents through a search table (`page_id=753`, loaded by JavaScript)
-are not read yet: they are reported in the log.
+Some sections list their documents through a search table filled by JavaScript (registers of
+acts, grants, calls). The job asks the portal for the rows of the table (the same request the page
+makes, all pages of it) and indexes every row as a short card: its description, the other columns
+(number, date, office, type...) and the address of its detail page, without downloading anything.
+Columns that hold personal identifiers (fiscal code, VAT number) are left out, as are the ones named
+in "table_skip_columns". A table with at most "max_table_details" rows (default 300) is read in
+full instead: the detail page of each row is parsed like any document page, attachments included.
+Cards do not count against "max_documents" (nothing is downloaded for them), only against the time.
 
 A section can name an older copy of the same documents ("replaces": regular expressions matched,
 case-insensitively, against the decoded address of each indexed source): once the section has been
@@ -31,6 +37,8 @@ Configuration: the "amt" key of config/crawl_extra.json
      "max_chars": 60000,                 # text kept per document (default 60000)
      "max_documents": 200,               # new or changed documents per run (default 200)
      "max_minutes": 150,                 # time per run (default 150)
+     "max_table_details": 300,           # rows of a search table read in full, with attachments
+     "table_skip_columns": ["Responsabile"],   # more columns left out of the cards (regexes)
      "sections": [{"voceamt": 56, "name": "Bilanci",
                    "max_chars": 3000000,          # a section can keep more (or less) text
                    "replaces": ["old\\.example\\.org/.*/bilanci/", "Rendiconto_della_gestione"]}]}
@@ -80,6 +88,11 @@ _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; Zautte/1.0)"}
 _DATE_RE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 _MAX_PAGES = 3000          # pages walked per run, whatever the tree looks like
 _BATCH = 10                # documents indexed (and state saved) together
+_CARD_BATCH = 200          # cards (rows of a table) indexed together: no download, short texts
+_TABLE_PAGE = 500          # rows asked per request
+_MAX_TABLE_ROWS = 200000   # rows read from one table, whatever the portal says
+_PERSONAL_COLUMNS = re.compile(r"cod(?:ice)?\.?\s*fisc|p\.?\s*iva|partita\s*iva", re.IGNORECASE)
+_TOKEN_RE = re.compile(r"ajax\.data\s*=\s*'([^']+)'")
 
 
 # --------------------------------------------------------------------------- state
@@ -161,8 +174,72 @@ def parse_page(html: str, base: str) -> dict:
         description = _clean(box.get_text(" "))
         docs.append({"title": title, "description": description, "attachments": attachments,
                      "published": _iso(period.get_text(" ") if period else "")})
-    lists = any(re.search(r"[?&]page_id=753\b", a.get("href", "")) for a in content.find_all("a", href=True))
-    return {"title": _clean(h1.get_text(" ")) if h1 else "", "children": children, "docs": docs, "lists": lists}
+    table = None
+    grid = content.find("table", attrs={"data-ajax": True})
+    token = _TOKEN_RE.search(html)
+    if grid is not None and token:
+        headers = [_clean(th.get_text(" ")) for th in grid.find_all("th")]
+        table = {"headers": headers, "token": token[1]}
+    return {"title": _clean(h1.get_text(" ")) if h1 else "", "children": children, "docs": docs,
+            "lists": table is not None, "table": table}
+
+
+# --------------------------------------------------------------------------- search tables
+
+def _skip_column(header: str, config: dict) -> bool:
+    if not header or _PERSONAL_COLUMNS.search(header):
+        return True
+    return any(re.search(p, header, re.IGNORECASE) for p in config.get("table_skip_columns", []) if p)
+
+
+def parse_row(cells: list[str], headers: list[str], base: str, config: dict) -> dict | None:
+    """A row of a search table as a card: its title (the first column), the detail page it links,
+    the other columns as «Header: value» and the date, if a column holds one."""
+    texts, detail = [], ""
+    for i, cell in enumerate(cells):
+        frag = BeautifulSoup(cell or "", "lxml")
+        if i == 0:
+            a = frag.find("a", href=True)
+            if a is not None:
+                detail = urljoin(base, htmllib.unescape(a["href"]))
+        texts.append(_clean(frag.get_text(" ")))
+    if not texts or not texts[0] or not detail or "dettaglio=" not in detail:
+        return None
+    fields, published = [], ""
+    for header, value in zip(headers[1:], texts[1:], strict=False):
+        if not value or _skip_column(header, config):
+            continue
+        fields.append(f"{header}: {value}")
+        if not published and re.search(r"\bdata\b", header, re.IGNORECASE):
+            published = _iso(value)
+    return {"title": texts[0], "description": "; ".join(fields), "attachments": [], "published": published,
+            "detail": detail}
+
+
+def table_rows(post, config: dict, voceamt: int, table: dict, base: str) -> list[dict]:
+    """Every row of a search table, page after page (the request the page itself makes)."""
+    portal, page_id = config["portal"], int(config["page_id"])
+    form = {"action": "itafrontoffice_ajax", "model": "oopp_portale_func", "data": table["token"],
+            "event": "tablePager", "ajax": ""}
+    rows: list[dict] = []
+    page, total = 0, None
+    while total is None or (len(rows) < total and len(rows) < _MAX_TABLE_ROWS):
+        url = f"{portal}wp-admin/admin-ajax.php?page_id={page_id}&voceamt={voceamt}&page={page}&size={_TABLE_PAGE}"
+        data = post(url, form)
+        if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+            raise ValueError("unexpected answer of the table")
+        try:
+            total = int(data[0])
+        except (TypeError, ValueError):
+            total = len(data[1])
+        if not data[1]:
+            break
+        for cells in data[1]:
+            row = parse_row(cells, table["headers"], base, config)
+            if row:
+                rows.append(row)
+        page += 1
+    return rows
 
 
 _SECTION_LIMITS = ("max_chars", "max_attachments")
@@ -194,14 +271,16 @@ def page_url(portal: str, page_id: int, voceamt: int) -> str:
     return f"{portal}?page_id={page_id}&voceamt={voceamt}"
 
 
-def walk(fetch, config: dict, root: int, name: str) -> tuple[list[dict], dict]:
+def walk(fetch, config: dict, root: int, name: str, post=None, known: dict | None = None) -> tuple[list[dict], dict]:
     """All the documents under a section (breadth first). Returns (documents, counters); each
-    document has its source, the path of sections and the page it is on."""
+    document has its source, the path of sections and the page it is on. With `post`, the rows of
+    the search tables come too: as cards (`card: True`), or as full documents for the small tables
+    (`known`, the state, spares the detail pages of the rows already read and unchanged)."""
     portal, page_id = config["portal"], int(config["page_id"])
     queue: list[tuple[int, list[str]]] = [(root, [name] if name else [])]
     seen: set[int] = set()
     found: list[dict] = []
-    counts = {"pages": 0, "failed": 0, "lists": 0}
+    counts = {"pages": 0, "failed": 0, "lists": 0, "rows": 0}
     while queue and counts["pages"] < _MAX_PAGES:
         voce, path = queue.pop(0)
         if voce in seen or voce == 0:
@@ -216,9 +295,26 @@ def walk(fetch, config: dict, root: int, name: str) -> tuple[list[dict], dict]:
             continue
         counts["pages"] += 1
         here = path if (path and page["title"] == path[-1]) or not page["title"] else path + [page["title"]]
-        if page["lists"] and not page["docs"]:
+        if page["table"] is not None:
             counts["lists"] += 1
-            log.info(f"  {url}: documents in a search table, not read yet")
+            if post is None:
+                log.info(f"  {url}: a search table (not read in this pass)")
+            else:
+                try:
+                    rows = table_rows(post, config, voce, page["table"], url)
+                except (httpx.HTTPError, ValueError) as e:
+                    log.warning(f"  {url}: table not read ({e})")
+                    counts["failed"] += 1
+                    rows = []
+                full = len(rows) <= int(config.get("max_table_details", 300))
+                counts["rows"] += len(rows)
+                log.info(f"  {url}: a search table, {len(rows)} rows" + (" (read in full)" if full else " (cards)"))
+                for row in rows:
+                    detail = row.pop("detail")
+                    doc = {**row, "source": detail, "page": detail, "path": here, "root": root, "card": not full}
+                    if full:
+                        doc = _detail_doc(fetch, doc, known) or doc
+                    found.append(doc)
         used: dict[str, int] = {}
         for doc in page["docs"]:
             s = slug(doc["title"])
@@ -233,6 +329,26 @@ def walk(fetch, config: dict, root: int, name: str) -> tuple[list[dict], dict]:
         log.warning(f"  section {root}: stopped after {_MAX_PAGES} pages")
         counts["failed"] += 1
     return found, counts
+
+
+def _detail_doc(fetch, card: dict, known: dict | None) -> dict | None:
+    """The document on the detail page of a row (title, description, attachments), read only when
+    the row is new or changed; None when the page cannot be read or holds no document."""
+    row_digest = doc_digest(card)
+    was = (known or {}).get(card["source"], {})
+    if was.get("row") == row_digest and was.get("doc"):
+        return {**card, **was["doc"], "card": False, "row": row_digest, "cached": card}
+    try:
+        page = parse_page(fetch(card["source"]), card["source"])
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning(f"  {card['source']}: detail not read ({e})")
+        return None
+    if not page["docs"]:
+        return None
+    doc = page["docs"][0]
+    if card["description"] and card["description"] not in doc["description"]:
+        doc["description"] = f"{card['description']}. {doc['description']}".strip(". ")
+    return {**card, **doc, "card": False, "row": row_digest}
 
 
 # --------------------------------------------------------------------------- documents
@@ -276,6 +392,8 @@ def build_doc(doc: dict, config: dict, texts: list[tuple[str, str]]) -> dict:
     text = doc_text(doc, SITE_NAME, texts)
     extra = {"category": "documento", "section": config.get("section", "amministrazione_trasparente"),
              "origin": "amt"}
+    if doc.get("card"):
+        extra["card"] = True
     if doc["published"]:
         extra["date"] = doc["published"]
     chunks = chunk_document(text=text, source_url=doc["source"], title=doc["title"],
@@ -330,7 +448,7 @@ def _get(client: httpx.Client, url: str) -> httpx.Response:
 def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
     """One run over the configured sections. Returns the counters."""
     counts = {"documents": 0, "new": 0, "changed": 0, "removed": 0, "deferred": 0, "failed": 0,
-              "lists": 0, "replaced": 0, "chunks": 0}
+              "lists": 0, "rows": 0, "cards": 0, "replaced": 0, "chunks": 0}
     config = AMT_SOURCES
     if not config.get("portal") or not config.get("page_id") or not config.get("sections"):
         log.warning("No transparency section configured (crawl_extra.json → \"amt\")")
@@ -350,20 +468,29 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
         def get_bytes(url):
             return _get(client, url).content
 
+        def post(url, form):
+            resp = client.post(url, data=form)
+            time.sleep(CRAWL_DELAY_SECONDS)
+            resp.raise_for_status()
+            return resp.json()
+
         for section in sections:
             root = int(section["voceamt"])
             limits = section_limits(section)
             sconfig = {**config, **limits}
             log.info(f"Section {root} ({section.get('name', '')})" + (f", limits {limits}" if limits else ""))
-            docs, walked = walk(fetch, config, root, section.get("name", ""))
+            docs, walked = walk(fetch, config, root, section.get("name", ""), post=post, known=items)
             counts["documents"] += len(docs)
             counts["failed"] += walked["failed"]
             counts["lists"] += walked["lists"]
+            counts["rows"] += walked["rows"]
             todo = [d for d in docs if items.get(d["source"], {}).get("digest") != doc_digest(d, limits)]
+            # a cached detail (unchanged row) that must be indexed again: fresh attachment links
+            todo = [(_detail_doc(fetch, d["cached"], None) or d) if d.get("cached") else d for d in todo]
             gone = set() if walked["failed"] else (
                 {s for s, it in items.items() if it.get("root") == root} - {d["source"] for d in docs})
-            log.info(f"  {walked['pages']} pages, {len(docs)} documents, {len(todo)} new or changed, "
-                     f"{len(gone)} gone")
+            log.info(f"  {walked['pages']} pages, {len(docs)} documents ({walked['rows']} rows of tables), "
+                     f"{len(todo)} new or changed, {len(gone)} gone")
             if dry_run:
                 for d in todo[:10]:
                     print(f"- {' > '.join(d['path'])}: {d['title']} ({len(d['attachments'])} allegati) {d['source']}")
@@ -371,7 +498,30 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
 
             from indexer.indexer import _index_documents
             from indexer.vector_store import get_indexed_sources, remove_sources
-            pending = list(todo)
+
+            def remember(d, limits=limits, root=root):
+                it = {"digest": doc_digest(d, limits), "root": root, "title": d["title"]}
+                if d.get("row"):          # a row read in full: its detail page is not fetched again
+                    it["row"] = d["row"]
+                    it["doc"] = {k: d[k] for k in ("title", "description", "attachments", "published")}
+                items[d["source"]] = it
+
+            cards = [d for d in todo if d.get("card")]
+            pending = [d for d in todo if not d.get("card")]
+            while cards:
+                if time.monotonic() > deadline:
+                    counts["deferred"] += len(cards)
+                    log.info(f"  {len(cards)} cards left for the next run")
+                    break
+                batch, cards = cards[:_CARD_BATCH], cards[_CARD_BATCH:]
+                log.info(f"  {len(batch)} cards ({len(cards)} to go)")
+                built = [build_doc(d, sconfig, []) for d in batch]
+                _, inserted = _index_documents(built, "AMT", lambda b: b["chunks"], skip_existing=False)
+                counts["chunks"] += inserted
+                for d in batch:
+                    counts["cards"] += 1
+                    remember(d)
+                save_state(state)
             while pending:
                 if counts["new"] + counts["changed"] >= max_docs or time.monotonic() > deadline:
                     counts["deferred"] += len(pending)
@@ -386,7 +536,7 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                 counts["chunks"] += inserted
                 for d in batch:
                     counts["changed" if d["source"] in items else "new"] += 1
-                    items[d["source"]] = {"digest": doc_digest(d, limits), "root": root, "title": d["title"]}
+                    remember(d)
                 save_state(state)
             if gone:
                 remove_sources(gone, keep_inbox=False)
@@ -396,7 +546,7 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                 save_state(state)
             # the older copy goes only when this section is complete: read in full, nothing left
             patterns = section.get("replaces", [])
-            if patterns and not walked["failed"] and not pending and docs and root not in replaced:
+            if patterns and not walked["failed"] and not pending and not cards and docs and root not in replaced:
                 old = replaced_sources(get_indexed_sources(), patterns)
                 if old:
                     remove_sources(old, keep_inbox=False)
@@ -406,8 +556,9 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                 state["replaced"] = sorted(replaced)
                 save_state(state)
     log.info(f"Transparency: {counts['documents']} documents, {counts['new']} new, {counts['changed']} changed, "
-             f"{counts['removed']} removed, {counts['deferred']} left for later, {counts['replaced']} older "
-             f"sources replaced, {counts['lists']} search tables not read, {counts['failed']} pages not read")
+             f"{counts['cards']} cards, {counts['removed']} removed, {counts['deferred']} left for later, "
+             f"{counts['replaced']} older sources replaced, {counts['lists']} search tables ({counts['rows']} rows), "
+             f"{counts['failed']} pages not read")
     return counts
 
 
