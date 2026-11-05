@@ -31,7 +31,10 @@ Configuration: the "amt" key of config/crawl_extra.json
      "max_documents": 200,               # new or changed documents per run (default 200)
      "max_minutes": 150,                 # time per run (default 150)
      "sections": [{"voceamt": 56, "name": "Bilanci",
+                   "max_chars": 3000000,          # a section can keep more (or less) text
                    "replaces": ["old\\.example\\.org/.*/bilanci/", "Rendiconto_della_gestione"]}]}
+A section's own "max_chars" or "max_attachments" replaces the general one for its documents; when
+they change, the documents of that section are read again at the next run.
 Run (from cron through scripts/amt_sync.sh, which takes the lock of the syncs):
     venv/bin/python -m scripts.sync amt
     venv/bin/python -m scripts.amt_sync --dry-run [--section 56]   # walk and print, write nothing
@@ -160,10 +163,21 @@ def parse_page(html: str, base: str) -> dict:
     return {"title": _clean(h1.get_text(" ")) if h1 else "", "children": children, "docs": docs, "lists": lists}
 
 
-def doc_digest(doc: dict) -> str:
-    """Changes when the title, the description or an attachment changes (not with the tokens)."""
+_SECTION_LIMITS = ("max_chars", "max_attachments")
+
+
+def section_limits(section: dict) -> dict:
+    """The text limits a section sets for itself (none: the general ones apply)."""
+    return {k: int(section[k]) for k in _SECTION_LIMITS if k in section}
+
+
+def doc_digest(doc: dict, limits: dict | None = None) -> str:
+    """Changes when the title, the description or an attachment changes (not with the tokens), and
+    when the section's own text limits change, so its documents are read again with them."""
     key = {"t": doc["title"], "d": doc["description"],
            "a": sorted(a["md5"] or a["name"] for a in doc["attachments"])}
+    if limits:
+        key["l"] = limits
     return hashlib.sha256(json.dumps(key, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -324,12 +338,14 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
 
         for section in sections:
             root = int(section["voceamt"])
-            log.info(f"Section {root} ({section.get('name', '')})")
+            limits = section_limits(section)
+            sconfig = {**config, **limits}
+            log.info(f"Section {root} ({section.get('name', '')})" + (f", limits {limits}" if limits else ""))
             docs, walked = walk(fetch, config, root, section.get("name", ""))
             counts["documents"] += len(docs)
             counts["failed"] += walked["failed"]
             counts["lists"] += walked["lists"]
-            todo = [d for d in docs if items.get(d["source"], {}).get("digest") != doc_digest(d)]
+            todo = [d for d in docs if items.get(d["source"], {}).get("digest") != doc_digest(d, limits)]
             gone = set() if walked["failed"] else (
                 {s for s, it in items.items() if it.get("root") == root} - {d["source"] for d in docs})
             log.info(f"  {walked['pages']} pages, {len(docs)} documents, {len(todo)} new or changed, "
@@ -351,12 +367,12 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                 built = []
                 for d in batch:
                     log.info(f"  {d['title'][:90]} ({len(d['attachments'])} attachments)")
-                    built.append(build_doc(d, config, read_attachments(get_bytes, d, config)))
+                    built.append(build_doc(d, sconfig, read_attachments(get_bytes, d, sconfig)))
                 _, inserted = _index_documents(built, "AMT", lambda b: b["chunks"], skip_existing=False)
                 counts["chunks"] += inserted
                 for d in batch:
                     counts["changed" if d["source"] in items else "new"] += 1
-                    items[d["source"]] = {"digest": doc_digest(d), "root": root, "title": d["title"]}
+                    items[d["source"]] = {"digest": doc_digest(d, limits), "root": root, "title": d["title"]}
                 save_state(state)
             if gone:
                 remove_sources(gone, keep_inbox=False)

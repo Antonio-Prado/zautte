@@ -70,3 +70,21 @@ def test_replaced_sources_match_the_decoded_address_and_spare_this_job():
     assert m.replaced_sources(sources, ["/f//bilanci/", r"rendiconto 2025"]) == {
         "https://old.example.org/f//bilanci/Rendiconto%202025.pdf"}
     assert m.replaced_sources(sources, []) == set()
+
+
+def test_section_limits_change_the_digest_only_when_set():
+    doc = m.parse_page(PAGE, PORTAL)["docs"][0]
+    assert m.section_limits({"voceamt": 56, "name": "Bilanci"}) == {}
+    assert m.doc_digest(doc, {}) == m.doc_digest(doc)          # sections without limits: nothing re-read
+    limits = m.section_limits({"voceamt": 56, "max_chars": "3000000"})
+    assert limits == {"max_chars": 3000000}
+    assert m.doc_digest(doc, limits) != m.doc_digest(doc)      # new limits: the documents are read again
+    assert m.doc_digest(doc, limits) == m.doc_digest(doc, {"max_chars": 3000000})
+
+
+def test_section_max_chars_keeps_more_text(monkeypatch):
+    doc = m.parse_page(PAGE, PORTAL)["docs"][0]
+    monkeypatch.setattr(m, "_pdf_text", lambda data, limit: "x" * min(limit, len(data)))
+    config = {"max_chars": 10000}
+    texts = m.read_attachments(lambda url: b"y" * 50000, doc, {**config, **m.section_limits({"max_chars": 200000})})
+    assert [len(t) for _, t in texts] == [50000, 50000]

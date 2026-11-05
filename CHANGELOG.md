@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-05
+
+### Added
+- Transparency job: a section can set its own `max_chars` and `max_attachments`, replacing the general
+  ones for its documents. The general limit keeps the beginning of each PDF, enough to find a document
+  but not the figures at the end of a long report; a section such as the budgets can now be read in
+  full. When a section's own limits change, its documents are read again at the next run, so an older
+  copy named in `replaces` is removed only once the new text is complete.
+
 ## [0.26.1] - 2026-11-04
 
 ### Fixed
