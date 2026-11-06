@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-06
+
+### Added
+- An act asked for by its number («cosa dice la determina n. 1200 del 2025?», «delibera di giunta
+  n. 45 del 2024», «ordinanza 1171/2026») is looked up in the index by number and year
+  (`vector_store.find_acts`) and put before the search results, as a known fact is. The search could
+  not find it: the BM25 side keeps only letters, and a card found by its number alone would not pass
+  the semantic threshold. Cards and documents of the transparency job («Numero: …; Data: …») and the
+  entries of the acts job are recognised; «di giunta» or «di consiglio» keeps the resolutions of that
+  body, with the transparency cards of the same date. The index of numbers is built at the first
+  question and again after a reload.
+
 ## [0.31.1] - 2026-11-06
 
 ### Fixed

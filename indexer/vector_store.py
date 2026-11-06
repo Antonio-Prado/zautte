@@ -58,6 +58,7 @@ _ids: list[str] = []
 _id_to_idx: dict[str, int] = {}
 _bm25 = None          # BM25 index, rebuilt (lazily) when the corpus changes
 _bm25_dirty = False   # True if the corpus changed after the last build
+_acts_index = None    # (number, year) -> rows of the acts with that number, built lazily (find_acts)
 _pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (lazy)
 _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
@@ -190,7 +191,7 @@ def reload() -> dict:
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
-    global _source_rows, _page_attachments
+    global _source_rows, _page_attachments, _acts_index
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -209,6 +210,7 @@ def reload() -> dict:
         _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts = None, {}, {}, {}
         _copy_of = copies
         _source_rows, _page_attachments = None, None
+        _acts_index = None
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
@@ -216,6 +218,8 @@ def reload() -> dict:
 
 def _reset_state():
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
+    global _acts_index
+    _acts_index = None
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -404,7 +408,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index
 
     if not chunks:
         return 0
@@ -485,6 +489,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         _pdf_title_count = None
         _copy_of = None
         _source_rows = None
+        _acts_index = None
         _save()
     return inserted + updated
 
@@ -868,6 +873,81 @@ def attachment_passages(pages: list[str], query_embedding: list[float], limit: i
                 "score":    score,
             })
         return out
+
+# An act (a determination, a resolution, an order) is asked for by its number: «cosa dice la determina
+# n. 1200 del 2025?». The BM25 side of the search keeps only letters, and a card found by its number
+# alone would not pass the semantic threshold anyway: the act is looked up here by number and year.
+# Two forms are recognised in the first passage of a document: the cards and documents of the
+# transparency job («Numero: 1200/2025; Data: 05/11/2026» or «Numero: 161; Data: 05/11/2026») and
+# the titles of the acts job («Delibera di Giunta comunale n. 293 del 31/12/2025: …»).
+_ACT_NUMBER_RE = re.compile(r"\bNumero: (\d{1,6})(?:/(\d{4}))?; Data: \d\d/\d\d/(\d{4})\b")
+_ACT_TITLE_RE = re.compile(r"\bn\.\s*(\d{1,6})\s+del\s+\d\d/\d\d/(\d{4})\b")
+_ACT_KINDS = (("determina", "determin"), ("ordinanza", "ordinanz"), ("delibera", "deliber"),
+              ("decreto", "decret"))
+_ACT_HEAD = 800   # characters of the first passage that hold the number, the date and the type
+
+
+def _act_kind(head: str, title: str) -> str:
+    """«determina», «ordinanza», «delibera», «decreto» or '' (unknown): read from the type of the
+    document, else from its section, else from its title (the acts job). The title alone would mislead:
+    a determination may be called «Annullamento ordinanza dirigenziale n. 473»."""
+    m = re.search(r"Tipo Documento: ([^;\n]+)", head)
+    probe = m[1] if m else ""
+    if not probe:
+        m = re.search(r"sezione ([^:\n]+):", head)
+        probe = m[1] if m else title[:40]
+    low = probe.lower()
+    for kind, stem in _ACT_KINDS:
+        if stem in low:
+            return kind
+    return ""
+
+
+def _build_acts_index(metadata: list[dict]) -> dict[tuple[int, int], list[tuple[int, str]]]:
+    index: dict[tuple[int, int], list[tuple[int, str]]] = {}
+    for i, meta in enumerate(metadata):
+        if meta.get("chunk_index", 0) != 0:
+            continue
+        head = meta.get("text", "")[:_ACT_HEAD]
+        title = meta.get("title", "")
+        m = _ACT_NUMBER_RE.search(head)
+        if m:
+            number, year = int(m[1]), int(m[2] or m[3])
+        else:
+            m = _ACT_TITLE_RE.search(title)
+            if not m:
+                continue
+            number, year = int(m[1]), int(m[2])
+        index.setdefault((number, year), []).append((i, _act_kind(head, title)))
+    return index
+
+
+def find_acts(number: int, year: int, kind: str = "", limit: int = 4) -> list[dict]:
+    """The acts with that number and year, as search results (score 1.0). `kind` («determina»,
+    «ordinanza», «delibera», «decreto») keeps only the acts of that kind; '' keeps them all."""
+    global _acts_index
+    with _lock:
+        _ensure_loaded()
+        if _acts_index is None:
+            _acts_index = _build_acts_index(_metadata)
+            log.info(f"Acts by number: {len(_acts_index)} numbers")
+        rows = _acts_index.get((number, year), [])
+        if kind:
+            rows = [r for r in rows if r[1] == kind]
+        results = []
+        for idx, _ in rows[:limit]:
+            meta = _metadata[idx]
+            results.append({
+                "text":     meta.get("text", ""),
+                "source":   meta.get("source", ""),
+                "title":    meta.get("title", ""),
+                "display_title": _title(meta),
+                "doc_type": meta.get("doc_type", ""),
+                "category": meta.get("category", ""),
+                "date":     meta.get("date", ""),
+                "score":    1.0,
+            })
+        return results
 
 
 def get_indexed_sources() -> set[str]:
