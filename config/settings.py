@@ -145,6 +145,10 @@ COUNCIL_SESSIONS: dict = {}
 # crawl_extra.json → {"api_url": ".../wp-json/tribe/events/v1/events", "calendar_url": "...", "days_ahead": 60,
 # "max_description": 4000, "keywords": [...], "require_any": [...]}
 EVENTS_CALENDAR: dict = {}
+# Calls for jobs open today (scripts/recruitment_notices.py, the «Bandi di concorso» table of the transparency
+# portal configured in "amt"): "recruitment" key of crawl_extra.json → {"voceamt": 544, "closed_days": 90,
+# "keywords": [...], "require_any": [...]}
+RECRUITMENT_NOTICES: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -165,6 +169,7 @@ try:
         AMT_SOURCES.update(_crawl_extra.get("amt", {}))
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
         EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
+        RECRUITMENT_NOTICES.update(_crawl_extra.get("recruitment", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 

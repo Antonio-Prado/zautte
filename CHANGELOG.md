@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-06
+
+### Added
+- `scripts/recruitment_notices.py`: the calls for jobs («Bandi di concorso») open today, as a dynamic known
+  fact. «Are there any open competitions? I would like to work for the municipality» needs today's date and
+  the period in which each call accepts applications: the passages of the calls are in the index, but a
+  search by similarity finds the calls that look like the question, not the ones open today. Every hour the
+  job reads the search table of the section (the same request the transparency job makes), sorts the calls
+  by their validity dates and writes the fact `recruitment-open`: the calls open today with deadline, page
+  and the links of their detail page (the national recruitment portal), the ones announced for later, the
+  ones closed in the last `closed_days` days (default 90) so that a closed call is not presented as open,
+  and how to answer. Configuration: `recruitment` in `crawl_extra.json` (`voceamt`, `closed_days`, optional
+  `keywords`/`require_any`); portal and page come from `amt`. Cron wrapper `scripts/recruitment_notices.sh`
+  (own lock, memory ceiling, time limit, as the other hourly jobs).
+
 ## [0.30.1] - 2026-11-05
 
 ### Fixed
