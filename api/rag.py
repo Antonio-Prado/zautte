@@ -652,6 +652,13 @@ def build_prompt(
             f"su questo argomento. Dillo chiaramente all'utente.{office_text})"
         )
 
+    # The answer is written from the user's words; when the follow-up was recomposed for retrieval
+    # (a one-word answer to a clarification, a pronoun), the standalone form says what is being asked.
+    if topic_query and topic_query.strip() and topic_query.strip() != query.strip():
+        user_content = user_content.replace(
+            f"DOMANDA: {query}",
+            f"DOMANDA: {query}\n(letta nel contesto della conversazione: {topic_query.strip()})", 1)
+
     messages = [{"role": "system", "content": system}]
 
     # Add conversation history (max 3 turns)

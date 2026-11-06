@@ -15,7 +15,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 - Query rewrite: a one-word answer to a clarification asked by the assistant («Zautte» after «I lost my
   password» and «which service?») was sometimes returned unchanged as a new topic, so the retrieval ran on
   the single word and the assistant introduced itself instead of answering. The rewrite instructions now
-  say to recompose the original request with the clarification.
+  say to recompose the original request with the clarification, and the answer prompt now carries the
+  recomposed question next to the user's words, so the answer is written for what was asked.
 
 ## [0.31.0] - 2026-11-06
 
