@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-06
+
+### Fixed
+- Query rewrite: a one-word answer to a clarification asked by the assistant («Zautte» after «I lost my
+  password» and «which service?») was sometimes returned unchanged as a new topic, so the retrieval ran on
+  the single word and the assistant introduced itself instead of answering. The rewrite instructions now
+  say to recompose the original request with the clarification.
+
 ## [0.31.0] - 2026-11-06
 
 ### Added
