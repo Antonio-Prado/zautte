@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-06
+
+### Fixed
+- An act could not be found by its number («cosa dice la determina n. 1200 del 2025?»): the keyword
+  search (BM25) kept only letters, so the numbers of a question did not count and, among thousands of
+  acts of a year, the similarity alone could not pick the right one. The tokens now include the numbers
+  of two digits or more (act numbers, years, «42/2024», «15.000»); single digits stay out. The index of
+  keywords is rebuilt at the next start, as always.
+
 ## [0.31.0] - 2026-11-06
 
 ### Added

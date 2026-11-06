@@ -227,9 +227,14 @@ def _reset_state():
     _source_rows = None
 
 
+_TOKEN_RE = re.compile(r"[a-zàáâäèéêëìíîïòóôöùúûü]+|\d{2,}")
+
+
 def _tokenize(text: str) -> list[str]:
-    """Simple tokenization for BM25: lowercase, words only."""
-    return re.findall(r"[a-zàáâäèéêëìíîïòóôöùúûü]+", text.lower())
+    """Simple tokenization for BM25: lowercase words, and numbers of two digits or more (the
+    number of an act, a year, a regulation «42/2024», an amount «15.000»: «1.200,00» gives
+    «200» and «00», which weigh little). Single digits are too common to mean anything."""
+    return _TOKEN_RE.findall(text.lower())
 
 
 _MAX_QUERY_TERMS = 32
