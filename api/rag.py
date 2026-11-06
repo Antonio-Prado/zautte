@@ -652,6 +652,13 @@ def build_prompt(
             f"su questo argomento. Dillo chiaramente all'utente.{office_text})"
         )
 
+    # The answer is written from the user's words; when the follow-up was recomposed for retrieval
+    # (a one-word answer to a clarification, a pronoun), the standalone form says what is being asked.
+    if topic_query and topic_query.strip() and topic_query.strip() != query.strip():
+        user_content = user_content.replace(
+            f"DOMANDA: {query}",
+            f"DOMANDA: {query}\n(letta nel contesto della conversazione: {topic_query.strip()})", 1)
+
     messages = [{"role": "system", "content": system}]
 
     # Add conversation history (max 3 turns)
@@ -700,6 +707,11 @@ _REWRITE_SYSTEM = (
     "Non rispondere, non aggiungere informazioni, non cambiare il senso. "
     "Non aggiungere nomi di luoghi, città o enti che l'utente non ha scritto "
     "(la conversazione riguarda già il sito su cui si trova l'assistente). "
+    "Se l'assistente ha appena chiesto una precisazione (per esempio quale "
+    "servizio, quale ufficio, quale pratica) e il messaggio è la risposta, "
+    "anche di una sola parola, ricomponi la richiesta originale dell'utente "
+    "con quella precisazione (per esempio 'Zautte' dopo 'Ho perso la password' "
+    "diventa 'Ho perso la password di Zautte'). "
     "Se il messaggio è già autonomo o introduce un argomento nuovo, "
     "restituiscilo invariato. Rispondi SOLO con la domanda riscritta, "
     "su una riga, senza virgolette né commenti."
