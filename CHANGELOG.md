@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-07
+
+### Added
+- «Cosa dice l'articolo 18 del regolamento della Palazzina Azzurra?» was answered with «the text does
+  not report the articles»: the search picked the regulation, but another passage of it. The article
+  is a number, which neither the words nor the meaning of the question carry. When the question names
+  an article («articolo 18», «art. 5»), the passage where that article starts, joined to the one that
+  follows, is taken from the documents chosen (and from the PDFs their pages link) and put first
+  (`vector_store.article_passages`).
+
 ## [0.32.0] - 2026-11-06
 
 ### Added

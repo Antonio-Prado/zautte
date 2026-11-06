@@ -49,7 +49,7 @@ from config.settings import (
 )
 from indexer.embedder import embed_query
 from indexer.textclean import strip_invisible_chars
-from indexer.vector_store import attachment_passages, find_acts, hybrid_search
+from indexer.vector_store import article_passages, attachment_passages, find_acts, hybrid_search
 
 log = logging.getLogger(__name__)
 
@@ -380,6 +380,15 @@ def parse_act_query(query: str) -> tuple[str, int, int] | None:
     return kind, number, year
 
 
+# «cosa dice l'articolo 18 del regolamento?», «art. 5»: the article asked for, if any
+_ARTICLE_QUERY_RE = re.compile(r"\bart(?:icolo|\.)\s*(\d{1,3})(?![\d.,])", re.IGNORECASE)
+
+
+def parse_article_query(query: str) -> int | None:
+    m = _ARTICLE_QUERY_RE.search(query)
+    return int(m[1]) if m else None
+
+
 def _act_date(chunk: dict) -> str:
     m = _ACT_DATE_RE.search(chunk.get("text", "")[:800]) or _ACT_TITLE_DATE_RE.search(chunk.get("title", ""))
     return m[1] if m else ""
@@ -424,7 +433,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
     Pipeline: known facts and acts asked for by number → expand → hybrid search → dedup → filter →
-    rerank → passages of the attachments of the chosen pages
+    rerank → passages of the attachments of the chosen pages → the article asked for, if any
     """
     known = _inject_known_facts(query) + _acts_by_number(query)
 
@@ -465,6 +474,14 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         if extra:
             log.info(f"Attachment passages: {len(extra)} from {', '.join(c['source'][-60:] for c in extra)}")
         chosen += extra
+    article = parse_article_query(query)
+    if article is not None and chosen:
+        # the passage where that article starts, in the documents chosen (and the PDFs their pages
+        # link): the search finds the regulation, not the article, which is a number
+        found = article_passages([c["source"] for c in chosen if c.get("source")], article)
+        if found:
+            log.info(f"Article {article}: {len(found)} passages from {', '.join(c['source'][-60:] for c in found)}")
+            chosen = _dedup_chunks(found + chosen)
     return chosen
 
 
