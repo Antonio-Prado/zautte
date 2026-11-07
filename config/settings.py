@@ -149,6 +149,10 @@ EVENTS_CALENDAR: dict = {}
 # portal configured in "amt"): "recruitment" key of crawl_extra.json → {"voceamt": 544, "closed_days": 90,
 # "keywords": [...], "require_any": [...]}
 RECRUITMENT_NOTICES: dict = {}
+# Figures of the transparency portal as dynamic known facts (scripts/transparency_facts.py): "amt_facts" key of
+# crawl_extra.json → {"pay": {"voceamt": 173}, "rpct": {"voceamt": 513}, "payments": {"voceamt": 535},
+# "staff": {"voceamt": 24}}, each with optional "keywords", "require_any", "title"
+AMT_FACTS: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -170,6 +174,7 @@ try:
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
         EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
         RECRUITMENT_NOTICES.update(_crawl_extra.get("recruitment", {}))
+        AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 

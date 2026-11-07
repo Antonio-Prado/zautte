@@ -59,6 +59,7 @@ _id_to_idx: dict[str, int] = {}
 _bm25 = None          # BM25 index, rebuilt (lazily) when the corpus changes
 _bm25_dirty = False   # True if the corpus changed after the last build
 _acts_index = None    # (number, year) -> rows of the acts with that number, built lazily (find_acts)
+_versions = None      # source -> (year, latest year of its series), built lazily (version_info)
 _pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (lazy)
 _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
@@ -191,7 +192,7 @@ def reload() -> dict:
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
-    global _source_rows, _page_attachments, _acts_index
+    global _source_rows, _page_attachments, _acts_index, _versions
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -211,6 +212,7 @@ def reload() -> dict:
         _copy_of = copies
         _source_rows, _page_attachments = None, None
         _acts_index = None
+        _versions = None
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
@@ -218,8 +220,9 @@ def reload() -> dict:
 
 def _reset_state():
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
-    global _acts_index
+    global _acts_index, _versions
     _acts_index = None
+    _versions = None
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -408,7 +411,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index, _versions
 
     if not chunks:
         return 0
@@ -490,6 +493,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         _copy_of = None
         _source_rows = None
         _acts_index = None
+        _versions = None
         _save()
     return inserted + updated
 
@@ -992,6 +996,99 @@ def article_passages(sources: list[str], number: int, limit: int = 2) -> list[di
             })
             if len(out) == limit:
                 break
+        return out
+
+
+# A transparency section publishes the same document year after year («Compensi degli amministratori
+# anno 2022» … «anno 2025», «Piano prevenzione corruzione 2018/2020» … «2022/2024»): the versions
+# differ by a year in the title, and the search picks one of them at random, often an old one.
+_VERSION_YEAR_RE = re.compile(r"\b(20[0-4]\d)\b")
+_VERSION_STRIP_RE = re.compile(r"[\d/–\-]+")
+
+
+def _series_key(meta: dict) -> tuple[str, str] | None:
+    """(section, title without its numbers) of a document with a year in its title, else None."""
+    title = meta.get("title", "")
+    if not _VERSION_YEAR_RE.search(title):
+        return None
+    source = meta.get("source", "")
+    section = re.search(r"[?&]voceamt=(\d+)", source)
+    where = section[1] if section else source.rsplit("/", 1)[0]
+    return where, re.sub(r"\s+", " ", _VERSION_STRIP_RE.sub(" ", title.lower())).strip()
+
+
+def _build_versions(metadata: list[dict]) -> dict[str, tuple[int, int]]:
+    series: dict[tuple[str, str], dict[str, int]] = {}
+    for meta in metadata:
+        if meta.get("chunk_index", 0) != 0 or meta.get("origin") != "amt" or meta.get("card"):
+            continue
+        key = _series_key(meta)
+        if key is None:
+            continue
+        year = max(int(y) for y in _VERSION_YEAR_RE.findall(meta.get("title", "")))
+        series.setdefault(key, {})[meta.get("source", "")] = year
+    out: dict[str, tuple[int, int]] = {}
+    for docs in series.values():
+        if len(docs) < 2:
+            continue
+        latest = max(docs.values())
+        for source, year in docs.items():
+            out[source] = (year, latest)
+    return out
+
+
+def version_info(source: str) -> tuple[int, int] | None:
+    """(year of this version, year of the latest version of the same document) when the source is
+    one of several yearly versions of a transparency document; None otherwise."""
+    global _versions
+    with _lock:
+        _ensure_loaded()
+        if _versions is None:
+            _versions = _build_versions(_metadata)
+            log.info(f"Yearly versions: {len(_versions)} documents in series")
+        return _versions.get(source)
+
+
+def document_passages(chosen: list[dict], query_embedding: list[float], limit: int = 2) -> list[dict]:
+    """When the search picked the first passage of a document in several passages (the one that names
+    it and lists its attachments), the passage of the same document closest to the question: the
+    figure asked for is in the attachment, not in the heading. The `limit` best overall."""
+    with _lock:
+        _ensure_loaded()
+        if _embeddings is None or not _ids or limit <= 0:
+            return []
+        q = np.array(query_embedding, dtype=np.float32)
+        norm = np.linalg.norm(q)
+        if norm == 0:
+            return []
+        q = q / norm
+        rows = _rows_by_source()
+        best: list[tuple[float, int]] = []
+        seen: set[str] = set()
+        for c in chosen:
+            src = c.get("source", "")
+            r = rows.get(src, [])
+            if src in seen or len(r) < 2 or _metadata[r[0]].get("text", "") != c.get("text", ""):
+                continue
+            seen.add(src)
+            scores = _embeddings[r[1:]] @ q
+            j = int(np.argmax(scores))
+            best.append((float(scores[j]), r[1 + j]))
+        best.sort(key=lambda b: b[0], reverse=True)
+        out = []
+        for score, idx in best[:limit]:
+            meta = _metadata[idx]
+            doc = _kept_meta(meta)
+            out.append({
+                "text":     meta.get("text", ""),
+                "source":   doc.get("source", ""),
+                "title":    doc.get("title", ""),
+                "display_title": _title(doc),
+                "doc_type": meta.get("doc_type", ""),
+                "category": meta.get("category", ""),
+                "date":     meta.get("date", ""),
+                "score":    score,
+            })
         return out
 
 
