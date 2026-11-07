@@ -94,6 +94,14 @@ CRAWL_MAX_QUERY_VARIANTS = int(os.getenv("CRAWL_MAX_QUERY_VARIANTS", "25"))
 PDF_MAX_PAGES = int(os.getenv("PDF_MAX_PAGES", "2000"))
 PDF_MAX_CHARS = int(os.getenv("PDF_MAX_CHARS", "5000000"))
 PDF_MAX_SECONDS = int(os.getenv("PDF_MAX_SECONDS", "180"))
+# OCR of the PDFs without usable text (scans, fonts without a Unicode map): "auto" uses it when the
+# programs `pdftoppm` (poppler-utils) and `tesseract` (with the language data) are installed, "on"
+# requires them, "off" never. Pages read, resolution, language, seconds spent on one file.
+PDF_OCR = os.getenv("PDF_OCR", "auto").strip().lower()
+PDF_OCR_MAX_PAGES = int(os.getenv("PDF_OCR_MAX_PAGES", "20"))
+PDF_OCR_DPI = int(os.getenv("PDF_OCR_DPI", "200"))
+PDF_OCR_LANG = os.getenv("PDF_OCR_LANG", "ita")
+PDF_OCR_MAX_SECONDS = int(os.getenv("PDF_OCR_MAX_SECONDS", "120"))
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",

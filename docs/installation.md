@@ -15,6 +15,7 @@ Installing Zautte on FreeBSD, from the prerequisites to the first indexing.
   3.11.9 and later need Rust 1.95 or newer: with an older Rust, install with the constraint
   `orjson<=3.11.8`.
 - [Ollama](https://ollama.com) installed and running (`ollama serve`): it computes the embeddings even when the answers come from Claude
+- Optional, for the OCR of scanned PDFs and of PDFs whose fonts have no Unicode map: `pkg install tesseract poppler-utils` (tesseract pulls its language data, about 1 GB); without them those files are indexed without text (`PDF_OCR`, see [Configuration](configuration.md))
 - Ollama models downloaded:
 
 ```sh
