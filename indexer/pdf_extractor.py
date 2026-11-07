@@ -90,10 +90,10 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         full_text = "\n\n".join(parts)[:PDF_MAX_CHARS]
         if not full_text.strip():
             full_text = _fallback_text(pdf_path, "no text")
-        return _with_ocr(pdf_path, _clean_pdf_text(full_text))
+        return _with_ocr(pdf_path, full_text)
 
     except Exception as e:  # noqa: BLE001 - pypdf raises heterogeneous exception types on corrupt PDFs
-        text = _with_ocr(pdf_path, _clean_pdf_text(_fallback_text(pdf_path, str(e))))
+        text = _with_ocr(pdf_path, _fallback_text(pdf_path, str(e)))
         if not text:
             log.error(f"PDF extraction error {pdf_path.name}: {e}")
         return text
@@ -134,15 +134,17 @@ _LETTERS = re.compile(r"[^\W\d_]", re.UNICODE)
 
 
 def legible(text: str) -> bool:
-    """Whether the text a reader gave is text at all: at least twenty letters, and no more than a
-    fifth of odd characters. A scan gives nothing; a PDF whose fonts have no Unicode map (PDF24 with
-    an old Ghostscript) gives control codes and symbols in place of the letters."""
+    """Whether the text a reader gave is text at all: at least twenty letters, letters at least a
+    third of the characters, and no more than a fifth of odd characters. A scan gives nothing; a PDF
+    whose fonts have no Unicode map (PDF24 with an old Ghostscript) gives control codes, digits and
+    punctuation in place of the letters. Judged on the raw text, before the control codes are removed."""
     stripped = text.strip()
-    if len(_LETTERS.findall(stripped)) < 20:
+    letters = len(_LETTERS.findall(stripped))
+    if letters < 20:
         return False
     chars = [c for c in stripped if not c.isspace()]
     bad = sum(1 for c in chars if not _GOOD_CHARS.match(c))
-    return bad <= 0.2 * len(chars)
+    return letters >= 0.35 * len(chars) and bad <= 0.2 * len(chars)
 
 
 def ocr_available() -> bool:
@@ -156,14 +158,15 @@ def ocr_available() -> bool:
 
 
 def _with_ocr(pdf_path: Path, text: str) -> str:
-    """The text as read, or the OCR of the pages when that text is not legible and OCR is available."""
+    """The text as read (raw, cleaned here), or the OCR of the pages when that text is not legible
+    and OCR is available."""
     if legible(text) or not ocr_available():
-        return text
+        return _clean_pdf_text(text)
     recognised = _clean_pdf_text(ocr_text(pdf_path))
     if legible(recognised):
         log.info(f"PDF {pdf_path.name}: read with OCR ({len(recognised)} characters)")
         return recognised
-    return text
+    return _clean_pdf_text(text)
 
 
 def ocr_text(pdf_path: Path, max_pages: int = PDF_OCR_MAX_PAGES, dpi: int = PDF_OCR_DPI,

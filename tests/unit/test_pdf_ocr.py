@@ -12,6 +12,8 @@ def test_legible():
     assert not pe.legible("2 \n 3 \n 4")                                   # page numbers only
     assert not pe.legible("\x01\x02\x03\x04\x05 abc \x16\x08\x06\x18" * 10)   # PDF24 without a Unicode map
     assert not pe.legible("□□□□ ▯▯▯ ◊◊◊ the only words here " * 3)          # mostly symbols
+    garbage = "!!4!\n) 8,-1\n$: 8\n’ 8(\n)/ !2\n’/ !2!\n/ ,; +8!\n! 8!+\n(+(2\n8-6#,% + (\n8!+ (\n1!!/+\n( 8 +\n+. ( 8\n"
+    assert not pe.legible(garbage * 6 + "ASSCOLI PICENO " * 2)           # digits and punctuation, few letters
 
 
 def test_ocr_available_follows_the_setting(monkeypatch):
