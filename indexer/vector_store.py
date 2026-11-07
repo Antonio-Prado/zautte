@@ -950,6 +950,51 @@ def find_acts(number: int, year: int, kind: str = "", limit: int = 4) -> list[di
         return results
 
 
+# «Cosa dice l'articolo 18 del regolamento?»: the search picks the regulation, but the passage with
+# that article is a matter of a number, which neither the words nor the meaning of the question carry.
+_ARTICLE_HEADING = r"(?im)^[ \t]*art(?:icolo|\.)?[ \t]*{n}(?![\d.,])"
+
+
+def article_passages(sources: list[str], number: int, limit: int = 2) -> list[dict]:
+    """The passage where article `number` starts, in each of the given sources (pages, PDFs) and in
+    the PDFs attached to the pages among them, joined to the passage that follows (an article is often
+    cut in two by the chunker). The first `limit` sources that have the article, in the given order."""
+    heading = re.compile(_ARTICLE_HEADING.format(n=number))
+    with _lock:
+        _ensure_loaded()
+        rows = _rows_by_source()
+        attached = _attachments_of_pages()
+        todo: list[str] = []
+        for src in sources:
+            for s in [src, *attached.get(src, [])]:
+                if s and s not in todo:
+                    todo.append(s)
+        out = []
+        for src in todo:
+            r = rows.get(src, [])
+            j = next((k for k, i in enumerate(r) if heading.search(_metadata[i].get("text", ""))), None)
+            if j is None:
+                continue
+            meta = _metadata[r[j]]
+            text = meta.get("text", "")
+            if j + 1 < len(r):
+                text += "\n" + _body(_metadata[r[j + 1]])
+            doc = _kept_meta(meta)
+            out.append({
+                "text":     text,
+                "source":   doc.get("source", ""),
+                "title":    doc.get("title", ""),
+                "display_title": _title(doc),
+                "doc_type": meta.get("doc_type", ""),
+                "category": meta.get("category", ""),
+                "date":     meta.get("date", ""),
+                "score":    1.0,
+            })
+            if len(out) == limit:
+                break
+        return out
+
+
 def get_indexed_sources() -> set[str]:
     """Returns the set of URLs (source) already present in the vector store."""
     _ensure_loaded()
