@@ -49,7 +49,14 @@ from config.settings import (
 )
 from indexer.embedder import embed_query
 from indexer.textclean import strip_invisible_chars
-from indexer.vector_store import article_passages, attachment_passages, find_acts, hybrid_search
+from indexer.vector_store import (
+    article_passages,
+    attachment_passages,
+    document_passages,
+    find_acts,
+    hybrid_search,
+    version_info,
+)
 
 log = logging.getLogger(__name__)
 
@@ -135,6 +142,13 @@ NEWS_PENALTY = 0.04
 # Passages from retired domains (MIGRATED_DOMAINS) have no working link: at similar relevance a
 # page the user can open comes first (+1 question with the right page among the 7 in the same test).
 MIGRATED_PENALTY = 0.03
+# A transparency document published year after year («Compensi degli amministratori anno 2022» …
+# «anno 2025»): at similar relevance the latest version comes first, by this much for every year of
+# distance (up to three), unless the question names the year of the older one.
+OLD_VERSION_PENALTY = 0.02
+# Passages added after the search: of the documents whose first passage (the heading with the list of
+# attachments) was chosen, the passage closest to the question (the figure is in the attachment).
+DOCUMENT_PASSAGES = 2
 
 # Keyword → competent office map — loaded from config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
@@ -206,11 +220,12 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
     Lightweight re-ranking without an additional model:
     - Boost if query terms appear in the title
     - Boost if the category is "servizio" (more useful to the user)
-    - Penalty for PDF passages (PDF_PENALTY), news passages (NEWS_PENALTY) and passages from
-      retired domains (MIGRATED_PENALTY)
+    - Penalty for PDF passages (PDF_PENALTY), news passages (NEWS_PENALTY), passages from
+      retired domains (MIGRATED_PENALTY) and older yearly versions of a document (OLD_VERSION_PENALTY)
     - Penalty for duplicate chunks (same source + similar text)
     """
     query_terms = set(re.findall(r"\w+", query.lower()))
+    query_years = set(re.findall(r"\b20[0-4]\d\b", query))
 
     seen_sources: dict[str, int] = {}
     scored = []
@@ -233,6 +248,9 @@ def rerank(chunks: list[dict], query: str) -> list[dict]:
             score -= NEWS_PENALTY
         if is_migrated_source(chunk.get("source", "")):
             score -= MIGRATED_PENALTY
+        version = version_info(chunk.get("source", ""))
+        if version and version[0] < version[1] and str(version[0]) not in query_years:
+            score -= OLD_VERSION_PENALTY * min(3, version[1] - version[0])
 
         # Same-source duplicate penalty
         src = chunk.get("source", "")
@@ -433,7 +451,8 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
     Pipeline: known facts and acts asked for by number → expand → hybrid search → dedup → filter →
-    rerank → passages of the attachments of the chosen pages → the article asked for, if any
+    rerank → passages of the attachments of the chosen pages → the passage of the chosen documents
+    closest to the question → the article asked for, if any
     """
     known = _inject_known_facts(query) + _acts_by_number(query)
 
@@ -474,6 +493,11 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         if extra:
             log.info(f"Attachment passages: {len(extra)} from {', '.join(c['source'][-60:] for c in extra)}")
         chosen += extra
+    if DOCUMENT_PASSAGES > 0 and not vec_is_zero:
+        more = document_passages(chosen, query_vec, limit=DOCUMENT_PASSAGES)
+        if more:
+            log.info(f"Document passages: {len(more)} from {', '.join(c['source'][-60:] for c in more)}")
+            chosen = _dedup_chunks(chosen + more)
     article = parse_article_query(query)
     if article is not None and chosen:
         # the passage where that article starts, in the documents chosen (and the PDFs their pages

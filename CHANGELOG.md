@@ -9,6 +9,26 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-11-07
+
+### Added
+- Yearly versions of a transparency document («Compensi degli amministratori anno 2022» … «anno
+  2025», «Piano prevenzione corruzione 2018/2020» … «2022/2024»): the search picked one of them at
+  random, often an old one. `vector_store.version_info` groups the documents of a section whose titles
+  differ only by their years; the re-ranking puts the latest version first (`OLD_VERSION_PENALTY` for
+  every year of distance, up to three), unless the question names the year of the older one.
+- The figure is in the attachment, not in the heading: when the search picked the first passage of a
+  document in several passages (the one that names it and lists its attachments), the passage of the
+  same document closest to the question is added (`vector_store.document_passages`,
+  `DOCUMENT_PASSAGES`, two per answer). The yearly payment-timeliness indicator and the
+  administrators' pay table are now read, instead of «the figure is not in the pages available».
+- `scripts/transparency_facts.py`: four figures of the transparency portal as dynamic known facts, read
+  once a day from the latest version of their documents: the pay of the mayor, the councillors and the
+  members of the council (the .ods table), the officer for the prevention of corruption and for
+  transparency, the payment-timeliness indicator with its quarters, the staff in service at the end of
+  the year. Configuration in the `amt_facts` key of `config/crawl_extra.json`; cron wrapper
+  `scripts/transparency_facts.sh` (05:42).
+
 ## [0.33.0] - 2026-11-07
 
 ### Added
