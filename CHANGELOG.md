@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-11-07
+
+### Added
+- Attachments published as pictures (.jpg, .png, .tif and the like: a scanned order, a notice
+  photographed) are read with the OCR when it is available (`ocr_image`, the same tesseract as
+  the PDFs); a picture without legible text is still indexed by its name only. Their documents are
+  read again at the next transparency run.
+
 ## [0.39.0] - 2026-11-07
 
 ### Added

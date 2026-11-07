@@ -232,6 +232,24 @@ def ocr_text(pdf_path: Path, max_pages: int = PDF_OCR_MAX_PAGES, dpi: int = PDF_
     return "\n\n".join(parts)[:PDF_MAX_CHARS]
 
 
+def ocr_image(image_path: Path, lang: str = PDF_OCR_LANG, max_seconds: int = PDF_OCR_MAX_SECONDS) -> str:
+    """The text tesseract reads in an image file (a scanned attachment published as .jpg or .png);
+    "" when OCR is not available, finds nothing legible or fails."""
+    if not ocr_available():
+        return ""
+    try:
+        out = subprocess.run(["tesseract", str(image_path), "stdout", "-l", lang], check=True,
+                             capture_output=True, timeout=max_seconds)
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, OSError) as e:
+        log.warning(f"image {image_path.name}: OCR failed ({str(e)[:120]})")
+        return ""
+    text = _clean_pdf_text(out.stdout.decode("utf-8", errors="replace").strip())
+    if not legible(text):
+        return ""
+    log.info(f"image {image_path.name}: read with OCR ({len(text)} characters)")
+    return text[:PDF_MAX_CHARS]
+
+
 def _clean_pdf_text(text: str) -> str:
     # Remove null bytes and control characters (except \t \n \r)
     text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)

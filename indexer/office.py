@@ -19,6 +19,7 @@ import re
 import struct
 import zipfile
 from collections.abc import Callable
+from pathlib import Path
 from xml.etree import ElementTree as ET
 
 log = logging.getLogger(__name__)
@@ -226,6 +227,22 @@ _OFFICE_ZIP = {"xlsx": _xlsx_text, "xlsm": _xlsx_text, "docx": _docx_text, "ods"
 
 # --------------------------------------------------------------------------- the old binary formats
 
+def _image_text(name: str, data: bytes, max_chars: int) -> str:
+    """A scanned document published as a picture: what the OCR reads in it (indexer/pdf_extractor)."""
+    if not data.startswith(_IMAGE_MAGIC):
+        return ""
+    import tempfile
+
+    from config.settings import CRAWL_CACHE_DIR
+    from indexer.pdf_extractor import ocr_image
+    suffix = "." + name.lower().rsplit(".", 1)[-1][:5]
+    CRAWL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(suffix=suffix, dir=CRAWL_CACHE_DIR, delete=True) as f:
+        f.write(data)
+        f.flush()
+        return ocr_image(Path(f.name))[:max_chars]
+
+
 _OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
@@ -356,8 +373,13 @@ def _doc_controls(text: str) -> str:
     return _DOC_DROP.sub("", text)
 
 
+_IMAGES = ("jpg", "jpeg", "png", "tif", "tiff", "bmp", "gif", "webp")
+_IMAGE_MAGIC = (b"\xff\xd8\xff", b"\x89PNG", b"II*\x00", b"MM\x00*", b"BM", b"GIF8", b"RIFF")
+
+
 def kind(name: str) -> str:
-    """The reader a file name points to: pdf, xlsx, docx, ods, odt, csv, zip, xls, doc, or "" if none."""
+    """The reader a file name points to: pdf, xlsx, docx, ods, odt, csv, zip, xls, doc, image (a scanned
+    attachment published as a picture, read with OCR), or "" if none."""
     n = name.lower().strip()
     while n.endswith(".p7m"):
         n = n[:-4]
@@ -373,6 +395,8 @@ def kind(name: str) -> str:
         return "zip"
     if ext in ("xls", "doc"):
         return ext
+    if ext in _IMAGES:
+        return "image"
     return ""
 
 
@@ -403,6 +427,8 @@ def extract(name: str, data: bytes, max_chars: int, pdf_text: PdfText, depth: in
         return _xls_text(data, max_chars)
     if k == "doc":
         return _doc_text(data, max_chars)
+    if k == "image":
+        return _image_text(name, data, max_chars)
     if k in _OFFICE_ZIP or k == "zip":
         z = _open_zip(data)
         if z is None:
