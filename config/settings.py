@@ -98,10 +98,10 @@ PDF_MAX_SECONDS = int(os.getenv("PDF_MAX_SECONDS", "180"))
 # programs `pdftoppm` (poppler-utils) and `tesseract` (with the language data) are installed, "on"
 # requires them, "off" never. Pages read, resolution, language, seconds spent on one file.
 PDF_OCR = os.getenv("PDF_OCR", "auto").strip().lower()
-PDF_OCR_MAX_PAGES = int(os.getenv("PDF_OCR_MAX_PAGES", "20"))
+PDF_OCR_MAX_PAGES = int(os.getenv("PDF_OCR_MAX_PAGES", "40"))
 PDF_OCR_DPI = int(os.getenv("PDF_OCR_DPI", "200"))
 PDF_OCR_LANG = os.getenv("PDF_OCR_LANG", "ita")
-PDF_OCR_MAX_SECONDS = int(os.getenv("PDF_OCR_MAX_SECONDS", "120"))
+PDF_OCR_MAX_SECONDS = int(os.getenv("PDF_OCR_MAX_SECONDS", "180"))
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",
