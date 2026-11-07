@@ -9,6 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-11-07
+
+### Added
+- Grants looked up by the beneficiary's name: «quali contributi ha ricevuto la Croce Rossa dal Comune
+  nel 2025?» found a determination that mentions the Red Cross, not its grant card. The cards of the
+  grants section («Beneficiario: …; Importo: …; Data atto: …») are indexed by the distinctive words
+  of the beneficiary's name (not «associazione», «srl», the name of the town); when the question is
+  about money given to someone it names, a summary (how many cards, which years, the sum of the
+  amounts) and the most recent cards are put before the search results (`vector_store.find_grants`,
+  `rag._grants_by_beneficiary`). Too generic words (more than ten beneficiaries) leave the search alone.
+- The latest yearly version brought in: when the search picked an older version of a document and the
+  latest one did not come up at all (a plan of 1,100 passages), the passage of the latest version
+  closest to the question is added (`vector_store.latest_version_passages`), unless the question names
+  a year. The series now ignores punctuation as well as numbers, so «approvato con Deliberazione n. 19
+  del 23.02.2026» and «APPROVATO CON DELIBERAZIONE N°53 DEL 15/04/2024» are versions of the same plan.
+
 ## [0.34.0] - 2026-11-07
 
 ### Added
