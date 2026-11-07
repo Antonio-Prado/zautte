@@ -962,6 +962,7 @@ def find_acts(number: int, year: int, kind: str = "", limit: int = 4) -> list[di
 # «Cosa dice l'articolo 18 del regolamento?»: the search picks the regulation, but the passage with
 # that article is a matter of a number, which neither the words nor the meaning of the question carry.
 _ARTICLE_HEADING = r"(?im)^[ \t]*art(?:icolo|\.)?[ \t]*{n}(?![\d.,])"
+_ANY_HEADING = re.compile(r"(?im)^[ \t]*art(?:icolo|\.)?[ \t]*\d{1,3}(?![\d.,])")
 
 
 def article_passages(sources: list[str], number: int, limit: int = 2) -> list[dict]:
@@ -981,9 +982,12 @@ def article_passages(sources: list[str], number: int, limit: int = 2) -> list[di
         out = []
         for src in todo:
             r = rows.get(src, [])
-            j = next((k for k, i in enumerate(r) if heading.search(_metadata[i].get("text", ""))), None)
-            if j is None:
+            # the table of contents lists every article too: among the passages with the heading, the
+            # one with the fewest headings is the body of the article, not the index
+            found = [k for k, i in enumerate(r) if heading.search(_metadata[i].get("text", ""))]
+            if not found:
                 continue
+            j = min(found, key=lambda k: (len(_ANY_HEADING.findall(_metadata[r[k]].get("text", ""))), k))
             meta = _metadata[r[j]]
             text = meta.get("text", "")
             if j + 1 < len(r):

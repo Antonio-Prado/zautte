@@ -9,6 +9,7 @@ from indexer import vector_store as vs
 PAGE = "https://example.org/it/palazzina-azzurra"
 PDF = "https://files.example.org/utilizzo-palazzina-azzurra.pdf"
 OTHER = "https://files.example.org/altro-regolamento.pdf"
+TOC = "https://files.example.org/regolamento-animali.pdf"
 
 
 def _meta(source, i, text, doc_type="pdf", title="Regolamento"):
@@ -24,6 +25,9 @@ META = [
     _meta(PDF, 2, "il Sindaco o suo delegato che lo presiede.\nArt. 19 - Durata"),
     _meta(PDF, 3, "Art. 180 - Non è l'articolo 18.\nArt. 18.1 nemmeno."),
     _meta(OTHER, 0, "ARTICOLO 18\nAltro regolamento, altro articolo."),
+    _meta(TOC, 0, "INDICE\nArt. 40- Compiti dell'ASUR\nArt. 41- Cura delle colonie feline\nArt. 42- Alimentazione dei gatti\nArt. 43- Cantieri"),
+    _meta(TOC, 1, "Titolo V\nArt. 41 - Cura delle colonie feline da parte dei gattari e delle gattare\n1. I gattari sono..."),
+    _meta(TOC, 2, "2. Possono accedere..."),
 ]
 
 
@@ -52,6 +56,15 @@ def test_article_heading_not_a_mention_nor_a_longer_number(store):
     assert vs.article_passages([PDF], 1)[0]["text"].startswith("Regolamento\n\nArt. 1 - Oggetto")
     assert vs.article_passages([PDF], 7) == []
     assert vs.article_passages(["https://example.org/nowhere"], 18) == []
+
+
+def test_article_body_not_the_table_of_contents(store):
+    found = vs.article_passages([TOC], 41)
+    assert len(found) == 1
+    assert found[0]["text"].startswith("Regolamento\n\nTitolo V\nArt. 41 - Cura delle colonie feline")
+    assert "2. Possono accedere" in found[0]["text"]
+    assert "INDICE" not in found[0]["text"]
+    assert "Art. 43- Cantieri" in vs.article_passages([TOC], 43)[0]["text"]   # only in the index: that is what there is
 
 
 def test_article_in_every_source_in_order_up_to_the_limit(store):

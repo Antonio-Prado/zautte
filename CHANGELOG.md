@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-11-07
+
+### Fixed
+- The article asked for was taken from the table of contents when the regulation has one («Art. 41-
+  Cura delle colonie feline» in the index, not the article): among the passages of a document that
+  carry the heading, the one with the fewest article headings is the body of the article.
+
 ## [0.37.0] - 2026-11-07
 
 ### Added
