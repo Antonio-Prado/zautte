@@ -31,15 +31,20 @@ User question
      │
      ▼
 5. retrieve_context()
-     ├─ known facts          — curated texts from config/known_facts.json (score 1.0)
+     ├─ known facts          — curated texts from config/known_facts.json and the dynamic facts the jobs write (score 1.0)
+     ├─ acts by number       — «determina n. 1200 del 2025»: the act looked up in the index by number and year (find_acts)
+     ├─ grants by name       — «contributi alla Croce Rossa»: the grant cards of that beneficiary, with a summary (find_grants)
      ├─ expand_query()       — appends synonyms from config/synonyms.json
      ├─ embed_query()        — vectorizes the expanded query (Ollama bge-m3)
      ├─ hybrid_search()      — 21 different texts (3 × top-k): RRF of cosine (0.6) and BM25 (0.4);
      │                         a document published at several addresses is listed under one of them
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
-     ├─ rerank()             — title boost, "servizio" category boost, PDF, news and retired-domain penalties, same-source penalty
+     ├─ rerank()             — title boost, "servizio" category boost, PDF, news, retired-domain and older-yearly-version penalties, same-source penalty
      ├─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
-     └─ attachment passages  — up to ATTACHMENT_PASSAGES (2) from the PDFs linked by the chosen pages
+     ├─ attachment passages  — up to ATTACHMENT_PASSAGES (2) from the PDFs linked by the chosen pages
+     ├─ document passages    — up to DOCUMENT_PASSAGES (2): the passage closest to the question of a document whose heading was chosen
+     ├─ latest version       — the latest yearly version of a chosen document, when the search brought only an older one
+     └─ article passages     — «articolo 18»: the passage where that article starts, in the documents chosen
      │
      ▼
 6. build_context_block()  — one header per chunk: title, type, link (no link for MIGRATED_DOMAINS)
@@ -90,6 +95,7 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 - **-0.04** (`PDF_PENALTY`) for chunks of PDF files, so that at similar relevance the site's pages, written for citizens, come before PDFs; a PDF that is clearly more relevant (a form, a regulation) still makes the 7. On a reference index, where PDFs are most of the chunks, this small penalty raised retrieval quality (right page among the 7 chunks, MRR@7) without losing any test question. Manually uploaded TXT and DOCX files (inbox) have `doc_type` `document` and are not penalized; uploaded PDFs are
 - **-0.04** (`NEWS_PENALTY`) for news items and their attachments (`category` `notizia` or `allegato`): many, and lexically close to the service pages they announce. Tuned on 22/10/2026 over 100 questions with a known page: the right page entered the first three for 3 more questions (72 → 75) and the news/noise passages among the 7 fell from 1.8 to 1.4 per question, while 10 news questions kept the same news on top (0.06 cost two of them the first place).
 - **-0.03** (`MIGRATED_PENALTY`) for passages from retired domains (`MIGRATED_DOMAINS`), whose link cannot be opened: a page the user can open comes first at similar relevance.
+- **-0.02 × years of distance, up to three** (`OLD_VERSION_PENALTY`) for an older yearly version of a transparency document («Compensi degli amministratori anno 2022» when «anno 2025» exists; `version_info()` groups the documents of a section whose titles differ only by numbers and punctuation), unless the question names that year.
 - **-0.05 × n** if the same source has already appeared (penalizes duplicates)
 
 Each chunk keeps its cosine score, which the confidence check and the sources list use.
@@ -97,6 +103,24 @@ Each chunk keeps its cosine score, which the confidence check and the sources li
 ### Passages of the attachments of the chosen pages
 
 A page often says what a service is and leaves the figures to a PDF it links: the regulation with the distances, the table of fees. The search over the whole index does not always reach that PDF passage: a table reads badly as text, a sentence can be cut between two passages, and the PDF penalty works against it. So, once the chunks are chosen, `retrieve_context()` looks at the pages among them (not PDFs, known facts included) and at the PDFs each page links (`data/crawl_cache/page_attachments.json`, written by the crawler; pages linking more than 20 PDFs, such as a list of forms, are left out). For each attached PDF not already in the context it takes the passage closest to the question (cosine with the query vector), joined to the passage that follows it, and adds the best `ATTACHMENT_PASSAGES` (default 2; 0 turns this off) whose similarity is at least `MIN_SIMILARITY`, after the other chunks.
+
+### Dynamic known facts
+
+Some answers need today's date or a figure that one document of the transparency portal holds: the sessions of the council, the events of the coming days, the calls for jobs open today, the latest acts, the pay of the administrators, the anti-corruption officer, the payment-timeliness indicator, the staff in service. The jobs in [Operations](operations.md) read them from the portals and write them as known facts in `KNOWN_FACTS_DYNAMIC_FILE` (same format as `known_facts.json`, one entry per subject); the API rereads the file when it changes, without a restart. Static facts come first, dynamic ones after.
+
+### Acts asked for by number
+
+«Cosa dice la determina n. 1200 del 2025?» cannot be searched: the BM25 side keeps only letters, and a card found by its number alone would not pass `MIN_SIMILARITY`. `parse_act_query()` reads the kind («determina», «delibera», «ordinanza», «decreto» or none), the number and the year; `vector_store.find_acts()` returns the first passage of the acts with that number and year, from the transparency cards and documents («Numero: 1200/2025; Data: …») and from the entries of the acts job («Delibera di Giunta comunale n. 293 del 31/12/2025»), filtered by kind (read from the document type, then the section, then the title). «Di giunta» or «di consiglio» keeps the resolutions of that body with the transparency cards of the same date. The index of numbers is built at the first lookup and dropped on reload.
+
+### Grants to a named beneficiary
+
+«Quali contributi ha ricevuto la Croce Rossa nel 2025?» found an act that mentions the Red Cross, not its grant card: among twenty thousand cards a name is drowned by the acts that cite it. `vector_store.find_grants()` indexes the cards of the grants section («Beneficiario: …; Importo: …; Data atto: …») by the distinctive words of the beneficiary's name (generic words such as «associazione», «srl», «onlus» and the name of the town are dropped; anonymised beneficiaries have none). When the question is about money given to someone it names, a beneficiary matches when all its words, or two of them, or one that few beneficiaries have, are in the question; more than ten matching names means the words are too generic and the search is left alone. A summary (names, number of cards, years, sum of the amounts) and the most recent cards (of the year asked, when given) are put before the search results.
+
+### The passage with the figure, the latest version, the article
+
+- **Document passages** (`document_passages()`, `DOCUMENT_PASSAGES`): when the search picked the first passage of a document in several passages (the heading that names it and lists its attachments), the passage of the same document closest to the question is added: the indicator or the table is in the attachment, not in the heading.
+- **Latest yearly version** (`latest_version_passages()`): when the chosen passage is an older yearly version and the latest version did not come up at all (a plan of 1,100 passages), the passage of the latest version closest to the question is added, unless the question names a year.
+- **Article passages** (`article_passages()`): «cosa dice l'articolo 18 del regolamento?» finds the regulation but another passage of it; when the question names an article, the passage where that article starts (a heading such as «Art. 18 - Composizione», not a mention in a sentence), joined to the one that follows, is taken from the documents chosen and from the PDFs their pages link, and put first.
 
 ### Office Suggestion
 

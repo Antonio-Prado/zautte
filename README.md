@@ -34,7 +34,7 @@ It is built to run on a single FreeBSD server with no database and no containers
 
 <table>
 <tr>
-<td width="50%">🔎 <b>Answers grounded in the site</b><br>Hybrid search (semantic + BM25) over pages, PDFs and uploaded documents; every answer lists its sources.</td>
+<td width="50%">🔎 <b>Answers grounded in the site</b><br>Hybrid search (semantic + BM25) over pages, PDFs and uploaded documents, plus the transparency portal (acts, budgets, grants, staff, calls) read with its attachments; acts by number, articles of a regulation and grants to a named beneficiary are looked up directly; every answer lists its sources.</td>
 <td width="50%">💬 <b>Follow-up questions</b><br>"And what does it cost?" is rewritten with its topic before searching, so conversations keep their context.</td>
 </tr>
 <tr>
