@@ -32,7 +32,7 @@ drop_to_sync_user()   # as root: become the sync account before config.settings 
 from config.settings import CRAWL_CACHE_DIR, DOCUMENTS_DIR
 from indexer.chunker import chunk_document
 from indexer.embedder import embed_texts
-from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata
+from indexer.pdf_extractor import extract_text_from_pdf, get_pdf_metadata, record_pdf_quality
 from indexer.vector_store import (
     checkpoint,
     checkpoint_due,
@@ -226,6 +226,7 @@ def _pdf_chunks(pdf: dict) -> list[dict] | None:
         return None
 
     text = extract_text_from_pdf(fpath)
+    record_pdf_quality(pdf["url"], len(text))   # only when it had no legible text of its own
     if not text:
         log.debug("  Empty text (scanned or protected PDF?), skipping")
         return None

@@ -102,6 +102,10 @@ PDF_OCR_MAX_PAGES = int(os.getenv("PDF_OCR_MAX_PAGES", "40"))
 PDF_OCR_DPI = int(os.getenv("PDF_OCR_DPI", "200"))
 PDF_OCR_LANG = os.getenv("PDF_OCR_LANG", "ita")
 PDF_OCR_MAX_SECONDS = int(os.getenv("PDF_OCR_MAX_SECONDS", "180"))
+# PDFs that gave no legible text or needed the OCR (scans, fonts without a Unicode map): the jobs log them
+# in PDF_QUALITY_FILE, and scripts/pdf_quality_report.py mails the list of the week to PDF_QUALITY_REPORT_TO
+# (default FEEDBACK_NOTIFY_EMAIL, below), to have them published again as PDF/A with searchable text
+PDF_QUALITY_FILE = Path(os.getenv("PDF_QUALITY_FILE") or CRAWL_CACHE_DIR / "pdf_quality.jsonl")
 CRAWL_EXCLUDE_PATTERNS = [
     "/wp-admin/", "/feed/", "/tag/", "?replytocom=",
     ".jpg", ".png", ".gif", ".ico", ".css", ".js",
@@ -446,6 +450,7 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 # comment and/or link). Empty = no notification; the report remains
 # visible in the dashboard anyway (administrator view).
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
+PDF_QUALITY_REPORT_TO = os.getenv("PDF_QUALITY_REPORT_TO", "").strip() or FEEDBACK_NOTIFY_EMAIL
 APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
 # Limits on those e-mails (api/notify_guard.py; the data is stored and shown anyway): one e-mail per
 # feedback in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR feedback e-mails and

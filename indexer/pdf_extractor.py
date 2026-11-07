@@ -3,6 +3,7 @@ Text extraction from PDF documents using pypdf (pure Python, no compilation).
 """
 
 import contextlib
+import json
 import logging
 import re
 import shutil
@@ -22,9 +23,16 @@ from config.settings import (
     PDF_OCR_LANG,
     PDF_OCR_MAX_PAGES,
     PDF_OCR_MAX_SECONDS,
+    PDF_QUALITY_FILE,
+    now_local,
 )
 
 log = logging.getLogger(__name__)
+
+# How the last PDF was read: "pypdf", "pdfminer", "ocr" or "none" (no legible text at all). The
+# callers that know the document's address log the last two with record_pdf_quality(): those files
+# are not what the law asks of a published document (PDF/A with searchable text).
+last_method = ""
 
 
 class _TimedOut(Exception):
@@ -56,8 +64,10 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
     Extract text from a PDF page by page.
     Return the concatenated text, or an empty string on error.
     """
+    global last_method
     from pypdf import PdfReader
 
+    last_method = "pypdf"
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
         log.warning(f"PDF not found: {pdf_path}")
@@ -123,6 +133,8 @@ def _fallback_text(pdf_path: Path, reason: str) -> str:
             parts.append(f"[Pagina {n}]\n{page.strip()}")
     text = "\n\n".join(parts)[:PDF_MAX_CHARS]
     if text.strip():
+        global last_method
+        last_method = "pdfminer"
         log.info(f"PDF {pdf_path.name}: read with pdfminer ({reason[:60]})")
     return text
 
@@ -160,13 +172,33 @@ def ocr_available() -> bool:
 def _with_ocr(pdf_path: Path, text: str) -> str:
     """The text as read (raw, cleaned here), or the OCR of the pages when that text is not legible
     and OCR is available."""
-    if legible(text) or not ocr_available():
+    global last_method
+    if legible(text):
+        return _clean_pdf_text(text)
+    last_method = "none"
+    if not ocr_available():
         return _clean_pdf_text(text)
     recognised = _clean_pdf_text(ocr_text(pdf_path))
     if legible(recognised):
+        last_method = "ocr"
         log.info(f"PDF {pdf_path.name}: read with OCR ({len(recognised)} characters)")
         return recognised
     return _clean_pdf_text(text)
+
+
+def record_pdf_quality(url: str, chars: int, document: str = "", attachment: str = "") -> None:
+    """Logs the PDF just read when it had no legible text of its own (`last_method` "ocr" or "none"):
+    one JSON line in PDF_QUALITY_FILE, for the weekly report to the offices that publish them."""
+    if last_method not in ("ocr", "none"):
+        return
+    entry = {"ts": now_local().isoformat(timespec="seconds"), "url": url, "document": document,
+             "attachment": attachment, "method": last_method, "chars": chars}
+    try:
+        PDF_QUALITY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(PDF_QUALITY_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except OSError as e:
+        log.warning(f"PDF quality log not written: {e}")
 
 
 def ocr_text(pdf_path: Path, max_pages: int = PDF_OCR_MAX_PAGES, dpi: int = PDF_OCR_DPI,

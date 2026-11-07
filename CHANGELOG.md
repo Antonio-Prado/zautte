@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-11-07
+
+### Added
+- The PDFs published without searchable text are logged and reported: a document a public body
+  publishes must be a PDF/A with searchable text, and a scan, or a file whose fonts have no Unicode
+  map, is not, even when the OCR reads it. The readers log those files in `PDF_QUALITY_FILE`
+  (`record_pdf_quality`: the crawler's PDFs, the attachments of the transparency portal, how they
+  were read); `scripts/pdf_quality_report.py` mails the list of the week to `PDF_QUALITY_REPORT_TO`
+  (default `FEEDBACK_NOTIFY_EMAIL`), grouped by site and by document, to have them published again.
+
 ## [0.38.0] - 2026-11-07
 
 ### Changed

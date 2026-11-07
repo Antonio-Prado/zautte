@@ -419,6 +419,10 @@ def read_attachments(get_bytes, doc: dict, config: dict) -> list[tuple[str, str]
         except (httpx.HTTPError, ValueError, OSError) as e:
             log.warning(f"    {att['name']}: not downloaded ({e})")
             continue
+        if kind(att["name"]) == "pdf":
+            from indexer.pdf_extractor import record_pdf_quality
+            record_pdf_quality(doc.get("source") or doc.get("page", ""), len(text),
+                               document=doc.get("title", ""), attachment=att["name"])
         if text:
             texts.append((att["name"], text))
             budget -= len(text)
