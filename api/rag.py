@@ -54,7 +54,9 @@ from indexer.vector_store import (
     attachment_passages,
     document_passages,
     find_acts,
+    find_grants,
     hybrid_search,
+    latest_version_passages,
     version_info,
 )
 
@@ -435,6 +437,44 @@ def _acts_by_number(query: str) -> list[dict]:
     return found
 
 
+# «Quali contributi ha ricevuto la Croce Rossa dal Comune nel 2025?»: a question about money given to
+# someone named. The cards of the grants section are looked up by the beneficiary's name.
+_GRANT_QUERY_RE = re.compile(
+    r"\b(contribut\w*|sovvenzion\w*|finanziament\w*|finanziat\w*|sussid\w*|erogat\w*|erogazion\w*|concess\w*|"
+    r"vantagg\w*|patrocin\w*|liquidat\w*|liquidazion\w*|soldi|fondi|ricevut\w*|affidament\w*|affidat\w*|"
+    r"pagat\w*|incaric\w*|versat\w*|versament\w*|dato|dati|dare|elargit\w*|riconosciut\w*|spes[aeio])\b", re.IGNORECASE)
+GRANT_CARDS = 4   # cards of the beneficiary put before the search results (the most recent)
+
+
+def _grants_by_beneficiary(query: str) -> list[dict]:
+    """The grant cards of the beneficiary the question names, with a summary of all its cards (how
+    many, which years, the sum of the amounts), put before the search results as known facts are."""
+    if not _GRANT_QUERY_RE.search(query):
+        return []
+    words = set(re.findall(r"[a-zà-ü]{3,}", query.lower()))
+    years = re.findall(r"\b20[0-4]\d\b", query)
+    cards, info = find_grants(words, int(years[0]) if years else None, limit=GRANT_CARDS)
+    if not cards:
+        return []
+    section = re.sub(r"&dettaglio=\d+.*$", "", cards[0].get("source", ""))
+    names = ", ".join(info["beneficiaries"])
+    when = f"nell'anno {info['year']}" if info.get("year") else (
+        f"dal {info['years'][0]} al {info['years'][1]}" if info["years"][0] != info["years"][1] else f"nel {info['years'][0]}")
+    total = f"{info['total']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    text = (f"Atti di concessione pubblicati nella sezione «Sovvenzioni, contributi, sussidi, vantaggi economici» "
+            f"dell'Amministrazione Trasparente a favore di {names}: {info['count']} schede {when}, per un importo "
+            f"complessivo di {total} € (somma degli importi delle {info['with_amount']} schede che lo indicano: "
+            f"contributi, rimborsi, corrispettivi e liquidazioni insieme). Qui sotto le {len(cards)} schede più recenti, "
+            f"ognuna con l'importo, l'atto e il link; l'elenco completo, con la ricerca per beneficiario, è nella pagina "
+            f"della sezione: {section}")
+    summary = {"text": text, "title": f"Contributi e pagamenti del Comune a {names} (dalle schede della Trasparenza)",
+               "source": section, "score": 1.0, "category": "documento", "known": True, "admin": False}
+    for c in cards:
+        c["known"] = True
+    log.info(f"Grants by beneficiary: {names}: {info['count']} cards, {len(cards)} shown")
+    return [summary, *cards]
+
+
 def _dedup_chunks(chunks: list[dict]) -> list[dict]:
     """Removes chunks with identical text, keeping the first (highest score)."""
     seen_texts: set[str] = set()
@@ -450,11 +490,12 @@ def _dedup_chunks(chunks: list[dict]) -> list[dict]:
 def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
-    Pipeline: known facts and acts asked for by number → expand → hybrid search → dedup → filter →
-    rerank → passages of the attachments of the chosen pages → the passage of the chosen documents
-    closest to the question → the article asked for, if any
+    Pipeline: known facts, acts asked for by number and grants to a named beneficiary → expand →
+    hybrid search → dedup → filter → rerank → passages of the attachments of the chosen pages → the
+    passage of the chosen documents closest to the question → the latest yearly version of a chosen
+    document when the search brought only an older one → the article asked for, if any
     """
-    known = _inject_known_facts(query) + _acts_by_number(query)
+    known = _inject_known_facts(query) + _acts_by_number(query) + _grants_by_beneficiary(query)
 
     expanded_query = expand_query(query)
     query_vec = embed_query(expanded_query)
@@ -498,6 +539,12 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         if more:
             log.info(f"Document passages: {len(more)} from {', '.join(c['source'][-60:] for c in more)}")
             chosen = _dedup_chunks(chosen + more)
+        if not re.search(r"\b20[0-4]\d\b", query):
+            # an older yearly version was chosen and the latest one did not come up at all
+            newer = latest_version_passages(chosen, query_vec, limit=DOCUMENT_PASSAGES)
+            if newer:
+                log.info(f"Latest version passages: {len(newer)} from {', '.join(c['source'][-60:] for c in newer)}")
+                chosen = _dedup_chunks(newer + chosen)
     article = parse_article_query(query)
     if article is not None and chosen:
         # the passage where that article starts, in the documents chosen (and the PDFs their pages

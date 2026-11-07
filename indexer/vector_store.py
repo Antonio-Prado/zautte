@@ -22,6 +22,7 @@ import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -59,7 +60,8 @@ _id_to_idx: dict[str, int] = {}
 _bm25 = None          # BM25 index, rebuilt (lazily) when the corpus changes
 _bm25_dirty = False   # True if the corpus changed after the last build
 _acts_index = None    # (number, year) -> rows of the acts with that number, built lazily (find_acts)
-_versions = None      # source -> (year, latest year of its series), built lazily (version_info)
+_versions = None      # source -> (year, latest year, latest source) of its series, built lazily (version_info)
+_grants = None        # beneficiary -> grant cards, built lazily (find_grants)
 _pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (lazy)
 _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
@@ -192,7 +194,7 @@ def reload() -> dict:
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
-    global _source_rows, _page_attachments, _acts_index, _versions
+    global _source_rows, _page_attachments, _acts_index, _versions, _grants
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -213,6 +215,7 @@ def reload() -> dict:
         _source_rows, _page_attachments = None, None
         _acts_index = None
         _versions = None
+        _grants = None
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
@@ -220,9 +223,10 @@ def reload() -> dict:
 
 def _reset_state():
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
-    global _acts_index, _versions
+    global _acts_index, _versions, _grants
     _acts_index = None
     _versions = None
+    _grants = None
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -411,7 +415,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index, _versions
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index, _versions, _grants
 
     if not chunks:
         return 0
@@ -494,6 +498,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         _source_rows = None
         _acts_index = None
         _versions = None
+        _grants = None
         _save()
     return inserted + updated
 
@@ -1003,11 +1008,12 @@ def article_passages(sources: list[str], number: int, limit: int = 2) -> list[di
 # anno 2022» … «anno 2025», «Piano prevenzione corruzione 2018/2020» … «2022/2024»): the versions
 # differ by a year in the title, and the search picks one of them at random, often an old one.
 _VERSION_YEAR_RE = re.compile(r"\b(20[0-4]\d)\b")
-_VERSION_STRIP_RE = re.compile(r"[\d/–\-]+")
+_VERSION_STRIP_RE = re.compile(r"[^a-zà-ü ]+")   # numbers, dates and punctuation: «n. 19 del 23.02.2026», «N°53»
 
 
 def _series_key(meta: dict) -> tuple[str, str] | None:
-    """(section, title without its numbers) of a document with a year in its title, else None."""
+    """(section, title without its numbers and punctuation) of a document with a year in its title,
+    else None."""
     title = meta.get("title", "")
     if not _VERSION_YEAR_RE.search(title):
         return None
@@ -1017,7 +1023,7 @@ def _series_key(meta: dict) -> tuple[str, str] | None:
     return where, re.sub(r"\s+", " ", _VERSION_STRIP_RE.sub(" ", title.lower())).strip()
 
 
-def _build_versions(metadata: list[dict]) -> dict[str, tuple[int, int]]:
+def _build_versions(metadata: list[dict]) -> dict[str, tuple[int, int, str]]:
     series: dict[tuple[str, str], dict[str, int]] = {}
     for meta in metadata:
         if meta.get("chunk_index", 0) != 0 or meta.get("origin") != "amt" or meta.get("card"):
@@ -1027,26 +1033,176 @@ def _build_versions(metadata: list[dict]) -> dict[str, tuple[int, int]]:
             continue
         year = max(int(y) for y in _VERSION_YEAR_RE.findall(meta.get("title", "")))
         series.setdefault(key, {})[meta.get("source", "")] = year
-    out: dict[str, tuple[int, int]] = {}
+    out: dict[str, tuple[int, int, str]] = {}
     for docs in series.values():
         if len(docs) < 2:
             continue
-        latest = max(docs.values())
+        latest_source = max(docs, key=lambda src: (docs[src], src))
+        latest = docs[latest_source]
         for source, year in docs.items():
-            out[source] = (year, latest)
+            out[source] = (year, latest, latest_source)
     return out
+
+
+def _ensure_versions() -> dict[str, tuple[int, int, str]]:
+    global _versions
+    if _versions is None:
+        _versions = _build_versions(_metadata)
+        log.info(f"Yearly versions: {len(_versions)} documents in series")
+    return _versions
 
 
 def version_info(source: str) -> tuple[int, int] | None:
     """(year of this version, year of the latest version of the same document) when the source is
     one of several yearly versions of a transparency document; None otherwise."""
-    global _versions
     with _lock:
         _ensure_loaded()
-        if _versions is None:
-            _versions = _build_versions(_metadata)
-            log.info(f"Yearly versions: {len(_versions)} documents in series")
-        return _versions.get(source)
+        v = _ensure_versions().get(source)
+        return (v[0], v[1]) if v else None
+
+
+def latest_version_passages(chosen: list[dict], query_embedding: list[float], limit: int = 2) -> list[dict]:
+    """When the search picked an older yearly version of a document and the latest version is not
+    among the passages chosen, the passage of the latest version closest to the question: the
+    penalty in the re-ranking cannot lift a version the search did not bring at all (a plan of
+    1,100 passages). The `limit` best overall."""
+    with _lock:
+        _ensure_loaded()
+        if _embeddings is None or not _ids or limit <= 0:
+            return []
+        q = np.array(query_embedding, dtype=np.float32)
+        norm = np.linalg.norm(q)
+        if norm == 0:
+            return []
+        q = q / norm
+        versions = _ensure_versions()
+        rows = _rows_by_source()
+        have = {c.get("source", "") for c in chosen}
+        best: list[tuple[float, int]] = []
+        seen: set[str] = set()
+        for c in chosen:
+            v = versions.get(c.get("source", ""))
+            if not v or v[0] >= v[1] or v[2] in have or v[2] in seen or v[2] not in rows:
+                continue
+            seen.add(v[2])
+            r = rows[v[2]]
+            scores = _embeddings[r] @ q
+            j = int(np.argmax(scores))
+            best.append((float(scores[j]), r[j]))
+        best.sort(key=lambda b: b[0], reverse=True)
+        return [_result(idx, score) for score, idx in best[:limit]]
+
+
+def _result(idx: int, score: float) -> dict:
+    meta = _metadata[idx]
+    doc = _kept_meta(meta)
+    return {
+        "text":     meta.get("text", ""),
+        "source":   doc.get("source", ""),
+        "title":    doc.get("title", ""),
+        "display_title": _title(doc),
+        "doc_type": meta.get("doc_type", ""),
+        "category": meta.get("category", ""),
+        "date":     meta.get("date", ""),
+        "score":    score,
+    }
+
+
+# «Quali contributi ha ricevuto la Croce Rossa?»: the cards of the grants section name the beneficiary
+# («Beneficiario: CROCE ROSSA ITALIANA COMITATO LOCALE …; Importo: 10.000,00 €; … Data atto: …»), but
+# a name is drowned among the hundreds of acts that mention it. The cards are looked up by the words
+# of the beneficiary's name that tell it apart (not «associazione», «srl», the name of the town).
+_GRANT_RE = re.compile(r"\bBeneficiario: ([^;\n]+); Importo: ([^;\n]*)")
+_GRANT_DATE_RE = re.compile(r"\b(?:Data atto|Pubblicato dal): (\d\d)/(\d\d)/(\d{4})")
+_GRANT_AMOUNT_RE = re.compile(r"-?\d{1,3}(?:\.\d{3})*(?:,\d+)?")
+_GRANT_STOPWORDS = frozenset([
+    "associazione", "associazioni", "culturale", "culturali", "del", "della", "dei", "delle", "degli",
+    "dell", "dello", "sociale", "sociali", "san", "santa", "asd", "comune", "comunale", "comunali", "srl",
+    "srls", "coop", "cooperativa", "cooperative", "soc", "aps", "onlus", "sportiva", "sportive", "sportivo",
+    "piceno", "marche", "societa", "comitato", "ascoli", "dilettantistica", "dilettantistiche", "circolo",
+    "odv", "fondazione", "italiana", "italiano", "italia", "istituto", "insieme", "centro", "per", "hotel",
+    "unione", "club", "provinciale", "nazionale", "regionale", "snc", "ets", "sbt", "sas", "sport",
+    "consorzio", "polisportiva", "ass", "universita", "con", "cons", "spa", "locale", "sezione", "gruppo",
+    "ente", "parrocchia", "scuola", "comprensivo", "pro", "loco", "amici", "condominio", "tesoreria",
+    "stato", "dello", "benedetto", "tronto", "volontariato", "volontari", "organizzazione", "cultura", "arl",
+    "pubblica", "privata", "impresa", "ditta", "studio", "sig", "sigra", "dott", "dottssa",
+])
+_GRANT_MAX_BENEFICIARIES = 10   # more names matched: the words are too generic, the search does better
+_GRANT_RARE_WORD = 3            # a single word of the name is enough when at most this many beneficiaries have it
+
+
+def _plain(word: str) -> str:
+    return unicodedata.normalize("NFKD", word).encode("ascii", "ignore").decode().lower()
+
+
+def _grant_tokens(name: str) -> frozenset[str]:
+    return frozenset(t for t in (_plain(w) for w in re.findall(r"[A-Za-zÀ-ü]{3,}", name)) if t not in _GRANT_STOPWORDS)
+
+
+def _build_grants(metadata: list[dict]) -> dict[str, dict]:
+    grants: dict[str, dict] = {}
+    for i, meta in enumerate(metadata):
+        if meta.get("chunk_index", 0) != 0:
+            continue
+        head = meta.get("text", "")[:1500]
+        m = _GRANT_RE.search(head)
+        if not m:
+            continue
+        name = re.sub(r"\s+", " ", m[1]).strip()
+        amount = None
+        a = _GRANT_AMOUNT_RE.search(m[2])
+        if a:
+            try:
+                amount = float(a[0].replace(".", "").replace(",", "."))
+            except ValueError:
+                amount = None
+        d = _GRANT_DATE_RE.search(head)
+        when = f"{d[3]}-{d[2]}-{d[1]}" if d else ""
+        entry = grants.setdefault(name, {"tokens": _grant_tokens(name), "rows": []})
+        entry["rows"].append((when, amount, i))
+    df: dict[str, int] = {}
+    for entry in grants.values():
+        for t in entry["tokens"]:
+            df[t] = df.get(t, 0) + 1
+    for entry in grants.values():
+        entry["rare"] = frozenset(t for t in entry["tokens"] if df[t] <= _GRANT_RARE_WORD)
+    return grants
+
+
+def find_grants(words: set[str], year: int | None = None, limit: int = 4) -> tuple[list[dict], dict]:
+    """The grant cards of the beneficiaries whose distinctive name words are all in `words` (or at
+    least two of them, or one that few beneficiaries have), the `limit` most recent (of `year`, when
+    given), and a summary: names, number of cards, their years, the sum of the amounts. ([], {}) when
+    no beneficiary matches, or too many."""
+    global _grants
+    plain = {_plain(w) for w in words}
+    with _lock:
+        _ensure_loaded()
+        if _grants is None:
+            _grants = _build_grants(_metadata)
+            log.info(f"Grants by beneficiary: {len(_grants)} beneficiaries")
+        matched = []
+        for name, entry in _grants.items():
+            tokens = entry["tokens"]
+            if not tokens:
+                continue
+            found = tokens & plain
+            if len(found) == len(tokens) or len(found) >= 2 or found & entry["rare"]:
+                matched.append(name)
+        if not matched or len(matched) > _GRANT_MAX_BENEFICIARIES:
+            return [], {}
+        rows = [r for name in matched for r in _grants[name]["rows"]]
+        if year is not None:
+            of_year = [r for r in rows if r[0].startswith(str(year))]
+            rows = of_year or rows
+            year = year if of_year else None
+        rows.sort(key=lambda r: r[0], reverse=True)
+        amounts = [r[1] for r in rows if r[1] is not None]
+        years = sorted({r[0][:4] for r in rows if r[0]})
+        info = {"beneficiaries": sorted(matched), "count": len(rows), "year": year,
+                "years": (years[0], years[-1]) if years else ("", ""),
+                "total": round(sum(amounts), 2), "with_amount": len(amounts)}
+        return [_result(idx, 1.0) for _, _, idx in rows[:limit]], info
 
 
 def document_passages(chosen: list[dict], query_embedding: list[float], limit: int = 2) -> list[dict]:
