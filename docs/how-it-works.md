@@ -235,6 +235,10 @@ python -m indexer.indexer --only-pdf   # PDFs only
 
 Reads `data/crawl_cache/index.json`. For each document it compares the new chunks with the stored ones: only new or changed chunks (or chunks with a zero vector) are embedded, in groups of 50; the others only have their metadata refreshed, and chunks of the same source that no longer exist are removed. Disk writes are deferred: a checkpoint every 30 minutes and one at the end.
 
+### PDF readers (`indexer/pdf_extractor.py`)
+
+A PDF is read with pypdf, page by page, within `PDF_MAX_PAGES`, `PDF_MAX_CHARS` and `PDF_MAX_SECONDS`. When pypdf gives up (a content stream with too many tokens, a stream above its decompression limit, a malformed object) or finds no text, pdfminer.six reads the file. When the text is still not legible (fewer than twenty letters, or more than a fifth of odd characters: a scan, a file whose fonts have no Unicode map), and `pdftoppm` and `tesseract` are installed (`PDF_OCR`), the first `PDF_OCR_MAX_PAGES` pages are rendered at `PDF_OCR_DPI` and recognised in `PDF_OCR_LANG`, within `PDF_OCR_MAX_SECONDS`; the OCR text replaces the illegible one only when it is legible itself. The same readers serve the crawler, the document inbox and the attachments of the transparency portal.
+
 ### Document Inbox (`scripts/inbox_indexer.py`)
 
 Allows indexing manually uploaded documents:

@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-11-07
+
+### Added
+- OCR of the PDFs without usable text: a scan, or a file whose fonts have no Unicode map (PDF24 with an
+  old Ghostscript gives control codes in place of the letters). When the text read is not legible
+  (`legible()`: fewer than twenty letters, or more than a fifth of odd characters) and `pdftoppm`
+  (poppler-utils) and `tesseract` are installed, the first `PDF_OCR_MAX_PAGES` pages are rendered at
+  `PDF_OCR_DPI` and recognised in `PDF_OCR_LANG` within `PDF_OCR_MAX_SECONDS` (`PDF_OCR` = auto, on,
+  off). On the reference installation a scanned page takes about 2.5 seconds. Serves the crawler, the
+  inbox and the attachments of the transparency portal.
+
 ## [0.36.0] - 2026-11-07
 
 ### Added

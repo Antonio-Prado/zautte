@@ -40,6 +40,13 @@ CRAWL_MAX_FILE_MB=100
 #PDF_MAX_PAGES=2000
 #PDF_MAX_CHARS=5000000
 #PDF_MAX_SECONDS=180
+# OCR of the PDFs without usable text (scans, fonts without a Unicode map): auto = when pdftoppm and
+# tesseract are installed; on = required; off = never. Pages, resolution, language, seconds per file
+#PDF_OCR=auto
+#PDF_OCR_MAX_PAGES=40
+#PDF_OCR_DPI=200
+#PDF_OCR_LANG=ita
+#PDF_OCR_MAX_SECONDS=180
 # Domains whose links are dead after a migration: content stays indexed, links are hidden
 # (comma-separated domains or path prefixes; empty = none)
 MIGRATED_DOMAINS=
@@ -216,6 +223,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `CRAWL_MAX_DOWNLOAD_SECONDS` | `300` | Longest time of one download; a slower one is dropped |
 | `CRAWL_MAX_QUERY_VARIANTS` | `25` | Query-string variants of one path the crawler follows (endless calendars and filters) |
 | `PDF_MAX_PAGES` / `PDF_MAX_CHARS` / `PDF_MAX_SECONDS` | `2000` / `5000000` / `180` | Pages read, characters kept and seconds spent on one PDF; what was read so far is kept |
+| `PDF_OCR` / `PDF_OCR_MAX_PAGES` / `PDF_OCR_DPI` / `PDF_OCR_LANG` / `PDF_OCR_MAX_SECONDS` | `auto` / `40` / `200` / `ita` / `180` | OCR of a PDF whose text is missing or not legible (a scan, fonts without a Unicode map): `auto` when `pdftoppm` (poppler-utils) and `tesseract` with the language data are installed, `on` requires them, `off` never; pages rendered, resolution, tesseract language, seconds spent on one file |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
 | `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); for example attachments that are of no use to citizens (theses, technical drawings) |
