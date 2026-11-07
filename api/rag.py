@@ -442,7 +442,7 @@ def _acts_by_number(query: str) -> list[dict]:
 _GRANT_QUERY_RE = re.compile(
     r"\b(contribut\w*|sovvenzion\w*|finanziament\w*|finanziat\w*|sussid\w*|erogat\w*|erogazion\w*|concess\w*|"
     r"vantagg\w*|patrocin\w*|liquidat\w*|liquidazion\w*|soldi|fondi|ricevut\w*|affidament\w*|affidat\w*|"
-    r"pagat\w*|incaric\w*|versat\w*|versament\w*)\b", re.IGNORECASE)
+    r"pagat\w*|incaric\w*|versat\w*|versament\w*|dato|dati|dare|elargit\w*|riconosciut\w*|spes[aeio])\b", re.IGNORECASE)
 GRANT_CARDS = 4   # cards of the beneficiary put before the search results (the most recent)
 
 

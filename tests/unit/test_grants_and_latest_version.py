@@ -73,7 +73,9 @@ def test_find_grants_by_name(store):
     cards, info = vs.find_grants({"contributi", "croce", "rossa"}, year=2019)   # no card of that year: all
     assert len(cards) == 3 and info["year"] is None
     assert vs.find_grants({"contributi", "avis"})[1]["count"] == 1
-    assert vs.find_grants({"contributi", "rossa"}) == ([], {})            # one word of two is not enough
+    assert vs.find_grants({"quanto", "dato", "cooperativa", "attivamente"})[1]["count"] == 1   # a rare word is enough
+    assert vs.find_grants({"contributi", "rossa"})[1]["count"] == 3     # «rossa»: two beneficiaries have it, rare
+    assert vs.find_grants({"contributi", "comitato"}) == ([], {})        # a generic word is not a name word
     assert vs.find_grants({"contributi", "associazione", "sportiva"}) == ([], {})
     assert vs.find_grants({"contributi", "comune", "benedetto"}) == ([], {})
 
@@ -85,6 +87,7 @@ def test_grants_by_beneficiary_summary(store):
     assert "866,00 €" in found[0]["text"] and found[0]["source"].endswith("voceamt=197")
     assert found[1]["source"].endswith("dettaglio=2")
     assert rag._grants_by_beneficiary("dove ha sede la Croce Rossa?") == []    # no money asked
+    assert len(rag._grants_by_beneficiary("quanto ha dato il Comune alla cooperativa Attivamente?")) == 2
     assert rag._grants_by_beneficiary("quali contributi per le famiglie?") == []
 
 

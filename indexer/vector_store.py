@@ -1128,6 +1128,7 @@ _GRANT_STOPWORDS = frozenset([
     "pubblica", "privata", "impresa", "ditta", "studio", "sig", "sigra", "dott", "dottssa",
 ])
 _GRANT_MAX_BENEFICIARIES = 10   # more names matched: the words are too generic, the search does better
+_GRANT_RARE_WORD = 3            # a single word of the name is enough when at most this many beneficiaries have it
 
 
 def _plain(word: str) -> str:
@@ -1159,13 +1160,20 @@ def _build_grants(metadata: list[dict]) -> dict[str, dict]:
         when = f"{d[3]}-{d[2]}-{d[1]}" if d else ""
         entry = grants.setdefault(name, {"tokens": _grant_tokens(name), "rows": []})
         entry["rows"].append((when, amount, i))
+    df: dict[str, int] = {}
+    for entry in grants.values():
+        for t in entry["tokens"]:
+            df[t] = df.get(t, 0) + 1
+    for entry in grants.values():
+        entry["rare"] = frozenset(t for t in entry["tokens"] if df[t] <= _GRANT_RARE_WORD)
     return grants
 
 
 def find_grants(words: set[str], year: int | None = None, limit: int = 4) -> tuple[list[dict], dict]:
     """The grant cards of the beneficiaries whose distinctive name words are all in `words` (or at
-    least two of them), the `limit` most recent (of `year`, when given), and a summary: names, number
-    of cards, their years, the sum of the amounts. ([], {}) when no beneficiary matches, or too many."""
+    least two of them, or one that few beneficiaries have), the `limit` most recent (of `year`, when
+    given), and a summary: names, number of cards, their years, the sum of the amounts. ([], {}) when
+    no beneficiary matches, or too many."""
     global _grants
     plain = {_plain(w) for w in words}
     with _lock:
@@ -1178,8 +1186,8 @@ def find_grants(words: set[str], year: int | None = None, limit: int = 4) -> tup
             tokens = entry["tokens"]
             if not tokens:
                 continue
-            overlap = len(tokens & plain)
-            if overlap == len(tokens) or overlap >= 2:
+            found = tokens & plain
+            if len(found) == len(tokens) or len(found) >= 2 or found & entry["rare"]:
                 matched.append(name)
         if not matched or len(matched) > _GRANT_MAX_BENEFICIARIES:
             return [], {}
