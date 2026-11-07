@@ -79,10 +79,16 @@ def test_staff_total_and_fact():
     assert tf.staff_total(desc) == (321, "31 dicembre 2025")
     assert tf.staff_total("nessun numero") is None
     doc = _doc("Dotazione organica al 31 dicembre 2025", desc, ["Conto annuale.pdf"])
-    fact = tf.build_staff(doc, 321, "31 dicembre 2025", SECTION, TODAY, SITE, {"title": "Mio titolo"})
+    account = ("Riepilogo triennale\nPersonale a tempo indeterminato al 31.12 (Tab. 1)   Spese per retribuzioni "
+               "lorde (Tab. 12+13)\n2023 2024 2025\nDIRIGENTI 6,75 6,92 624.624 702.326 622.866\nTOTALE 9.000.000")
+    fact = tf.build_staff(doc, 321, "31 dicembre 2025", SECTION, TODAY, SITE, {"title": "Mio titolo"},
+                          tf.spending_extract(account))
     assert fact["id"] == "amt-staff" and fact["title"] == "Mio titolo"
     assert "al 31 dicembre 2025 il totale del personale effettivo in servizio era di 321 persone" in fact["text"]
     assert "Conto annuale.pdf" in fact["text"]
+    assert "DIRIGENTI 6,75 6,92 624.624 702.326 622.866" in fact["text"] and "Spesa per il personale" in fact["text"]
+    assert tf.spending_extract("niente tabella") == ""
+    assert "speso" in fact["require_any"] and "personale" in fact["keywords"] and "costa" not in fact["keywords"]
 
 
 def test_build_rpct_fact():

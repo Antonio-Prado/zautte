@@ -76,11 +76,43 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
                         f"{len(parts)} pages kept")
 
         full_text = "\n\n".join(parts)[:PDF_MAX_CHARS]
+        if not full_text.strip():
+            full_text = _fallback_text(pdf_path, "no text")
         return _clean_pdf_text(full_text)
 
     except Exception as e:  # noqa: BLE001 - pypdf raises heterogeneous exception types on corrupt PDFs
-        log.error(f"PDF extraction error {pdf_path.name}: {e}")
+        text = _fallback_text(pdf_path, str(e))
+        if not text:
+            log.error(f"PDF extraction error {pdf_path.name}: {e}")
+        return _clean_pdf_text(text)
+
+
+def _fallback_text(pdf_path: Path, reason: str) -> str:
+    """The text through pdfminer, when pypdf gave up or found nothing: pypdf stops on a content
+    stream with too many tokens («Reached maximum number of tokens per stream», a large drawing), on
+    a stream above its decompression limit or on a malformed object, and pdfminer, slower, reads
+    them. "" when pdfminer is not installed or fails too."""
+    try:
+        from pdfminer.high_level import extract_text
+    except ImportError:
         return ""
+    try:
+        with _time_limit(PDF_MAX_SECONDS):
+            raw = extract_text(str(pdf_path), maxpages=PDF_MAX_PAGES) or ""
+    except _TimedOut:
+        log.warning(f"PDF {pdf_path.name}: pdfminer stopped after {PDF_MAX_SECONDS} s")
+        return ""
+    except Exception as e:  # noqa: BLE001 - pdfminer raises its own heterogeneous exceptions
+        log.warning(f"PDF {pdf_path.name}: pdfminer failed too ({e})")
+        return ""
+    parts = []
+    for n, page in enumerate(raw.split("\f"), start=1):
+        if page.strip():
+            parts.append(f"[Pagina {n}]\n{page.strip()}")
+    text = "\n\n".join(parts)[:PDF_MAX_CHARS]
+    if text.strip():
+        log.info(f"PDF {pdf_path.name}: read with pdfminer ({reason[:60]})")
+    return text
 
 
 def _clean_pdf_text(text: str) -> str:

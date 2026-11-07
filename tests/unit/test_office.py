@@ -50,8 +50,9 @@ def test_kind_strips_signatures_and_tokens():
     assert office.kind("dati.XLSX") == "xlsx"
     assert office.kind("elenco.csv?token=1") == "csv"
     assert office.kind("foto.jpg") == ""
-    assert office.kind("vecchio.doc") == ""
-    assert office.readable("allegati.zip") and not office.readable("x.xls")
+    assert office.kind("vecchio.doc") == "doc"          # read since 0.36.0
+    assert office.kind("vecchio.rtf") == ""
+    assert office.readable("allegati.zip") and office.readable("x.xls") and not office.readable("x.rtf")
 
 
 def test_xlsx_rows_with_shared_and_inline_strings():

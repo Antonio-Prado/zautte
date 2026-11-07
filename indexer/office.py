@@ -16,6 +16,7 @@ import csv
 import io
 import logging
 import re
+import struct
 import zipfile
 from collections.abc import Callable
 from xml.etree import ElementTree as ET
@@ -223,8 +224,140 @@ def _zip_text(z: zipfile.ZipFile, max_chars: int, pdf_text: PdfText, depth: int)
 _OFFICE_ZIP = {"xlsx": _xlsx_text, "xlsm": _xlsx_text, "docx": _docx_text, "ods": _ods_text, "odt": _odt_text}
 
 
+# --------------------------------------------------------------------------- the old binary formats
+
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def _xls_text(data: bytes, max_chars: int) -> str:
+    """A Word 97-2003 era spreadsheet (.xls, BIFF): one line per row, cells separated by tabs."""
+    if not data.startswith(_OLE_MAGIC):
+        return ""
+    try:
+        import xlrd
+    except ImportError:
+        return ""
+    try:
+        book = xlrd.open_workbook(file_contents=data, on_demand=True)
+    except Exception as e:  # noqa: BLE001 - xlrd raises its own heterogeneous exceptions
+        log.debug(f"xls: {e}")
+        return ""
+    out: list[str] = []
+    size = 0
+    for sheet in book.sheets():
+        if sheet.nrows:
+            out.append(f"[{sheet.name}]")
+        for r in range(sheet.nrows):
+            cells = []
+            for c in sheet.row(r):
+                if c.ctype == xlrd.XL_CELL_NUMBER and float(c.value).is_integer():
+                    cells.append(str(int(c.value)))
+                elif c.ctype == xlrd.XL_CELL_DATE:
+                    try:
+                        cells.append(xlrd.xldate.xldate_as_datetime(c.value, book.datemode).strftime("%d/%m/%Y"))
+                    except (ValueError, OverflowError):
+                        cells.append(str(c.value))
+                elif c.ctype == xlrd.XL_CELL_EMPTY:
+                    cells.append("")
+                else:
+                    cells.append(str(c.value))
+            line = "\t".join(cells).rstrip()
+            if line.strip():
+                out.append(line)
+                size += len(line) + 1
+                if size >= max_chars:
+                    return _tidy("\n".join(out))[:max_chars]
+    return _tidy("\n".join(out))[:max_chars]
+
+
+def _doc_text(data: bytes, max_chars: int) -> str:
+    """A Word 97-2003 document (.doc): the text of its piece table (the only reliable way to find
+    the text, which is spread in 8-bit and 16-bit runs around the file)."""
+    if not data.startswith(_OLE_MAGIC):
+        return ""
+    try:
+        import olefile
+    except ImportError:
+        return ""
+    try:
+        with olefile.OleFileIO(io.BytesIO(data)) as ole:
+            if not ole.exists("WordDocument"):
+                return ""
+            word = ole.openstream("WordDocument").read()
+            table_name = "1Table" if _fib_flag(word, 0x0200) else "0Table"
+            if not ole.exists(table_name):
+                table_name = "0Table" if ole.exists("0Table") else "1Table"
+                if not ole.exists(table_name):
+                    return ""
+            table = ole.openstream(table_name).read()
+    except Exception as e:  # noqa: BLE001 - olefile raises its own heterogeneous exceptions
+        log.debug(f"doc: {e}")
+        return ""
+    try:
+        text = doc_pieces_text(word, table)
+    except (ValueError, IndexError, UnicodeDecodeError, struct.error) as e:
+        log.debug(f"doc pieces: {e}")
+        return ""
+    return _tidy(text)[:max_chars]
+
+
+def _fib_flag(word: bytes, bit: int) -> bool:
+    return len(word) > 0x0B and bool(int.from_bytes(word[0x0A:0x0C], "little") & bit)
+
+
+def doc_pieces_text(word: bytes, table: bytes) -> str:
+    """The main text of a Word binary file from its piece table: the FIB (start of the WordDocument
+    stream) points to the Clx in the table stream; the Clx holds the PlcPcd, a list of character
+    positions and, for each run, where its bytes are and whether they are 8-bit (CP1252) or 16-bit."""
+    if len(word) < 0x1B0:
+        raise ValueError("FIB too short")
+    fc_clx = int.from_bytes(word[0x01A2:0x01A6], "little")
+    lcb_clx = int.from_bytes(word[0x01A6:0x01AA], "little")
+    ccp_text = int.from_bytes(word[0x4C:0x50], "little")
+    clx = table[fc_clx:fc_clx + lcb_clx]
+    pos = 0
+    while pos < len(clx) and clx[pos] == 0x01:          # Prc entries (property modifiers) come first
+        pos += 3 + int.from_bytes(clx[pos + 1:pos + 3], "little")
+    if pos >= len(clx) or clx[pos] != 0x02:
+        raise ValueError("no Pcdt in the Clx")
+    lcb = int.from_bytes(clx[pos + 1:pos + 5], "little")
+    plc = clx[pos + 5:pos + 5 + lcb]
+    n = (len(plc) - 4) // 12
+    if n <= 0:
+        raise ValueError("empty piece table")
+    cps = [int.from_bytes(plc[4 * i:4 * i + 4], "little") for i in range(n + 1)]
+    out: list[str] = []
+    done = 0
+    for i in range(n):
+        pcd = plc[4 * (n + 1) + 8 * i:4 * (n + 1) + 8 * i + 8]
+        fc = int.from_bytes(pcd[2:6], "little")
+        length = cps[i + 1] - cps[i]
+        if length <= 0:
+            continue
+        if ccp_text and done >= ccp_text:           # footnotes, headers and the like follow the main text
+            break
+        length = min(length, ccp_text - done) if ccp_text else length
+        if fc & 0x40000000:
+            start = (fc & 0x3FFFFFFF) // 2
+            out.append(word[start:start + length].decode("cp1252", errors="replace"))
+        else:
+            out.append(word[fc:fc + 2 * length].decode("utf-16-le", errors="replace"))
+        done += length
+    return _doc_controls("".join(out))
+
+
+_DOC_DROP = re.compile(r"[\x00-\x06\x08\x0e-\x12\x14-\x1f]")   # pictures, fields, bookmarks
+
+
+def _doc_controls(text: str) -> str:
+    """Word's control characters: cell and row marks, paragraph and line ends, page breaks."""
+    text = text.replace("\x07", "\t").replace("\r", "\n").replace("\x0b", "\n").replace("\x0c", "\n")
+    text = re.sub(r"\x13[^\x14\x15]*\x14", "", text)   # the code of a field: keep only its result
+    return _DOC_DROP.sub("", text)
+
+
 def kind(name: str) -> str:
-    """The reader a file name points to: pdf, xlsx, docx, ods, odt, csv, zip, or "" if none."""
+    """The reader a file name points to: pdf, xlsx, docx, ods, odt, csv, zip, xls, doc, or "" if none."""
     n = name.lower().strip()
     while n.endswith(".p7m"):
         n = n[:-4]
@@ -238,6 +371,8 @@ def kind(name: str) -> str:
         return "csv"
     if ext == "zip":
         return "zip"
+    if ext in ("xls", "doc"):
+        return ext
     return ""
 
 
@@ -262,6 +397,12 @@ def extract(name: str, data: bytes, max_chars: int, pdf_text: PdfText, depth: in
     k = kind(name)
     if k == "csv":
         return _csv_text(data, max_chars)
+    if k in ("xls", "doc") and data.startswith(b"PK"):
+        k = "xlsx" if k == "xls" else "docx"   # a modern file with the old extension
+    if k == "xls":
+        return _xls_text(data, max_chars)
+    if k == "doc":
+        return _doc_text(data, max_chars)
     if k in _OFFICE_ZIP or k == "zip":
         z = _open_zip(data)
         if z is None:

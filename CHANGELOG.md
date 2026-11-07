@@ -9,6 +9,25 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-11-07
+
+### Added
+- Word 97-2003 (.doc) and Excel 97-2003 (.xls) attachments are read: the text of a .doc through its
+  piece table (the runs of 8-bit and 16-bit text the file keeps around the document, with field codes
+  and pictures dropped; `olefile` opens the container), a .xls sheet by sheet through `xlrd`. The
+  transparency portal still publishes some of them (observation forms, pay tables of earlier years).
+  Their documents are read again at the next run (the digest marks office attachments).
+- When pypdf gives up on a PDF («Reached maximum number of tokens per stream» on a large drawing, a
+  stream above its decompression limit, a malformed object) or finds no text, the file is read with
+  `pdfminer.six`, slower but tolerant. Thirteen attachments of the transparency portal failed that way.
+- The staff fact of `scripts/transparency_facts.py` carries the three-year table of the gross pay by
+  category from the yearly account of the staff, and fires for «quanto spende il Comune per il
+  personale» (money words count only with a staff word).
+
+### Changed
+- README: the reference figures of November 2026 (302,908 chunks, 54,130 pages, documents and cards,
+  86 of 100 test questions), the pronunciation of the name.
+
 ## [0.35.0] - 2026-11-07
 
 ### Added
