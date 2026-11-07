@@ -49,7 +49,7 @@ from config.settings import (
 )
 from indexer.embedder import embed_query
 from indexer.textclean import strip_invisible_chars
-from indexer.vector_store import attachment_passages, hybrid_search
+from indexer.vector_store import attachment_passages, find_acts, hybrid_search
 
 log = logging.getLogger(__name__)
 
@@ -352,6 +352,62 @@ def _inject_known_facts(query: str) -> list[dict]:
     return results
 
 
+# «cosa dice la determina n. 1200 del 2025?», «delibera di giunta 45/2024», «ordinanza numero 1171
+# del 2026»: the kind of act, its number and its year. A number without a year is not enough (each
+# year starts again from 1).
+_ACT_QUERY_RE = re.compile(
+    r"\b(determin\w*|deliber\w*|ordinanz\w*|decret\w*|atto|atti|provvediment\w*)\b"
+    r"[^\d\n]{0,60}?"
+    r"(?:\bn\.?|n°|\bnum\.?|\bnumero)?\s*(\d{1,6})\s*(?:/|-|\bdel\b|\bdell'anno\b|\banno\b)\s*"
+    r"(\d{4})\b", re.IGNORECASE)
+_ACT_QUERY_KINDS = {"determin": "determina", "deliber": "delibera", "ordinanz": "ordinanza",
+                    "decret": "decreto"}
+_ACT_DATE_RE = re.compile(r"\bData: (\d\d/\d\d/\d{4})\b")
+_ACT_TITLE_DATE_RE = re.compile(r"\bdel (\d\d/\d\d/\d{4})\b")
+
+
+def parse_act_query(query: str) -> tuple[str, int, int] | None:
+    """(kind, number, year) asked for in the question, or None. kind is «determina», «delibera»,
+    «ordinanza», «decreto» or '' («atto n. 12 del 2025»: any kind)."""
+    m = _ACT_QUERY_RE.search(query)
+    if not m:
+        return None
+    number, year = int(m[2]), int(m[3])
+    if not 1990 <= year <= now_local().year + 1:
+        return None
+    word = m[1].lower()
+    kind = next((k for stem, k in _ACT_QUERY_KINDS.items() if word.startswith(stem)), "")
+    return kind, number, year
+
+
+def _act_date(chunk: dict) -> str:
+    m = _ACT_DATE_RE.search(chunk.get("text", "")[:800]) or _ACT_TITLE_DATE_RE.search(chunk.get("title", ""))
+    return m[1] if m else ""
+
+
+def _acts_by_number(query: str) -> list[dict]:
+    """The acts the question names by number and year, looked up in the index (not searched: a
+    number is not a word). «di giunta» or «di consiglio» keeps the resolutions of that body, and the
+    cards of the transparency section (which do not name the body) with the same date."""
+    parsed = parse_act_query(query)
+    if parsed is None:
+        return []
+    kind, number, year = parsed
+    found = find_acts(number, year, kind)
+    lowered = query.lower()
+    body = next((b for b in ("giunta", "consiglio") if b in lowered), "")
+    if body and found:
+        named = [c for c in found if body in c.get("title", "").lower()]
+        if named:
+            dates = {_act_date(c) for c in named}
+            found = named + [c for c in found if c not in named and _act_date(c) in dates]
+    for c in found:
+        c["known"] = True   # shown among the sources even when the answer does not cite the link
+    if found:
+        log.info(f"Act by number: {kind or 'atto'} {number}/{year}: {len(found)} passages")
+    return found
+
+
 def _dedup_chunks(chunks: list[dict]) -> list[dict]:
     """Removes chunks with identical text, keeping the first (highest score)."""
     seen_texts: set[str] = set()
@@ -367,10 +423,10 @@ def _dedup_chunks(chunks: list[dict]) -> list[dict]:
 def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
-    Pipeline: known facts → expand → hybrid search → dedup → filter → rerank → passages of the
-    attachments of the chosen pages
+    Pipeline: known facts and acts asked for by number → expand → hybrid search → dedup → filter →
+    rerank → passages of the attachments of the chosen pages
     """
-    known = _inject_known_facts(query)
+    known = _inject_known_facts(query) + _acts_by_number(query)
 
     expanded_query = expand_query(query)
     query_vec = embed_query(expanded_query)
