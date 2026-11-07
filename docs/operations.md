@@ -80,6 +80,10 @@ A section can name the older copy of its documents (`"replaces"`: regular expres
 
 "How much does the mayor earn?", "who is the anti-corruption officer?", "how many days does the municipality take to pay?", "how many employees does the municipality have?" have one answer each, in one document of the transparency portal that is published again every year. The search finds the document, but often an older version of it, and the figure is in the attachment rather than in the heading. Once a day the job reads the latest version of each of these documents (the administrators' pay table, the officer's page, the yearly payment-timeliness indicator with its quarters, the staff in service at the end of the year) and writes them as four dynamic known facts (`amt-pay`, `amt-rpct`, `amt-payments`, `amt-staff`) in `KNOWN_FACTS_DYNAMIC_FILE`. A subject whose document cannot be read keeps its previous fact. Configuration: the `amt_facts` key of `config/crawl_extra.json` (one `voceamt` per subject, optional `keywords`, `require_any` and `title`); `--dry-run` prints the facts, `--only <subject>` reads one.
 
+### PDFs without searchable text (`scripts/pdf_quality_report.py`)
+
+A document a public body publishes must be a PDF/A with searchable text (level «u» or «a»); a scan, or a file whose fonts have no Unicode map, is not, even when Zautte reads it with the OCR. The readers log those files in `PDF_QUALITY_FILE` (`record_pdf_quality` in `indexer/pdf_extractor.py`: the crawler's PDFs and the attachments of the transparency portal, with how they were read). Once a week this script mails the files of the last `--days` days (7) to `PDF_QUALITY_REPORT_TO` (default `FEEDBACK_NOTIFY_EMAIL`), grouped by site and by document, so the offices that publish them can be told; nothing is sent when the list is empty. It runs as root: the SMTP settings are in `.env`. `--dry-run` prints the mail.
+
 Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`, `acts_sync.sh`, `amt_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 30 for the acts, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. They also cap the memory of the job (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB; 0 lifts it): a hostile document that makes a parser blow up ends the job, not the API. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
@@ -106,6 +110,7 @@ The sync jobs download and parse documents from the Internet, so they should not
 12       *    *    *     *    zsync /opt/chatbot/scripts/events_calendar.sh >>/var/log/chatbot-sync.log 2>&1
 17       *    *    *     *    zsync /opt/chatbot/scripts/recruitment_notices.sh >>/var/log/chatbot-sync.log 2>&1
 42       5    *    *     *    zsync /opt/chatbot/scripts/transparency_facts.sh >>/var/log/chatbot-sync.log 2>&1
+30       6    *    *     1    root  cd /opt/chatbot && venv/bin/python -m scripts.pdf_quality_report >>/var/log/chatbot-sync.log 2>&1
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
 ```
 
@@ -126,6 +131,7 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 | every hour (minute 12)         | `events_calendar.sh`    | Events in progress and coming up from the events calendar API → dynamic known fact; writes only `data/facts/`; own lock, memory ceiling and time limit as above |
 | every hour (minute 17)         | `recruitment_notices.sh` | Calls for jobs open today from the «Bandi di concorso» table of the transparency portal → dynamic known fact; writes only `data/facts/`; own lock, memory ceiling and time limit as above |
 | 05:42 every night              | `transparency_facts.sh` | Figures of the transparency portal (administrators' pay, anti-corruption officer, payment-timeliness indicator, staff in service) → four dynamic known facts; writes only `data/facts/` |
+| 06:30 every Monday             | `pdf_quality_report`    | The PDFs read in the week without searchable text (scans, fonts without a Unicode map) → one mail to the address that reports them to the offices, to have them published again as PDF/A |
 
 Two jobs of `scripts/cron_setup.sh` below are **not** in the production crontab: `sync inbox` is run by hand after dropping documents into `data/inbox/` (nobody does that continuously, and run as root it restarts the API like the other syncs), and `purge_logs` stays off until the retention periods are approved by the data protection officer (try it with `--dry-run`; to enable it add `15 2 * * * root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1`).
 
