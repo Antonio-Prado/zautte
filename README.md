@@ -21,7 +21,7 @@ Zautte is a **RAG** (Retrieval-Augmented Generation) assistant for public-sector
 
 It is built to run on a single FreeBSD server with no database and no containers. What belongs to one organisation (pages, logos, known facts, changelog) is kept outside this repository, see [Configuration](docs/configuration.md).
 
-**Why "Zautte"?** In the dialect of San Benedetto del Tronto, a *zautte* is a sea laborer, a dockworker. *Li zautte* are young, strong workers who, historically coordinated by a foreman known as *lu sbarzòcche*, unload the fish from the boats just back in port and carry it to the fish market.
+**Why "Zautte"?** In the dialect of San Benedetto del Tronto, a *zautte* is a sea laborer, a dockworker. *Li zautte* are young, strong workers who, historically coordinated by a foreman known as *lu sbarzòcche*, unload the fish from the boats just back in port and carry it to the fish market. It is pronounced [dzaˈuttə], «zaùtte»: stress on the u, a soft z as in «zero», the final e barely sounded.
 
 <p align="center">
   <img src="docs/images/zautte-chat-desktop.png" alt="Zautte answering a question about changing residence, desktop view" width="66%">
@@ -104,14 +104,14 @@ New items from the configured news sources (for example a WordPress news site or
 
 <table>
   <tr>
-    <td align="center"><b>270,745</b><br><sub>chunks indexed</sub></td>
-    <td align="center"><b>13,939</b><br><sub>pages and documents</sub></td>
-    <td align="center"><b>80 / 100</b><br><sub>test questions with the right page<br>among the chunks given to the LLM</sub></td>
-    <td align="center"><b>15 min</b><br><sub>to index new news items;<br>incremental crawl weekly,<br>full crawl monthly</sub></td>
+    <td align="center"><b>302,908</b><br><sub>chunks indexed</sub></td>
+    <td align="center"><b>54,130</b><br><sub>pages, documents and cards<br>(site, transparency portal, acts)</sub></td>
+    <td align="center"><b>86 / 100</b><br><sub>test questions with the right page<br>among the chunks given to the LLM</sub></td>
+    <td align="center"><b>15 min</b><br><sub>to index new news items;<br>transparency portal nightly,<br>incremental crawl weekly, full crawl monthly</sub></td>
   </tr>
 </table>
 
-<sub>Figures from a reference installation. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3`.</sub>
+<sub>Figures from a reference installation, November 2026. The retrieval score went from 58 to 80 out of 100 when the embedding model changed from `mxbai-embed-large` to `bge-m3` (October 2026), and to 86 with the direct lookups, the preference for the latest yearly version and the passages added after the search (November 2026); 20 of 20 acts asked for by number are found.</sub>
 
 <details>
 <summary><b>Restricted admin area</b> (invented data)</summary>
@@ -170,4 +170,4 @@ Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code 
 
 Released under the [MIT License](LICENSE) · © 2026 Antonio Prado.
 
-<sub>Documentation updated: October 2026</sub>
+<sub>Documentation updated: November 2026</sub>

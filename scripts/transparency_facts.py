@@ -81,7 +81,10 @@ DEFAULT_WORDS = {
                  ["tempestività", "tempestivita", "fatture", "fattura", "fornitori", "fornitore", "indicatore"]),
     "staff": (["dipendenti", "dipendente", "personale", "organico", "dotazione", "dirigenti", "dirigente",
                "impiegati", "lavorano", "lavoratori", "assunti", "quanti", "quante"],
-              ["dipendenti", "dipendente", "organico", "dotazione", "dirigenti", "impiegati", "lavoratori"]),
+              # the money words only count with a staff word among the keywords («quanto costa la mensa» does not fire)
+              ["dipendenti", "dipendente", "organico", "dotazione", "dirigenti", "impiegati", "lavoratori",
+               "speso", "spesa", "spese", "costo", "costi", "costa", "costano", "retribuzioni", "stipendi",
+               "stipendio", "retribuzione"]),
 }
 
 
@@ -234,7 +237,22 @@ def staff_total(description: str) -> tuple[int, str] | None:
     return int(m[1]), (d[1] if d else "")
 
 
-def build_staff(doc: dict, total: int, when: str, section_url: str, today: date, site: str, cfg: dict) -> dict:
+_SPENDING_RE = re.compile(r"Spese per retribuzioni lorde", re.IGNORECASE)
+_SPENDING_WINDOW = (300, 2200)   # characters kept before and after the first table of the yearly account
+
+
+def spending_extract(text: str) -> str:
+    """The part of the yearly account of the staff («Conto annuale») with the three-year table of the
+    gross pay by category: raw text, enough for the model to read the totals."""
+    m = _SPENDING_RE.search(text)
+    if not m:
+        return ""
+    start = max(0, m.start() - _SPENDING_WINDOW[0])
+    return re.sub(r"[ \t]+", " ", text[start:m.start() + _SPENDING_WINDOW[1]]).strip()
+
+
+def build_staff(doc: dict, total: int, when: str, section_url: str, today: date, site: str, cfg: dict,
+                spending: str = "") -> dict:
     when = when or f"31 dicembre {doc_year(doc)}"
     text = [(f"Personale del {site}: al {when} il totale del personale effettivo in servizio era di {total} "
              f"persone, tra dipendenti e dirigenti (documento «{doc['title']}» della sezione «Dotazione organica» "
@@ -243,8 +261,15 @@ def build_staff(doc: dict, total: int, when: str, section_url: str, today: date,
     if doc.get("attachments"):
         text.append("Documenti allegati, con il conto annuale del personale e le spese: "
                     + "; ".join(a["name"] for a in doc["attachments"][:10]) + ".")
-    text += ["", ("Come rispondere: a chi chiede quanti dipendenti ha il Comune dai questo numero con la data; per la "
-                  "ripartizione per categoria o per le spese rimanda ai documenti della pagina indicata.")]
+    if spending:
+        text += ["", ("Spesa per il personale, dal «Conto annuale del personale e delle relative spese sostenute» "
+                      "allegato alla stessa pagina (importi in euro, tabella riepilogativa degli ultimi tre anni per "
+                      "categoria: le colonne sono gli anni indicati nell'intestazione, le spese per retribuzioni lorde "
+                      "sono quelle delle tabelle 12 e 13 del conto annuale):"), spending]
+    text += ["", ("Come rispondere: a chi chiede quanti dipendenti ha il Comune dai questo numero con la data; a chi "
+                  "chiede quanto spende per il personale dai le cifre della tabella con l'anno e la categoria, "
+                  "senza sommare categorie se la tabella non riporta un totale; per il resto rimanda ai documenti "
+                  "della pagina indicata.")]
     return _fact("staff", cfg, f"Quanti dipendenti ha il Comune: dotazione organica (aggiornato automaticamente) - {site}",
                  section_url, today, "\n".join(text))
 
@@ -330,7 +355,11 @@ def read_subject(subject: str, cfg: dict, config: dict, fetch, get_bytes, today:
         if not found:
             log.warning("staff: no total in the description of «%s»", doc["title"])
             return None
-        return build_staff(doc, found[0], found[1], section_url, today, site, cfg)
+        spending = ""
+        account = [a for a in doc["attachments"] if re.search(r"conto annuale", a["name"], re.IGNORECASE)][:1]
+        if account:
+            spending = spending_extract(_attachment_text(get_bytes, account[0], 200_000))
+        return build_staff(doc, found[0], found[1], section_url, today, site, cfg, spending)
     return None
 
 
