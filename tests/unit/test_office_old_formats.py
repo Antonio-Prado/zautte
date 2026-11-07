@@ -90,3 +90,13 @@ def test_xls_through_xlrd(monkeypatch):
     text = office.extract("compensi.xls", OLE + b"\x00" * 600, 1000, lambda d, m: "")
     assert text == "[Compensi]\nNome\tImporto\nRossi\t51272.31"
     assert io is not None
+
+
+def test_images_are_read_with_ocr(monkeypatch):
+    assert office.kind("tavola.JPG") == "image" and office.kind("scansione.png") == "image"
+    assert office.readable("foto.jpeg")
+    import indexer.pdf_extractor as pe
+    monkeypatch.setattr(pe, "ocr_image", lambda path: "Ordinanza n. 12 del 2026: divieto di sosta in via Roma dal 10 al 12 novembre.")
+    text = office.extract("ordinanza.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 100, 1000, lambda d, m: "")
+    assert text.startswith("Ordinanza n. 12 del 2026")
+    assert office.extract("x.jpg", b"not an image", 1000, lambda d, m: "") == ""

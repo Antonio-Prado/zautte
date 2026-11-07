@@ -68,3 +68,14 @@ def test_with_ocr_replaces_only_illegible_text(monkeypatch, tmp_path):
     assert pe._with_ocr(tmp_path / "c.pdf", "2 \n 3") == "2 \n 3"
     monkeypatch.setattr(pe, "ocr_available", lambda: False)
     assert pe._with_ocr(tmp_path / "d.pdf", "") == ""
+
+
+def test_ocr_image(monkeypatch, tmp_path):
+    monkeypatch.setattr(pe, "ocr_available", lambda: True)
+    monkeypatch.setattr(pe.subprocess, "run", lambda cmd, check, capture_output, timeout: subprocess.CompletedProcess(
+        cmd, 0, b"DISCIPLINARE PER L'UTILIZZO DELLA SALA CONSILIARE\nArt. 1 Il presente atto disciplina l'uso.", b""))
+    assert pe.ocr_image(tmp_path / "a.png").startswith("DISCIPLINARE PER L'UTILIZZO")
+    monkeypatch.setattr(pe.subprocess, "run", lambda cmd, check, capture_output, timeout: subprocess.CompletedProcess(cmd, 0, b"\x0c", b""))
+    assert pe.ocr_image(tmp_path / "b.png") == ""       # nothing legible in a photo
+    monkeypatch.setattr(pe, "ocr_available", lambda: False)
+    assert pe.ocr_image(tmp_path / "c.png") == ""
