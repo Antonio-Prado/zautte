@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-11-07
+
+### Changed
+- Long paragraphs are cut at a line end first (a regulation read by OCR comes as one paragraph with a
+  heading on every line), then at the end of a sentence, never between «Art.», «art.» or «n.» and
+  the number that follows, and the separator stays at the end of the piece it closes. «Art. 41 - Cura
+  delle colonie feline» was indexed as «Art» at the end of one passage and «. 41 - Cura…» at the start
+  of the next, so the article could not be found by its number. Documents are re-chunked when they
+  are read again (the full crawl, the transparency job on changed documents).
+
 ## [0.37.1] - 2026-11-07
 
 ### Fixed

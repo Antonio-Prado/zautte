@@ -50,13 +50,21 @@ def _clean_chunk(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+# Where a long paragraph may be cut, in order of preference: a line end first (a regulation read by
+# OCR comes as one paragraph with a heading on every line), then the end of a sentence, but never
+# the dot of «Art.», «art.» or «n.» («Art. 41 - Cura delle colonie feline» stayed split as «Art» and
+# «. 41 - Cura…», and the article could not be found by its number), then a comma, then a space.
+_SEPARATORS = [r"\n\n", r"\n", r"(?<!\bArt)(?<!\bart)(?<!\bART)(?<!\bn)(?<!\bN)\. ", r", ", r" ", ""]
+
+
 def _split_long_paragraph(text: str) -> list[str]:
-    """Split a long paragraph with overlap."""
+    """Split a long paragraph with overlap; the separator stays at the end of the piece it closes."""
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=MAX_PARAGRAPH_CHARS,
         chunk_overlap=EFFECTIVE_OVERLAP,
-        separators=[". ", ", ", " ", ""],
-        keep_separator=True,
+        separators=_SEPARATORS,
+        is_separator_regex=True,
+        keep_separator="end",
     )
     return splitter.split_text(text)
 
