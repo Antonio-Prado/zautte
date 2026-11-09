@@ -484,7 +484,7 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
     question points at (by date, or by number and year) get their card too."""
     out, seen = [], {c.get("source", "") for c in chunks}
 
-    def add_card(number: int, year: int, date: str) -> None:
+    def attach(number: int, year: int, date: str) -> None:
         for row in find_acts(number, year, "delibera"):
             src = row.get("source", "")
             if src in seen or _ACT_SOURCE_RE.search(src) or not date or _act_date(row) != date:
@@ -498,10 +498,10 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
         out.append(c)
         m = _ACT_SOURCE_RE.search(c.get("source", ""))
         if m:
-            add_card(int(m[2]), int(m[1]), _act_date(c))
+            attach(int(m[2]), int(m[1]), _act_date(c))
             continue
         for number, year, date in _listed_acts(c, query):
-            add_card(number, year, date)
+            attach(number, year, date)
     return out
 
 
