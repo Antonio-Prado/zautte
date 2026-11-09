@@ -57,7 +57,8 @@ def test_each_act_is_a_passage_with_number_date_subject_and_where_to_find_it():
     chunk = doc["chunks"][0]
     assert "Delibera di Giunta comunale n. 151 del 23 ottobre 2026" in chunk["text"]
     assert "INIZIATIVE CULTURALI AUTUNNO 2026" in chunk["text"]
-    assert f"{PORTAL}?page_id=35564), indicando il numero 151 e l'anno 2026" in chunk["text"]
+    assert f"delibere di Giunta comunale sul portale degli atti ({PORTAL}?page_id=35564): non è un link diretto" in chunk["text"]
+    assert "indicando il numero 151 e l'anno 2026" in chunk["text"]
     meta = chunk["metadata"]
     assert meta["origin"] == "acts" and meta["date"] == "2026-10-23" and meta["category"] == "atto"
     assert meta["title"].startswith("Delibera di Giunta comunale n. 151 del 23/10/2026: INIZIATIVE")

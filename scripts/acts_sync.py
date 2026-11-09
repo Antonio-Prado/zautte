@@ -177,8 +177,11 @@ def act_text(portal: str, item: dict) -> str:
         text += "."
     if item["published"]:
         text += f" Data di pubblicazione all'Albo pretorio online: {date_it(item['published'])}."
-    text += (f" Il testo completo si apre dalla pagina di ricerca delle {item['plural']} sul portale degli atti "
-             f"({portal}?page_id={item['page_id']}), indicando il numero {item['number']} e l'anno {item['year']}.")
+    text += (f" Questo brano viene dall'elenco dell'albo e il suo indirizzo è la pagina di ricerca delle "
+             f"{item['plural']} sul portale degli atti ({portal}?page_id={item['page_id']}): non è un link "
+             f"diretto all'atto e non va dato come tale. Il link diretto all'atto, con gli allegati, è nella "
+             f"scheda dell'Amministrazione Trasparente, quando è tra le fonti; altrimenti il testo completo si "
+             f"apre dalla pagina di ricerca indicando il numero {item['number']} e l'anno {item['year']}.")
     return text
 
 
@@ -197,8 +200,12 @@ def act_doc(portal: str, source: str, item: dict) -> dict:
     return {"url": source, "chunks": chunks}
 
 
+_TEXT_VERSION = 2   # bump when act_text changes, so that every act is written again with the new wording
+
+
 def _digest(item: dict) -> str:
-    return hashlib.sha256(json.dumps(item, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    key = {**item, "_v": _TEXT_VERSION}
+    return hashlib.sha256(json.dumps(key, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
 # --------------------------------------------------------------------------- run

@@ -379,7 +379,7 @@ _ACT_QUERY_RE = re.compile(
     r"\b(determin\w*|deliber\w*|ordinanz\w*|decret\w*|atto|atti|provvediment\w*)\b"
     r"[^\d\n]{0,60}?"
     r"(?:\bn\.?|n°|\bnum\.?|\bnumero)?\s*(\d{1,6})\s*(?:/|-|\bdel\b|\bdell'anno\b|\banno\b)\s*"
-    r"(\d{4})\b", re.IGNORECASE)
+    r"(?:\d{1,2}[/.-]\d{1,2}[/.-])?(\d{4})\b", re.IGNORECASE)   # «n. 36 del 2026», «n. 36 del 13/06/2026»
 _ACT_QUERY_KINDS = {"determin": "determina", "deliber": "delibera", "ordinanz": "ordinanza",
                     "decret": "decreto"}
 _ACT_DATE_RE = re.compile(r"\bData: (\d\d/\d\d/\d{4})\b")
@@ -437,6 +437,75 @@ def _acts_by_number(query: str) -> list[dict]:
     return found
 
 
+# The passages of the acts job (the registers of the resolutions read from the notice board) have no
+# link of their own: their address is the search page of the register, with a fragment that only
+# tells the acts apart («?page_id=808#atto-2026-35»). Given as it is, that address opens the search
+# page and nothing else. The same resolution has, since 2023, a card in the transparency section
+# with a page of its own and the attachments.
+_ACT_SOURCE_RE = re.compile(r"#atto-(\d{4})-(\d{1,6})$")
+# the lines of the «latest acts» fact of the same job: «- n. 36 del 13/06/2026: ELEZIONE DEL …»
+_LATEST_ACT_LINE_RE = re.compile(r"^- n\. (\d{1,6}) del (\d\d/\d\d/\d{4}):", re.MULTILINE)
+_MONTHS = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+           "settembre", "ottobre", "novembre", "dicembre")
+_DATE_WORDS_RE = re.compile(r"\b(\d{1,2})°?\s+(" + "|".join(_MONTHS) + r")\s+(\d{4})\b", re.IGNORECASE)
+_DATE_DIGITS_RE = re.compile(r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b")
+LATEST_ACT_CARDS = 8   # at most, from the «latest acts» fact
+
+
+def _query_dates(query: str) -> set[str]:
+    """The dates the question names, as dd/mm/yyyy («13 giugno 2026», «13/06/2026»)."""
+    dates = {f"{int(d):02d}/{int(m):02d}/{y}" for d, m, y in _DATE_DIGITS_RE.findall(query)}
+    for d, month, y in _DATE_WORDS_RE.findall(query):
+        dates.add(f"{int(d):02d}/{_MONTHS.index(month.lower()) + 1:02d}/{y}")
+    return dates
+
+
+def _listed_acts(chunk: dict, query: str) -> list[tuple[int, int, str]]:
+    """(number, year, date) of the acts listed in a «latest acts» passage that the question points
+    at: those of a date it names, or those whose number it names along with the year."""
+    lines = _LATEST_ACT_LINE_RE.findall(chunk.get("text", ""))
+    if not lines:
+        return []
+    dates = _query_dates(query)
+    years = set(re.findall(r"\b(20[0-4]\d)\b", query))
+    numbers = {int(n) for n in re.findall(r"\b(\d{1,4})\b", query)} - {int(y) for y in years}
+    out = []
+    for number, date in lines:
+        year = date[-4:]
+        if date in dates or (int(number) in numbers and year in years):
+            out.append((int(number), int(year), date))
+    return out[:LATEST_ACT_CARDS]
+
+
+def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
+    """The transparency card of every resolution of the acts job among the chunks (same number,
+    year and date), put right after its passage as a known fact, so that the answer can give the
+    link that opens the act instead of the search page. The acts of the «latest acts» fact that the
+    question points at (by date, or by number and year) get their card too."""
+    out, seen = [], {c.get("source", "") for c in chunks}
+
+    def attach(number: int, year: int, date: str) -> None:
+        for row in find_acts(number, year, "delibera"):
+            src = row.get("source", "")
+            if src in seen or _ACT_SOURCE_RE.search(src) or not date or _act_date(row) != date:
+                continue
+            row["known"] = True
+            seen.add(src)
+            out.append(row)
+
+    for c in chunks:
+        out.append(c)
+        m = _ACT_SOURCE_RE.search(c.get("source", ""))
+        if m:
+            attach(int(m[2]), int(m[1]), _act_date(c))
+            continue
+        for number, year, date in _listed_acts(c, query):
+            attach(number, year, date)
+    if len(out) > len(chunks):
+        log.info("Act cards: %d attached", len(out) - len(chunks))
+    return out
+
+
 # «Quali contributi ha ricevuto la Croce Rossa dal Comune nel 2025?»: a question about money given to
 # someone named. The cards of the grants section are looked up by the beneficiary's name.
 _GRANT_QUERY_RE = re.compile(
@@ -491,7 +560,8 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
     Pipeline: known facts, acts asked for by number and grants to a named beneficiary → expand →
-    hybrid search → dedup → filter → rerank → passages of the attachments of the chosen pages → the
+    hybrid search → dedup → filter → rerank → the transparency card of each resolution of the acts
+    job among the chosen → passages of the attachments of the chosen pages → the
     passage of the chosen documents closest to the question → the latest yearly version of a chosen
     document when the search brought only an older one → the article asked for, if any
     """
@@ -519,7 +589,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     # Prepend the known facts, avoiding duplicates by source
     known_sources = {k["source"] for k in known}
     chunks = [c for c in chunks if c.get("source") not in known_sources]
-    chosen = (known + chunks)[:top_k]
+    chosen = _with_act_cards((known + chunks)[:top_k], query)
     if ATTACHMENT_PASSAGES > 0 and not vec_is_zero:
         # the PDFs linked by the chosen pages (a regulation, a fee table): their passage closest to
         # the question, which the search over the whole index may have left out

@@ -101,3 +101,38 @@ def test_acts_by_number_keeps_the_body_asked(store):
     assert rag._acts_by_number("cosa dice la delibera n. 162 del 2025?") and \
         len(rag._acts_by_number("cosa dice la delibera n. 162 del 2025?")) == 4
     assert rag._acts_by_number("come pago la TARI?") == []
+
+
+def test_a_full_date_after_the_number_is_accepted():
+    assert rag.parse_act_query("mi dai la Delibera n. 36 del 13/06/2026 – ELEZIONE DEL PRESIDENTE") == ("delibera", 36, 2026)
+    assert rag.parse_act_query("determina 1200 del 3.9.2025") == ("determina", 1200, 2025)
+    assert rag.parse_act_query("delibera n. 36 del 2026") == ("delibera", 36, 2026)
+
+
+def test_the_card_of_a_resolution_of_the_acts_job_follows_its_passage(store):
+    act = next(m for m in META if m["source"].endswith("#atto-2025-162") and "Giunta" in m["title"])
+    page = META[-1]
+    chosen = rag._with_act_cards([dict(page), dict(act)])
+    assert [c["title"] for c in chosen] == ["Una pagina qualsiasi", act["title"], "SPETTACOLO PIROTECNICO"]
+    assert chosen[2]["source"].endswith("dettaglio=4") and chosen[2]["known"] is True
+    # the card of the same number on another date (the Council's 162) is not the same act
+    assert all(not c["source"].endswith("dettaglio=5") for c in chosen)
+    # a card already among the chunks is not added twice
+    again = rag._with_act_cards(chosen)
+    assert len(again) == 3
+
+
+LATEST = {"source": "https://example.org/", "title": "Ultime delibere e ultimi atti pubblicati", "doc_type": "html",
+          "chunk_index": 0, "known": True,
+          "text": "Ultime delibere\n\nUltime delibere di Giunta (https://example.org/?page_id=35564):\n"
+                  "- n. 162 del 15/07/2025: SPETTACOLO PIROTECNICO\n- n. 161 del 15/07/2025: ALTRO\n\n"
+                  "Ultime delibere di Consiglio (https://example.org/?page_id=808):\n- n. 162 del 31/12/2025: PNRR MISSIONE 5\n"}
+
+
+def test_the_acts_of_the_latest_fact_named_by_date_or_number_get_their_card(store):
+    by_date = rag._with_act_cards([dict(LATEST)], "quali delibere ha approvato la giunta il 15 luglio 2025?")
+    assert [c["source"][-11:] for c in by_date[1:]] == ["dettaglio=4"]          # 161 has no card, 162 of 31/12 is another date
+    by_number = rag._with_act_cards([dict(LATEST)], "il link della delibera 162 del 2025")
+    assert sorted(c["source"][-11:] for c in by_number[1:]) == ["dettaglio=4", "dettaglio=5"]
+    assert rag._with_act_cards([dict(LATEST)], "mi dai i link delle delibere che hai citato?") == [LATEST]
+    assert rag._query_dates("seduta del 13 giugno 2026 e del 1/7/2026") == {"13/06/2026", "01/07/2026"}
