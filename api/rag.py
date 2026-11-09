@@ -492,7 +492,7 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
             row["known"] = True
             seen.add(src)
             out.append(row)
-            log.info(f"Act card: delibera {number}/{year} of {date}")
+            log.info(f"Act card: delibera {number}/{year}")
 
     for c in chunks:
         out.append(c)
