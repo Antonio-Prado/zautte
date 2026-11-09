@@ -38,6 +38,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    groups:
+      # init and analyze must run the same version, otherwise the analyze step fails
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
 
   # axe-core for the accessibility tests (package-lock.json)
   - package-ecosystem: npm
