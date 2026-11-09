@@ -492,7 +492,6 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
             row["known"] = True
             seen.add(src)
             out.append(row)
-            log.info(f"Act card: delibera {number}/{year}")
 
     for c in chunks:
         out.append(c)
@@ -502,6 +501,8 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
             continue
         for number, year, date in _listed_acts(c, query):
             attach(number, year, date)
+    if len(out) > len(chunks):
+        log.info("Act cards: %d attached", len(out) - len(chunks))
     return out
 
 
