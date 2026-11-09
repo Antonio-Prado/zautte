@@ -485,14 +485,14 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
     out, seen = [], {c.get("source", "") for c in chunks}
 
     def add_card(number: int, year: int, date: str) -> None:
-        for card in find_acts(number, year, "delibera"):
-            src = card.get("source", "")
-            if src in seen or _ACT_SOURCE_RE.search(src) or not date or _act_date(card) != date:
+        for row in find_acts(number, year, "delibera"):
+            src = row.get("source", "")
+            if src in seen or _ACT_SOURCE_RE.search(src) or not date or _act_date(row) != date:
                 continue
-            card["known"] = True
+            row["known"] = True
             seen.add(src)
-            out.append(card)
-            log.info(f"Act card: delibera {number}/{year} of {date} → {src[-40:]}")
+            out.append(row)
+            log.info(f"Act card: delibera {number}/{year} of {date}")
 
     for c in chunks:
         out.append(c)
