@@ -120,3 +120,19 @@ def test_the_card_of_a_resolution_of_the_acts_job_follows_its_passage(store):
     # a card already among the chunks is not added twice
     again = rag._with_act_cards(chosen)
     assert len(again) == 3
+
+
+LATEST = {"source": "https://example.org/", "title": "Ultime delibere e ultimi atti pubblicati", "doc_type": "html",
+          "chunk_index": 0, "known": True,
+          "text": "Ultime delibere\n\nUltime delibere di Giunta (https://example.org/?page_id=35564):\n"
+                  "- n. 162 del 15/07/2025: SPETTACOLO PIROTECNICO\n- n. 161 del 15/07/2025: ALTRO\n\n"
+                  "Ultime delibere di Consiglio (https://example.org/?page_id=808):\n- n. 162 del 31/12/2025: PNRR MISSIONE 5\n"}
+
+
+def test_the_acts_of_the_latest_fact_named_by_date_or_number_get_their_card(store):
+    by_date = rag._with_act_cards([dict(LATEST)], "quali delibere ha approvato la giunta il 15 luglio 2025?")
+    assert [c["source"][-11:] for c in by_date[1:]] == ["dettaglio=4"]          # 161 has no card, 162 of 31/12 is another date
+    by_number = rag._with_act_cards([dict(LATEST)], "il link della delibera 162 del 2025")
+    assert sorted(c["source"][-11:] for c in by_number[1:]) == ["dettaglio=4", "dettaglio=5"]
+    assert rag._with_act_cards([dict(LATEST)], "mi dai i link delle delibere che hai citato?") == [LATEST]
+    assert rag._query_dates("seduta del 13 giugno 2026 e del 1/7/2026") == {"13/06/2026", "01/07/2026"}

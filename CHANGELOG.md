@@ -17,7 +17,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   and given as a link it opened the search page and nothing else. When such a passage is among the
   chosen ones, the retrieval now adds the transparency card of the same resolution (same number,
   year and date, `_with_act_cards`), which has a page of its own with the attachments, so the
-  answer can give a link that opens the act.
+  answer can give a link that opens the act. The acts of the «latest acts» fact that the question
+  points at (by date, «le delibere del 13 giugno 2026», or by number and year) get their card too.
 
 ### Fixed
 - An act asked for with its full date («la delibera n. 36 del 13/06/2026») was not recognised as

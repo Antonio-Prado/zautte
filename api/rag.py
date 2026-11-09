@@ -443,20 +443,48 @@ def _acts_by_number(query: str) -> list[dict]:
 # page and nothing else. The same resolution has, since 2023, a card in the transparency section
 # with a page of its own and the attachments.
 _ACT_SOURCE_RE = re.compile(r"#atto-(\d{4})-(\d{1,6})$")
+# the lines of the «latest acts» fact of the same job: «- n. 36 del 13/06/2026: ELEZIONE DEL …»
+_LATEST_ACT_LINE_RE = re.compile(r"^- n\. (\d{1,6}) del (\d\d/\d\d/\d{4}):", re.MULTILINE)
+_MONTHS = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+           "settembre", "ottobre", "novembre", "dicembre")
+_DATE_WORDS_RE = re.compile(r"\b(\d{1,2})°?\s+(" + "|".join(_MONTHS) + r")\s+(\d{4})\b", re.IGNORECASE)
+_DATE_DIGITS_RE = re.compile(r"\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b")
+LATEST_ACT_CARDS = 8   # at most, from the «latest acts» fact
 
 
-def _with_act_cards(chunks: list[dict]) -> list[dict]:
+def _query_dates(query: str) -> set[str]:
+    """The dates the question names, as dd/mm/yyyy («13 giugno 2026», «13/06/2026»)."""
+    dates = {f"{int(d):02d}/{int(m):02d}/{y}" for d, m, y in _DATE_DIGITS_RE.findall(query)}
+    for d, month, y in _DATE_WORDS_RE.findall(query):
+        dates.add(f"{int(d):02d}/{_MONTHS.index(month.lower()) + 1:02d}/{y}")
+    return dates
+
+
+def _listed_acts(chunk: dict, query: str) -> list[tuple[int, int, str]]:
+    """(number, year, date) of the acts listed in a «latest acts» passage that the question points
+    at: those of a date it names, or those whose number it names along with the year."""
+    lines = _LATEST_ACT_LINE_RE.findall(chunk.get("text", ""))
+    if not lines:
+        return []
+    dates = _query_dates(query)
+    years = set(re.findall(r"\b(20[0-4]\d)\b", query))
+    numbers = {int(n) for n in re.findall(r"\b(\d{1,4})\b", query)} - {int(y) for y in years}
+    out = []
+    for number, date in lines:
+        year = date[-4:]
+        if date in dates or (int(number) in numbers and year in years):
+            out.append((int(number), int(year), date))
+    return out[:LATEST_ACT_CARDS]
+
+
+def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
     """The transparency card of every resolution of the acts job among the chunks (same number,
     year and date), put right after its passage as a known fact, so that the answer can give the
-    link that opens the act instead of the search page."""
+    link that opens the act instead of the search page. The acts of the «latest acts» fact that the
+    question points at (by date, or by number and year) get their card too."""
     out, seen = [], {c.get("source", "") for c in chunks}
-    for c in chunks:
-        out.append(c)
-        m = _ACT_SOURCE_RE.search(c.get("source", ""))
-        if not m:
-            continue
-        year, number = int(m[1]), int(m[2])
-        date = _act_date(c)
+
+    def add_card(number: int, year: int, date: str) -> None:
         for card in find_acts(number, year, "delibera"):
             src = card.get("source", "")
             if src in seen or _ACT_SOURCE_RE.search(src) or not date or _act_date(card) != date:
@@ -465,6 +493,15 @@ def _with_act_cards(chunks: list[dict]) -> list[dict]:
             seen.add(src)
             out.append(card)
             log.info(f"Act card: delibera {number}/{year} of {date} → {src[-40:]}")
+
+    for c in chunks:
+        out.append(c)
+        m = _ACT_SOURCE_RE.search(c.get("source", ""))
+        if m:
+            add_card(int(m[2]), int(m[1]), _act_date(c))
+            continue
+        for number, year, date in _listed_acts(c, query):
+            add_card(number, year, date)
     return out
 
 
@@ -551,7 +588,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     # Prepend the known facts, avoiding duplicates by source
     known_sources = {k["source"] for k in known}
     chunks = [c for c in chunks if c.get("source") not in known_sources]
-    chosen = _with_act_cards((known + chunks)[:top_k])
+    chosen = _with_act_cards((known + chunks)[:top_k], query)
     if ATTACHMENT_PASSAGES > 0 and not vec_is_zero:
         # the PDFs linked by the chosen pages (a regulation, a fee table): their passage closest to
         # the question, which the search over the whole index may have left out
