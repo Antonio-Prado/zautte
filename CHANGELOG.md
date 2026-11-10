@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.43.3] - 2026-11-10
+
+### Fixed
+- The survey looked the account up with `get_user_by_id`, which keeps only id, name and email:
+  the administrator role was never seen, so 0.43.2 did not let the administrators preview it. It
+  now reads the full record; the tests use a real users file instead of a stubbed lookup.
+
 ## [0.43.2] - 2026-11-10
 
 ### Changed

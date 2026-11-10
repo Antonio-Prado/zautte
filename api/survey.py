@@ -35,7 +35,7 @@ from fastapi import APIRouter, HTTPException, Request, Security
 from pydantic import BaseModel, Field
 
 from api import auth
-from api.auth import get_user_by_id, require_user
+from api.auth import require_user
 from api.filelock import file_lock
 from api.limiter import limiter
 from api.pii import contains_personal, redact
@@ -158,10 +158,17 @@ def public_definition(d: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Who may answer
 # ---------------------------------------------------------------------------
+def _account(uid: str) -> dict:
+    """The full users.json record (get_user_by_id keeps only id, name and email, not the role)."""
+    if not uid:
+        return {}
+    return next((u for u in auth._load_users() if isinstance(u, dict) and u.get("id") == uid), {})
+
+
 def _is_test(uid: str) -> bool:
     """Test accounts (TEST_ACCOUNTS) and administrators: they see the survey as the respondents do,
     can answer more than once, and their answers are kept out of the results."""
-    u = get_user_by_id(uid) or {}
+    u = _account(uid)
     if auth.is_admin_account(u):
         return True
     if not TEST_ACCOUNTS:
@@ -176,7 +183,7 @@ def eligible(d: dict, uid: str) -> bool:
         return True
     if not d["exclude_email_domains"]:
         return True
-    email = str((get_user_by_id(uid) or {}).get("email") or "").lower()
+    email = str(_account(uid).get("email") or "").lower()
     return not any(email.endswith("@" + dom) for dom in d["exclude_email_domains"])
 
 
