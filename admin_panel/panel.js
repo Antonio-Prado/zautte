@@ -69,6 +69,7 @@
     function onTabShown(name) {
       if (name === 'messages') { if (_loaded.messages) refreshMessages(); else { _loaded.messages = true; loadMessages(); } }
       if (name === 'system') updateCrawlHistory();
+      if (name === 'people') loadSurvey();
     }
 
     TABS.forEach((t, i) => {
@@ -723,6 +724,56 @@
     }
     document.getElementById('apps-show-all').addEventListener('change', loadApplications);
 
+    // ---------------------------------------------------------------- survey
+    // Totals of the satisfaction survey: anonymous answers, test accounts excluded.
+    function loadSurvey() {
+      const statusEl = document.getElementById('survey-status');
+      const body = document.getElementById('survey-body');
+      fetch(apiBase + '/survey/results', { headers: adminHeaders() })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(d => {
+          if (!d.configured) {
+            statusEl.textContent = '';
+            body.innerHTML = '<span class="muted">No survey configured (config/survey.json).</span>';
+            return;
+          }
+          statusEl.textContent = '— ' + d.responses + ' answers' + (d.open ? '' : ' · closed')
+            + (d.test_responses ? ' (+' + d.test_responses + ' tests, not counted)' : '');
+          if (!d.responses) {
+            body.innerHTML = '<p class="muted">' + _esc(d.title) + ': no answers yet. Page: <a href="/widget/survey.html" target="_blank" rel="noopener">/widget/survey.html</a></p>';
+            return;
+          }
+          let html = '<p class="muted">' + _esc(d.title) + ' · <a href="/widget/survey.html" target="_blank" rel="noopener">open the page</a></p>';
+          d.questions.forEach((q, i) => {
+            html += '<div class="sv-q"><div class="sv-text">' + (i + 1) + '. ' + _esc(q.text)
+              + ' <span class="muted">(' + q.answered + ' answers)</span></div>';
+            if (q.type === 'text') {
+              html += q.texts.length
+                ? '<ul class="sv-texts">' + q.texts.map(t => '<li>' + _esc(t) + '</li>').join('') + '</ul>'
+                : '<div class="muted">—</div>';
+            } else {
+              const entries = Object.entries(q.counts);
+              const max = Math.max(1, ...entries.map(e => e[1]));
+              if (q.type === 'scale' && q.average !== null) {
+                html += '<div class="sv-avg">Average <strong>' + q.average.toFixed(2).replace('.', ',') + '</strong> on '
+                  + q.min + '–' + q.max + (q.low ? ' <span class="muted">(' + q.min + ' = ' + _esc(q.low) + ', ' + q.max + ' = ' + _esc(q.high) + ')</span>' : '') + '</div>';
+              }
+              html += '<table class="sv-bars"><tbody>' + entries.map(([k, n]) => {
+                const pct = q.answered ? Math.round(100 * n / q.answered) : 0;
+                return '<tr><th scope="row">' + _esc(k) + '</th><td><span class="sv-bar" style="width:' + Math.round(100 * n / max) + '%"></span></td>'
+                  + '<td class="sv-n">' + n + ' <span class="muted">' + pct + '%</span></td></tr>';
+              }).join('') + '</tbody></table>';
+            }
+            html += '</div>';
+          });
+          body.innerHTML = html;
+        })
+        .catch(() => {
+          statusEl.textContent = '';
+          body.innerHTML = '<span class="muted">Error loading the survey.</span>';
+        });
+    }
+
     // ---------------------------------------------------------------- changelog
     // The installation's changelog comes after the panel: it moves into its tab, newest 20 entries first.
     function mountChangelog() {
@@ -762,6 +813,7 @@
         if (tick % 2) return;
         loadNegativeFeedback();
         loadApplications();
+        if (activeTab === 'people') loadSurvey();
         loadUsage();
         countNewMessages();
         if (activeTab === 'messages') refreshMessages();

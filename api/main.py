@@ -33,7 +33,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import applications, auth, conversations, csp, llm_gate, maintenance, quota
+from api import applications, auth, conversations, csp, llm_gate, maintenance, quota, survey
 from api.admin_guard import check_admin_key
 from api.aio import to_thread_uncancellable
 from api.applications import ApplyRequest
@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
     for problem in await asyncio.to_thread(
             ensure_private, [USAGE_FILE, ANSWERS_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE, APPLICATIONS_FILE,
                              USERS_FILE, USERS_FILE.parent / "revoked_tokens.json",
-                             USERS_FILE.parent / "stats.json"]):
+                             USERS_FILE.parent / "stats.json", survey.ANSWERS_FILE, survey.RESPONDENTS_FILE]):
         log.error("Data file: %s", problem)
         if "owned by uid" in problem or "not a regular file" in problem:
             # a file of another account (or a link) where the API keeps its users and logs: refuse to
@@ -383,6 +383,8 @@ app.add_middleware(
 
 # User authentication router (POST /auth/login, GET /auth/me)
 app.include_router(auth.router)
+# Satisfaction survey (GET /survey, GET /survey/me, POST /survey)
+app.include_router(survey.router)
 
 
 # ---------------------------------------------------------------------------
@@ -971,6 +973,15 @@ async def applications_reject(req: ApplicationDecision, _: None = Security(requi
     if await asyncio.to_thread(applications.mark, req.id, "rejected") is None:
         raise HTTPException(status_code=404, detail="Candidatura non trovata")
     return {"ok": True}
+
+
+@app.get("/survey/results")
+async def survey_results(_: None = Security(require_admin)):
+    """Totals of the satisfaction survey (anonymous answers, tests excluded) — admin only."""
+    d = await asyncio.to_thread(survey.load_definition)
+    if d is None:
+        return {"configured": False}
+    return {"configured": True, **await asyncio.to_thread(survey.results, d)}
 
 
 def _notify_feedback(entry: dict) -> None:

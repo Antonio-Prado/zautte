@@ -57,6 +57,8 @@
       suggestions: [],
       requireLogin: false,   // true = requires login (pilot project with a restricted group)
       feedbackDetails: true, // after a 👎 asks for the reason and links to the correct pages
+      survey: true,          // after login, a notice links to the open satisfaction survey (GET /survey/me)
+      surveyUrl: "",         // survey page (default: <apiUrl>/widget/survey.html)
       // CSS selector (or element) in which to show the always-open panel, without the
       // floating button. With requireLogin, only the form is visible until login.
       inline: null,
@@ -321,6 +323,21 @@
       transition: background 0.15s;
     }
     .${WIDGET_ID}-icon-btn:hover { background: rgba(255,255,255,0.15); }
+
+    /* Notice of the satisfaction survey */
+    #${WIDGET_ID}-survey {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 8px 8px 12px; background: #fff8e1; border-bottom: 1px solid #f0d58a;
+      font-size: 14px; line-height: 1.4; color: #333;
+    }
+    #${WIDGET_ID}-survey[hidden] { display: none; }
+    #${WIDGET_ID}-survey a { flex: 1; color: ${cfg.primaryColor}; font-weight: 600; text-decoration: underline; }
+    #${WIDGET_ID}-survey a:focus-visible, #${WIDGET_ID}-survey button:focus-visible { outline: 3px solid #f0a000; outline-offset: 2px; }
+    #${WIDGET_ID}-survey button {
+      flex: none; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent;
+      color: #555; font-size: 20px; line-height: 1; cursor: pointer;
+    }
+    #${WIDGET_ID}-survey button:hover { background: rgba(0,0,0,0.06); }
 
     /* Messages */
     #${WIDGET_ID}-messages {
@@ -744,6 +761,7 @@
 
       <!-- The conversation is not a «live» region: while streaming it would be read
            again at every fragment. Announcements go through ${WIDGET_ID}-status. -->
+      <div id="${WIDGET_ID}-survey" hidden><span aria-hidden="true">📝</span><a target="_blank" rel="noopener"></a><button type="button"><span aria-hidden="true">×</span></button></div>
       <div id="${WIDGET_ID}-messages" role="region" aria-label="${T.conversation}"></div>
       <div id="${WIDGET_ID}-status" class="${WIDGET_ID}-sr" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -786,6 +804,7 @@
   const closeBtn   = document.getElementById(`${WIDGET_ID}-close`);
   const newBtn     = document.getElementById(`${WIDGET_ID}-new`);
   const statusEl   = document.getElementById(`${WIDGET_ID}-status`);
+  const surveyEl   = document.getElementById(`${WIDGET_ID}-survey`);
 
   if (inlineHost) {
     panel.classList.add("inline");
@@ -936,6 +955,7 @@
     const lim = consentEl.querySelector(`#${WIDGET_ID}-consent-limit`);
     lim.textContent = limit > 0 ? T.consentLimit.replace("{n}", String(limit)) : "";
     panel.classList.add("login");
+    updateSurveyNotice();
     messages.style.display = "none";
     if (inputArea) inputArea.style.display = "none";
     if (footerEl) footerEl.style.display = "none";
@@ -968,6 +988,7 @@
       if (!resp.ok) { errEl.textContent = T.consentErr; errEl.style.display = "block"; return; }
       needsConsent = false;
       showChat();
+      checkSurvey();
       inputEl.focus({ preventScroll: true });
     } catch (_) {
       errEl.textContent = T.consentErr;
@@ -1011,6 +1032,42 @@
     logoutBtn.style.display = (cfg.requireLogin && authToken) ? "" : "none";
   }
 
+  // ---------------------------------------------------------------------------
+  // Satisfaction survey: a notice above the conversation while the survey is open and this
+  // account may still answer. Hidden for the rest of the session with the ×.
+  // ---------------------------------------------------------------------------
+  let surveyActive = false;
+  function surveyDismissKey(id) { return `zautte_survey_hidden_${id}`; }
+  function updateSurveyNotice() {
+    surveyEl.hidden = !(surveyActive && authToken && !panel.classList.contains("login"));
+  }
+  function checkSurvey() {
+    surveyActive = false;
+    updateSurveyNotice();
+    if (!cfg.survey || !authToken) return;
+    fetch(`${cfg.apiUrl}/survey/me`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (!s || !s.open || !s.eligible || s.answered) return;
+        try { if (sessionStorage.getItem(surveyDismissKey(s.id))) return; } catch (_) {}
+        const a = surveyEl.querySelector("a");
+        a.href = cfg.surveyUrl || `${cfg.apiUrl}/widget/survey.html`;
+        a.textContent = s.banner;
+        const b = surveyEl.querySelector("button");
+        b.setAttribute("aria-label", s.dismiss);
+        b.title = s.dismiss;
+        b.onclick = () => {
+          try { sessionStorage.setItem(surveyDismissKey(s.id), "1"); } catch (_) {}
+          surveyActive = false;
+          updateSurveyNotice();
+          inputEl.focus({ preventScroll: true });
+        };
+        surveyActive = true;
+        updateSurveyNotice();
+      })
+      .catch(() => {});
+  }
+
   function showLogin() {
     panel.classList.add("login");
     messages.style.display = "none";
@@ -1018,6 +1075,7 @@
     if (footerEl) footerEl.style.display = "none";
     consentEl.style.display = "none";
     loginEl.style.display = "flex";
+    updateSurveyNotice();
     const emailInput = document.getElementById(`${WIDGET_ID}-login-email`);
     if (emailInput) setTimeout(() => emailInput.focus({ preventScroll: true }), 60);
   }
@@ -1030,6 +1088,7 @@
     messages.style.display = "";
     if (inputArea) inputArea.style.display = "";
     if (footerEl) footerEl.style.display = "";
+    updateSurveyNotice();
     checkMaintenance();
   }
 
@@ -1087,6 +1146,7 @@
       if (data.consent_required) { showConsent(data.privacy_notice_url, data.daily_limit); return; }
       needsConsent = false;
       showChat();
+      checkSurvey();
       inputEl.focus({ preventScroll: true });
     } catch (_) {
       errEl.textContent = T.loginErr;
@@ -1967,6 +2027,7 @@
         if (!r.ok) return;
         const me = await r.json().catch(() => ({}));
         if (me.consent_required) { needsConsent = true; if (isOpen) showConsent(me.privacy_notice_url, me.daily_limit); }
+        checkSurvey();
       })
       .catch(() => {});
   }

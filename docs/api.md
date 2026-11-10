@@ -253,6 +253,10 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 | `GET /auth/me` | user | Identity of the session; `consent_required` says whether the participation declaration is still to be made (with `CONSENT_REQUIRED`), `privacy_notice_url` where the notice is, `daily_limit` the questions allowed per day (`DAILY_QUESTION_LIMIT`, shown by the widget in the declaration; `0` for an account in `DAILY_LIMIT_EXEMPT`) |
 | `POST /auth/consent` | user | Body `{"adult": true, "notice_read": true}`: records the participation declaration (date, `CONSENT_VERSION`) in `users.json`; both must be true |
 | `POST /apply` | public (`APPLY_ENABLED`) | Body `{"name", "email", "age", "district"?, "usage"?, "adult": true, "notice_read": true, "website": ""}`: records an application to the pilot (`applications.jsonl`), emails `APPLY_NOTIFY_EMAIL`; 5 per hour per client; `website` is a hidden field a robot fills (then nothing is recorded) |
+| `GET /survey` | public | Questions and texts of the satisfaction survey (`config/survey.json`); 404 when there is none |
+| `GET /survey/me` | user | `{"id", "open", "eligible", "answered"}` for this account |
+| `POST /survey` | user | Body `{"survey": id, "answers": {question id: value}}`: stores the answers without the account (`survey.jsonl`); 409 when the account already answered, 10 per hour |
+| `GET /survey/results` | admin | Totals per question, test accounts excluded |
 | `GET /applications` | admin | Applications received, newest first, with `pending` |
 | `POST /applications/accept` | admin | Body `{"id"}`: creates the account and sends the invitation with the link to choose the password (like `adduser --send-email`) |
 | `POST /applications/reject` | admin | Body `{"id"}`: marks it as not selected (nothing is sent) |

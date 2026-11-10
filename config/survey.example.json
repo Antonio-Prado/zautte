@@ -1,0 +1,15 @@
+{
+  "id": "pilot-2026",
+  "open": true,
+  "lang": "en",
+  "title": "How did the assistant do?",
+  "intro": "A few questions on your experience with the assistant during the pilot. It takes about three minutes.",
+  "exclude_email_domains": [],
+  "questions": [
+    {"id": "overall", "type": "scale", "min": 1, "max": 5, "low": "Not at all satisfied", "high": "Very satisfied",
+     "text": "Overall, how satisfied are you with the assistant?"},
+    {"id": "correct", "type": "choice", "text": "Were the answers correct?",
+     "options": ["Almost never", "Sometimes", "Often", "Almost always", "I don't know"]},
+    {"id": "improve", "type": "text", "text": "What should be improved?", "max_length": 1500}
+  ]
+}

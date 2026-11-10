@@ -8,6 +8,7 @@ config/known_facts.json
 config/synonyms.json
 config/offices.json
 config/crawl_extra.json
+config/survey.json
 
 # Data generated at runtime (do not version)
 data/

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Survey — Zautte</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#003366">
+  <link rel="icon" href="./zautte-favicon.svg" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 32px 16px 64px; background: #f5f5f5; color: #333; line-height: 1.6; }
+    main { max-width: 760px; margin: 0 auto; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 24px 28px; }
+    @media (max-width: 480px) { body { padding: 16px 8px 48px; } main { padding: 18px 16px; } }
+    h1 { color: #003366; margin-top: 0; font-size: 1.6em; line-height: 1.25; }
+    .brand-logo { display: block; height: 40px; width: auto; margin: 4px 0 20px; }
+    a { color: #003366; }
+    .lead { font-size: 1.05em; }
+    .box { background: #f5f8fb; border: 1px solid #d9e2ec; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+    .done { border-color: #9fcfa5; background: #eef8ef; }
+    .anon { color: #555; font-size: 0.92em; }
+    fieldset { border: 0; border-top: 1px solid #eee; margin: 0; padding: 18px 0 8px; min-width: 0; }
+    legend { font-weight: 600; padding: 0; font-size: 1.02em; }
+    .req { color: #b3261e; }
+    .opt { font-weight: normal; color: #555; font-size: 0.9em; }
+    .help { color: #555; font-size: 0.9em; margin: 2px 0 6px; }
+    .opts label { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; min-height: 32px; }
+    .opts input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+    .scale { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+    .scale label { position: relative; }
+    .scale input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .scale span { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 44px;
+      border: 1px solid #8a8a8a; border-radius: 8px; background: #fff; font-weight: 600; cursor: pointer; }
+    .scale input:checked + span { background: #003366; color: #fff; border-color: #003366; }
+    .scale input:focus-visible + span { outline: 3px solid #f0a000; outline-offset: 2px; }
+    .ends { display: flex; justify-content: space-between; gap: 12px; color: #555; font-size: 0.85em; }
+    textarea { width: 100%; min-height: 96px; padding: 10px 12px; border: 1px solid #8a8a8a; border-radius: 8px; font: inherit; font-size: 16px; }
+    .count { color: #555; font-size: 0.82em; text-align: right; }
+    .error { color: #b3261e; font-weight: 600; margin: 12px 0; }
+    .cta { display: inline-block; margin: 16px 0 4px; padding: 12px 20px; background: #003366; color: #fff; border: 0;
+      border-radius: 8px; font: inherit; font-weight: 600; font-size: 1em; cursor: pointer; text-decoration: none; }
+    .cta:focus-visible { outline: 3px solid #f0a000; outline-offset: 2px; }
+    .cta[aria-disabled="true"] { opacity: .7; cursor: default; }
+    fieldset.missing legend { color: #b3261e; }
+  </style>
+</head>
+<body>
+<main>
+  <img class="brand-logo" src="./zautte-logo.svg" alt="Zautte" width="177" height="40">
+  <h1 id="s-title">…</h1>
+  <p class="lead" id="s-intro" hidden></p>
+  <div id="s-msg" class="box" role="status" hidden></div>
+  <form id="s-form" novalidate hidden>
+    <p class="anon" id="s-anon"></p>
+    <div id="s-questions"></div>
+    <div id="s-error" class="error" role="alert" tabindex="-1" hidden></div>
+    <button type="submit" id="s-submit" class="cta"></button>
+  </form>
+</main>
+<script>
+(function () {
+  var API = window.location.origin;
+  var TOKEN_KEY = "zautte_token";
+  var $ = function (id) { return document.getElementById(id); };
+  var def = null, sending = false;
+  var token = null;
+  try { token = localStorage.getItem(TOKEN_KEY); } catch (_) { token = null; }
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function message(text, ok, link) {
+    var box = $("s-msg");
+    box.textContent = text;
+    box.className = "box" + (ok ? " done" : "");
+    if (link) {
+      box.appendChild(document.createElement("br"));
+      var a = el("a", { href: "./dashboard.html", "class": "cta" }, link);
+      box.appendChild(a);
+    }
+    box.hidden = false;
+    $("s-form").hidden = true;
+  }
+
+  function renderQuestion(q, n) {
+    var fs = el("fieldset", { id: "q-" + q.id });
+    var lg = el("legend");
+    lg.textContent = n + ". " + q.text + " ";
+    if (q.required) lg.appendChild(el("span", { "class": "req", "aria-hidden": "true" }, "*"));
+    else lg.appendChild(el("span", { "class": "opt" }, "(" + def.labels.optional + ")"));
+    fs.appendChild(lg);
+    if (q.help) fs.appendChild(el("p", { "class": "help" }, q.help));
+    var name = "a-" + q.id;
+    if (q.type === "scale") {
+      var row = el("div", { "class": "scale" });
+      for (var v = q.min; v <= q.max; v++) {
+        var lab = el("label");
+        var inp = el("input", { type: "radio", name: name, value: String(v) });
+        if (q.required) inp.required = true;
+        var aria = String(v);
+        if (v === q.min && q.low) aria += " (" + q.low + ")";
+        if (v === q.max && q.high) aria += " (" + q.high + ")";
+        inp.setAttribute("aria-label", aria);
+        lab.appendChild(inp);
+        lab.appendChild(el("span", { "aria-hidden": "true" }, String(v)));
+        row.appendChild(lab);
+      }
+      fs.appendChild(row);
+      if (q.low || q.high) {
+        var ends = el("div", { "class": "ends", "aria-hidden": "true" });
+        ends.appendChild(el("span", null, q.min + " = " + q.low));
+        ends.appendChild(el("span", null, q.max + " = " + q.high));
+        fs.appendChild(ends);
+      }
+    } else if (q.type === "choice") {
+      var box = el("div", { "class": "opts" });
+      q.options.forEach(function (o) {
+        var lab = el("label");
+        lab.appendChild(el("input", { type: q.multiple ? "checkbox" : "radio", name: name, value: o }));
+        lab.appendChild(el("span", null, o));
+        box.appendChild(lab);
+      });
+      fs.appendChild(box);
+    } else {
+      var ta = el("textarea", { name: name, id: name, maxlength: String(q.max_length), rows: "4" });
+      ta.setAttribute("aria-labelledby", "q-" + q.id + "-l");
+      lg.id = "q-" + q.id + "-l";
+      var cnt = el("div", { "class": "count", "aria-hidden": "true" }, "0 / " + q.max_length);
+      ta.addEventListener("input", function () { cnt.textContent = ta.value.length + " / " + q.max_length; });
+      fs.appendChild(ta);
+      fs.appendChild(cnt);
+    }
+    return fs;
+  }
+
+  function collect() {
+    var answers = {}, missing = [];
+    def.questions.forEach(function (q) {
+      var name = "a-" + q.id, val = null;
+      if (q.type === "text") {
+        val = document.querySelector('[name="' + name + '"]').value.trim() || null;
+      } else {
+        var checked = Array.prototype.slice.call(document.querySelectorAll('[name="' + name + '"]:checked'))
+          .map(function (i) { return i.value; });
+        if (q.type === "scale") val = checked.length ? parseInt(checked[0], 10) : null;
+        else if (q.multiple) val = checked.length ? checked : null;
+        else val = checked.length ? checked[0] : null;
+      }
+      $("q-" + q.id).classList.toggle("missing", q.required && val == null);
+      if (val == null) { if (q.required) missing.push(q.id); }
+      else answers[q.id] = val;
+    });
+    return { answers: answers, missing: missing };
+  }
+
+  function fail(text) {
+    var e = $("s-error");
+    e.textContent = text; e.hidden = false; e.focus();
+  }
+
+  function showForm() {
+    $("s-anon").textContent = def.labels.anonymous;
+    var box = $("s-questions");
+    box.innerHTML = "";
+    def.questions.forEach(function (q, i) { box.appendChild(renderQuestion(q, i + 1)); });
+    $("s-submit").textContent = def.labels.submit;
+    $("s-form").hidden = false;
+  }
+
+  $("s-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (sending) return;
+    $("s-error").hidden = true;
+    var c = collect();
+    if (c.missing.length) {
+      fail(def.labels.required);
+      var first = document.querySelector("#q-" + c.missing[0] + " input");
+      if (first) first.focus();
+      return;
+    }
+    sending = true;
+    var btn = $("s-submit");
+    btn.setAttribute("aria-disabled", "true"); btn.textContent = def.labels.sending;
+    fetch(API + "/survey", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ survey: def.id, answers: c.answers })
+    }).then(function (r) {
+      if (r.status === 401) { message(def.labels.login, false, def.labels.login_link); return; }
+      if (r.ok) { message(def.labels.thanks, true); window.scrollTo(0, 0); return; }
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (r.status === 409 && d.detail === def.labels.already) { message(def.labels.already, true); return; }
+        throw new Error(typeof d.detail === "string" ? d.detail : def.labels.error);
+      });
+    }).catch(function (e) {
+      fail((e && e.message) || def.labels.error);
+    }).finally(function () {
+      sending = false; btn.removeAttribute("aria-disabled"); btn.textContent = def.labels.submit;
+    });
+  });
+
+  fetch(API + "/survey").then(function (r) {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }).then(function (d) {
+    def = d;
+    document.documentElement.lang = d.lang || "en";
+    document.title = d.title + " — Zautte";
+    $("s-title").textContent = d.title;
+    if (d.intro) { $("s-intro").textContent = d.intro; $("s-intro").hidden = false; }
+    if (!d.open) return message(d.labels.closed, true);
+    if (!token) return message(d.labels.login, false, d.labels.login_link);
+    return fetch(API + "/survey/me", { headers: { "Authorization": "Bearer " + token } }).then(function (r) {
+      if (r.status === 401) return message(d.labels.login, false, d.labels.login_link);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json().then(function (me) {
+        if (me.answered) return message(d.labels.already, true);
+        if (!me.eligible) return message(d.labels.not_eligible, false);
+        showForm();
+      });
+    });
+  }).catch(function () {
+    $("s-title").textContent = "Zautte";
+    message(def ? def.labels.error : "The survey is not available.", false);
+  });
+})();
+</script>
+<script src="./site-footer.js" defer></script>
+<script src="./matomo.js" defer></script>
+</body>
+</html>
