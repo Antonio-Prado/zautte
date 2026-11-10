@@ -1008,7 +1008,7 @@ def article_passages(sources: list[str], number: int, limit: int = 2) -> list[di
         return out
 
 
-# A transparency section publishes the same document year after year («Compensi degli amministratori
+# A transparency section (and a page of the sites) publishes the same document year after year («Compensi degli amministratori
 # anno 2022» … «anno 2025», «Piano prevenzione corruzione 2018/2020» … «2022/2024»): the versions
 # differ by a year in the title, and the search picks one of them at random, often an old one.
 _VERSION_YEAR_RE = re.compile(r"\b(20[0-4]\d)\b")
@@ -1027,20 +1027,37 @@ def _series_key(meta: dict) -> tuple[str, str] | None:
     return where, re.sub(r"\s+", " ", _VERSION_STRIP_RE.sub(" ", title.lower())).strip()
 
 
+def _versioned(meta: dict) -> bool:
+    """A document that can be one of several yearly versions: a transparency document (not a card),
+    or a web page of the sites («2026, censimento permanente della popolazione (annuale)» … «2018, …»).
+    News items, acts and the inbox are not: an old news item is the memory of what happened that year."""
+    if meta.get("chunk_index", 0) != 0 or meta.get("card"):
+        return False
+    origin = meta.get("origin")
+    if origin == "amt":
+        return True
+    return origin in (None, "", "web") and meta.get("doc_type") == "html" and "/news" not in meta.get("source", "")
+
+
 def _build_versions(metadata: list[dict]) -> dict[str, tuple[int, int, str]]:
     series: dict[tuple[str, str], dict[str, int]] = {}
+    web: set[tuple[str, str]] = set()
     for meta in metadata:
-        if meta.get("chunk_index", 0) != 0 or meta.get("origin") != "amt" or meta.get("card"):
+        if not _versioned(meta):
             continue
         key = _series_key(meta)
         if key is None:
             continue
         year = max(int(y) for y in _VERSION_YEAR_RE.findall(meta.get("title", "")))
         series.setdefault(key, {})[meta.get("source", "")] = year
+        if meta.get("origin") != "amt":
+            web.add(key)
     out: dict[str, tuple[int, int, str]] = {}
-    for docs in series.values():
+    for key, docs in series.items():
         if len(docs) < 2:
             continue
+        if key in web and len(set(docs.values())) < len(docs):
+            continue   # web pages with the same year are different pages («verbale n. 3 del …»), not versions
         latest_source = max(docs, key=lambda src: (docs[src], src))
         latest = docs[latest_source]
         for source, year in docs.items():
@@ -1058,7 +1075,7 @@ def _ensure_versions() -> dict[str, tuple[int, int, str]]:
 
 def version_info(source: str) -> tuple[int, int] | None:
     """(year of this version, year of the latest version of the same document) when the source is
-    one of several yearly versions of a transparency document; None otherwise."""
+    one of several yearly versions of a transparency document or of a web page; None otherwise."""
     with _lock:
         _ensure_loaded()
         v = _ensure_versions().get(source)
