@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-11-10
+
+### Fixed
+- Asked «why don't you search the news?» after a list of links, the model said, unprompted, that
+  some links of its previous answer had been «inferred or built» and apologised: all of them came
+  from the passages of that question. The rule on details of a previous answer that are no longer
+  in the context now covers links too, forbids saying they were inferred or built, and forbids
+  apologising for a previous answer unless the user points out a specific mistake or the current
+  context contradicts it.
+
 ## [0.42.0] - 2026-11-10
 
 ### Changed
