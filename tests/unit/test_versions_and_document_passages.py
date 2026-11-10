@@ -32,6 +32,22 @@ ROWS = [
     _doc(9, "news-2022", "Anno 2022", 0, "notizia", origin="news"),  # not a transparency document
     _doc(9, "news-2023", "Anno 2023", 0, "notizia", origin="news"),
 ]
+SITE = "https://www.example.org/it"
+
+
+def _page(path, title, origin=None):
+    return ({"source": f"{SITE}/{path}", "title": title, "doc_type": "html", "chunk_index": 0,
+             "origin": origin, "text": f"{title}\n\ntesto"}, (1.0, 0.0, 0.0))
+
+
+ROWS += [
+    _page("page/censimento-2023", "2023, censimento permanente della popolazione (annuale) - Comune"),
+    _page("page/censimento-2026", "2026, censimento permanente della popolazione (annuale) - Comune"),
+    _page("news/1", "Censimento permanente della popolazione 2024 - Comune"),        # news: never a version
+    _page("news/2", "Censimento permanente della popolazione 2026 - Comune"),
+    _page("page/comitato-1", "Comitato dei sindaci n. 1 del 12/03/2026 - Ambito"),   # same year: different pages
+    _page("page/comitato-2", "Comitato dei sindaci n. 2 del 20/05/2026 - Ambito"),
+]
 META = [m for m, _ in ROWS]
 VECS = np.array([v for _, v in ROWS], dtype=np.float32)
 
@@ -58,6 +74,13 @@ def test_version_info(store):
     assert vs.version_info(META[10]["source"]) is None            # a single version
     assert vs.version_info(META[11]["source"]) is None            # news, not transparency
     assert vs.version_info("https://example.org/nowhere") is None
+
+
+def test_version_info_of_web_pages(store):
+    assert vs.version_info(f"{SITE}/page/censimento-2023") == (2023, 2026)
+    assert vs.version_info(f"{SITE}/page/censimento-2026") == (2026, 2026)
+    assert vs.version_info(f"{SITE}/news/1") is None
+    assert vs.version_info(f"{SITE}/page/comitato-1") is None
 
 
 def _chunk(meta, score=0.60):

@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-11-10
+
+### Changed
+- The preference for the latest yearly version of a document (the re-ranking penalty and the
+  latest version added after the search) now covers the web pages of the sites too, not only the
+  transparency documents: «Come si svolge un censimento?» brought the pages of the 2023 and 2021
+  census and not the one of 2026. Pages are grouped by folder and title without numbers; news
+  items, acts and pages that share a year are left out.
+
 ## [0.41.2] - 2026-11-10
 
 ### Fixed
