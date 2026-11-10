@@ -14,8 +14,9 @@ Answers are anonymous:
   what (the set has no order, so it cannot be lined up with the rows of the answers). Whoever holds
   AUTH_SECRET can check whether a given account has answered, never what it answered.
 Free texts go through the same personal-data filter as the feedback comments.
-Answers of the test accounts (TEST_ACCOUNTS) are marked `test`, kept out of the results and of
-the respondents set, so a test can be repeated.
+Answers of the test accounts (TEST_ACCOUNTS) and of the administrators are marked `test`, kept out
+of the results and of the respondents set, so a test can be repeated; both are always eligible, so
+an administrator sees the notice and the page as the respondents do.
 """
 
 from __future__ import annotations
@@ -158,15 +159,19 @@ def public_definition(d: dict) -> dict:
 # Who may answer
 # ---------------------------------------------------------------------------
 def _is_test(uid: str) -> bool:
+    """Test accounts (TEST_ACCOUNTS) and administrators: they see the survey as the respondents do,
+    can answer more than once, and their answers are kept out of the results."""
+    u = get_user_by_id(uid) or {}
+    if auth.is_admin_account(u):
+        return True
     if not TEST_ACCOUNTS:
         return False
-    u = get_user_by_id(uid) or {}
     return any(str(v or "").strip().lower() in TEST_ACCOUNTS for v in (uid, u.get("email"), u.get("name")))
 
 
 def eligible(d: dict, uid: str) -> bool:
     """Accounts whose email is in an excluded domain (e.g. the staff, when the survey is for the
-    citizen volunteers) cannot answer; the test accounts always can."""
+    citizen volunteers) cannot answer; the test accounts and the administrators always can."""
     if _is_test(uid):
         return True
     if not d["exclude_email_domains"]:

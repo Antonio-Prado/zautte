@@ -18,7 +18,8 @@ DEF = {
     ],
 }
 USERS = [{"id": "u1", "email": "anna@example.org"}, {"id": "u2", "email": "bo@example.org"},
-         {"id": "s1", "email": "clerk@staff.example.org"}, {"id": "t1", "email": "zz-test@example.org"}]
+         {"id": "s1", "email": "clerk@staff.example.org"},
+         {"id": "a1", "email": "boss@staff.example.org", "admin": True}, {"id": "t1", "email": "zz-test@example.org"}]
 
 
 @pytest.fixture
@@ -131,3 +132,12 @@ def test_empty_respondents_file_created_at_startup(env):
     assert not survey.has_answered("pilot", "u1")
     survey.store(d, "u1", survey.validate_answers(d, GOOD))
     assert survey.has_answered("pilot", "u1") and survey.results(d)["responses"] == 1
+
+
+def test_administrators_preview_like_test_accounts(env):
+    d = survey.load_definition()
+    assert survey.eligible(d, "a1")             # excluded domain, but an administrator
+    for _ in range(2):
+        survey.store(d, "a1", survey.validate_answers(d, GOOD))
+    assert not survey.has_answered("pilot", "a1")
+    assert survey.results(d)["responses"] == 0 and survey.results(d)["test_responses"] == 2
