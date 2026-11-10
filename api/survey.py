@@ -183,10 +183,11 @@ def _respondent_key(survey_id: str, uid: str) -> str:
 
 
 def _read_respondents() -> dict[str, list[str]]:
-    try:
-        data = read_json_bounded(RESPONDENTS_FILE, 4 * 1024 * 1024, dict)
-    except FileNotFoundError:
+    # the API creates the data files empty at startup (ensure_private): empty = nobody yet
+    st = require_regular(RESPONDENTS_FILE)
+    if st is None or st.st_size == 0:
         return {}
+    data = read_json_bounded(RESPONDENTS_FILE, 4 * 1024 * 1024, dict)
     return {str(k): [str(x) for x in v] for k, v in data.items() if isinstance(v, list)}
 
 

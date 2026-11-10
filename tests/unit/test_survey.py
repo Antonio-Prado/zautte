@@ -121,3 +121,13 @@ def test_closing_day_is_included_then_closed(env, monkeypatch):
     assert survey.load_definition()["open"] is False
     cfg.write_text(json.dumps({**DEF, "closes": "25/11/2026"}), encoding="utf-8")
     assert survey.load_definition()["open"] is False   # a malformed date closes rather than leaving it open
+
+
+def test_empty_respondents_file_created_at_startup(env):
+    # ensure_private creates the data files empty when the API starts
+    (env / "survey_respondents.json").write_text("")
+    (env / "survey.jsonl").write_text("")
+    d = survey.load_definition()
+    assert not survey.has_answered("pilot", "u1")
+    survey.store(d, "u1", survey.validate_answers(d, GOOD))
+    assert survey.has_answered("pilot", "u1") and survey.results(d)["responses"] == 1

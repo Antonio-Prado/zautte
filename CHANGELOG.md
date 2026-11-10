@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-11-10
+
+### Fixed
+- The API creates its data files empty at startup, and an empty `data/survey_respondents.json`
+  was refused as malformed JSON: `GET /survey/me` and the answers of every account other than the
+  test ones failed with 500. An empty file now means nobody has answered yet.
+
 ## [0.43.0] - 2026-11-10
 
 ### Added
