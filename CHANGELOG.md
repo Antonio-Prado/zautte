@@ -21,6 +21,10 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   the feedback comments. Accounts of excluded email domains (e.g. the staff) cannot answer; test
   accounts can answer again and are not counted. The People tab of the restricted area shows the
   totals (averages, bars, free texts in random order) from `GET /survey/results`.
+- `closes` in `config/survey.json` (YYYY-MM-DD, last day included) closes the survey by itself.
+- After login the chat widget shows a notice linking to the survey while it is open and the
+  account may still answer; the × hides it for the session (`survey: false` in the widget
+  configuration turns it off, `surveyUrl` changes the page).
 
 ## [0.42.1] - 2026-11-10
 

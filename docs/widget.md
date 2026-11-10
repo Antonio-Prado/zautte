@@ -44,6 +44,8 @@ The `widget/embed-snippet.html` file contains a ready-to-paste snippet with more
 | `requireLogin`    | `false`                              | Show the email + password login before the chat (needs `AUTH_ENABLED=true`) |
 | `loginSubtitle`   | `''`                                 | Optional text under the login title |
 | `feedbackDetails` | `true`                               | After a 👎, show the comment/links form (`POST /feedback/detail`) |
+| `survey`          | `true`                               | After login, a notice links to the open satisfaction survey when `GET /survey/me` says the account may answer (× hides it for the session) |
+| `surveyUrl`       | `""`                                 | Survey page (default `<apiUrl>/widget/survey.html`) |
 | `inline`          | `null`                               | CSS selector or element: panel always open inside it, no floating or close button |
 | `inlineHeight`    | `'min(640px, calc(100vh - 32px))'`   | Panel height in inline mode |
 | `zIndex`          | `99999`                              | z-index of the button and panel |

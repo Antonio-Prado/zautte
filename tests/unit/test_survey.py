@@ -108,3 +108,16 @@ def test_missing_config_is_404(env, monkeypatch):
     with pytest.raises(HTTPException) as e:
         survey._definition_or_404()
     assert e.value.status_code == 404
+
+
+def test_closing_day_is_included_then_closed(env, monkeypatch):
+    import datetime as dt
+    cfg = env / "survey.json"
+    cfg.write_text(json.dumps({**DEF, "closes": "2026-11-25"}), encoding="utf-8")
+    tz = dt.timezone(dt.timedelta(hours=1))
+    monkeypatch.setattr(survey, "now_local", lambda: dt.datetime(2026, 11, 25, 23, 59, tzinfo=tz))
+    assert survey.load_definition()["open"] is True
+    monkeypatch.setattr(survey, "now_local", lambda: dt.datetime(2026, 11, 26, 0, 1, tzinfo=tz))
+    assert survey.load_definition()["open"] is False
+    cfg.write_text(json.dumps({**DEF, "closes": "25/11/2026"}), encoding="utf-8")
+    assert survey.load_definition()["open"] is False   # a malformed date closes rather than leaving it open

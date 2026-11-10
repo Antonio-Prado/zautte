@@ -21,6 +21,7 @@ the respondents set, so a test can be repeated.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import hashlib
 import hmac
 import json
@@ -38,7 +39,7 @@ from api.filelock import file_lock
 from api.limiter import limiter
 from api.pii import contains_personal, redact
 from api.safefile import dump_line, read_json_bounded, require_regular, write_text_atomic
-from config.settings import DATA_DIR, TEST_ACCOUNTS
+from config.settings import DATA_DIR, TEST_ACCOUNTS, now_local
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,8 @@ DEFAULT_LABELS = {
     "error": "Sending failed, please try again.",
     "thanks": "Thank you for your answers.",
     "anonymous": "Answers are anonymous: they are saved without your name, account or time.",
+    "banner": "Tell us how it went: answer the short survey",
+    "dismiss": "Hide this notice",
 }
 
 router = APIRouter(prefix="/survey", tags=["survey"])
@@ -96,6 +99,18 @@ def _clean_question(q: Any) -> dict | None:
     return out
 
 
+def _past(closes: str) -> bool:
+    """True once the closing day (YYYY-MM-DD, last day included, local time) is over."""
+    if not closes:
+        return False
+    try:
+        day = dt.date.fromisoformat(closes)
+    except ValueError:
+        log.warning("survey.json: closes %r is not YYYY-MM-DD, survey kept closed", closes)
+        return True
+    return now_local().date() > day
+
+
 def load_definition() -> dict | None:
     """The survey of config/survey.json, checked and completed, or None when there is none."""
     # written by the administrator like known_facts.json, and like it may be a link into the
@@ -119,11 +134,13 @@ def load_definition() -> dict | None:
     if len({q["id"] for q in questions}) != len(questions):
         log.warning("survey.json: question ids are not unique")
         return None
+    closes = str(raw.get("closes") or "").strip()
     labels = dict(DEFAULT_LABELS)
     labels.update({k: str(v) for k, v in (raw.get("labels") or {}).items() if k in DEFAULT_LABELS})
     return {
         "id": sid,
-        "open": bool(raw.get("open", True)),
+        "open": bool(raw.get("open", True)) and not _past(closes),
+        "closes": closes,
         "lang": str(raw.get("lang") or "en"),
         "title": str(raw.get("title") or "Satisfaction survey"),
         "intro": str(raw.get("intro") or ""),
@@ -134,7 +151,7 @@ def load_definition() -> dict | None:
 
 
 def public_definition(d: dict) -> dict:
-    return {k: d[k] for k in ("id", "open", "lang", "title", "intro", "labels", "questions")}
+    return {k: d[k] for k in ("id", "open", "closes", "lang", "title", "intro", "labels", "questions")}
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +337,8 @@ async def survey_me(user: dict = Security(require_user)):
     uid = user.get("uid", "")
     ok = await asyncio.to_thread(eligible, d, uid)
     done = await asyncio.to_thread(has_answered, d["id"], uid)
-    return {"id": d["id"], "open": d["open"], "eligible": ok, "answered": done}
+    return {"id": d["id"], "open": d["open"], "closes": d["closes"], "eligible": ok, "answered": done,
+            "banner": d["labels"]["banner"], "dismiss": d["labels"]["dismiss"]}
 
 
 class SurveyAnswers(BaseModel):

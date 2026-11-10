@@ -282,8 +282,8 @@ Constants in `api/rag.py`, calibrated for `bge-m3`:
 
 `config/survey.json` (start from `config/survey.example.json`; like the other organisation files it can be a link into your configuration repository) defines the questionnaire served at `/widget/survey.html`:
 
-- `id`: change it to start a new survey (answers and respondents are kept per id); `open`: `false` closes it;
-- `lang`, `title`, `intro` and `labels` (texts of the page: `submit`, `login`, `already`, `thanks`, `anonymous`... English by default);
+- `id`: change it to start a new survey (answers and respondents are kept per id); `open`: `false` closes it; `closes`: last day (YYYY-MM-DD, local time) after which it closes by itself (a malformed date keeps it closed);
+- `lang`, `title`, `intro` and `labels` (texts of the page: `submit`, `login`, `already`, `thanks`, `anonymous`..., plus `banner` and `dismiss`, the notice the chat widget shows after login while the survey is open and the account has not answered; English by default);
 - `exclude_email_domains`: accounts with these email domains cannot answer (e.g. the staff, when the survey is for the citizen volunteers); test accounts (`TEST_ACCOUNTS`) always can, their answers are marked and not counted;
 - `questions`: each with `id`, `text`, `type` and optional `help` and `required` (default true, false for texts): `scale` (`min`, `max` from 0 to 10, `low`, `high` labels), `choice` (`options`, `multiple`), `text` (`max_length`, at most 3000).
 
