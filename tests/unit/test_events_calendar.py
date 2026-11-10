@@ -122,3 +122,7 @@ def test_initiatives_need_a_word_about_time_or_the_public():
     assert _fires("Quali iniziative ci sono in programma a dicembre? Il calendario?")
     assert not _fires("Quali iniziative ha il Comune per gli anziani?")
     assert not _fires("Come prendo appuntamento all'anagrafe il prossimo mese?")
+
+
+def test_a_venue_brings_the_calendar():
+    assert _fires("C'è un sito con tutte le attività promosse dal comune presso l'auditorium tebaldini?")

@@ -9,6 +9,24 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-11-10
+
+### Fixed
+- Asked «why don't you search the news?» after a list of links, the model said, unprompted, that
+  some links of its previous answer had been «inferred or built» and apologised: all of them came
+  from the passages of that question. The rule on details of a previous answer that are no longer
+  in the context now covers links too, forbids saying they were inferred or built, and forbids
+  apologising for a previous answer unless the user points out a specific mistake or the current
+  context contradicts it.
+- «Is there a site with the activities of the Comune at the Tebaldini auditorium?» had none of the
+  words of the events calendar and was answered with «no calendar found», while the calendar lists
+  the events of that venue. «auditorium» now brings the calendar in, and its introduction says how
+  to answer about a venue: look at «Dove» and at the programme of the series held in several
+  places, and when nothing of the period is held there say so and give the calendar page.
+- Asked to «search the news», the model answered that it had no access to the content of the
+  single news items: news items are indexed with their text. A rule now forbids that claim; when no
+  relevant news item is found, the answer says so.
+
 ## [0.42.0] - 2026-11-10
 
 ### Changed
