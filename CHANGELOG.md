@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-11-10
+
+### Changed
+- Administrators see the satisfaction survey as the respondents do (the notice in the chat and the
+  page), even when their email domain is excluded: like the test accounts, their answers are
+  marked as tests, kept out of the results and may be repeated.
+
 ## [0.43.1] - 2026-11-10
 
 ### Fixed
