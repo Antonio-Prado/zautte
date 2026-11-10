@@ -30,7 +30,9 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(survey, "ANSWERS_FILE", tmp_path / "survey.jsonl")
     monkeypatch.setattr(survey, "RESPONDENTS_FILE", tmp_path / "survey_respondents.json")
     monkeypatch.setattr(survey, "TEST_ACCOUNTS", frozenset({"zz-test@example.org"}))
-    monkeypatch.setattr(survey, "get_user_by_id", lambda uid: next((u for u in USERS if u["id"] == uid), None))
+    users = tmp_path / "users.json"
+    users.write_text(json.dumps(USERS), encoding="utf-8")
+    monkeypatch.setattr(auth, "USERS_FILE", users)   # the real lookup, roles included
     monkeypatch.setattr(auth, "AUTH_SECRET", "s" * 32)
     return tmp_path
 
@@ -90,12 +92,9 @@ def test_test_accounts_repeat_and_are_not_counted(env):
 def test_eligibility_excludes_domains_but_not_tests(env, monkeypatch):
     d = survey.load_definition()
     assert survey.eligible(d, "u1") and not survey.eligible(d, "s1")
-    USERS.append({"id": "t2", "email": "zz-test@staff.example.org"})
+    (env / "users.json").write_text(json.dumps([*USERS, {"id": "t2", "email": "zz-test@staff.example.org"}]))
     monkeypatch.setattr(survey, "TEST_ACCOUNTS", frozenset({"zz-test@staff.example.org"}))
-    try:
-        assert survey.eligible(d, "t2")
-    finally:
-        USERS.pop()
+    assert survey.eligible(d, "t2")
 
 
 def test_personal_data_in_free_text_is_dropped(env):
