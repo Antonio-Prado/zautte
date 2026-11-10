@@ -1,5 +1,6 @@
 """The events job: the answer of The Events Calendar REST API becomes one known fact with the dates, place,
 page and description of each event still in progress or coming up, which the API picks up without a restart."""
+import re
 from datetime import date, datetime
 
 _dt = datetime.fromisoformat   # wall-clock times, as the calendar gives them
@@ -109,3 +110,15 @@ def test_the_api_picks_the_fact_up(tmp_path, monkeypatch):
     assert fact["title"] in titles("Cosa posso fare questo fine settimana?")
     assert fact["title"] not in titles("Come posso fare la carta d'identità?")
     assert fact["title"] not in titles("Orari dell'anagrafe della settimana prossima")
+
+
+def _fires(question: str) -> bool:
+    words = set(re.findall(r"\w+", question.lower()))
+    return bool(words & set(ec.DEFAULT_KEYWORDS) and words & set(ec.DEFAULT_REQUIRE_ANY))
+
+
+def test_initiatives_need_a_word_about_time_or_the_public():
+    assert _fires("Mi trovi tutte le iniziative aperte alla cittadina che si terranno in comune nei prossimi 2 mesi?")
+    assert _fires("Quali iniziative ci sono in programma a dicembre? Il calendario?")
+    assert not _fires("Quali iniziative ha il Comune per gli anziani?")
+    assert not _fires("Come prendo appuntamento all'anagrafe il prossimo mese?")

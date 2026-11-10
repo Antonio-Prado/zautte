@@ -56,6 +56,8 @@ LONG_PERIOD_DAYS = 7   # an event this long is a series (season, festival, cours
 
 # Words of a question about events. A word in both lists is enough; "settimana" (only in keywords)
 # needs one of "fare", "succede", "uscire" (only in require_any): «cosa posso fare questo fine settimana?»
+# "iniziativa"/"iniziative" (only in keywords) need a word about time or the public (only in
+# require_any): «le iniziative aperte alla cittadinanza nei prossimi 2 mesi», not «iniziative per gli anziani».
 _STRONG = [
     "eventi", "evento", "manifestazioni", "manifestazione", "spettacoli", "spettacolo", "concerti", "concerto",
     "mostre", "mostra", "sagra", "sagre", "rassegna", "rassegne", "festival", "halloween", "weekend", "stasera",
@@ -63,8 +65,13 @@ _STRONG = [
     "divertimento", "divertirsi", "divertirmi", "svago", "events", "event", "concerts", "concert", "exhibition",
     "exhibitions", "tonight",
 ]
-DEFAULT_KEYWORDS = [*_STRONG, "settimana"]
-DEFAULT_REQUIRE_ANY = [*_STRONG, "fare", "succede", "uscire"]
+_BROAD = ["iniziativa", "iniziative"]
+_CONTEXT = [
+    "cittadinanza", "cittadina", "prossimi", "prossime", "mesi", "mese", "settimane", "programma", "programmate",
+    "calendario",
+]
+DEFAULT_KEYWORDS = [*_STRONG, "settimana", *_BROAD]
+DEFAULT_REQUIRE_ANY = [*_STRONG, "fare", "succede", "uscire", *_CONTEXT]
 
 _BLOCK_END_RE = re.compile(r"<\s*(br|/p|/div|/li|/h[1-6]|/tr)\b[^>]*>", re.IGNORECASE)
 _LI_RE = re.compile(r"<\s*li\b[^>]*>", re.IGNORECASE)
