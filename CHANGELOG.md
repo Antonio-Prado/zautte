@@ -23,6 +23,9 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   the events of that venue. «auditorium» now brings the calendar in, and its introduction says how
   to answer about a venue: look at «Dove» and at the programme of the series held in several
   places, and when nothing of the period is held there say so and give the calendar page.
+- Asked to «search the news», the model answered that it had no access to the content of the
+  single news items: news items are indexed with their text. A rule now forbids that claim; when no
+  relevant news item is found, the answer says so.
 
 ## [0.42.0] - 2026-11-10
 
