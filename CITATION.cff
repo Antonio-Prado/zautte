@@ -10,7 +10,7 @@ authors:
 repository-code: "https://github.com/Antonio-Prado/zautte"
 doi: 10.5281/zenodo.23452491
 license: MIT
-version: 0.42.1
+version: 0.43.0
 date-released: 2026-11-10
 keywords:
   - chatbot
