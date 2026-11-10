@@ -61,7 +61,7 @@ LONG_PERIOD_DAYS = 7   # an event this long is a series (season, festival, cours
 _STRONG = [
     "eventi", "evento", "manifestazioni", "manifestazione", "spettacoli", "spettacolo", "concerti", "concerto",
     "mostre", "mostra", "sagra", "sagre", "rassegna", "rassegne", "festival", "halloween", "weekend", "stasera",
-    "teatro", "teatri", "teatrale", "teatrali", "cinema", "film", "escursione", "escursioni", "intrattenimento",
+    "teatro", "teatri", "teatrale", "teatrali", "auditorium", "cinema", "film", "escursione", "escursioni", "intrattenimento",
     "divertimento", "divertirsi", "divertirmi", "svago", "events", "event", "concerts", "concert", "exhibition",
     "exhibitions", "tonight",
 ]
@@ -190,6 +190,9 @@ def build_fact(events: list[dict], today: date, horizon: date, calendar_url: str
               "parte il prossimo appuntamento. Se il programma non dice nulla dei giorni chiesti, indica il periodo e "
               "la pagina dell'evento. "
               "Se la riga «Quando» non ha l'orario, gli orari sono quelli scritti nella descrizione, se ci sono. "
+              "Per una domanda su un luogo (un auditorium, un teatro, una sala) cerca quel luogo nella riga «Dove» e "
+              "nel programma delle rassegne e dei festival con «Vari luoghi»: se nessun evento del periodo si tiene lì, "
+              "dillo e indica la pagina del calendario, dove compaiono anche i prossimi eventi di quel luogo. "
               "Il calendario non indica quali eventi hanno il patrocinio del Comune, e iniziative non "
               "pubblicate nel calendario non compaiono qui."), ""]
     if not events:

@@ -18,6 +18,11 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
   in the context now covers links too, forbids saying they were inferred or built, and forbids
   apologising for a previous answer unless the user points out a specific mistake or the current
   context contradicts it.
+- «Is there a site with the activities of the Comune at the Tebaldini auditorium?» had none of the
+  words of the events calendar and was answered with «no calendar found», while the calendar lists
+  the events of that venue. «auditorium» now brings the calendar in, and its introduction says how
+  to answer about a venue: look at «Dove» and at the programme of the series held in several
+  places, and when nothing of the period is held there say so and give the calendar page.
 
 ## [0.42.0] - 2026-11-10
 
