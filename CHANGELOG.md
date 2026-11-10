@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.41.2] - 2026-11-10
+
+### Fixed
+- A question about «the initiatives open to citizens in the next 2 months» had none of the words
+  that bring in the events calendar (`events-upcoming`), so the answer said there was no
+  information although the calendar listed the shows, readings and exhibitions of those weeks.
+  «iniziativa» and «iniziative» now bring it in, together with a word about the period or the
+  public (prossimi, mesi, settimane, programma, calendario, cittadinanza…), so a question like
+  «initiatives for the elderly» does not.
+
+### Note
+- The tag `v0.41.1` was pushed on the merge of this fix before the version files were updated,
+  and protected tags cannot be deleted: it has no release, and 0.41.2 is the release of the fix.
+
 ## [0.41.0] - 2026-11-09
 
 ### Added
