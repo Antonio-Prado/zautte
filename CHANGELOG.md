@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.43.4] - 2026-11-11
+
+### Fixed
+- The assistant presented a tool named only in the executive management plans of 2017-2023 as a
+  service citizens can use today. A new prompt rule (Italian and English): what comes only from
+  planning or reporting documents of past years describes what was planned then; if mentioned, the
+  answer says which years the document covers and that current pages do not confirm it.
+
 ## [0.43.3] - 2026-11-10
 
 ### Fixed
