@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.43.5] - 2026-11-12
+
+### Fixed
+- The questions and texts of the satisfaction survey were readable without a login (`GET /survey`
+  was public, and the page showed title and introduction to anyone). `GET /survey` now needs the
+  user's token like the other survey endpoints, and `survey.html` sends a visitor without a valid
+  session to the login page without showing anything of the survey. Answers could already be sent
+  only by a logged-in account.
+
 ## [0.43.4] - 2026-11-11
 
 ### Fixed

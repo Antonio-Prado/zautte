@@ -3,8 +3,9 @@ Satisfaction survey for the logged-in users (e.g. the volunteers of a pilot).
 
 The questions live in config/survey.json (an installation file, like known_facts.json; the
 repository has config/survey.example.json). The page /widget/survey.html reads them from
-`GET /survey` (public: only the questions and the texts) and, with the user's token, asks
-`GET /survey/me` whether this account may still answer; it sends the answers with `POST /survey`.
+`GET /survey` and asks `GET /survey/me` whether this account may still answer; it sends the
+answers with `POST /survey`. All three need the user's token: without a login nothing of the
+survey is shown, and the page sends the visitor to the login.
 
 Answers are anonymous:
 - data/survey.jsonl holds one row per questionnaire with the survey id and the answers only:
@@ -337,8 +338,8 @@ def _definition_or_404() -> dict:
 
 
 @router.get("")
-async def survey_definition():
-    """Questions and texts of the survey (public: the page needs them before the login)."""
+async def survey_definition(_: dict = Security(require_user)):
+    """Questions and texts of the survey, for the logged-in users only."""
     d = await asyncio.to_thread(_definition_or_404)
     return public_definition(d)
 
