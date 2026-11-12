@@ -1,7 +1,8 @@
 import json
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from api import auth, survey
 
@@ -140,3 +141,16 @@ def test_administrators_preview_like_test_accounts(env):
         survey.store(d, "a1", survey.validate_answers(d, GOOD))
     assert not survey.has_answered("pilot", "a1")
     assert survey.results(d)["responses"] == 0 and survey.results(d)["test_responses"] == 2
+
+
+def test_definition_needs_a_login(env, monkeypatch):
+    monkeypatch.setattr(auth, "AUTH_ENABLED", True)
+    app = FastAPI()
+    app.include_router(survey.router)
+    client = TestClient(app)
+    for method, path in (("get", "/survey"), ("get", "/survey/me"), ("post", "/survey")):
+        assert getattr(client, method)(path).status_code == 401, path
+    assert client.get("/survey", headers={"Authorization": "Bearer not-a-token"}).status_code == 401
+    monkeypatch.setattr(auth, "verify_token", lambda _t: {"uid": "u1", "name": "Anna"})
+    r = client.get("/survey", headers={"Authorization": "Bearer x"})
+    assert r.status_code == 200 and r.json()["id"] == "pilot"

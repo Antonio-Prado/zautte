@@ -202,19 +202,24 @@
     });
   });
 
-  fetch(API + "/survey").then(function (r) {
+  // Nothing of the survey is shown without a valid session: the visitor goes to the login.
+  function toLogin() { window.location.replace("./dashboard.html"); }
+  if (!token) { toLogin(); return; }
+
+  fetch(API + "/survey", { headers: { "Authorization": "Bearer " + token } }).then(function (r) {
+    if (r.status === 401) { toLogin(); return null; }
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }).then(function (d) {
+    if (!d) return;
     def = d;
     document.documentElement.lang = d.lang || "en";
     document.title = d.title + " — Zautte";
     $("s-title").textContent = d.title;
     if (d.intro) { $("s-intro").textContent = d.intro; $("s-intro").hidden = false; }
     if (!d.open) return message(d.labels.closed, true);
-    if (!token) return message(d.labels.login, false, d.labels.login_link);
     return fetch(API + "/survey/me", { headers: { "Authorization": "Bearer " + token } }).then(function (r) {
-      if (r.status === 401) return message(d.labels.login, false, d.labels.login_link);
+      if (r.status === 401) return toLogin();
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json().then(function (me) {
         if (me.answered) return message(d.labels.already, true);
