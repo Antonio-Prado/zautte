@@ -77,5 +77,9 @@
   },
   "latest_news": {
     "count": 10
+  },
+  "tenders": {
+    "voceamt": [561],
+    "closed_days": 60
   }
 }
