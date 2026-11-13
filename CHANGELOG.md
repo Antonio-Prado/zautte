@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.44.4] - 2026-11-13
+
+### Fixed
+- Asked about bathing bans in force today, the assistant cited a ban of four months before and added
+  that "no later revocation results": the revocation had been published four days after the ban, in a
+  news item whose title did not look like the question. A new prompt rule (Italian and English): a ban,
+  closure, suspension or temporary ordinance found in a news item of weeks or months ago is reported
+  with its date and as not confirmed for today, never as still in force or as not revoked.
+
 ## [0.44.3] - 2026-11-13
 
 ### Fixed
