@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.44.3] - 2026-11-13
+
+### Fixed
+- On 13 November the assistant said the library was closed "for the patron saint's day", which is on
+  13 October: a known fact named the recurrence with day and month, and the day number matched today's.
+  A new prompt rule (Italian and English): a recurrence written with day and month applies to today only
+  if both match today's date.
+
 ## [0.44.2] - 2026-11-13
 
 ### Fixed
