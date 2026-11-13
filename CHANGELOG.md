@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-13
+
+### Added
+- News follow-ups: the later news item that ends what a chosen news item announced (a ban revoked, a road
+  reopened) is put right after it among the passages. Asked about bathing bans, the assistant found the
+  ban of July and not its revocation of four days later, whose title («the sea is bathable again») does not
+  look like the question. `news_followups()` looks in the news of the following 90 days for an item whose
+  beginning says that something ended and shares at least three words with the title of the first.
+
 ## [0.46.0] - 2026-11-13
 
 ### Added
