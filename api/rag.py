@@ -58,6 +58,7 @@ from indexer.vector_store import (
     find_grants,
     hybrid_search,
     latest_version_passages,
+    news_followups,
     version_info,
 )
 
@@ -507,6 +508,26 @@ def _with_act_cards(chunks: list[dict], query: str = "") -> list[dict]:
     return out
 
 
+def _with_followups(chunks: list[dict]) -> list[dict]:
+    """The later news item that ends what a news item among the chunks announced (a ban revoked, a
+    road reopened), put right after it: without it the answer gives a ban of months before as
+    possibly still in force."""
+    try:
+        found = news_followups(chunks)
+    except (ValueError, OSError) as e:
+        log.warning(f"News follow-ups skipped: {e}")
+        return chunks
+    if not found:
+        return chunks
+    out = []
+    for c in chunks:
+        out.append(c)
+        if c.get("source", "") in found:
+            out.append(found[c["source"]])
+    log.info("News follow-ups: %d attached", len(found))
+    return out
+
+
 # «Quali contributi ha ricevuto la Croce Rossa dal Comune nel 2025?»: a question about money given to
 # someone named. The cards of the grants section are looked up by the beneficiary's name.
 _GRANT_QUERY_RE = re.compile(
@@ -591,7 +612,7 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     # Prepend the known facts, avoiding duplicates by source
     known_sources = {k["source"] for k in known}
     chunks = [c for c in chunks if c.get("source") not in known_sources]
-    chosen = _with_act_cards((known + chunks)[:top_k], query)
+    chosen = _with_followups(_with_act_cards((known + chunks)[:top_k], query))
     if ATTACHMENT_PASSAGES > 0 and not vec_is_zero:
         # the PDFs linked by the chosen pages (a regulation, a fee table): their passage closest to
         # the question, which the search over the whole index may have left out

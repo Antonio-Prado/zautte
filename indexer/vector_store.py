@@ -12,6 +12,7 @@ are postponed to the periodic `checkpoint()` calls and to the exit from the
 block, instead of a full rewrite for every document.
 """
 
+import bisect
 import contextlib
 import hashlib
 import json
@@ -25,6 +26,7 @@ import time
 import unicodedata
 from collections import Counter
 from contextlib import contextmanager
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -62,6 +64,7 @@ _bm25_dirty = False   # True if the corpus changed after the last build
 _acts_index = None    # (number, year) -> rows of the acts with that number, built lazily (find_acts)
 _versions = None      # source -> (year, latest year, latest source) of its series, built lazily (version_info)
 _grants = None        # beneficiary -> grant cards, built lazily (find_grants)
+_news = None          # dated first passages of the news items, by date, built lazily (news_followups)
 _pdf_title_count: Counter | None = None  # /Title → number of PDFs using it (lazy)
 _pdf_first_text: dict[str, str] = {}      # PDF source → text of the first chunk
 _pdf_display: dict[str, str] = {}         # PDF source → title to display (cache)
@@ -194,7 +197,7 @@ def reload() -> dict:
     stays. Returns the stats with `reloaded` True/False."""
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty
     global _pdf_title_count, _pdf_first_text, _pdf_display, _pdf_link_texts, _last_save_ts, _copy_of
-    global _source_rows, _page_attachments, _acts_index, _versions, _grants
+    global _source_rows, _page_attachments, _acts_index, _versions, _grants, _news
     try:
         loaded = _read_from_disk()
     except (OSError, ValueError, EOFError) as e:
@@ -216,6 +219,7 @@ def reload() -> dict:
         _acts_index = None
         _versions = None
         _grants = None
+        _news = None
         _last_save_ts = time.time()
     log.info(f"Vector store reloaded: {len(_ids)} chunks")
     return {**get_stats(), "reloaded": True}
@@ -223,10 +227,11 @@ def reload() -> dict:
 
 def _reset_state():
     global _embeddings, _metadata, _ids, _id_to_idx, _bm25, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows
-    global _acts_index, _versions, _grants
+    global _acts_index, _versions, _grants, _news
     _acts_index = None
     _versions = None
     _grants = None
+    _news = None
     _embeddings = None  # dimension determined by the first batch
     _metadata = []
     _ids = []
@@ -415,7 +420,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
     in memory (avoids calling Ollama again for unchanged content).
     Returns the number of chunks inserted or updated with a new vector.
     """
-    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index, _versions, _grants
+    global _embeddings, _bm25_dirty, _pdf_title_count, _copy_of, _source_rows, _acts_index, _versions, _grants, _news
 
     if not chunks:
         return 0
@@ -499,6 +504,7 @@ def upsert_chunks(chunks: list[dict], embeddings: list[list[float] | None]) -> i
         _acts_index = None
         _versions = None
         _grants = None
+        _news = None
         _save()
     return inserted + updated
 
@@ -1112,6 +1118,77 @@ def latest_version_passages(chosen: list[dict], query_embedding: list[float], li
             best.append((float(scores[j]), r[j]))
         best.sort(key=lambda b: b[0], reverse=True)
         return [_result(idx, score) for score, idx in best[:limit]]
+
+
+# «Il sindaco ha revocato l'ordinanza…», «il mare è di nuovo balneabile», «riaperta la strada»: a news
+# item that ends what an earlier one announced.
+_FOLLOWUP_RE = re.compile(r"\b(revoc\w+|riapert\w+|riapr\w+|di nuovo|ripristin\w+|cessat\w+|terminat\w+|"
+                          r"annullat\w+|rientrat\w+|non (?:è|sono) più)\b", re.IGNORECASE)
+_FOLLOWUP_DAYS = 90      # a follow-up is looked for in the news of the days after the item
+_FOLLOWUP_HEAD = 700     # characters of the follow-up that must name what it ends
+_FOLLOWUP_WORDS = 3      # words of the title of the item (five letters or more) the follow-up must share
+
+
+def _news_words(text: str) -> frozenset[str]:
+    return frozenset(t for t in (_plain(w) for w in re.findall(r"[A-Za-zÀ-ü]{5,}", text)) if t not in _GRANT_STOPWORDS)
+
+
+def _build_news(metadata: list[dict]) -> list[tuple[str, int]]:
+    """(date, row) of the first passage of every dated news item, in order of date."""
+    rows = []
+    for i, meta in enumerate(metadata):
+        if meta.get("chunk_index", 0) != 0 or meta.get("category") != "notizia":
+            continue
+        day = str(meta.get("date", ""))[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            rows.append((day, i))
+    rows.sort()
+    return rows
+
+
+def news_followups(chosen: list[dict], limit: int = 2) -> dict[str, dict]:
+    """For the news items among `chosen` that a later news item ends (a ban revoked, a road reopened),
+    that later item: {source of the item: passage of its follow-up}. The search finds the ban, which
+    looks like the question, and not its revocation («the sea is bathable again»), so the answer
+    gave a ban of months before as possibly still in force. A follow-up is a news item of the
+    following `_FOLLOWUP_DAYS` days whose beginning says that something ended and shares at least
+    `_FOLLOWUP_WORDS` words with the title of the item; the nearest in time, at most `limit` in all."""
+    global _news
+    out: dict[str, dict] = {}
+    with _lock:
+        _ensure_loaded()
+        if _news is None:
+            _news = _build_news(_metadata)
+            log.info(f"News follow-ups: {len(_news)} dated news items")
+        if not _news:
+            return out
+        have = {c.get("source", "") for c in chosen}
+        for c in chosen:
+            day = str(c.get("date", ""))[:10]
+            if len(out) >= limit or c.get("category") != "notizia" or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                continue
+            words = _news_words(c.get("title", ""))
+            if len(words) < _FOLLOWUP_WORDS:
+                continue
+            try:
+                last = (date.fromisoformat(day) + timedelta(days=_FOLLOWUP_DAYS)).isoformat()
+            except ValueError:
+                continue
+            for k in range(bisect.bisect_right(_news, (day, len(_metadata))), len(_news)):
+                when, i = _news[k]
+                if when > last:
+                    break
+                meta = _metadata[i]
+                doc = _kept_meta(meta)
+                src = doc.get("source", "")
+                if src in have or src == c.get("source"):
+                    continue
+                head = f"{doc.get('title', '')} {meta.get('text', '')[:_FOLLOWUP_HEAD]}"
+                if _FOLLOWUP_RE.search(head) and len(words & _news_words(head)) >= _FOLLOWUP_WORDS:
+                    out[c.get("source", "")] = _result(i, float(c.get("score", 0.0)))
+                    have.add(src)
+                    break
+    return out
 
 
 def _result(idx: int, score: float) -> dict:

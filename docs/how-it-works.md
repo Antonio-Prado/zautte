@@ -41,6 +41,7 @@ User question
      ├─ dedup + MIN_SIMILARITY — drops identical texts and chunks with cosine < 0.50
      ├─ rerank()             — title boost, "servizio" category boost, PDF, news, retired-domain and older-yearly-version penalties, same-source penalty
      ├─ known facts first, then chunks, cut to RETRIEVAL_TOP_K (7)
+     ├─ news follow-ups      — the later news item that ends what a chosen news item announced (a ban revoked), put right after it
      ├─ attachment passages  — up to ATTACHMENT_PASSAGES (2) from the PDFs linked by the chosen pages
      ├─ document passages    — up to DOCUMENT_PASSAGES (2): the passage closest to the question of a document whose heading was chosen
      ├─ latest version       — the latest yearly version of a chosen document, when the search brought only an older one
@@ -103,6 +104,10 @@ Each chunk keeps its cosine score, which the confidence check and the sources li
 ### Passages of the attachments of the chosen pages
 
 A page often says what a service is and leaves the figures to a PDF it links: the regulation with the distances, the table of fees. The search over the whole index does not always reach that PDF passage: a table reads badly as text, a sentence can be cut between two passages, and the PDF penalty works against it. So, once the chunks are chosen, `retrieve_context()` looks at the pages among them (not PDFs, known facts included) and at the PDFs each page links (`data/crawl_cache/page_attachments.json`, written by the crawler; pages linking more than 20 PDFs, such as a list of forms, are left out). For each attached PDF not already in the context it takes the passage closest to the question (cosine with the query vector), joined to the passage that follows it, and adds the best `ATTACHMENT_PASSAGES` (default 2; 0 turns this off) whose similarity is at least `MIN_SIMILARITY`, after the other chunks.
+
+### News follow-ups
+
+A ban, a closure or a temporary ordinance is announced in one news item and ended in another, days later, with a title that does not look like the question («the sea is bathable again»): the search finds the ban and not its revocation, and the answer gives a ban of months before as possibly still in force. For each news item among the chosen passages `news_followups()` (`indexer/vector_store.py`) looks, in the news of the following 90 days, for an item whose beginning says that something ended (revoked, reopened, again, restored, cancelled) and shares at least three words of five letters or more with the title of the first; the nearest in time is put right after it (at most two in all). Old news items are not penalised: they stay what they are, the record of what happened, with what happened next beside them.
 
 ### Dynamic known facts
 
