@@ -21,8 +21,10 @@ META = [
           "Notizia del 10 luglio 2026. Di nuovo in piazza la festa, con la processione in mare."),
     _news(LIFTED, "Il mare della Sentina è di nuovo balneabile", "2026-07-13",
           "Notizia del 13 luglio 2026. Il sindaco ha revocato l'ordinanza con cui si disponeva il divieto di "
-          "balneazione: i valori di Escherichia coli sono ora inferiori ai limiti di legge."),
-    _news(LIFTED, "Il mare della Sentina è di nuovo balneabile", "2026-07-13", "Secondo brano.", chunk=1),
+          "balneazione nel tratto di mare a nord della foce."),
+    # one passage per paragraph: the words shared with the ban are in the second
+    _news(LIFTED, "Il mare della Sentina è di nuovo balneabile", "2026-07-13",
+          "I valori di Escherichia coli sono ora inferiori ai limiti di legge.", chunk=1),
     _news("https://news.example.it/2027/07/20/revoca/", "Revocato il divieto di balneazione alla Sentina per Escherichia coli",
           "2027-07-20", "Notizia del 20 luglio 2027. Revocato il divieto: Escherichia coli nei limiti."),
     _news("https://www.example.it/page", "Balneazione alla Sentina: limiti di Escherichia coli", "2026-07-14",
