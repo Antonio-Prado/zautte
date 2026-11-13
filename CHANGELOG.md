@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-11-13
+
+### Added
+- `scripts/latest_news.py`: the latest news as a dynamic known fact. "What is the latest news?" got a list
+  of the sections of the site and "I have no real-time access to the articles": no article says «latest».
+  Every 15 minutes the job reads the bulletin (`news.wordpress_api`) and writes the fact `news-latest`: the
+  most recent articles with date, title, the beginning of the text and the link, newest first. It is
+  injected when the question asks for the news of now («ultime notizie», «novità»), not for the news on a
+  subject. Configuration: `latest_news` in `crawl_extra.json` (`count`, `days_back`, `max_text`, optional
+  `keywords`, `require_any`). Cron wrapper `scripts/latest_news.sh`.
+
 ## [0.44.4] - 2026-11-13
 
 ### Fixed

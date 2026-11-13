@@ -165,6 +165,9 @@ RECRUITMENT_NOTICES: dict = {}
 # "alerts" key of crawl_extra.json → {"authority": "Protezione Civile della Regione …", "authority_url": "https://…",
 # "days_back": 10, "max_text": 1500, "title_pattern": "…", "keywords": [...], "require_any": [...]}
 WEATHER_ALERTS: dict = {}
+# The latest news (scripts/latest_news.py, from the WordPress bulletin of "news"): "latest_news" key of
+# crawl_extra.json → {"count": 10, "days_back": 30, "max_text": 300, "keywords": [...], "require_any": [...]}
+LATEST_NEWS: dict = {}
 # Figures of the transparency portal as dynamic known facts (scripts/transparency_facts.py): "amt_facts" key of
 # crawl_extra.json → {"pay": {"voceamt": 173}, "rpct": {"voceamt": 513}, "payments": {"voceamt": 535},
 # "staff": {"voceamt": 24}}, each with optional "keywords", "require_any", "title"
@@ -191,6 +194,7 @@ try:
         EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
         RECRUITMENT_NOTICES.update(_crawl_extra.get("recruitment", {}))
         WEATHER_ALERTS.update(_crawl_extra.get("alerts", {}))
+        LATEST_NEWS.update(_crawl_extra.get("latest_news", {}))
         AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
