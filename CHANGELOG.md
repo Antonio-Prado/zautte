@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.44.2] - 2026-11-13
+
+### Fixed
+- An answer gave, as the current reference, a web address and a toll-free number taken from the footer of
+  a regional bulletin of 2023 attached to an old news item: the address no longer answers. They were in
+  the passages, so the rule "contacts only from the context" let them through. A new prompt rule (Italian
+  and English): a contact that appears only in a news item, a notice or an attachment of past years may
+  no longer be valid; the contacts of current pages come first, and when the old one is the only one it is
+  given with the year of its document and the warning that it may have changed.
+
 ## [0.44.1] - 2026-11-13
 
 ### Fixed
