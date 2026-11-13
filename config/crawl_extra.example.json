@@ -70,5 +70,9 @@
     "api_url": "https://tourism.example.org/wp-json/tribe/events/v1/events",
     "calendar_url": "https://tourism.example.org/events/",
     "days_ahead": 60
+  },
+  "alerts": {
+    "authority": "Protezione Civile della Regione Esempio",
+    "authority_url": "https://alerts.example.org/"
   }
 }

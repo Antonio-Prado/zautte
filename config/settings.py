@@ -161,6 +161,10 @@ EVENTS_CALENDAR: dict = {}
 # portal configured in "amt"): "recruitment" key of crawl_extra.json → {"voceamt": 544, "closed_days": 90,
 # "keywords": [...], "require_any": [...]}
 RECRUITMENT_NOTICES: dict = {}
+# Weather and civil protection alerts for today (scripts/weather_alerts.py, from the news sources of "news"):
+# "alerts" key of crawl_extra.json → {"authority": "Protezione Civile della Regione …", "authority_url": "https://…",
+# "days_back": 10, "max_text": 1500, "title_pattern": "…", "keywords": [...], "require_any": [...]}
+WEATHER_ALERTS: dict = {}
 # Figures of the transparency portal as dynamic known facts (scripts/transparency_facts.py): "amt_facts" key of
 # crawl_extra.json → {"pay": {"voceamt": 173}, "rpct": {"voceamt": 513}, "payments": {"voceamt": 535},
 # "staff": {"voceamt": 24}}, each with optional "keywords", "require_any", "title"
@@ -186,6 +190,7 @@ try:
         COUNCIL_SESSIONS.update(_crawl_extra.get("council", {}))
         EVENTS_CALENDAR.update(_crawl_extra.get("events", {}))
         RECRUITMENT_NOTICES.update(_crawl_extra.get("recruitment", {}))
+        WEATHER_ALERTS.update(_crawl_extra.get("alerts", {}))
         AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
@@ -547,6 +552,12 @@ Regole FONDAMENTALI:
 - Un avviso attuale (allerta meteo, chiusura, scadenza, ordinanza) si riferisce con ciò che dice lui: non
   aggiungergli consigli, raccomandazioni o dettagli presi da una notizia più vecchia dello stesso tipo che lui non
   contiene (per esempio le precauzioni di un'allerta di anni prima); se ne parli, dillo e cita quella fonte
+- Allerte meteo e di protezione civile: non affermare mai che non ci sono allerte, che non ne risultano di attive
+  o che non c'è pericolo. Se nel CONTESTO non trovi un'allerta che riguarda proprio la data chiesta, di' soltanto che
+  tra gli avvisi pubblicati sul sito non ne hai trovata una per quella data, che questo non esclude che un'allerta
+  sia stata emessa, e indica la protezione civile competente (con i riferimenti presenti nel CONTESTO) e il 112 per
+  le emergenze. Non presentare come attuale un'allerta che riguarda un'altra data e non valutare se sia sicuro fare
+  qualcosa (uscire in mare, mettersi in viaggio)
 - Ciò che si ricava solo da documenti di programmazione o rendicontazione di anni passati (piani esecutivi di
   gestione, piani della performance, relazioni di fine mandato, DUP) descrive ciò che era previsto allora, non un
   servizio attivo oggi: se lo citi, di' di quali anni è il documento e che le pagine attuali non lo confermano; non
@@ -612,6 +623,11 @@ Rules:
 - A current notice (weather alert, closure, deadline, ordinance) is reported with what it says: do not add to it
   advice, recommendations or details taken from an older news item of the same kind that it does not contain
   (for example the precautions of an alert of years before); if you mention them, say so and cite that source
+- Weather and civil protection alerts: never state that there are no alerts, that none is in force or that there
+  is no danger. If the CONTEXT has no alert about the very date asked, only say that among the notices published on
+  the site you found none for that date, that this does not rule out that an alert has been issued, and point to the
+  competent civil protection authority (with the references in the CONTEXT) and to 112 for emergencies. Do not present
+  an alert about another date as current and do not assess whether something is safe to do (going out to sea, travelling)
 - What comes only from planning or reporting documents of past years (executive management plans, performance
   plans, end-of-term reports, DUP) describes what was planned then, not a service active today: if you mention it,
   say which years the document covers and that the current pages do not confirm it; do not present it as a tool

@@ -163,6 +163,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── page_attachments.py   # Page → PDFs it links, for the pages already crawled (the crawler keeps it up to date)
 │   ├── council_sessions.py   # Council sessions calendar from the convocations page → dynamic known fact (hourly cron)
 │   ├── events_calendar.py    # Events in progress and coming up from The Events Calendar REST API → dynamic known fact (hourly cron)
+│   ├── weather_alerts.py     # Weather and civil protection alerts for today from the news sources → dynamic known fact (cron, every 15 minutes)
 │   ├── inbox_indexer.py      # Indexing of manually uploaded documents
 │   ├── reembed.py            # Re-embeds the whole store with another model while the API keeps answering
 │   ├── embed_check.py        # Checks that Ollama's vectors do not change across an upgrade
@@ -180,6 +181,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── amt_sync.sh           # Amministrazione trasparente every night (same lock)
 │   ├── council_sessions.sh   # Council sessions job every hour (own lock, memory ceiling, time limit)
 │   ├── events_calendar.sh    # Events job every hour (own lock, memory ceiling, time limit)
+│   ├── weather_alerts.sh     # Alerts job every 15 minutes (own lock, memory ceiling, time limit)
 │   ├── setup_freebsd.sh      # Initial setup on FreeBSD
 │   ├── setup_sync_user.sh    # Creates the unprivileged account of the sync jobs (run once as root)
 │   ├── make_sync_env.py      # Builds .env.sync from an allowlist (no secrets)
