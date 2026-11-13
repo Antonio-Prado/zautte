@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-13
+
+### Added
+- `scripts/tender_notices.py`: the tenders with offers still open today, as a dynamic known fact. "Are
+  there any tenders open now?" got a tender closed seven months before and "none with a later deadline"
+  while two were open. Every hour the job reads the pages of the «Bandi di gara e contratti» section that
+  list the tender documents (`tenders.voceamt`; portal and page from `amt`), takes the deadline each block
+  states and writes the fact `tenders-open`: the procedures open today with deadline, documents and
+  procurement platform, the recent ones without a stated deadline, the ones closed in the last
+  `closed_days` days. Configuration: `tenders` in `crawl_extra.json`. Cron wrapper `scripts/tender_notices.sh`.
+
 ## [0.45.0] - 2026-11-13
 
 ### Added
