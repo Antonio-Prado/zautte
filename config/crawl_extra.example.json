@@ -74,5 +74,8 @@
   "alerts": {
     "authority": "Protezione Civile della Regione Esempio",
     "authority_url": "https://alerts.example.org/"
+  },
+  "latest_news": {
+    "count": 10
   }
 }
