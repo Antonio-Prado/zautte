@@ -39,6 +39,7 @@ ROWS = [
          "Deliberazione di Giunta comunale n. 19 del 23.02.2026", 0, "intestazione", vec=(0.0, 0.0, 1.0)),
     _doc(171, "piao-2026-2028", "PIANO INTEGRATO ATTIVITA' E ORGANIZZAZIONE (PIAO) 2026/2028 approvato con "
          "Deliberazione di Giunta comunale n. 19 del 23.02.2026", 1, "misure anticorruzione nuove", vec=(0.8, 0.2, 0.0)),
+    _card(7, "REGATA", "A.S.D. STELLA DEL MARE", "400,00 €", "01/07/2025"),
 ]
 META = [m for m, _ in ROWS]
 VECS = np.array([v for _, v in ROWS], dtype=np.float32)
@@ -76,13 +77,16 @@ def test_find_grants_by_name(store):
     assert vs.find_grants({"quanto", "dato", "cooperativa", "attivamente"})[1]["count"] == 1   # a rare word is enough
     assert vs.find_grants({"contributi", "rossa"})[1]["count"] == 3     # «rossa»: two beneficiaries have it, rare
     assert vs.find_grants({"contributi", "comitato"}) == ([], {})        # a generic word is not a name word
+    # «se fossi uscito in mare… dato che»: a short everyday word that happens to be in few names is not a name
+    assert vs.find_grants({"dato", "uscito", "mare", "peschereccio"}) == ([], {})
+    assert vs.find_grants({"contributi", "stella", "mare"})[1]["count"] == 1
     assert vs.find_grants({"contributi", "associazione", "sportiva"}) == ([], {})
     assert vs.find_grants({"contributi", "comune", "benedetto"}) == ([], {})
 
 
 def test_grants_by_beneficiary_summary(store):
     found = rag._grants_by_beneficiary("quali contributi ha ricevuto la Croce Rossa dal Comune nel 2025?")
-    assert len(found) == 2 and found[0]["known"] and found[1]["known"]
+    assert len(found) == 2 and not found[0].get("known") and not found[1].get("known")   # listed only when cited
     assert "a favore di CROCE ROSSA" in found[0]["text"] and "1 schede nell'anno 2025" in found[0]["text"]
     assert "866,00 €" in found[0]["text"] and found[0]["source"].endswith("voceamt=197")
     assert found[1]["source"].endswith("dettaglio=2")

@@ -1150,6 +1150,7 @@ _GRANT_STOPWORDS = frozenset([
 ])
 _GRANT_MAX_BENEFICIARIES = 10   # more names matched: the words are too generic, the search does better
 _GRANT_RARE_WORD = 3            # a single word of the name is enough when at most this many beneficiaries have it
+_GRANT_RARE_WORD_LEN = 5        # … and it is this long: «mare», «sole», «casa» are in three names and in any question
 
 
 def _plain(word: str) -> str:
@@ -1192,7 +1193,7 @@ def _build_grants(metadata: list[dict]) -> dict[str, dict]:
 
 def find_grants(words: set[str], year: int | None = None, limit: int = 4) -> tuple[list[dict], dict]:
     """The grant cards of the beneficiaries whose distinctive name words are all in `words` (or at
-    least two of them, or one that few beneficiaries have), the `limit` most recent (of `year`, when
+    least two of them, or one of five letters or more that few beneficiaries have), the `limit` most recent (of `year`, when
     given), and a summary: names, number of cards, their years, the sum of the amounts. ([], {}) when
     no beneficiary matches, or too many."""
     global _grants
@@ -1208,7 +1209,8 @@ def find_grants(words: set[str], year: int | None = None, limit: int = 4) -> tup
             if not tokens:
                 continue
             found = tokens & plain
-            if len(found) == len(tokens) or len(found) >= 2 or found & entry["rare"]:
+            if (len(found) == len(tokens) or len(found) >= 2
+                    or any(len(t) >= _GRANT_RARE_WORD_LEN for t in found & entry["rare"])):
                 matched.append(name)
         if not matched or len(matched) > _GRANT_MAX_BENEFICIARIES:
             return [], {}

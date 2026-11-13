@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.44.1] - 2026-11-13
+
+### Fixed
+- Under an answer that cited no source (a question about the assistant itself, asked with the words
+  «uscito in mare») five grant cards of associations with «mare» in their name were listed. Two causes:
+  the grant cards found by the beneficiary's name were marked as known facts, which are listed when the
+  answer cites nothing; and one word of a name was enough to find a beneficiary when few names have it,
+  even an everyday word. The grant cards are now listed only when the answer cites them, and a single
+  word finds a beneficiary only when it is at least five letters long (or is the whole name).
+
 ## [0.44.0] - 2026-11-13
 
 ### Added

@@ -518,7 +518,8 @@ GRANT_CARDS = 4   # cards of the beneficiary put before the search results (the 
 
 def _grants_by_beneficiary(query: str) -> list[dict]:
     """The grant cards of the beneficiary the question names, with a summary of all its cards (how
-    many, which years, the sum of the amounts), put before the search results as known facts are."""
+    many, which years, the sum of the amounts), put before the search results as known facts are.
+    Unlike known facts they are listed under the answer only when it cites them."""
     if not _GRANT_QUERY_RE.search(query):
         return []
     words = set(re.findall(r"[a-zà-ü]{3,}", query.lower()))
@@ -538,9 +539,9 @@ def _grants_by_beneficiary(query: str) -> list[dict]:
             f"ognuna con l'importo, l'atto e il link; l'elenco completo, con la ricerca per beneficiario, è nella pagina "
             f"della sezione: {section}")
     summary = {"text": text, "title": f"Contributi e pagamenti del Comune a {names} (dalle schede della Trasparenza)",
-               "source": section, "score": 1.0, "category": "documento", "known": True, "admin": False}
-    for c in cards:
-        c["known"] = True
+               "source": section, "score": 1.0, "category": "documento", "admin": False}
+    # Not "known": the cards are found by a word of the question, so under an answer that cites no
+    # source (shown_sources) they would be listed although the question was about something else
     log.info(f"Grants by beneficiary: {names}: {info['count']} cards, {len(cards)} shown")
     return [summary, *cards]
 
