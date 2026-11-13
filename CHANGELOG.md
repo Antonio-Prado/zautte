@@ -9,6 +9,14 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-11-13
+
+### Fixed
+- News follow-ups (0.47.0) compared the title of a news item with the first passage of the later one, but
+  a news item is split into one short passage per paragraph and what it ends is named across the first
+  ones: the revocation of a bathing ban was not attached to the ban. The beginning of the whole later item
+  (its first passages, 1,200 characters) is read now.
+
 ## [0.47.0] - 2026-11-13
 
 ### Added

@@ -1125,7 +1125,7 @@ def latest_version_passages(chosen: list[dict], query_embedding: list[float], li
 _FOLLOWUP_RE = re.compile(r"\b(revoc\w+|riapert\w+|riapr\w+|di nuovo|ripristin\w+|cessat\w+|terminat\w+|"
                           r"annullat\w+|rientrat\w+|non (?:è|sono) più)\b", re.IGNORECASE)
 _FOLLOWUP_DAYS = 90      # a follow-up is looked for in the news of the days after the item
-_FOLLOWUP_HEAD = 700     # characters of the follow-up that must name what it ends
+_FOLLOWUP_HEAD = 1200    # characters of the follow-up (its first passages) that must name what it ends
 _FOLLOWUP_WORDS = 3      # words of the title of the item (five letters or more) the follow-up must share
 
 
@@ -1183,7 +1183,13 @@ def news_followups(chosen: list[dict], limit: int = 2) -> dict[str, dict]:
                 src = doc.get("source", "")
                 if src in have or src == c.get("source"):
                     continue
-                head = f"{doc.get('title', '')} {meta.get('text', '')[:_FOLLOWUP_HEAD]}"
+                # a news item is split into short passages (one per paragraph): what it ends is named
+                # across the first ones, not only in the first
+                head, k2 = doc.get("title", ""), i
+                while k2 < len(_metadata) and _metadata[k2].get("source") == meta.get("source") and len(head) < _FOLLOWUP_HEAD:
+                    head += " " + _metadata[k2].get("text", "")
+                    k2 += 1
+                head = head[:_FOLLOWUP_HEAD + len(doc.get("title", ""))]
                 if _FOLLOWUP_RE.search(head) and len(words & _news_words(head)) >= _FOLLOWUP_WORDS:
                     out[c.get("source", "")] = _result(i, float(c.get("score", 0.0)))
                     have.add(src)
