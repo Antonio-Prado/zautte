@@ -9,6 +9,29 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-13
+
+### Added
+- `scripts/weather_alerts.py`: the weather and civil protection alerts about today, as a dynamic known
+  fact. "Are there any alerts for today?" got "no alert is in force" on a day with a wind alert published
+  the afternoon before: the search by similarity found older alerts, all alike, and not the one for the
+  day. Every 15 minutes the job reads the news sources (`news.wordpress_api`, and the messages of
+  `news.telegram` that are notices of their own), keeps the items of the last days whose title says they
+  are an alert, works out the days each one is about from its title and writes the fact `alerts-today`:
+  the alerts about today with text and link, the ones about the next days, the past ones (marked as not
+  current) and how to answer. Configuration: `alerts` in `crawl_extra.json` (`authority`, `authority_url`,
+  optional `days_back`, `max_text`, `title_pattern`, `keywords`, `require_any`). Cron wrapper
+  `scripts/weather_alerts.sh`.
+
+### Changed
+- A prompt rule (Italian and English): the assistant never states that there are no alerts or no danger.
+  When no alert about the date asked is among the published notices it says only that, adds that this
+  does not rule out an alert, and points to the civil protection authority and to 112; it does not assess
+  whether something is safe to do.
+- The answer cache (six hours) is emptied when the dynamic facts file changes: an answer given before an
+  alert was published, a call opened or an event was added is no longer repeated after it.
+- The host of `alerts.authority_url` is among the hosts an answer may link to.
+
 ## [0.43.5] - 2026-11-12
 
 ### Fixed

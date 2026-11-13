@@ -44,6 +44,7 @@ from config.settings import (
     SITE_URL,
     SYSTEM_PROMPT_EN,
     SYSTEM_PROMPT_IT,
+    WEATHER_ALERTS,
     is_migrated_source,
     now_local,
 )
@@ -722,7 +723,8 @@ def link_hosts(messages: list[dict], query: str, chunks: list[dict] | None = Non
         m = _URL_HOST_RE.match(str(c.get("source", "")))
         if m:
             hosts.add(m.group(1).lower().rstrip("."))
-    for d in [SITE_URL, *CRAWL_ALLOWED_DOMAINS]:
+    # the address of the authority that issues the alerts is written by the administrator in the configuration
+    for d in [SITE_URL, *CRAWL_ALLOWED_DOMAINS, str(WEATHER_ALERTS.get("authority_url") or "")]:
         h = (_URL_HOST_RE.search(d).group(1) if d.startswith("http") else d).lower().strip().rstrip(".")
         if h:
             hosts.add(h)
@@ -1434,7 +1436,20 @@ def clear_response_cache() -> None:
     _response_cache.clear()
 
 
+_cache_facts_mtime: list = [None]   # modification time of the dynamic facts file the cached answers were written with
+
+
+def _drop_cache_if_facts_changed() -> None:
+    """A dynamic fact changes during the day (an alert is published, a call opens): an answer cached
+    before the change would repeat for hours what was true then («no alert for today»)."""
+    _dynamic_known_facts()
+    if _DYNAMIC_FACTS["mtime"] != _cache_facts_mtime[0]:
+        _cache_facts_mtime[0] = _DYNAMIC_FACTS["mtime"]
+        _response_cache.clear()
+
+
 def _cache_get(query: str):
+    _drop_cache_if_facts_changed()
     key = _cache_key(query)
     entry = _response_cache.get(key)
     if entry is None:
@@ -1449,6 +1464,7 @@ def _cache_get(query: str):
 
 
 def _cache_set(query: str, value):
+    _drop_cache_if_facts_changed()
     key = _cache_key(query)
     _response_cache[key] = (_time.time(), now_local().date().isoformat(), value)
     _response_cache.move_to_end(key)
