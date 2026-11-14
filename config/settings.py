@@ -419,6 +419,10 @@ ADMIN_PATH = ("/" + os.getenv("ADMIN_PATH", "").strip().strip("/")) if os.getenv
 AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on")
 AUTH_SECRET = os.getenv("AUTH_SECRET", "")
 AUTH_TOKEN_TTL_DAYS = int(os.getenv("AUTH_TOKEN_TTL_DAYS", "7"))
+# A session ends after this many minutes without a request (0 = no idle limit: it lasts
+# AUTH_TOKEN_TTL_DAYS). While the person keeps using the assistant the token is renewed (response
+# header X-Auth-Token), up to AUTH_TOKEN_TTL_DAYS from the login: then the password is asked again.
+AUTH_IDLE_MINUTES = max(0, int(os.getenv("AUTH_IDLE_MINUTES", "30")))
 # users.json lives in data/ (already in .gitignore): credentials kept out of version control
 USERS_FILE = DATA_DIR / "users.json"
 # Questions per day per user on /chat and /chat/stream (0 = no limit).

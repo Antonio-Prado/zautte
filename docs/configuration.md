@@ -109,6 +109,9 @@ AUTH_ENABLED=false
 #ALLOW_ANONYMOUS=false
 AUTH_SECRET=
 AUTH_TOKEN_TTL_DAYS=7
+# A session ends after this many minutes without a request (0 = no idle limit); while the person keeps
+# using the assistant it is renewed, up to AUTH_TOKEN_TTL_DAYS from the login
+AUTH_IDLE_MINUTES=30
 # Questions per day per user on /chat and /chat/stream (0 = no limit; per IP if AUTH_ENABLED=false)
 DAILY_QUESTION_LIMIT=20
 # Accounts not subject to the daily limit (test accounts): ids or e-mails, comma-separated (not names:

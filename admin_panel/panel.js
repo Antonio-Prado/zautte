@@ -120,7 +120,7 @@
 
     function updateStats() {
       const t0 = performance.now();
-      fetch(apiBase + '/health', { headers: adminHeaders() })
+      adminFetch(apiBase + '/health', { headers: adminHeaders() })
         .then(r => r.json())
         .then(d => {
           _health = d;
@@ -230,7 +230,7 @@
     let _crawlAll = false, _tokAll = false;
     document.getElementById('tok-more').addEventListener('click', () => { _tokAll = true; updateStats(); });
     function updateCrawlHistory() {
-      fetch(apiBase + '/crawl-history', { headers: adminHeaders() })
+      adminFetch(apiBase + '/crawl-history', { headers: adminHeaders() })
         .then(r => r.json())
         .then(d => {
           [['html', d.current_html, ' pages'], ['pdf', d.current_pdf, '']].forEach(([k, p, unit]) => {
@@ -268,7 +268,7 @@
     function loadNegativeFeedback() {
       const statusEl = document.getElementById('neg-fb-status');
       const listEl = document.getElementById('neg-fb-list');
-      fetch(apiBase + '/feedback/negative', { headers: adminHeaders() })
+      adminFetch(apiBase + '/feedback/negative', { headers: adminHeaders() })
         .then(r => r.json())
         .then(data => {
           const items = (data.items || []).slice().reverse();
@@ -343,7 +343,7 @@
     function _resolve(e, li, form, note, notify) {
       const btns = form.querySelectorAll('button');
       btns.forEach(b => { b.disabled = true; });
-      fetch(apiBase + '/feedback/resolve', {
+      adminFetch(apiBase + '/feedback/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         body: JSON.stringify({ ts: e.ts, question: e.question, id: e.id || null, note: note.trim(), notify }),
@@ -369,7 +369,7 @@
     function _msgKey(m) { return [m.rid || '', m.ts || '', m.uid || ''].join('|'); }
 
     function _fetchMessages(offset) {
-      return fetch(apiBase + '/usage/messages?limit=' + MSG_PAGE + '&offset=' + offset + '&retrieved=false',
+      return adminFetch(apiBase + '/usage/messages?limit=' + MSG_PAGE + '&offset=' + offset + '&retrieved=false',
         { headers: adminHeaders() })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
@@ -393,7 +393,7 @@
       if (Array.isArray(d.fresh)) { _msgFresh.clear(); d.fresh.forEach(k => _msgFresh.add(k)); }
     }
     function _postMsgState(path, body) {
-      return fetch(apiBase + path, { method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      return adminFetch(apiBase + path, { method: 'POST', headers: { ...adminHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
     }
     function _markMessagesSeen(ts) {
@@ -425,7 +425,7 @@
     }
     function countNewMessages() {
       if (activeTab === 'messages') return;  // the log on screen marks itself as seen
-      fetch(apiBase + '/usage/messages?limit=0&retrieved=false', { headers: adminHeaders() })
+      adminFetch(apiBase + '/usage/messages?limit=0&retrieved=false', { headers: adminHeaders() })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => {
           _syncMsgState(d);
@@ -609,7 +609,7 @@
     function loadUsage() {
       const body = document.getElementById('usage-body');
       const status = document.getElementById('usage-status');
-      fetch(apiBase + '/usage/summary', { headers: adminHeaders() })
+      adminFetch(apiBase + '/usage/summary', { headers: adminHeaders() })
         .then(r => {
           if (r.status === 403) { _adminKey = null; _adminToken = null; throw new Error('key'); }
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -648,7 +648,7 @@
       const statusEl = document.getElementById('apps-status');
       const listEl = document.getElementById('apps-list');
       const showAll = document.getElementById('apps-show-all').checked;
-      fetch(apiBase + '/applications', { headers: adminHeaders() })
+      adminFetch(apiBase + '/applications', { headers: adminHeaders() })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(data => {
           const all = data.applications || [];
@@ -697,7 +697,7 @@
         : 'Reject ' + who + '?\n\nNothing is sent to the person: the application is only marked as not selected.';
       if (!confirm(what)) return;
       btns.forEach(b => { b.disabled = true; });
-      fetch(apiBase + '/applications/' + action, {
+      adminFetch(apiBase + '/applications/' + action, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...adminHeaders() },
         body: JSON.stringify({ id: a.id }),
@@ -729,7 +729,7 @@
     function loadSurvey() {
       const statusEl = document.getElementById('survey-status');
       const body = document.getElementById('survey-body');
-      fetch(apiBase + '/survey/results', { headers: adminHeaders() })
+      adminFetch(apiBase + '/survey/results', { headers: adminHeaders() })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(d => {
           if (!d.configured) {
@@ -808,6 +808,10 @@
       let tick = 0;
       setInterval(() => {
         if (document.hidden) return;
+        _polling = true;   // a refresh nobody asked for does not keep the session alive (adminFetch)
+        try { refreshAll(); } finally { _polling = false; }
+      }, 30000);
+      function refreshAll() {
         tick += 1;
         updateStats();
         if (tick % 2) return;
@@ -818,7 +822,7 @@
         countNewMessages();
         if (activeTab === 'messages') refreshMessages();
         if (activeTab === 'system') updateCrawlHistory();
-      }, 30000);
+      }
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) return;
         updateStats();

@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-11-14
+
+### Added
+- Sessions end after 30 minutes without use (`AUTH_IDLE_MINUTES`, `0` to keep the previous behaviour): a
+  login used to last seven days on any browser it was made from. A token now lasts the idle limit and
+  every request made with it brings back a fresh one (`X-Auth-Token` response header), which the widget,
+  the survey page and the restricted area keep in place of the old one; `AUTH_TOKEN_TTL_DAYS` becomes the
+  overall limit of a session from its login. The periodic refresh of the restricted area does not count
+  as use, a logout revokes every token renewed from the same login, and tokens issued before the update
+  end with the new limit. When a question finds the session expired, the widget says so on the login
+  form and keeps the question in the box.
+
 ## [0.47.1] - 2026-11-13
 
 ### Fixed
