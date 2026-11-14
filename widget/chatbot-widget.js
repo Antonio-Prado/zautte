@@ -145,6 +145,7 @@
     loginLoading: isItalian ? "Accesso…" : "Signing in…",
     loginInvalid: isItalian ? "Email o password non validi." : "Invalid email or password.",
     loginErr: isItalian ? "Errore di accesso. Riprova." : "Sign-in error. Please try again.",
+    sessionExpired: isItalian ? "Sessione scaduta: accedi di nuovo." : "Your session has expired: sign in again.",
     logout: isItalian ? "Esci" : "Sign out",
     forgot: isItalian ? "Password dimenticata?" : "Forgot password?",
     consentTitle: isItalian ? "Prima di iniziare" : "Before you start",
@@ -850,6 +851,35 @@
     emitAuth();
   }
 
+  /** The uid a token was issued for ("" if it cannot be read). */
+  function tokenUid(token) {
+    try {
+      const b = String(token).split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+      return String(JSON.parse(decodeURIComponent(escape(atob(b + "=".repeat((4 - b.length % 4) % 4))))).uid || "");
+    } catch (_) { return ""; }
+  }
+
+  /** A session in use is renewed by the server (it ends after a while without requests): the
+   *  token of the X-Auth-Token header replaces the saved one. `announce` tells the other
+   *  scripts of the page (`zautte:token` event), which hold a copy of the same session. */
+  function adoptToken(token, announce) {
+    if (!token || !authToken || token === authToken || tokenUid(token) !== tokenUid(authToken)) return;
+    authToken = token;
+    try { localStorage.setItem(AUTH_TOKEN_KEY, token); } catch (_) {}
+    if (announce) document.dispatchEvent(new CustomEvent("zautte:token", { detail: { token } }));
+  }
+  document.addEventListener("zautte:token", (e) => adoptToken(e.detail && e.detail.token, false));
+  // another tab of the same browser renewed the session
+  window.addEventListener("storage", (e) => { if (e.key === AUTH_TOKEN_KEY) adoptToken(e.newValue, false); });
+
+  /** fetch for the requests made with the session: keeps the renewed token. */
+  function apiFetch(url, options) {
+    return fetch(url, options).then((resp) => {
+      if (resp.ok) adoptToken(resp.headers.get("X-Auth-Token"), true);
+      return resp;
+    });
+  }
+
   /** Notifies the host page of the login state (`zautte:auth` event). */
   function emitAuth() {
     document.dispatchEvent(new CustomEvent("zautte:auth", {
@@ -979,7 +1009,7 @@
     btn.setAttribute("aria-disabled", "true");
     btn.textContent = T.consentSending;
     try {
-      const resp = await fetch(`${cfg.apiUrl}/auth/consent`, {
+      const resp = await apiFetch(`${cfg.apiUrl}/auth/consent`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ adult: true, notice_read: true }),
@@ -1045,7 +1075,7 @@
     surveyActive = false;
     updateSurveyNotice();
     if (!cfg.survey || !authToken) return;
-    fetch(`${cfg.apiUrl}/survey/me`, { headers: authHeaders() })
+    apiFetch(`${cfg.apiUrl}/survey/me`, { headers: authHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((s) => {
         if (!s || !s.open || !s.eligible || s.answered) return;
@@ -1068,7 +1098,13 @@
       .catch(() => {});
   }
 
-  function showLogin() {
+  function showLogin(notice) {
+    const noticeEl = document.getElementById(`${WIDGET_ID}-login-error`);
+    if (noticeEl) {
+      noticeEl.textContent = notice || "";
+      noticeEl.style.color = "#c0392b";
+      noticeEl.style.display = notice ? "block" : "none";
+    }
     panel.classList.add("login");
     messages.style.display = "none";
     if (inputArea) inputArea.style.display = "none";
@@ -1574,7 +1610,7 @@
         btn.setAttribute("aria-pressed", "true");
         removeFeedbackForm(wrap);
         const rating = i === 0 ? 1 : -1;
-        fetch(`${cfg.apiUrl}/feedback`, {
+        apiFetch(`${cfg.apiUrl}/feedback`, {
           method: "POST",
           headers: authHeaders({ "Content-Type": "application/json" }),
           // rid: question identifier, so it can be deleted everywhere on request
@@ -1701,7 +1737,7 @@
       sending = true;
       sendBtn.setAttribute("aria-disabled", "true");
       sendBtn.textContent = T.fbSending;
-      fetch(`${cfg.apiUrl}/feedback/detail`, {
+      apiFetch(`${cfg.apiUrl}/feedback/detail`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ id: feedbackId, comment: text, urls }),
@@ -1768,7 +1804,7 @@
     }, 10000);
 
     try {
-      const resp = await fetch(`${cfg.apiUrl}/chat/stream`, {
+      const resp = await apiFetch(`${cfg.apiUrl}/chat/stream`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ question, cid: conversationId || undefined }),
@@ -1792,7 +1828,8 @@
         clearTimeout(waitTimer);
         if (waitHint) { waitHint.remove(); waitHint = null; }
         setLoading(false);
-        showLogin();
+        inputEl.value = question;   // kept in the box: it is there again after the login
+        showLogin(T.sessionExpired);
         return;
       }
 
@@ -2016,7 +2053,7 @@
   // Token saved but expired or revoked: go back to login right away, instead of
   // finding out at the first question (which would be lost).
   if (cfg.requireLogin && authToken) {
-    fetch(`${cfg.apiUrl}/auth/me`, { headers: authHeaders() })
+    apiFetch(`${cfg.apiUrl}/auth/me`, { headers: authHeaders() })
       .then(async (r) => {
         if (r.status === 401) {
           setAuth(null, null);

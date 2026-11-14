@@ -69,6 +69,31 @@
       return _adminKey ? { 'X-Admin-Key': _adminKey } : {};
     }
 
+    // A session in use is renewed by the server (X-Auth-Token) and ends after a while without
+    // requests. The panel's own periodic refresh is not use: the token it brings back is ignored.
+    let _polling = false;
+    function _tokenUid(token) {
+      try {
+        const b = String(token).split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+        return String(JSON.parse(decodeURIComponent(escape(atob(b + '='.repeat((4 - b.length % 4) % 4))))).uid || '');
+      } catch (_) { return ''; }
+    }
+    function _adoptToken(token, announce) {
+      if (!token || !_adminToken || token === _adminToken || _tokenUid(token) !== _tokenUid(_adminToken)) return;
+      _adminToken = token;
+      try { sessionStorage.setItem(ADMIN_TOKEN_SS, token); } catch (_) {}
+      // the chat below the panel holds a copy of the same session
+      if (announce) document.dispatchEvent(new CustomEvent('zautte:token', { detail: { token: token } }));
+    }
+    document.addEventListener('zautte:token', function (e) { _adoptToken(e.detail && e.detail.token, false); });
+    function adminFetch(url, options) {
+      const background = _polling;
+      return fetch(url, options).then(function (r) {
+        if (r.ok && !background) _adoptToken(r.headers.get('X-Auth-Token'), true);
+        return r;
+      });
+    }
+
     let _keyError = '';
     let _panel = null;
     async function _validate(headers, refused) {

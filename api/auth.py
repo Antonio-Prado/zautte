@@ -40,6 +40,7 @@ from api.filelock import file_lock
 from api.limiter import limiter
 from config.settings import (
     AUTH_ENABLED,
+    AUTH_IDLE_MINUTES,
     AUTH_SECRET,
     AUTH_TOKEN_TTL_DAYS,
     CONSENT_REQUIRED,
@@ -200,12 +201,26 @@ def _sign(msg: str) -> str:
     return _b64url_encode(sig)
 
 
-def create_token(uid: str, name: str, auth_version: int = 0) -> str:
+RENEWED_TOKEN_HEADER = "X-Auth-Token"
+_RENEW_AFTER = 60   # seconds: a token younger than this is not renewed (not one per request)
+
+
+def session_seconds() -> int:
+    """How long a token lasts from when it is issued: the idle limit, or the whole session
+    when there is no idle limit."""
+    return AUTH_IDLE_MINUTES * 60 if AUTH_IDLE_MINUTES > 0 else AUTH_TOKEN_TTL_DAYS * 86400
+
+
+def create_token(uid: str, name: str, auth_version: int = 0, *, sid: str = "", start: int = 0) -> str:
+    """A signed token. `sid` and `start` are those of the session a renewed token continues:
+    the login (`start`) bounds the session to AUTH_TOKEN_TTL_DAYS however often it is renewed,
+    and a logout revokes every token of the session (`sid`)."""
     now = int(time.time())
-    exp = now + AUTH_TOKEN_TTL_DAYS * 86400
+    start = start or now
+    exp = min(now + session_seconds(), start + AUTH_TOKEN_TTL_DAYS * 86400)
     payload = json.dumps(
         {"uid": uid, "name": name, "iat": now, "exp": exp, "jti": secrets.token_hex(8),
-         "av": auth_version},
+         "av": auth_version, "sid": sid or secrets.token_hex(8), "start": start},
         separators=(",", ":"), ensure_ascii=False,
     ).encode("utf-8")
     msg = _b64url_encode(payload)
@@ -221,8 +236,11 @@ def verify_token(token: str) -> dict | None:
         if not hmac.compare_digest(sig, _sign(msg)):
             return None
         claims = json.loads(_b64url_decode(msg))
-        if int(claims.get("exp", 0)) < int(time.time()):
+        now = int(time.time())
+        if int(claims.get("exp", 0)) < now:
             return None
+        if AUTH_IDLE_MINUTES > 0 and now - int(claims.get("iat", 0)) > AUTH_IDLE_MINUTES * 60:
+            return None  # issued before the idle limit existed or was shortened: it applies at once
         if revocation_key(claims) in _revoked_keys():
             return None
         user = next((u for u in _users_cached() or [] if u.get("id") == claims.get("uid")), None)
@@ -233,6 +251,32 @@ def verify_token(token: str) -> dict | None:
         return claims
     except (ValueError, TypeError, AttributeError):  # malformed token
         return None
+
+
+def renewed_token(claims: dict) -> str | None:
+    """A fresh token continuing the session of these (verified) claims, or None when there is
+    nothing to renew: no idle limit, a token just issued, a session at its overall limit."""
+    if AUTH_IDLE_MINUTES <= 0:
+        return None
+    now = int(time.time())
+    iat = int(claims.get("iat", 0))
+    start = int(claims.get("start") or iat)
+    if now - iat < _RENEW_AFTER or start + AUTH_TOKEN_TTL_DAYS * 86400 <= now:
+        return None
+    return create_token(str(claims.get("uid", "")), str(claims.get("name", "")), int(claims.get("av", 0)),
+                        sid=revocation_key(claims), start=start)
+
+
+def note_activity(request, claims: dict) -> None:
+    """The request of a valid session counts as use: the renewed token, if one is due, is left
+    on the request and the API sends it back in the X-Auth-Token header of a successful answer.
+    The logout is not use."""
+    state = getattr(request, "state", None)
+    if state is None or str(getattr(getattr(request, "url", None), "path", "")).endswith("/auth/logout"):
+        return
+    token = renewed_token(claims)
+    if token:
+        state.auth_renewed = token
 
 
 def is_admin_account(user: dict | None) -> bool:
@@ -262,9 +306,18 @@ _revoked_state: dict = {"mtime": None, "keys": {}}
 
 
 def revocation_key(claims: dict) -> str:
-    """Identifier of a token in the revocation list (tokens issued before the
-    jti claim existed are identified by user and expiry)."""
-    return str(claims.get("jti") or f"{claims.get('uid')}:{claims.get('exp')}")
+    """Identifier of a token in the revocation list: its session, shared by the tokens renewed
+    from the same login (tokens issued before the sid claim existed are identified by their
+    jti, those before jti by user and expiry)."""
+    return str(claims.get("sid") or claims.get("jti") or f"{claims.get('uid')}:{claims.get('exp')}")
+
+
+def _revoked_until(claims: dict, now: int) -> int:
+    """Until when a revoked session stays in the list: its overall limit, since any token
+    renewed from it could otherwise outlive the one presented at the logout."""
+    if claims.get("sid") and claims.get("start"):
+        return int(claims["start"]) + AUTH_TOKEN_TTL_DAYS * 86400
+    return int(claims.get("exp", now))
 
 
 def _revoked_keys() -> dict[str, int]:
@@ -286,14 +339,14 @@ def _revoked_keys() -> dict[str, int]:
 
 
 def revoke_token(claims: dict) -> None:
-    """Adds the token to the revocation list until its natural expiry."""
+    """Adds the session of the token to the revocation list until it would end anyway."""
     now = int(time.time())
     from api.safefile import write_text_atomic
     _REVOKED_FILE.parent.mkdir(parents=True, exist_ok=True)
     with _revoked_lock, file_lock(_REVOKED_FILE):   # purge_logs prunes the same file from another process
         _revoked_state["mtime"] = None   # reread under the lock: another process may have written it
         current = {k: v for k, v in _revoked_keys().items() if v > now}
-        current[revocation_key(claims)] = int(claims.get("exp", now))
+        current[revocation_key(claims)] = _revoked_until(claims, now)
         write_text_atomic(_REVOKED_FILE, json.dumps(current))
 
 
@@ -385,6 +438,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 async def require_user(
+    request: Request,
     cred: HTTPAuthorizationCredentials | None = Security(_bearer),
 ) -> dict:
     """
@@ -405,6 +459,7 @@ async def require_user(
             status_code=401, detail="Sessione non valida o scaduta",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    note_activity(request, claims)
     return claims
 
 
@@ -452,7 +507,7 @@ async def login(request: Request, req: LoginRequest):
     return LoginResponse(
         token=token,
         name=user.get("name", ""),
-        expires_in=AUTH_TOKEN_TTL_DAYS * 86400,
+        expires_in=session_seconds(),
         consent_required=not consent_ok(user["id"]),
         privacy_notice_url=PRIVACY_NOTICE_URL,
         daily_limit=quota.limit_for(user),

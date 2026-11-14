@@ -103,6 +103,7 @@ def admin_identity(request: Request, key: str | None,
     if cred is not None and (cred.scheme or "").lower() == "bearer" and cred.credentials:
         claims = auth.admin_claims(cred.credentials)
         if claims is not None:
+            auth.note_activity(request, claims)
             return f"{claims.get('name') or '?'} ({claims.get('uid')})"
     return "admin key" if check_admin_key(request, key) else None
 
@@ -269,6 +270,10 @@ async def _security_headers(request: Request, call_next):
     # requester only: no proxy or browser cache may keep it
     if request.headers.get("x-admin-key") or request.headers.get("authorization"):
         response.headers.setdefault("Cache-Control", "private, no-store")
+    # A session in use is renewed: the token that replaces the one presented (AUTH_IDLE_MINUTES)
+    renewed = getattr(request.state, "auth_renewed", None)
+    if renewed and response.status_code < 400:
+        response.headers[auth.RENEWED_TOKEN_HEADER] = renewed
     return response
 
 
@@ -379,6 +384,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
+    expose_headers=[auth.RENEWED_TOKEN_HEADER],
 )
 
 # User authentication router (POST /auth/login, GET /auth/me)
