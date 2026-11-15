@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-11-15
+
+### Added
+- Links written inside the passages are tried before the passages go to the model, and those whose page
+  is gone (404 or 410 at the end of the redirects) are replaced by a note: an answer built on a news item
+  of years ago offered the address of a guide the site has since removed. Only links to the organisation's
+  own sites are tried (`SITE_URL`, `CRAWL_ALLOWED_DOMAINS`), under the crawler's network policy; an error, a
+  timeout or a refusal leaves the link as it is. A question waits at most `LINK_CHECK_SECONDS` (2) for
+  links never tried before and results are remembered in memory for `LINK_CHECK_TTL_HOURS` (24);
+  `LINK_CHECK=false` turns the check off.
+
 ## [0.48.0] - 2026-11-14
 
 ### Added
