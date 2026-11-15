@@ -48,6 +48,9 @@ User question
      └─ article passages     — «articolo 18»: the passage where that article starts, in the documents chosen
      │
      ▼
+   dead links             — links in the text of the chunks that answer 404/410 are replaced by a note (LINK_CHECK)
+     │
+     ▼
 6. build_context_block()  — one header per chunk: title, type, link (no link for MIGRATED_DOMAINS)
      │
      ▼

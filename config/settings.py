@@ -204,6 +204,20 @@ try:
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
+# --- Links written inside the passages ---
+# An old news item may give an address that no longer exists: before the passages go to the model,
+# the links written in their text that point to the organisation's own sites (SITE_URL,
+# CRAWL_ALLOWED_DOMAINS) are tried, and those that answer 404 or 410 are replaced by a note, so the
+# answer cannot offer them. LINK_CHECK_SECONDS is the longest a question waits for the links never
+# tried before (a link still unanswered is left as it is and its result serves the next question);
+# a result is remembered for LINK_CHECK_TTL_HOURS, in memory.
+LINK_CHECK = os.getenv("LINK_CHECK", "true").strip().lower() in ("1", "true", "yes", "on")
+try:
+    LINK_CHECK_SECONDS = max(0.1, float(os.getenv("LINK_CHECK_SECONDS", "2")))
+    LINK_CHECK_TTL_HOURS = max(1.0, float(os.getenv("LINK_CHECK_TTL_HOURS", "24")))
+except ValueError:
+    LINK_CHECK_SECONDS, LINK_CHECK_TTL_HOURS = 2.0, 24.0
+
 # --- Migrated / retired domains ---
 # Domains whose resources are no longer reachable at the old address because
 # the portal was replaced by a new platform that redirects everything to

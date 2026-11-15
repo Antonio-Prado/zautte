@@ -20,6 +20,7 @@ One policy for every download made on behalf of a page, a feed or an attachment:
   gigabytes never takes the memory.
 """
 
+import asyncio
 import ipaddress
 import socket
 import time
@@ -335,6 +336,31 @@ async def get_limited_async(client: httpx.AsyncClient, url: str, domains: Iterab
                         async for chunk in resp.aiter_raw():
                             reader.feed(chunk)
                         return _final(resp, url, reader.result())
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                last = e
+                continue
+            break
+        else:
+            raise last or BlockedURL(f"no address: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+        url = nxt
+    raise BlockedURL(f"too many redirects: {url[:200]}", request=httpx.Request("GET", "http://invalid/"))
+
+
+async def final_status_async(client: httpx.AsyncClient, url: str, domains: Iterable[str]) -> int:
+    """The status of the page a link leads to, at the end of its redirects, without reading the
+    body. Same policy as get_limited_async: checked address, pinned connection, every hop checked.
+    Raises BlockedURL or an httpx error when the answer cannot be had."""
+    allowed = list(domains)
+    for _ in range(_MAX_HOPS + 1):
+        last: Exception | None = None
+        for ip in await asyncio.to_thread(_plan, url, allowed):   # the name lookup blocks
+            pinned, headers, ext = _pinned_request(url, ip)
+            try:
+                async with client.stream("GET", pinned, headers=headers, extensions=ext,
+                                         follow_redirects=False) as resp:
+                    nxt = _next_hop(resp, url)
+                    if nxt is None:
+                        return resp.status_code
             except (httpx.ConnectError, httpx.ConnectTimeout) as e:
                 last = e
                 continue

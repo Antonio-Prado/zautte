@@ -20,7 +20,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import maintenance, smalltalk
+from api import linkcheck, maintenance, smalltalk
 from api.filelock import file_lock
 from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
@@ -1565,6 +1565,8 @@ async def answer(
     # The query embedding is a blocking call to Ollama: a worker thread, at most a few at a time
     async with _retrieval_slots:
         chunks = await asyncio.to_thread(retrieve_context, retrieval_query)
+    # links written in the passages that lead to a removed page: the answer must not offer them
+    chunks = await linkcheck.without_dead_links(chunks)
     context = build_context_block(chunks)
     messages = build_prompt(query, context, language, history=history,
                             topic_query=retrieval_query)
