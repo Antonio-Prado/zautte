@@ -73,15 +73,17 @@
       if (name === 'people') loadSurvey();
     }
 
-    TABS.forEach((t, i) => {
+    TABS.forEach(t => {
       t.addEventListener('click', () => showTab(t.dataset.tab));
       t.addEventListener('keydown', ev => {
+        // a tab that is not offered (Comparison, while no second model answers) is skipped
+        const shown = TABS.filter(x => !x.hidden), i = shown.indexOf(t);
         let j = null;
-        if (ev.key === 'ArrowRight') j = (i + 1) % TABS.length;
-        else if (ev.key === 'ArrowLeft') j = (i - 1 + TABS.length) % TABS.length;
+        if (ev.key === 'ArrowRight') j = (i + 1) % shown.length;
+        else if (ev.key === 'ArrowLeft') j = (i - 1 + shown.length) % shown.length;
         else if (ev.key === 'Home') j = 0;
-        else if (ev.key === 'End') j = TABS.length - 1;
-        if (j !== null) { ev.preventDefault(); showTab(TABS[j].dataset.tab, true); }
+        else if (ev.key === 'End') j = shown.length - 1;
+        if (j !== null) { ev.preventDefault(); showTab(shown[j].dataset.tab, true); }
       });
     });
     window.addEventListener('hashchange', () => {
