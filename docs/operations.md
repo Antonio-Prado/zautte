@@ -346,7 +346,7 @@ The same reports are in the restricted admin area, with a "Resolve" button (`POS
 
 ### Deleting questions on request
 
-When someone asks for their questions to be deleted, `scripts/forget.py` removes them from `usage.jsonl`, `answers.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the "resolved" marks, and from the memory of the running API (most-frequent-questions counter saved in `stats.json`, response cache), with no restart:
+When someone asks for their questions to be deleted, `scripts/forget.py` removes them from `usage.jsonl`, `answers.jsonl`, `shadow.jsonl`, `gaps.jsonl`, `feedback.jsonl` and the "resolved" marks, and from the memory of the running API (most-frequent-questions counter saved in `stats.json`, response cache), with no restart:
 
 ```sh
 cd /opt/chatbot

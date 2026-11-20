@@ -208,6 +208,7 @@ zautte/                       # deployed as /opt/chatbot
     ├── resolved_negative.json # Negative feedback marked as resolved
     ├── usage.jsonl           # Per-user usage (logged-in users only); written by the API, rewritten by purge_logs and forget
     ├── answers.jsonl         # Answers given, by question id (logged-in users only)
+    ├── shadow.jsonl          # Answers of the model under comparison, never shown (SHADOW_OPENAI)
     ├── stats.json            # Query counters, the 100 most frequent questions, response times, token and cost history (last 100 records); written by the API
     ├── users.json            # Users (password stored as scrypt hash); written by adduser.py and the API (password changes)
     └── revoked_tokens.json   # Tokens ended by logout, until they expire

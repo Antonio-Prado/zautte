@@ -20,7 +20,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import linkcheck, maintenance, openai_llm, smalltalk
+from api import linkcheck, maintenance, openai_llm, shadow, smalltalk
 from api.filelock import file_lock
 from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
@@ -1734,6 +1734,10 @@ async def answer(
         return {"answer": fallback, "sources": [], "retrieved": [], "language": language, "link_hosts": hosts}
 
     phones = phone_digits_given(messages, chunks)
+    # The same messages also go, in the background, to the model under comparison, if one is set
+    # (api/shadow.py); the user gets the answer below and never waits for the other.
+    shadow.start(rid, uid, messages, guard=lambda text: guard_phones(text, phones, language))
+    primary_model = _ANSWER_MODEL if _USES_CLAUDE else OPENAI_MODEL if _USES_OPENAI else OLLAMA_MODEL
     if stream:
         if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
@@ -1742,6 +1746,7 @@ async def answer(
         else:
             gen = stream_ollama(messages)
         _save_stats()
+        gen = shadow.timed(gen, rid, uid, primary_model)
         return guard_phones_stream(gen, phones, language), unique_sources, language, hosts
 
     else:
@@ -1753,6 +1758,8 @@ async def answer(
         else:
             text = await generate_ollama(messages)
         text = guard_phones(text, phones, language)
+        await asyncio.to_thread(shadow.note_primary, rid, uid, primary_model,
+                                int((_time.monotonic() - _t0) * 1000))
         _response_times.append(_time.monotonic() - _t0)
         if len(_response_times) > 100:
             _response_times.pop(0)

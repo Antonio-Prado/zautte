@@ -286,3 +286,19 @@ body.admin-view #chat-area { height: calc(100vh - 190px); height: calc(100dvh - 
 .sv-n { white-space: nowrap; padding-left: 10px !important; width: 1%; }
 .sv-texts { margin: 4px 0 0; padding-left: 20px; }
 .sv-texts li { margin: 4px 0; white-space: pre-wrap; }
+
+/* Comparison: the answer in service and the shadow answer side by side */
+.cmp-summary { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.cmp-summary table { border-collapse: collapse; width: 100%; max-width: 640px; font-size: .92em; }
+.cmp-summary th, .cmp-summary td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid #eee; }
+.cmp-summary td.num, .cmp-summary th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.cmp-note { font-size: .85em; color: #666; margin: 8px 0 0; }
+.cmp-cols { display: grid; grid-template-columns: 1fr; gap: 0; }
+.cmp-col { min-width: 0; border-top: 1px solid #eee; }
+.cmp-col h3 { margin: 0; padding: 8px 12px 0; font-size: .8em; color: #003366; text-transform: uppercase; letter-spacing: .04em; }
+.cmp-col .cmp-times { display: block; padding: 2px 12px 0; font-size: .8em; color: #666; }
+.cmp-col .cmp-error { margin: 0; padding: 10px 12px; color: #b3261e; font-size: .9em; }
+@media (min-width: 900px) {
+  .cmp-cols { grid-template-columns: 1fr 1fr; }
+  .cmp-col + .cmp-col { border-left: 1px solid #eee; }
+}

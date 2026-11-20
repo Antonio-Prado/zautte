@@ -33,7 +33,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import applications, auth, conversations, csp, llm_gate, maintenance, quota, survey
+from api import applications, auth, conversations, csp, llm_gate, maintenance, quota, shadow, survey
 from api.admin_guard import check_admin_key
 from api.aio import to_thread_uncancellable
 from api.applications import ApplyRequest
@@ -153,11 +153,12 @@ async def lifespan(app: FastAPI):
         FEEDBACK_FILE,
         GAPS_FILE,
         RESOLVED_FILE,
+        SHADOW_FILE,
         USAGE_FILE,
     )
     from config.settings import USERS_FILE
     for problem in await asyncio.to_thread(
-            ensure_private, [USAGE_FILE, ANSWERS_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE, APPLICATIONS_FILE,
+            ensure_private, [USAGE_FILE, ANSWERS_FILE, SHADOW_FILE, GAPS_FILE, FEEDBACK_FILE, RESOLVED_FILE, APPLICATIONS_FILE,
                              USERS_FILE, USERS_FILE.parent / "revoked_tokens.json",
                              USERS_FILE.parent / "stats.json", survey.ANSWERS_FILE, survey.RESPONDENTS_FILE]):
         log.error("Data file: %s", problem)
@@ -166,6 +167,8 @@ async def lifespan(app: FastAPI):
             # read it as if it were ours
             raise RuntimeError(f"refusing to start: {problem}")
     log.info("Starting chatbot...")
+    if shadow.enabled():
+        log.info("Shadow answers on: the questions of logged-in users also go to %s", OPENAI_MODEL)
     if LLM_PROVIDER == "openai" and not (OPENAI_BASE_URL and OPENAI_MODEL):
         log.error("LLM_PROVIDER=openai needs OPENAI_BASE_URL and OPENAI_MODEL: no question can be answered")
     try:
@@ -761,6 +764,7 @@ async def health(request: Request, key: str | None = Security(_api_key_header),
 
     base.update({
         "llm_provider": LLM_PROVIDER,
+        "shadow_model": OPENAI_MODEL if shadow.enabled() else "",
         "hybrid_search": is_bm25_active(),
         "llm_model": llm_info,
         "queries_since_restart": get_query_count(),
@@ -1378,6 +1382,28 @@ def _forget_fresh_message(key: str) -> dict:
             state["fresh"] = [k for k in state["fresh"] if k != key]
             _write_msg_state(state)
         return state
+
+
+@app.get("/shadow")
+async def shadow_answers(limit: int = 50, offset: int = 0, _: None = Security(require_admin)):
+    """Comparison of the model in service with the one under comparison (SHADOW_OPENAI,
+    api/shadow.py) — admin only.
+
+    `items`: the questions that have a shadow answer, most recent first (`offset`, `limit`),
+    each with the user's name, the question, the answer the user received (`primary`) and the
+    answer of the other model (`shadow`), with first-token and total times in milliseconds;
+    the shadow one also has tokens, cost and, if the call failed, `error`. `summary`: how many
+    comparisons, how many failed, the median times of the two over the questions timed for
+    both, how often the shadow model was faster, its total cost, whether the feature is on.
+    """
+    from api.datalog import ANSWERS_FILE, SHADOW_FILE, USAGE_FILE
+
+    def read():
+        return shadow.comparisons(_read_jsonl(SHADOW_FILE), _read_jsonl(USAGE_FILE),
+                                  _read_jsonl(ANSWERS_FILE), _load_user_names(),
+                                  limit=min(max(limit, 0), 200), offset=max(offset, 0))
+
+    return await asyncio.to_thread(read)
 
 
 @app.post("/usage/messages/seen")
