@@ -862,6 +862,11 @@ def build_prompt(
     now = now_local()
     today = (f"(Data di oggi: {_WEEKDAYS_IT[now.weekday()]} {now:%d/%m/%Y})\n" if language == "it"
              else f"(Today's date: {_WEEKDAYS_EN[now.weekday()]} {now:%Y-%m-%d})\n")
+    # The language of the answer, said again next to the question: the assistant answers in Italian
+    # or in English (see detect_language()), and a rule far above, in the instructions, is not
+    # enough for a question in a third language, which pulls the answer into that language.
+    today = (("(Scrivi la risposta in italiano, in qualunque lingua sia la domanda.)\n" if language == "it"
+              else "(Write the answer in English, whatever the language of the question.)\n") + today)
 
     if context:
         # The competent office is provided even when context is present, as a

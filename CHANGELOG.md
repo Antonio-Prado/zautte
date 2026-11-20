@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.49.2] - 2026-11-20
+
+### Changed
+- The assistant answers in Italian or in English only. The instructions said to answer in the user's
+  language, whatever it was: how well that worked depended on the model, and retrieval, synonyms and known
+  facts are Italian anyway. Now a question recognised as English is answered in English and every other
+  question in Italian; the language is said in the instructions and again next to the question, because a
+  question in a third language otherwise pulled the answer into that language.
+
 ## [0.49.1] - 2026-11-20
 
 ### Fixed
