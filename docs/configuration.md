@@ -54,7 +54,8 @@ CRAWL_MAX_FILE_MB=100
 # (comma-separated domains or path prefixes; empty = none)
 MIGRATED_DOMAINS=
 
-# LLM provider: "ollama" (local), "claude" (Anthropic API) or "bedrock" (Claude on AWS Bedrock)
+# LLM provider: "ollama" (local), "claude" (Anthropic API), "bedrock" (Claude on AWS Bedrock)
+# or "openai" (any service with an OpenAI-compatible API)
 LLM_PROVIDER=ollama
 
 # Ollama
@@ -79,6 +80,12 @@ QUERY_REWRITE=true
 # standard chain (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, ...).
 BEDROCK_AWS_REGION=eu-south-1
 BEDROCK_MODEL=eu.anthropic.claude-sonnet-4-6
+
+# OpenAI-compatible API (LLM_PROVIDER=openai): POST {OPENAI_BASE_URL}/chat/completions with a bearer key
+#OPENAI_BASE_URL=https://api.example.com/v1
+#OPENAI_API_KEY=
+#OPENAI_MODEL=
+#OPENAI_REASONING_EFFORT=none
 
 # Personal data in questions: masked before the LLM and the logs
 PII_REDACTION=true
@@ -249,7 +256,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `EMBEDDING_DIMENSION`  | `1024`                         | Embedding vector dimension                           |
 | `RETRIEVAL_TOP_K`      | `7`                            | Chunks passed to the LLM per query                   |
 | `ATTACHMENT_PASSAGES`  | `2`                            | Passages added from the PDFs linked by the chosen pages (`.env`; 0 = off) |
-| `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude` or `bedrock`                      |
+| `LLM_PROVIDER`         | `ollama`                       | `ollama`, `claude`, `bedrock` or `openai`            |
 | `OLLAMA_MODEL`         | `llama3.1:8b`                  | Local LLM model                                      |
 | `OLLAMA_CHAT_TIMEOUT`  | `240`                          | Longest time for one answer of the Ollama chat model (seconds) |
 | `CLAUDE_MODEL`         | `claude-sonnet-4-6`            | Claude API model                                     |
@@ -259,6 +266,13 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `BEDROCK_AWS_REGION`   | `eu-south-1`                   | AWS region for Bedrock (Milan)                       |
 | `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
 | `BEDROCK_REWRITE_MODEL`| `BEDROCK_MODEL`                | Model used to rewrite follow-up questions (`bedrock` provider) |
+| `OPENAI_BASE_URL`      | empty                          | Base address of an OpenAI-compatible API, up to `/v1` (`openai` provider); the chat is `POST {OPENAI_BASE_URL}/chat/completions` |
+| `OPENAI_API_KEY`       | empty                          | Bearer key of that API (`.env` only)                 |
+| `OPENAI_MODEL`         | empty                          | Model that writes the answers (`openai` provider)    |
+| `OPENAI_REWRITE_MODEL` | `OPENAI_MODEL`                 | Model used to rewrite follow-up questions (`openai` provider) |
+| `OPENAI_REASONING_EFFORT` | empty                       | Sent as `reasoning_effort` only when set; `none` turns the reasoning off on models that reason by default |
+| `OPENAI_TIMEOUT`       | `120`                          | Longest time for one answer of the `openai` provider (seconds) |
+| `OPENAI_PRICE_IN`, `OPENAI_PRICE_OUT` | `0`             | Price per million tokens (input, output) for the cost history of the dashboard, in the currency of the provider's price list |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
 | `PII_KEEP_EMAIL_DOMAINS` | empty                        | Institutional e-mail domains whose addresses are not masked |
 | `PII_KEEP_PHONE_PREFIXES` | empty                       | National prefixes (digits only, comma-separated, e.g. `0735794`) of the institution's own phone numbers, which are not masked; a whole number keeps only that number (e.g. the waste or water company the answers point to): the answers quote them and they must stay readable in the logs and in the conversation history |

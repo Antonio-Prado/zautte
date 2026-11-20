@@ -67,6 +67,8 @@ from config.settings import (
     INSTANCE_DIR,
     LLM_PROVIDER,
     OLLAMA_MODEL,
+    OPENAI_BASE_URL,
+    OPENAI_MODEL,
     SITE_NAME,
     TEST_ACCOUNTS,
     now_local,
@@ -164,6 +166,8 @@ async def lifespan(app: FastAPI):
             # read it as if it were ours
             raise RuntimeError(f"refusing to start: {problem}")
     log.info("Starting chatbot...")
+    if LLM_PROVIDER == "openai" and not (OPENAI_BASE_URL and OPENAI_MODEL):
+        log.error("LLM_PROVIDER=openai needs OPENAI_BASE_URL and OPENAI_MODEL: no question can be answered")
     try:
         from indexer.embedder import check_ollama_embed
         if check_ollama_embed():
@@ -742,7 +746,8 @@ async def health(request: Request, key: str | None = Security(_api_key_header),
         return base
 
     base["maintenance_info"] = maintenance.status()   # since when and why: admin only
-    llm_info = {"ollama": OLLAMA_MODEL, "bedrock": BEDROCK_MODEL}.get(LLM_PROVIDER, CLAUDE_MODEL)
+    llm_info = {"ollama": OLLAMA_MODEL, "bedrock": BEDROCK_MODEL,
+                "openai": OPENAI_MODEL}.get(LLM_PROVIDER, CLAUDE_MODEL)
     activity = get_activity_stats()   # in-memory counters of this process: read on the loop
     # Walking the whole index and reading the data files takes a while: in a worker thread,
     # so the other requests are not held up meanwhile.

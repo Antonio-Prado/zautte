@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-20
+
+### Added
+- `LLM_PROVIDER=openai`: the answers and the rewrite of follow-up questions can come from any service
+  with an OpenAI-compatible API (`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`), hosted or on the
+  organisation's own machines, with streaming. `OPENAI_REASONING_EFFORT=none` turns the reasoning off on
+  models that reason by default; `OPENAI_PRICE_IN` and `OPENAI_PRICE_OUT` feed the cost history of the
+  dashboard. The provider's refusals to serve (key not valid, no permission, payment required) start the
+  maintenance mode as with the other providers; its own message stays in the log.
+
 ## [0.49.2] - 2026-11-20
 
 ### Changed

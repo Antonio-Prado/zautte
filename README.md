@@ -144,7 +144,7 @@ Then add the widget to your site's pages:
 ```
 
 > [!NOTE]
-> With `LLM_PROVIDER=ollama` nothing leaves the server. With `claude` or `bedrock`, the masked question, the last turns of the conversation and the retrieved passages are sent to the provider. See [Privacy and Security](docs/privacy-and-security.md).
+> With `LLM_PROVIDER=ollama` nothing leaves the server. With `claude`, `bedrock` or `openai`, the masked question, the last turns of the conversation and the retrieved passages are sent to the provider. See [Privacy and Security](docs/privacy-and-security.md).
 
 ## Documentation
 

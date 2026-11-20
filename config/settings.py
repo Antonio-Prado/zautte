@@ -280,8 +280,9 @@ RETRIEVAL_TOP_K = 7            # chunks to retrieve for each query
 ATTACHMENT_PASSAGES = int(os.getenv("ATTACHMENT_PASSAGES", "2"))
 
 # --- LLM ---
-# Choose: "ollama" (local, full privacy), "claude" (direct Anthropic API)
-# or "bedrock" (Claude models on AWS Bedrock, processing in the EU)
+# Choose: "ollama" (local, full privacy), "claude" (direct Anthropic API),
+# "bedrock" (Claude models on AWS Bedrock, processing in the EU) or "openai" (any service with
+# an OpenAI-compatible API, hosted or on the organisation's own machines)
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
 
 # Ollama (local)
@@ -316,6 +317,20 @@ CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
 BEDROCK_AWS_REGION = os.getenv("BEDROCK_AWS_REGION", "eu-south-1")
 BEDROCK_MODEL = os.getenv("BEDROCK_MODEL", "eu.anthropic.claude-sonnet-4-6")
 BEDROCK_REWRITE_MODEL = os.getenv("BEDROCK_REWRITE_MODEL", BEDROCK_MODEL)
+
+# OpenAI-compatible API (LLM_PROVIDER=openai): `POST {OPENAI_BASE_URL}/chat/completions` with a
+# bearer key. OPENAI_REASONING_EFFORT is sent only when set: "none" turns the reasoning off on the
+# models that reason by default (they are several times slower otherwise). OPENAI_PRICE_IN and
+# OPENAI_PRICE_OUT, per million tokens, feed the cost history of the dashboard, which adds them
+# up with no currency of its own: use the one of the provider's price list.
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
+OPENAI_REWRITE_MODEL = os.getenv("OPENAI_REWRITE_MODEL", "") or OPENAI_MODEL
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "").strip()
+OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "120"))
+OPENAI_PRICE_IN = float(os.getenv("OPENAI_PRICE_IN", "0") or 0)
+OPENAI_PRICE_OUT = float(os.getenv("OPENAI_PRICE_OUT", "0") or 0)
 
 # --- Personal data in questions (see api/pii.py) ---
 # With PII_REDACTION on, tax codes, IBANs, payment cards, emails and
