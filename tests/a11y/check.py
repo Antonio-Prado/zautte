@@ -98,9 +98,18 @@ def mock_api(page, base: str, login_status: int = 200, answer: str = ANSWER, lan
             "/usage/summary": {"total_messages": 0, "total_users": 0, "total_registered": 0,
                                "total_active": 0, "users": [], "daily": []},
             "/usage/messages": {"messages": [], "total": 0},
+            "/shadow": {"summary": {"enabled": True, "shadow_model": "model-b", "total": 1, "errors": 0, "timed": 1,
+                                    "primary_median_ms": 9000, "shadow_median_ms": 3000,
+                                    "primary_first_median_ms": 900, "shadow_first_median_ms": 300,
+                                    "shadow_faster": 1, "shadow_cost": 0.0034},
+                        "items": [{"rid": "a1b2c3d4e5f6", "ts": "2026-11-20T10:00:00", "user": "Prova", "q": "q",
+                                   "primary": {"model": "m", "a": "Una **risposta**.", "first_ms": 900, "total_ms": 9000},
+                                   "shadow": {"model": "model-b", "a": "Un'altra risposta.", "first_ms": 300,
+                                              "total_ms": 3000, "tokens_in": 6000, "tokens_out": 200, "cost": 0.0034}}]},
             "/health": {"status": "ok", "uptime_seconds": 100, "llm_provider": "claude", "hybrid_search": True,
                         "indexed_chunks": 1000, "unique_sources": 10, "doc_types": {"html": 5, "pdf": 5},
-                        "llm_model": "m", "last_indexed": "05/10/2026 10:00", "queries_since_restart": 3,
+                        "llm_model": "m", "shadow_model": "model-b",   # a second model compared: the Comparison tab is offered
+                        "last_indexed": "05/10/2026 10:00", "queries_since_restart": 3,
                         "gaps_total": 1, "gaps_recent": [{"ts": "2026-10-05T10:00:00", "query": "q"}],
                         "feedback": {"total": 2, "positive": 1, "negative": 1},
                         "activity": {"avg_response_ms": 1000, "top_queries": [["q", 2]], "hour_counts": [1] * 24,
@@ -299,6 +308,8 @@ def main() -> int:
         for name in tabs[1:]:
             page.click(f"#tab-{name}")
             page.wait_for_timeout(200)
+            if name == "compare":   # the two answers side by side are inside the question's card
+                page.click("#cmp-body details summary")
             axe(page, f"admin area, «{name}» tab")
         check(page.evaluate("location.hash") == "#" + tabs[-1]
               and page.locator(".adm-panel:not([hidden])").count() == 1,

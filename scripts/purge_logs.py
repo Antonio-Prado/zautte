@@ -5,6 +5,7 @@ Applies the retention periods to the logs containing user data (data/).
                     after RETENTION_USAGE_DAYS deletes the entry
   answers.jsonl   → deletes answers older than RETENTION_USAGE_TEXT_DAYS
                     (same expiry as the question text)
+  shadow.jsonl    → the same, for the answers of the model under comparison
   gaps.jsonl      → deletes entries older than RETENTION_GAPS_DAYS
   feedback.jsonl  → deletes entries older than RETENTION_FEEDBACK_DAYS
                     (and the related "risolto" marks in resolved_negative.json)
@@ -31,6 +32,7 @@ from api.datalog import (
     APPLICATIONS_FILE,
     FEEDBACK_FILE,
     GAPS_FILE,
+    SHADOW_FILE,
     USAGE_FILE,
     drop_resolved,
     parse_ts,
@@ -80,6 +82,14 @@ def purge_usage(dry_run: bool) -> tuple[int, int]:
 def purge_answers(dry_run: bool) -> int:
     cut = _cutoff(RETENTION_USAGE_TEXT_DAYS)
     removed, _ = rewrite_jsonl(ANSWERS_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e,
+                               dry_run)
+    return removed
+
+
+def purge_shadow(dry_run: bool) -> int:
+    """Shadow answers are answers to users' questions: same expiry as answers.jsonl."""
+    cut = _cutoff(RETENTION_USAGE_TEXT_DAYS)
+    removed, _ = rewrite_jsonl(SHADOW_FILE, lambda e: None if _older(e.get("ts", ""), cut) else e,
                                dry_run)
     return removed
 
@@ -148,6 +158,7 @@ def main() -> None:
 
     u_removed, u_stripped = purge_usage(args.dry_run)
     a_removed = purge_answers(args.dry_run)
+    s_removed = purge_shadow(args.dry_run)
     g_removed = purge_gaps(args.dry_run)
     f_removed, f_stripped, r_removed = purge_feedback(args.dry_run)
 
@@ -158,6 +169,7 @@ def main() -> None:
     print(f"{prefix}usage.jsonl: {u_removed} entries deleted, text removed from {u_stripped} "
           f"(retention: text {RETENTION_USAGE_TEXT_DAYS} d, entry {RETENTION_USAGE_DAYS} d)")
     print(f"{prefix}answers.jsonl: {a_removed} answers deleted (retention {RETENTION_USAGE_TEXT_DAYS} d)")
+    print(f"{prefix}shadow.jsonl: {s_removed} entries deleted (retention {RETENTION_USAGE_TEXT_DAYS} d)")
     print(f"{prefix}gaps.jsonl: {g_removed} entries deleted (retention {RETENTION_GAPS_DAYS} d, "
           f"never beyond the question text, {RETENTION_USAGE_TEXT_DAYS} d)")
     print(f"{prefix}feedback.jsonl: {f_removed} entries deleted, texts removed from {f_stripped} "

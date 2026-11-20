@@ -331,6 +331,11 @@ OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "").strip()
 OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "120"))
 OPENAI_PRICE_IN = float(os.getenv("OPENAI_PRICE_IN", "0") or 0)
 OPENAI_PRICE_OUT = float(os.getenv("OPENAI_PRICE_OUT", "0") or 0)
+# Shadow answers (api/shadow.py): with another provider in service, the questions of logged-in
+# users also go, in the background, to the model of the OpenAI-compatible API above; its answers
+# are never shown to the users, only compared in the restricted area. Off by default: it sends
+# the users' questions to a second provider, which the privacy notice must cover.
+SHADOW_OPENAI = os.getenv("SHADOW_OPENAI", "false").strip().lower() in ("1", "true", "yes", "on")
 
 # --- Personal data in questions (see api/pii.py) ---
 # With PII_REDACTION on, tax codes, IBANs, payment cards, emails and

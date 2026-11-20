@@ -221,7 +221,7 @@ Full list of received feedback (all ratings) with positive/negative count.
 
 ### `POST /usage/forget` *(admin)*
 
-Deletes questions on request, without restarting the API: removes them from `usage.jsonl`, `answers.jsonl`, `gaps.jsonl` and `feedback.jsonl` (with the "resolved" marks of the deleted feedback), then from this process's memory (the most-frequent-questions counter saved in `stats.json`, and the response cache). The API log only contains the question id, never its text.
+Deletes questions on request, without restarting the API: removes them from `usage.jsonl`, `answers.jsonl`, `shadow.jsonl`, `gaps.jsonl` and `feedback.jsonl` (with the "resolved" marks of the deleted feedback), then from this process's memory (the most-frequent-questions counter saved in `stats.json`, and the response cache). The API log only contains the question id, never its text.
 
 ```json
 {"uid": "eb3903878af10b34", "last": 1, "dry_run": true}
@@ -238,6 +238,10 @@ Deletes questions on request, without restarting the API: removes them from `usa
 Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-questions-on-request)).
 
 ---
+
+### `GET /shadow?limit=50&offset=0` *(admin)*
+
+Comparison of the model in service with the one under comparison (`SHADOW_OPENAI`, see [Privacy and Security](privacy-and-security.md)). `items`: the questions that have a shadow answer, most recent first, each with `user`, `q`, `primary` (the answer the user received: `model`, `a`, `first_ms`, `total_ms`) and `shadow` (the answer of the other model, never shown to the users: the same fields plus `tokens_in`, `tokens_out`, `cost` and, when the call failed, `error`). `summary`: `total`, `errors`, `timed` (questions timed for both), the median times of the two models, `shadow_faster`, `shadow_cost`, `shadow_model`, `enabled`.
 
 ### Other endpoints
 
@@ -274,7 +278,7 @@ Use it through `scripts/forget.py` (see [Operations](operations.md#deleting-ques
 
 ## Admin Authentication
 
-Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/crawl-history`, `/admin/reload`. They require either the session of an account with the administrator role (`Authorization: Bearer <token>` from `POST /auth/login`, for a user with `"admin": true` in `users.json`) or the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; otherwise they return `403`. The role is read from `users.json` on every request, so taking it away (or a password change) closes the admin routes at once; a session without the role does not count. Every admin request other than a read is logged with who made it (the account's name and id, or `admin key`). `POST /auth/login` and `GET /auth/me` return `admin: true` for such accounts. `/health` is public but returns its detailed view only to an administrator or with a valid key.
+Admin-only endpoints: `/stats`, `/gaps`, `/feedback/negative`, `/feedback/list`, `/feedback/resolve`, `/usage/summary`, `/usage/messages`, `/usage/forget`, `/shadow`, `/crawl-history`, `/admin/reload`. They require either the session of an account with the administrator role (`Authorization: Bearer <token>` from `POST /auth/login`, for a user with `"admin": true` in `users.json`) or the `X-Admin-Key` header with the value of `ADMIN_API_KEY` from `.env`; otherwise they return `403`. The role is read from `users.json` on every request, so taking it away (or a password change) closes the admin routes at once; a session without the role does not count. Every admin request other than a read is logged with who made it (the account's name and id, or `admin key`). `POST /auth/login` and `GET /auth/me` return `admin: true` for such accounts. `/health` is public but returns its detailed view only to an administrator or with a valid key.
 
 If `ADMIN_API_KEY` is empty, shorter than 16 characters or a placeholder (it starts with "cambia"), every admin request is refused (the detailed `/health` stays hidden); a non-empty key that is too short or a placeholder also stops the API from starting. Only when no usable key is set and `ADMIN_AUTH_DISABLED=true` (development only) are all admin endpoints and the detailed `/health` open to anyone; with a valid key the flag has no effect.
 

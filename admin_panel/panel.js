@@ -69,18 +69,21 @@
     function onTabShown(name) {
       if (name === 'messages') { if (_loaded.messages) refreshMessages(); else { _loaded.messages = true; loadMessages(); } }
       if (name === 'system') updateCrawlHistory();
+      if (name === 'compare') loadCompare(true);
       if (name === 'people') loadSurvey();
     }
 
-    TABS.forEach((t, i) => {
+    TABS.forEach(t => {
       t.addEventListener('click', () => showTab(t.dataset.tab));
       t.addEventListener('keydown', ev => {
+        // a tab that is not offered (Comparison, while no second model answers) is skipped
+        const shown = TABS.filter(x => !x.hidden), i = shown.indexOf(t);
         let j = null;
-        if (ev.key === 'ArrowRight') j = (i + 1) % TABS.length;
-        else if (ev.key === 'ArrowLeft') j = (i - 1 + TABS.length) % TABS.length;
+        if (ev.key === 'ArrowRight') j = (i + 1) % shown.length;
+        else if (ev.key === 'ArrowLeft') j = (i - 1 + shown.length) % shown.length;
         else if (ev.key === 'Home') j = 0;
-        else if (ev.key === 'End') j = TABS.length - 1;
-        if (j !== null) { ev.preventDefault(); showTab(TABS[j].dataset.tab, true); }
+        else if (ev.key === 'End') j = shown.length - 1;
+        if (j !== null) { ev.preventDefault(); showTab(shown[j].dataset.tab, true); }
       });
     });
     window.addEventListener('hashchange', () => {
@@ -93,6 +96,83 @@
       b.hidden = !n;
       b.textContent = n ? String(n) : '';
     }
+
+    // ---------------------------------------------------------------- comparison (GET /shadow)
+    // The questions answered by both models: the one in service (what the user read) and the one
+    // under comparison (never shown to the users), with their times.
+    const _cmp = { items: [], total: 0, page: 20 };
+
+    function _secs(ms) {
+      return ms == null ? '—' : (ms / 1000).toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' s';
+    }
+
+    function _cmpTimes(x) {
+      return 'first text ' + _secs(x.first_ms) + ' · whole answer ' + _secs(x.total_ms);
+    }
+
+    function _cmpSummary(s) {
+      const el = document.getElementById('cmp-summary');
+      if (!s.total) {
+        el.innerHTML = '<span class="muted">' + (s.enabled
+          ? 'No comparison yet: the next questions of logged-in users will also be answered by ' + _esc(s.shadow_model) + ', in the background.'
+          : 'The comparison is off (SHADOW_OPENAI).') + '</span>';
+        return;
+      }
+      el.innerHTML =
+        '<table><thead><tr><th scope="col">Questions timed for both: ' + fmtNum(s.timed) + '</th>'
+        + '<th scope="col" class="num">In service</th><th scope="col" class="num">' + _esc(s.shadow_model || 'Compared') + '</th></tr></thead><tbody>'
+        + '<tr><th scope="row">First text (median)</th><td class="num">' + _secs(s.primary_first_median_ms) + '</td><td class="num">' + _secs(s.shadow_first_median_ms) + '</td></tr>'
+        + '<tr><th scope="row">Whole answer (median)</th><td class="num">' + _secs(s.primary_median_ms) + '</td><td class="num">' + _secs(s.shadow_median_ms) + '</td></tr>'
+        + '</tbody></table>'
+        + '<p class="cmp-note">' + fmtNum(s.total) + ' comparison' + (s.total === 1 ? '' : 's') + ' recorded; the compared model was faster in '
+        + fmtNum(s.shadow_faster) + ' of ' + fmtNum(s.timed) + '; ' + fmtNum(s.errors) + ' failed call' + (s.errors === 1 ? '' : 's')
+        + '; cost of the compared model so far ' + Number(s.shadow_cost || 0).toFixed(4) + '.'
+        + (s.enabled ? '' : ' The comparison is now off.') + ' The users only ever see the answer in service.</p>';
+    }
+
+    function _cmpCard(i) {
+      const p = i.primary || {}, s = i.shadow || {};
+      const col = (title, x, body) => '<div class="cmp-col"><h3>' + _esc(title) + '</h3><span class="cmp-times">' + _cmpTimes(x) + '</span>' + body + '</div>';
+      const text = a => a ? '<p class="msg-answer-text">' + _answerHtml(a) + '</p>' : '<p class="msg-answer-text muted">No text recorded.</p>';
+      return '<li><details class="msg-card" data-key="' + _esc(i.rid) + '"><summary>'
+        + '<span class="msg-meta">' + _esc(fmtTs(i.ts)) + ' · ' + _esc(i.user || '') + ' · ' + _secs(p.total_ms) + ' / ' + _secs(s.total_ms) + '</span>'
+        + '<span class="msg-q">' + _esc(i.q || '(question no longer on record)') + '</span></summary>'
+        + '<div class="cmp-cols">'
+        + col('In service' + (p.model ? ' — ' + p.model : ''), p, text(p.a))
+        + col('Compared' + (s.model ? ' — ' + s.model : ''), s, s.error ? '<p class="cmp-error">The call failed: ' + _esc(s.error) + '</p>' : text(s.a))
+        + '</div></details></li>';
+    }
+
+    function _renderCompare() {
+      const body = document.getElementById('cmp-body');
+      const open = new Set(Array.from(body.querySelectorAll('details[open]')).map(d => d.dataset.key));
+      body.innerHTML = _cmp.items.length ? '<ul class="msg-list">' + _cmp.items.map(_cmpCard).join('') + '</ul>' : '';
+      body.querySelectorAll('details').forEach(d => { if (open.has(d.dataset.key)) d.open = true; });
+      document.getElementById('cmp-more').hidden = _cmp.items.length >= _cmp.total;
+    }
+
+    function loadCompare(fromTop) {
+      const offset = fromTop ? 0 : _cmp.items.length;
+      adminFetch(apiBase + '/shadow?limit=' + _cmp.page + '&offset=' + offset, { headers: adminHeaders() })
+        .then(r => r.json())
+        .then(d => {
+          const page = d.items || [];
+          if (fromTop) {
+            // the newest page replaces the top; older pages already loaded stay
+            const keys = new Set(page.map(i => i.rid));
+            _cmp.items = page.concat(_cmp.items.filter(i => !keys.has(i.rid)));
+          } else {
+            _cmp.items = _cmp.items.concat(page);
+          }
+          _cmp.total = (d.summary || {}).total || 0;
+          if (_cmp.total) document.getElementById('tab-compare').hidden = false;
+          _cmpSummary(d.summary || {});
+          _renderCompare();
+        })
+        .catch(() => { document.getElementById('cmp-summary').innerHTML = '<span class="muted">Error loading the comparison.</span>'; });
+    }
+
+    document.getElementById('cmp-more').addEventListener('click', () => loadCompare(false));
 
     // ---------------------------------------------------------------- overview and system (GET /health)
     let _health = null, _negOpen = null, _appsPending = null;
@@ -138,6 +218,8 @@
           mEl.style.fontWeight = mi.active ? '600' : '';
 
           document.getElementById('model-name').textContent = d.llm_model || '—';
+          // The Comparison tab exists only while a second model answers in the background
+          if (d.shadow_model) document.getElementById('tab-compare').hidden = false;
           document.getElementById('llm-provider').textContent = d.llm_provider ? '(' + d.llm_provider + ')' : '';
           document.getElementById('hybrid').textContent = d.hybrid_search ? '✓ active' : '✗ not available';
           document.getElementById('last-indexed').textContent = d.last_indexed || '—';

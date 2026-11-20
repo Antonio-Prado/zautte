@@ -273,6 +273,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `OPENAI_REASONING_EFFORT` | empty                       | Sent as `reasoning_effort` only when set; `none` turns the reasoning off on models that reason by default |
 | `OPENAI_TIMEOUT`       | `120`                          | Longest time for one answer of the `openai` provider (seconds) |
 | `OPENAI_PRICE_IN`, `OPENAI_PRICE_OUT` | `0`             | Price per million tokens (input, output) for the cost history of the dashboard, in the currency of the provider's price list |
+| `SHADOW_OPENAI`        | `false`                        | With another provider in service, also sends the questions of logged-in users, in the background, to `OPENAI_MODEL`; the answers are never shown to the users, only compared in the restricted area (see [Privacy and Security](privacy-and-security.md)) |
 | `PII_REDACTION`        | `true`                         | Masks tax codes, IBANs, cards, emails, phone numbers |
 | `PII_KEEP_EMAIL_DOMAINS` | empty                        | Institutional e-mail domains whose addresses are not masked |
 | `PII_KEEP_PHONE_PREFIXES` | empty                       | National prefixes (digits only, comma-separated, e.g. `0735794`) of the institution's own phone numbers, which are not masked; a whole number keeps only that number (e.g. the waste or water company the answers point to): the answers quote them and they must stay readable in the logs and in the conversation history |

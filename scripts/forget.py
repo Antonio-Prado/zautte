@@ -12,7 +12,7 @@ Usage (on the server, from the project directory; ADMIN_API_KEY is needed in .en
 
 It goes through POST /usage/forget of the running API: it shows the questions found
 and, after confirmation, removes them from the files and from the process memory. The rid of a question is read in the API log (/var/log/chatbot.log), which
-does not contain the text, and in usage.jsonl, answers.jsonl, gaps.jsonl and feedback.jsonl.
+does not contain the text, and in usage.jsonl, answers.jsonl, shadow.jsonl, gaps.jsonl and feedback.jsonl.
 
 Left out: the notification email of a report already sent and, for the
 questions that reached the model, the copy kept by the provider (Anthropic: 30

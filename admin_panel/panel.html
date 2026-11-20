@@ -6,6 +6,7 @@
       <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" data-tab="reports">Reports <span class="tab-badge" id="badge-reports" hidden></span></button>
       <button type="button" role="tab" id="tab-messages" aria-controls="panel-messages" data-tab="messages">Messages <span class="tab-badge" id="badge-messages" hidden></span></button>
       <button type="button" role="tab" id="tab-people" aria-controls="panel-people" data-tab="people">People <span class="tab-badge" id="badge-people" hidden></span></button>
+      <button type="button" role="tab" id="tab-compare" aria-controls="panel-compare" data-tab="compare" hidden>Comparison</button>
       <button type="button" role="tab" id="tab-system" aria-controls="panel-system" data-tab="system">System</button>
       <button type="button" role="tab" id="tab-chat" aria-controls="panel-chat" data-tab="chat">Chat</button>
       <button type="button" role="tab" id="tab-changelog" aria-controls="panel-changelog" data-tab="changelog">Changelog</button>
@@ -156,6 +157,14 @@
         <ul class="timeline" id="crawl-timeline"><li><span class="tl-label muted">loading…</span></li></ul>
         <div class="msg-more"><button type="button" class="btn" id="crawl-more" hidden>Show all events</button></div>
       </div>
+    </section>
+
+    <!-- Comparison: the answers of the model in service next to those of the model under comparison -->
+    <section class="adm-panel" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" tabindex="0" hidden>
+      <h2 class="visually-hidden">Comparison of two models</h2>
+      <div class="cmp-summary" id="cmp-summary" aria-live="polite"><span class="muted">loading…</span></div>
+      <div id="cmp-body"></div>
+      <div class="msg-more"><button type="button" class="btn" id="cmp-more" hidden>Older comparisons</button></div>
     </section>
 
     <!-- Chat: the same assistant the users see, to try a question -->

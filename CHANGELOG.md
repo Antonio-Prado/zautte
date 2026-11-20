@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-20
+
+### Added
+- Shadow answers (`SHADOW_OPENAI=true`, off by default): to compare a second model on real questions before
+  switching, the messages sent to the model in service also go, in the background, to the model of the
+  OpenAI-compatible API (`OPENAI_BASE_URL`, `OPENAI_MODEL`). The users get the answer in service only and
+  never wait for the other. The shadow answer passes the same phone guard and masking, is stored in
+  `data/shadow.jsonl` with its times, tokens and cost (same expiry as `answers.jsonl`, removed by deletion
+  on request) and is shown next to the answer in service in the new "Comparison" tab of the restricted
+  area (`GET /shadow`), with the median times of the two models. Only questions of logged-in users that
+  reach the model are compared. It sends the users' questions to a second provider: see Privacy and Security.
+
 ## [0.50.0] - 2026-11-20
 
 ### Added

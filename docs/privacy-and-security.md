@@ -41,6 +41,8 @@ With `CONSENT_REQUIRED=true` a logged-in user cannot ask anything until, once, t
 
 - The widget states at the first interaction that the user is talking to an AI system (EU AI Act, Art. 50), shows an "IA" badge in the header and an "AI-generated answers" note in the footer.
 - `widget/come-funziona.html` explains in plain language how answers are produced, their limits and human oversight (Italian Law 132/2025, Art. 14). Link it from the widget with `infoUrl`. The page describes a deployment with Claude: adapt the organization and the model provider before reusing it.
+- **Comparing a second model** (`SHADOW_OPENAI=true`, off by default): while it is on, the questions of logged-in users that reach the model in service are also sent, with the same masking, the same passages and the last messages of the conversation, to the model of the OpenAI-compatible API (`OPENAI_BASE_URL`). Its answers are never shown to the users: they are stored in `data/shadow.jsonl` (answer, times, tokens; same expiry as `answers.jsonl`, removed by deletion on request) and shown next to the answers in service in the restricted area. It is a second recipient of the users' questions: the privacy notice and the agreements with that provider must cover it before it is turned on.
+
 
 ## Using Claude in a public administration
 

@@ -5,7 +5,7 @@ Used by the automatic expiry (scripts/purge_logs.py) and by deletion on
 request (POST /usage/forget, scripts/forget.py).
 
 Each question has an identifier `rid` (12 hexadecimal characters) written in
-usage.jsonl, answers.jsonl, gaps.jsonl, feedback.jsonl and in the API log: it is the
+usage.jsonl, answers.jsonl, shadow.jsonl, gaps.jsonl, feedback.jsonl and in the API log: it is the
 precise way to find it everywhere. Entries recorded before 05/10/2026 do not have it and
 are matched by user, text and time.
 """
@@ -22,6 +22,7 @@ from config.settings import DATA_DIR
 
 USAGE_FILE = DATA_DIR / "usage.jsonl"
 ANSWERS_FILE = DATA_DIR / "answers.jsonl"
+SHADOW_FILE = DATA_DIR / "shadow.jsonl"   # answers of the model under comparison (api/shadow.py)
 GAPS_FILE = DATA_DIR / "gaps.jsonl"
 FEEDBACK_FILE = DATA_DIR / "feedback.jsonl"
 APPLICATIONS_FILE = DATA_DIR / "applications.jsonl"
@@ -178,8 +179,8 @@ def _close_in_time(a: str, b: str) -> bool:
 
 def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
            every: bool = False, ts: Iterable[str] = (), dry_run: bool = False) -> dict:
-    """Deletes the chosen questions from usage.jsonl, answers.jsonl, gaps.jsonl and
-    feedback.jsonl, with the «risolto» marks of the removed feedback.
+    """Deletes the chosen questions from usage.jsonl, answers.jsonl, shadow.jsonl, gaps.jsonl
+    and feedback.jsonl, with the «risolto» marks of the removed feedback.
 
     Selection: by `rids`, or by user `uid` with the last `last` questions,
     all of them (`every`, together with all their feedback) or those with the `ts`
@@ -251,6 +252,9 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
     # Answers (since 07/10/2026) always have the rid: no matching by text and time.
     n_answers, _ = (rewrite_jsonl(ANSWERS_FILE, lambda e: None if e.get("rid") in all_rids else e,
                                   dry_run) if all_rids else (0, 0))
+    # Shadow answers are keyed by rid too (api/shadow.py).
+    n_shadow, _ = (rewrite_jsonl(SHADOW_FILE, lambda e: None if e.get("rid") in all_rids else e,
+                                 dry_run) if all_rids else (0, 0))
     n_gaps, _ = rewrite_jsonl(GAPS_FILE, drop_gap, dry_run) if (all_rids or legacy) else (0, 0)
     n_feedback, _ = (rewrite_jsonl(FEEDBACK_FILE, drop_feedback, dry_run)
                      if (all_rids or legacy or (every and uid)) else (0, 0))
@@ -263,5 +267,5 @@ def forget(*, rids: Iterable[str] = (), uid: str | None = None, last: int = 0,
                  for e in picked]
     questions += [{"ts": e.get("ts", ""), "rid": e.get("rid", ""), "q": e.get("query", "")}
                   for e in only_gaps]
-    return {"questions": questions, "usage": n_usage, "answers": n_answers, "gaps": n_gaps,
-            "feedback": n_feedback, "resolved": n_resolved}
+    return {"questions": questions, "usage": n_usage, "answers": n_answers, "shadow": n_shadow,
+            "gaps": n_gaps, "feedback": n_feedback, "resolved": n_resolved}
