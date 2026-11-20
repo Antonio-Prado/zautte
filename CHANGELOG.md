@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.49.1] - 2026-11-20
+
+### Fixed
+- English questions are recognised as English. The language of a question was decided on a short list of
+  topic words ("how", "where", "office"...), so "I lost my wallet in the town centre" or "Can I go to the
+  beach with my dog?" counted as Italian and the model got the Italian instructions: one that follows them
+  to the letter then answered in Italian. Detection now counts the function words of the two languages
+  (articles, prepositions, pronouns, auxiliaries) and ignores punctuation; a turn with no evidence either
+  way ("ok", "TARI?") takes the language of the user's previous turns, and Italian when there are none.
+
 ## [0.49.0] - 2026-11-15
 
 ### Added
