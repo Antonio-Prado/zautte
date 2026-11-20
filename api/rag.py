@@ -909,22 +909,29 @@ def build_prompt(
 
 # Function words that tell Italian from English. Words the two languages share ("a", "i", "in",
 # "no", "come", "per", "me", "o", "e", "so", "ha", "sale", "data") are in neither set.
-_IT_WORDS = frozenset("""
-il lo la gli le un uno una di del dello della dei degli delle al allo alla ai agli alle da dal
-dallo dalla dai dalle nel nello nella nei negli nelle con su sul sullo sulla sui sulle tra fra
-ed che chi cosa cos dove quando perché perche quanto quanta quanti quante quale quali non è sono
-sei siamo ho hai abbiamo hanno devo devi deve dobbiamo posso puoi può possiamo voglio vorrei
-vuole mi ti si ci vi mio mia miei mie tuo tua suo sua nostro nostra questo questa questi queste
-quello quella serve servono anche più piu se ma già oggi ieri qui qualcuno qualcosa ciao salve
-grazie buongiorno buonasera orario orari ufficio comune servizio documenti informazioni
-""".split())
-_EN_WORDS = frozenset("""
-the an of to and or is are was were be been do does did can could should would will shall may
-must have has had you he she we they my your his her our their its it this that these those what
-where when who whom whose why how which not yes for from with at on by about into if but there
-here need needs want wants get got please hello hi thanks thank much many any some someone
-something office service documents information opening hours tourist
-""".split())
+_IT_WORDS = frozenset({
+    "il", "lo", "la", "gli", "le", "un", "uno", "una", "di", "del", "dello", "della", "dei", "degli",
+    "delle", "al", "allo", "alla", "ai", "agli", "alle", "da", "dal", "dallo", "dalla", "dai", "dalle",
+    "nel", "nello", "nella", "nei", "negli", "nelle", "con", "su", "sul", "sullo", "sulla", "sui",
+    "sulle", "tra", "fra", "ed", "che", "chi", "cosa", "cos", "dove", "quando", "perché", "perche",
+    "quanto", "quanta", "quanti", "quante", "quale", "quali", "non", "è", "sono", "sei", "siamo", "ho",
+    "hai", "abbiamo", "hanno", "devo", "devi", "deve", "dobbiamo", "posso", "puoi", "può", "possiamo",
+    "voglio", "vorrei", "vuole", "mi", "ti", "si", "ci", "vi", "mio", "mia", "miei", "mie", "tuo",
+    "tua", "suo", "sua", "nostro", "nostra", "questo", "questa", "questi", "queste", "quello", "quella",
+    "serve", "servono", "anche", "più", "piu", "se", "ma", "già", "oggi", "ieri", "qui", "qualcuno",
+    "qualcosa", "ciao", "salve", "grazie", "buongiorno", "buonasera", "orario", "orari", "ufficio",
+    "comune", "servizio", "documenti", "informazioni",
+})
+_EN_WORDS = frozenset({
+    "the", "an", "of", "to", "and", "or", "is", "are", "was", "were", "be", "been", "do", "does", "did",
+    "can", "could", "should", "would", "will", "shall", "may", "must", "have", "has", "had", "you",
+    "he", "she", "we", "they", "my", "your", "his", "her", "our", "their", "its", "it", "this", "that",
+    "these", "those", "what", "where", "when", "who", "whom", "whose", "why", "how", "which", "not",
+    "yes", "for", "from", "with", "at", "on", "by", "about", "into", "if", "but", "there", "here",
+    "need", "needs", "want", "wants", "get", "got", "please", "hello", "hi", "thanks", "thank", "much",
+    "many", "any", "some", "someone", "something", "office", "service", "documents", "information",
+    "opening", "hours", "tourist",
+})
 _LANG_WORD_RE = re.compile(r"[a-zàèéìòù]+")
 
 
