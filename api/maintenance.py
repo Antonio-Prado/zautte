@@ -1,6 +1,7 @@
 """
 Maintenance mode: entered on its own when the model provider refuses to serve (API
-credit exhausted, key not valid or without permission, billing problem).
+credit exhausted, key not valid or without permission, billing problem), whichever the
+provider: the Anthropic API, Bedrock or an OpenAI-compatible API.
 
 While it lasts (MAINTENANCE_HOLD_SECONDS, then the model is tried again) the chat answers
 HTTP 503 with a neutral text and never calls the model; the public /health only says
@@ -16,6 +17,7 @@ import logging
 import threading
 import time
 
+from api.openai_llm import ProviderError
 from config.settings import MAINTENANCE_ALERT_EMAIL, MAINTENANCE_HOLD_SECONDS, SITE_NAME
 
 log = logging.getLogger("maintenance")
@@ -36,6 +38,10 @@ def classify(exc: BaseException) -> str | None:
     """A fixed description of the outage when the exception means that the provider refuses
     to serve at all (not a transient error of one request); None otherwise. The provider's
     own message is never returned: it is logged by activate()."""
+    if isinstance(exc, ProviderError):   # LLM_PROVIDER=openai
+        return {401: "API key not valid (authentication error)",
+                402: "payment required (HTTP 402)",
+                403: "API key without permission (permission denied)"}.get(exc.status_code)
     try:
         import anthropic
     except ImportError:

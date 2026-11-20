@@ -74,7 +74,7 @@ When streaming finds no chunk at all, the LLM is not called: the answer is a fix
 
 ### Follow-up Questions
 
-With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRITE_MODEL`, `BEDROCK_REWRITE_MODEL` or `OLLAMA_MODEL`) to rewrite the question as a standalone one, so that "and what are the requirements?" is searched together with its topic. The rewritten question drives retrieval, the office suggestion and the gap log; the LLM still receives the original question and the history. If the rewrite fails, is too long, or `QUERY_REWRITE=false`, the previous user question is appended instead.
+With a conversation history, `contextualize_query()` asks the LLM (`CLAUDE_REWRITE_MODEL`, `BEDROCK_REWRITE_MODEL`, `OPENAI_REWRITE_MODEL` or `OLLAMA_MODEL`) to rewrite the question as a standalone one, so that "and what are the requirements?" is searched together with its topic. The rewritten question drives retrieval, the office suggestion and the gap log; the LLM still receives the original question and the history. If the rewrite fails, is too long, or `QUERY_REWRITE=false`, the previous user question is appended instead.
 
 ### Known Facts
 

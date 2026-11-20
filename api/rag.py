@@ -20,7 +20,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from api import linkcheck, maintenance, smalltalk
+from api import linkcheck, maintenance, openai_llm, smalltalk
 from api.filelock import file_lock
 from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
@@ -38,6 +38,10 @@ from config.settings import (
     OLLAMA_BASE_URL,
     OLLAMA_CHAT_TIMEOUT,
     OLLAMA_MODEL,
+    OPENAI_MODEL,
+    OPENAI_PRICE_IN,
+    OPENAI_PRICE_OUT,
+    OPENAI_REWRITE_MODEL,
     QUERY_REWRITE,
     RETENTION_STATS_DAYS,
     RETRIEVAL_TOP_K,
@@ -66,6 +70,8 @@ log = logging.getLogger(__name__)
 
 # Claude models: direct Anthropic API ("claude") or AWS Bedrock ("bedrock")
 _USES_CLAUDE = LLM_PROVIDER in ("claude", "bedrock")
+# A model behind an OpenAI-compatible API (api/openai_llm.py)
+_USES_OPENAI = LLM_PROVIDER == "openai"
 _ANSWER_MODEL = BEDROCK_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_MODEL
 _REWRITE_MODEL = BEDROCK_REWRITE_MODEL if LLM_PROVIDER == "bedrock" else CLAUDE_REWRITE_MODEL
 _claude_client_instance = None
@@ -1048,6 +1054,8 @@ async def contextualize_query(
         messages = _rewrite_prompt(query, history)
         if _USES_CLAUDE:
             text = await _rewrite_claude(messages, uid=uid)
+        elif _USES_OPENAI:
+            text = await _rewrite_openai(messages, uid=uid)
         else:
             text = await generate_ollama(messages)
         text = text.strip().splitlines()[0].strip().strip('"«»\'') if text.strip() else ""
@@ -1078,6 +1086,57 @@ async def _rewrite_claude(messages: list[dict], uid: str | None = None) -> str:
     except (AttributeError, TypeError, ValueError) as exc:
         log.debug("Token count not recorded: %s", exc)
     return _text_of(response)
+
+
+# ---------------------------------------------------------------------------
+# Generation with an OpenAI-compatible API
+# ---------------------------------------------------------------------------
+
+def _openai_done(result: dict, model: str, uid: str | None) -> None:
+    """After an answer of the provider: the incident, if any, is over; tokens and cost recorded."""
+    maintenance.recovered()
+    usage = result.get("usage")
+    if usage:
+        _record_tokens(usage["in"], usage["out"], model, uid=uid)
+
+
+async def _rewrite_openai(messages: list[dict], uid: str | None = None) -> str:
+    """Short, non-streaming call for rewriting the question."""
+    result = await asyncio.wait_for(
+        openai_llm.chat(messages, OPENAI_REWRITE_MODEL, temperature=0.0, max_tokens=200), timeout=20.0)
+    usage = result.get("usage")
+    if usage:
+        _record_tokens(usage["in"], usage["out"], OPENAI_REWRITE_MODEL, uid=uid)
+    return result["text"]
+
+
+async def generate_openai(messages: list[dict], uid: str | None = None) -> str:
+    """Calls the OpenAI-compatible model and returns the complete answer.
+
+    uid: opaque id of the user who sent the question (for the cost history)."""
+    result = await openai_llm.chat(messages, OPENAI_MODEL, temperature=0.3, max_tokens=1024)
+    _openai_done(result, OPENAI_MODEL, uid)
+    text = result["text"]
+    if result.get("finish") == "content_filter":
+        log.warning("The model refused the request")
+        text = (text + "\n\n" + _REFUSAL_TEXT).strip()
+    return text
+
+
+async def stream_openai(messages: list[dict], uid: str | None = None) -> AsyncGenerator[str, None]:
+    """Calls the OpenAI-compatible model in streaming mode.
+
+    uid: opaque id of the user who sent the question (for the cost history)."""
+    result: dict = {}
+    sent = False
+    async for text in openai_llm.chat_stream(messages, OPENAI_MODEL, temperature=0.3, max_tokens=1024,
+                                             result=result):
+        sent = True
+        yield text
+    _openai_done(result, OPENAI_MODEL, uid)
+    if result.get("finish") == "content_filter":
+        log.warning("The model refused the request")
+        yield ("\n\n" if sent else "") + _REFUSAL_TEXT
 
 
 # ---------------------------------------------------------------------------
@@ -1276,7 +1335,7 @@ _query_freq: _Counter = _Counter()
 _query_seen: dict[str, float] = {}   # question -> when it was last asked (for RETENTION_STATS_DAYS)
 _hour_counts: list[int] = [0] * 24
 
-# Token tracking (Claude provider only)
+# Token tracking (Claude and OpenAI-compatible providers)
 _token_in_total: int = 0
 _token_out_total: int = 0
 _token_cost_total: float = 0.0
@@ -1296,6 +1355,8 @@ _BEDROCK_GEO_MARKUP = 1.10
 
 
 def _cost_usd(in_tok: int, out_tok: int, model: str) -> float:
+    if _USES_OPENAI:   # the installation's own price list (OPENAI_PRICE_IN / OPENAI_PRICE_OUT)
+        return (in_tok * OPENAI_PRICE_IN + out_tok * OPENAI_PRICE_OUT) / 1_000_000
     # Bedrock id: "eu.anthropic.claude-sonnet-4-6" → "claude-sonnet-4-6" (estimate)
     markup = _BEDROCK_GEO_MARKUP if model.startswith(_BEDROCK_GEO_PREFIXES) else 1.0
     base = model.split("anthropic.", 1)[1] if "anthropic." in model else model
@@ -1676,6 +1737,8 @@ async def answer(
     if stream:
         if _USES_CLAUDE:
             gen = stream_claude(messages, uid=uid)
+        elif _USES_OPENAI:
+            gen = stream_openai(messages, uid=uid)
         else:
             gen = stream_ollama(messages)
         _save_stats()
@@ -1685,6 +1748,8 @@ async def answer(
         _t0 = _time.monotonic()
         if _USES_CLAUDE:
             text = await generate_claude(messages, uid=uid)
+        elif _USES_OPENAI:
+            text = await generate_openai(messages, uid=uid)
         else:
             text = await generate_ollama(messages)
         text = guard_phones(text, phones, language)
