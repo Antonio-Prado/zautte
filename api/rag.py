@@ -907,21 +907,50 @@ def build_prompt(
     return messages
 
 
-def detect_language(text: str) -> str:
+# Function words that tell Italian from English. Words the two languages share ("a", "i", "in",
+# "no", "come", "per", "me", "o", "e", "so", "ha", "sale", "data") are in neither set.
+_IT_WORDS = frozenset("""
+il lo la gli le un uno una di del dello della dei degli delle al allo alla ai agli alle da dal
+dallo dalla dai dalle nel nello nella nei negli nelle con su sul sullo sulla sui sulle tra fra
+ed che chi cosa cos dove quando perché perche quanto quanta quanti quante quale quali non è sono
+sei siamo ho hai abbiamo hanno devo devi deve dobbiamo posso puoi può possiamo voglio vorrei
+vuole mi ti si ci vi mio mia miei mie tuo tua suo sua nostro nostra questo questa questi queste
+quello quella serve servono anche più piu se ma già oggi ieri qui qualcuno qualcosa ciao salve
+grazie buongiorno buonasera orario orari ufficio comune servizio documenti informazioni
+""".split())
+_EN_WORDS = frozenset("""
+the an of to and or is are was were be been do does did can could should would will shall may
+must have has had you he she we they my your his her our their its it this that these those what
+where when who whom whose why how which not yes for from with at on by about into if but there
+here need needs want wants get got please hello hi thanks thank much many any some someone
+something office service documents information opening hours tourist
+""".split())
+_LANG_WORD_RE = re.compile(r"[a-zàèéìòù]+")
+
+
+def _language_scores(text: str) -> tuple[int, int]:
+    words = _LANG_WORD_RE.findall((text or "").lower())
+    return sum(w in _IT_WORDS for w in words), sum(w in _EN_WORDS for w in words)
+
+
+def detect_language(text: str, history: list[dict] | None = None) -> str:
     """
-    Detects the query language (simple heuristic).
-    Returns 'it' or 'en'.
+    Detects the language of the question: 'it' or 'en', the two languages the assistant answers in.
+
+    Counts the function words of each language (articles, prepositions, pronouns, auxiliaries):
+    a question has them whatever it is about, whereas a short list of topic words ("how", "where",
+    "office") missed questions such as "I lost my wallet in the town centre", which then got the
+    Italian instructions. A question with no evidence either way ("ok", "TARI?", a name) takes the
+    language of the user's previous turns, the most recent first; without any, Italian.
     """
-    it_words = {"ciao", "come", "dove", "quando", "cosa", "chi", "perché",
-                "orario", "ufficio", "comune", "servizio", "documenti",
-                "informazioni", "grazie", "buongiorno", "buonasera"}
-    en_words = {"hello", "how", "where", "when", "what", "who", "why",
-                "office", "service", "documents", "information", "thanks",
-                "opening", "hours", "tourist"}
-    text_lower = text.lower()
-    words = set(text_lower.split())
-    it_score = len(words & it_words)
-    en_score = len(words & en_words)
+    it_score, en_score = _language_scores(text)
+    if it_score == en_score:
+        for turn in reversed(history or []):
+            if turn.get("role") != "user":
+                continue
+            it_prev, en_prev = _language_scores(turn.get("content", ""))
+            if it_prev != en_prev:
+                return "en" if en_prev > it_prev else "it"
     return "en" if en_score > it_score else "it"
 
 
@@ -1555,7 +1584,7 @@ async def answer(
             log.info("Question %s: answer served from cache", log_rid)
             return cached
 
-    language = detect_language(query)
+    language = detect_language(query, history)
     # In turns after the first, retrieval uses the standalone question
     # (the dialogue topic), not just the follow-up text.
     retrieval_query = await contextualize_query(query, history, uid=uid)

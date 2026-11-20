@@ -24,7 +24,7 @@ User question
 2. cache lookup           — /chat (non-streaming) without history only
      │
      ▼
-3. detect_language()      — Italian vs English (keyword heuristic)
+3. detect_language()      — Italian vs English (function words)
      │
      ▼
 4. contextualize_query()  — follow-ups only: the LLM rewrites the question as a standalone one
