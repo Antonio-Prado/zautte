@@ -146,3 +146,21 @@ def test_cost_from_the_installation_price_list(monkeypatch):
     assert rag._cost_usd(1_000_000, 500_000, "any-model") == pytest.approx(0.45 + 0.90)
     monkeypatch.setattr(rag, "_USES_OPENAI", False)
     assert rag._cost_usd(1_000_000, 0, "claude-sonnet-4-6") == pytest.approx(3.0)
+
+
+def test_the_reminder_goes_after_the_question_and_the_messages_are_left_alone(provider, monkeypatch):
+    monkeypatch.setattr(openai_llm, "OPENAI_ANSWER_NOTE", "(Dai del tu. Sii breve.)")
+    monkeypatch.setattr(rag, "OPENAI_MAX_TOKENS", 2048)
+    before = [dict(m) for m in MESSAGES]
+    provider["answer"] = _complete("Apre alle 9.")
+    asyncio.run(rag.generate_openai(MESSAGES, uid="u1"))
+    sent = provider["calls"][0]["body"]
+    assert sent["messages"][:-1] == MESSAGES[:-1]
+    assert sent["messages"][-1] == {"role": "user",
+                                    "content": MESSAGES[-1]["content"] + "\n\n(Dai del tu. Sii breve.)"}
+    assert sent["max_tokens"] == 2048
+    assert before == MESSAGES                       # the model in service gets them as they were
+
+
+def test_no_reminder_no_change():
+    assert openai_llm.with_answer_note(MESSAGES) is MESSAGES

@@ -132,7 +132,7 @@ Some answers need today's date or a figure that one document of the transparency
 
 ### Office Suggestion
 
-`suggest_office()` matches the question against the keywords in `config/offices.json` (whole words, case-insensitive, first match wins) and returns the office with a link (`SITE_URL` + `path`, or `url`). When an office matches, the suggestion goes into the prompt: with context, as an instruction to point to that office if the context does not really answer; without context, after the "nothing found" note.
+`suggest_office()` matches the question against the keywords in `config/offices.json` (whole words, case-insensitive, first match wins; the `ignore_phrases` of an office are removed from the question first, so that a keyword inside a name, such as a tree in the name of a square, does not call that office) and returns the office with a link (`SITE_URL` + `path`, or `url`). When an office matches, the suggestion goes into the prompt: with context, as an instruction to point to that office if the context does not really answer; without context, after the "nothing found" note.
 
 ### Response Cache
 

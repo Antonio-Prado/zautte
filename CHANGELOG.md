@@ -9,6 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-21
+
+### Added
+- `OPENAI_ANSWER_NOTE`: a reminder for the model of the OpenAI-compatible API only, added after the question
+  in each request for an answer, in service and in the shadow. Different models follow the same instructions
+  differently: on real questions a second model slipped into the formal form of address and wrote answers
+  about 40% longer than the one in service, some cut off at the limit; with a three-line reminder it did
+  neither. The messages of the model in service are not touched.
+- `OPENAI_MAX_TOKENS` (default `1024`, as before): the longest answer of that model.
+- `config/offices.json`: `ignore_phrases` for an office, removed from the question before its keywords are
+  matched, as for known facts.
+
+### Fixed
+- An office could be suggested for a keyword inside a name (the parks office for a cinema named after palm
+  trees); a model that follows the suggestion to the letter then sent the reader to the wrong office.
+
 ## [0.51.0] - 2026-11-20
 
 ### Added

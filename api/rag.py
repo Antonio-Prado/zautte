@@ -38,6 +38,7 @@ from config.settings import (
     OLLAMA_BASE_URL,
     OLLAMA_CHAT_TIMEOUT,
     OLLAMA_MODEL,
+    OPENAI_MAX_TOKENS,
     OPENAI_MODEL,
     OPENAI_PRICE_IN,
     OPENAI_PRICE_OUT,
@@ -161,7 +162,7 @@ OLD_VERSION_PENALTY = 0.02
 DOCUMENT_PASSAGES = 2
 
 # Keyword → competent office map — loaded from config/offices.json
-def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
+def _load_office_map() -> list[tuple[re.Pattern, str, str, list[re.Pattern]]]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "offices.json"
     if not f.exists():
@@ -174,7 +175,11 @@ def _load_office_map() -> list[tuple[re.Pattern, str, str]]:
             # Whole words, as for known facts: before, "cie" matched inside
             # "società" or "specie" and "imposta" inside "impostazioni".
             pattern = re.compile(r"\b(?:" + "|".join(re.escape(k.lower()) for k in e["keywords"]) + r")\b")
-            result.append((pattern, e["name"], url))
+            # Phrases removed from the question before matching this office, as for known facts:
+            # "palme" is meant for the trees, not for a place called "Cinema delle Palme".
+            ignore = [re.compile(r"\b" + r"\s+".join(map(re.escape, p.lower().split())) + r"\b")
+                      for p in e.get("ignore_phrases", []) if p.strip()]
+            result.append((pattern, e["name"], url, ignore))
         return result
     except (OSError, ValueError, KeyError, TypeError) as exc:
         log.warning(f"Could not load offices.json: {exc}")
@@ -186,8 +191,11 @@ _OFFICE_MAP = _load_office_map()
 def suggest_office(query: str) -> str | None:
     """Suggests the competent office based on the query keywords."""
     query_lower = query.lower()
-    for pattern, office_name, office_url in _OFFICE_MAP:
-        if pattern.search(query_lower):
+    for pattern, office_name, office_url, ignore in _OFFICE_MAP:
+        text = query_lower
+        for phrase in ignore:
+            text = phrase.sub(" ", text)
+        if pattern.search(text):
             return f"Per questo argomento puoi contattare: **{office_name}** — {office_url}"
     return None
 
@@ -1114,7 +1122,8 @@ async def generate_openai(messages: list[dict], uid: str | None = None) -> str:
     """Calls the OpenAI-compatible model and returns the complete answer.
 
     uid: opaque id of the user who sent the question (for the cost history)."""
-    result = await openai_llm.chat(messages, OPENAI_MODEL, temperature=0.3, max_tokens=1024)
+    result = await openai_llm.chat(openai_llm.with_answer_note(messages), OPENAI_MODEL, temperature=0.3,
+                                   max_tokens=OPENAI_MAX_TOKENS)
     _openai_done(result, OPENAI_MODEL, uid)
     text = result["text"]
     if result.get("finish") == "content_filter":
@@ -1129,8 +1138,8 @@ async def stream_openai(messages: list[dict], uid: str | None = None) -> AsyncGe
     uid: opaque id of the user who sent the question (for the cost history)."""
     result: dict = {}
     sent = False
-    async for text in openai_llm.chat_stream(messages, OPENAI_MODEL, temperature=0.3, max_tokens=1024,
-                                             result=result):
+    async for text in openai_llm.chat_stream(openai_llm.with_answer_note(messages), OPENAI_MODEL,
+                                             temperature=0.3, max_tokens=OPENAI_MAX_TOKENS, result=result):
         sent = True
         yield text
     _openai_done(result, OPENAI_MODEL, uid)

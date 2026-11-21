@@ -201,3 +201,19 @@ def test_answer_sends_the_same_messages_and_shows_only_the_answer_in_service(on,
     kinds = {e["kind"]: e for e in on["entries"]()}
     assert kinds["primary"]["model"] == "model-a" and kinds["primary"]["rid"] == "rid000000009"
     assert kinds["shadow"]["model"] == "model-b" and kinds["shadow"]["rid"] == "rid000000009"
+
+
+def test_the_second_model_is_asked_as_it_would_be_in_service(on, monkeypatch):
+    monkeypatch.setattr(openai_llm, "OPENAI_ANSWER_NOTE", "(Dai del tu. Sii breve.)")
+    monkeypatch.setattr(shadow, "OPENAI_MAX_TOKENS", 2048)
+    before = [dict(m) for m in MESSAGES]
+
+    async def run():
+        shadow.start("rid000000009", "u1", MESSAGES)
+        await _drain()
+
+    asyncio.run(run())
+    call = on["calls"][0]
+    assert call["messages"][-1]["content"] == MESSAGES[-1]["content"] + "\n\n(Dai del tu. Sii breve.)"
+    assert call["max_tokens"] == 2048
+    assert before == MESSAGES                       # the answer in service is asked without it

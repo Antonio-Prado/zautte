@@ -3,5 +3,11 @@
     "keywords": ["residence", "registry office", "birth certificate"],
     "name": "Registry Office",
     "path": "/offices/registry"
+  },
+  {
+    "keywords": ["tree", "trees", "palm", "palms", "hedge"],
+    "ignore_phrases": ["palm cinema", "palms riviera"],
+    "name": "Parks Office",
+    "path": "/offices/parks"
   }
 ]
