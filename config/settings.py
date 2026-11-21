@@ -331,6 +331,13 @@ OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "").strip()
 OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "120"))
 OPENAI_PRICE_IN = float(os.getenv("OPENAI_PRICE_IN", "0") or 0)
 OPENAI_PRICE_OUT = float(os.getenv("OPENAI_PRICE_OUT", "0") or 0)
+# Longest answer of this model, in tokens: a wordier model needs more room than another to say
+# the same thing, and an answer cut off halfway is worse than a long one.
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "1024") or 1024)
+# A reminder for this model only, added after the question (where a model weighs it most): the
+# rules of the instructions that this model follows less well than another (the form of address,
+# the length). Empty: nothing is added. It applies to the answers in service and to the shadow ones.
+OPENAI_ANSWER_NOTE = os.getenv("OPENAI_ANSWER_NOTE", "").strip()
 # Shadow answers (api/shadow.py): with another provider in service, the questions of logged-in
 # users also go, in the background, to the model of the OpenAI-compatible API above; its answers
 # are never shown to the users, only compared in the restricted area. Off by default: it sends

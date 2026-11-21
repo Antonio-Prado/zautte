@@ -3,7 +3,8 @@ Shadow answers: a second model answers the same questions, unseen by the users, 
 administrator can compare it with the one in service before switching (SHADOW_OPENAI=true).
 
 When the model in service is asked a question, the very same messages also go, in the
-background, to the model of the OpenAI-compatible API (OPENAI_BASE_URL, OPENAI_MODEL). The user
+background, to the model of the OpenAI-compatible API (OPENAI_BASE_URL, OPENAI_MODEL), asked as
+it would be in service (OPENAI_ANSWER_NOTE after the question, OPENAI_MAX_TOKENS). The user
 gets the answer of the model in service only, and never waits for the other. The shadow answer
 goes through the same phone guard and the same masking as a logged answer and is written to
 data/shadow.jsonl with its times and tokens, next to the times of the answer in service; the
@@ -29,6 +30,7 @@ from api.safefile import dump_line
 from config.settings import (
     LLM_PROVIDER,
     OPENAI_BASE_URL,
+    OPENAI_MAX_TOKENS,
     OPENAI_MODEL,
     OPENAI_PRICE_IN,
     OPENAI_PRICE_OUT,
@@ -86,8 +88,10 @@ async def _answer(rid: str, uid: str, messages: list[dict], guard: Callable[[str
     result: dict = {}
     error = None
     try:
-        async for text in openai_llm.chat_stream(messages, OPENAI_MODEL, temperature=0.3,
-                                                 max_tokens=1024, result=result):
+        # as this model would be asked in service: its own reminder after the question, its own room
+        async for text in openai_llm.chat_stream(openai_llm.with_answer_note(messages), OPENAI_MODEL,
+                                                 temperature=0.3, max_tokens=OPENAI_MAX_TOKENS,
+                                                 result=result):
             if first_ms is None and text.strip():
                 first_ms = int((time.monotonic() - started) * 1000)
             parts.append(text)

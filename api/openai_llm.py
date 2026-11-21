@@ -17,6 +17,7 @@ from collections.abc import AsyncGenerator
 import httpx
 
 from config.settings import (
+    OPENAI_ANSWER_NOTE,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_REASONING_EFFORT,
@@ -38,6 +39,17 @@ class ProviderError(RuntimeError):
         super().__init__(f"the model provider answered HTTP {status_code}")
         self.status_code = status_code
         self.detail = detail
+
+
+def with_answer_note(messages: list[dict]) -> list[dict]:
+    """The messages of an answer with OPENAI_ANSWER_NOTE after the question (the last user
+    message); the same list when no note is set. The messages passed in are left untouched: they
+    are also the ones of the model in service, when this one answers in the shadow."""
+    if not OPENAI_ANSWER_NOTE or not messages or messages[-1].get("role") != "user":
+        return messages
+    last = dict(messages[-1])
+    last["content"] = f'{last["content"]}\n\n{OPENAI_ANSWER_NOTE}'
+    return [*messages[:-1], last]
 
 
 def _client() -> httpx.AsyncClient:
