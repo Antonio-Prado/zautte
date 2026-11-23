@@ -110,6 +110,10 @@ def test_the_api_picks_the_fact_up(tmp_path, monkeypatch):
     assert fact["title"] in titles("Cosa posso fare questo fine settimana?")
     assert fact["title"] not in titles("Come posso fare la carta d'identità?")
     assert fact["title"] not in titles("Orari dell'anagrafe della settimana prossima")
+    # the message of a booking calendar with no free slot is not a question about what is on
+    assert fact["title"] not in titles('A questo link non è possibile prenotare, riporta la dicitura "nessun evento"')
+    assert fact["title"] not in titles("L'agenda dei tributi dice: Non ci sono eventi da visualizzare")
+    assert fact["title"] in titles("Davvero nessun evento questo weekend?")
 
 
 def _fires(question: str) -> bool:

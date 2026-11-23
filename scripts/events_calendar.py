@@ -13,7 +13,8 @@ Configuration: the "events" key of config/crawl_extra.json
      "calendar_url": "https://tourism.example.org/events/",   # the calendar page, linked in the fact
      "days_ahead": 60,                  # events starting up to this many days from today (default)
      "max_description": 4000,           # characters of each description kept (default)
-     "keywords": [...], "require_any": [...]}   # optional: when the fact is injected
+     "keywords": [...], "require_any": [...],   # optional: when the fact is injected
+     "ignore_phrases": [...]}           # optional: phrases removed from the question before matching
 Run (hourly from cron, as the sync account, through scripts/events_calendar.sh: lock, memory ceiling, time limit):
     venv/bin/python -m scripts.events_calendar [--dry-run]
 Exit codes: 0 written or unchanged, 1 fetch or configuration error (the previous file is kept).
@@ -72,6 +73,11 @@ _CONTEXT = [
 ]
 DEFAULT_KEYWORDS = [*_STRONG, "settimana", *_BROAD]
 DEFAULT_REQUIRE_ANY = [*_STRONG, "fare", "succede", "uscire", *_CONTEXT]
+# What an online booking calendar shows when it has no free slot (FullCalendar: «Non ci sono eventi da
+# visualizzare»): «la pagina per prenotare dice "nessun evento"» is about an appointment, not about what is on.
+DEFAULT_IGNORE_PHRASES = [
+    "nessun evento", "eventi da visualizzare", "evento da visualizzare", "no events to display",
+]
 
 _BLOCK_END_RE = re.compile(r"<\s*(br|/p|/div|/li|/h[1-6]|/tr)\b[^>]*>", re.IGNORECASE)
 _LI_RE = re.compile(r"<\s*li\b[^>]*>", re.IGNORECASE)
@@ -171,7 +177,7 @@ def parse_events(items: list[dict], today: date) -> list[dict]:
 
 def build_fact(events: list[dict], today: date, horizon: date, calendar_url: str, site_name: str,
                max_description: int = 4000, keywords: list[str] | None = None,
-               require_any: list[str] | None = None) -> dict:
+               require_any: list[str] | None = None, ignore_phrases: list[str] | None = None) -> dict:
     """The known fact: every event with its dates, place, page and description, and how to read them."""
     lines = [(f"Eventi in corso e in programma secondo il calendario degli eventi {calendar_url}, letto "
               f"automaticamente {_day(today)}: gli eventi ancora in corso oggi e quelli che iniziano entro "
@@ -223,6 +229,7 @@ def build_fact(events: list[dict], today: date, horizon: date, calendar_url: str
         "id": FACT_ID,
         "keywords": keywords or DEFAULT_KEYWORDS,
         "require_any": require_any or DEFAULT_REQUIRE_ANY,
+        "ignore_phrases": DEFAULT_IGNORE_PHRASES if ignore_phrases is None else ignore_phrases,
         "title": f"Eventi in corso e in programma (calendario degli eventi, aggiornato automaticamente) - {site_name}",
         "source": calendar_url,
         "category": "eventi",
@@ -277,7 +284,8 @@ def main() -> int:
     events = parse_events(items, today)
     fact = build_fact(events, today, horizon, calendar_url, SITE_NAME,
                       int(EVENTS_CALENDAR.get("max_description") or 4000),
-                      EVENTS_CALENDAR.get("keywords"), EVENTS_CALENDAR.get("require_any"))
+                      EVENTS_CALENDAR.get("keywords"), EVENTS_CALENDAR.get("require_any"),
+                      EVENTS_CALENDAR.get("ignore_phrases"))
     if args.dry_run:
         print(fact["text"])
     written = upsert_fact(KNOWN_FACTS_DYNAMIC_FILE, fact, dry_run=args.dry_run)
