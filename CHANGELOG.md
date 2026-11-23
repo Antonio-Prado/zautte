@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.53.1] - 2026-11-23
+
+### Fixed
+- Events calendar (`scripts/events_calendar.py`): a person who wrote that the page for booking an
+  appointment «riporta la dicitura "nessun evento"» (what an online agenda shows when it has no free
+  slot) got the calendar of the events of the city among the sources, because of the word «evento». The
+  generated fact now carries `ignore_phrases` («nessun evento», «eventi da visualizzare», …), removed
+  from the question before matching; the list can be changed with `events.ignore_phrases` in
+  `crawl_extra.json`.
+
 ## [0.53.0] - 2026-11-23
 
 ### Added
