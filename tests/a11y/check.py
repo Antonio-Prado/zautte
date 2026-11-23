@@ -38,7 +38,12 @@ ANSWER = ("Per rinnovare la **carta d'identità** prenota un appuntamento.\n\n"
           "Vedi [la pagina della CIE](https://www.example.org/cie) o scrivi a anagrafe@example.org.")
 ANSWER_EN = "To renew your identity card, book an appointment at the registry office."
 SOURCES = [{"title": "Carta d'identità elettronica", "url": "https://www.example.org/cie", "score": 0.8},
-           {"title": "Regolamento anagrafe (documento archiviato)", "url": "", "score": 0.6}]
+           {"title": "Regolamento anagrafe (documento archiviato)", "url": "", "score": 0.6},
+           # a title longer than two lines of the conversation: it must wrap and be cut, not widen it
+           {"title": "Occupazione di suolo pubblico: quale procedura in base alla durata (fino a 7 giorni, "
+                     "oltre 7 giorni) e al motivo (cantieri edili, scavi, dehors e tavoli, eventi), uffici e "
+                     "contatti, moduli, marche da bollo, canone, tempi di risposta e sportelli a cui rivolgersi",
+            "url": "https://www.example.org/suolo-pubblico", "score": 0.5}]
 
 failures: list[str] = []
 
@@ -203,10 +208,19 @@ def main() -> int:
         check(hrefs == ["https://www.example.org/cie", "mailto:anagrafe@example.org"], f"answer links: {hrefs}")
         status = page.text_content(f"{W}-status") or ""
         check(status.startswith("Per rinnovare la carta d'identità") and "**" not in status
-              and "https://" not in status and status.rstrip().endswith("Fonti: 2"),
+              and "https://" not in status and status.rstrip().endswith("Fonti: 3"),
               "the finished answer is announced once, without markdown or URLs, with the number of sources")
         check(page.evaluate("document.activeElement.id") == "zautte-chatbot-input", "focus in the field after the answer")
         axe(page, "answer with sources and 👍/👎")
+        check(page.evaluate(f"""() => {{
+                  const m = document.querySelector("{W}-messages");
+                  return m.scrollWidth <= m.clientWidth;
+              }}"""), "a long source title does not make the conversation scroll sideways")
+        heights = page.evaluate("""() => [...document.querySelectorAll(
+                  ".zautte-chatbot-sources a, .zautte-chatbot-sources span")].map(
+                  (e) => e.getBoundingClientRect().height)""")
+        check(len(heights) == 3 and all(24 <= h <= 40 for h in heights) and max(heights) == 40,
+              "source titles are 24 px tall targets, on two lines at most")
         page.click(".zautte-chatbot-feedback button:nth-child(2)")
         page.wait_for_selector(".zautte-chatbot-fbform textarea")
         pressed = page.eval_on_selector_all(".zautte-chatbot-feedback button",

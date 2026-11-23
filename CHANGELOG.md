@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-11-23
+
+### Fixed
+- Widget: a source with a very long title made the whole conversation scroll sideways. The titles under
+  an answer now wrap inside the message, on two lines at most, and are cut there with an ellipsis; each
+  one is still a 24 px tall target. The accessibility check covers it.
+
 ## [0.52.0] - 2026-11-21
 
 ### Added
