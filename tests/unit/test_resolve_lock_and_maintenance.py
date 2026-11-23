@@ -84,3 +84,28 @@ def test_a_provider_answer_ends_maintenance(monkeypatch):
     monkeypatch.setattr(rag, "_text_of", lambda response: "risposta")
     assert asyncio.run(rag.generate_claude([{"role": "user", "content": "x"}])) == "risposta"
     assert maintenance.status()["since"] is None and sent == ["Zautte — servizio di nuovo attivo"]
+
+
+def test_the_longest_answer_of_claude_is_a_setting(monkeypatch):
+    """CLAUDE_MAX_TOKENS reaches the request: an answer cut off halfway is fixed in .env, not in the code."""
+    monkeypatch.setattr(maintenance, "_state", {"until": 0.0, "since": None, "reason": "", "last_alert": 0.0})
+    monkeypatch.setattr(rag, "CLAUDE_MAX_TOKENS", 1500)
+    seen = []
+
+    class _Resp:
+        usage = None
+        stop_reason = "end_turn"
+        content = ()
+
+    class _Messages:
+        async def create(self, **kwargs):
+            seen.append(kwargs)
+            return _Resp()
+
+    class _Client:
+        messages = _Messages()
+    monkeypatch.setattr(rag, "_claude_client", lambda: _Client())
+    monkeypatch.setattr(rag, "_text_of", lambda response: "risposta")
+    assert asyncio.run(rag.generate_claude([{"role": "user", "content": "x"}])) == "risposta"
+    # models with reasoning get a margin on top (see _model_options): never less than the setting
+    assert seen and seen[0]["max_tokens"] >= 1500
