@@ -308,6 +308,10 @@ LLM_EFFORT = os.getenv("LLM_EFFORT", "low")
 # set in .env (e.g. claude-haiku-4-5).
 QUERY_REWRITE = os.getenv("QUERY_REWRITE", "true").strip().lower() in ("1", "true", "yes", "on")
 CLAUDE_REWRITE_MODEL = os.getenv("CLAUDE_REWRITE_MODEL", CLAUDE_MODEL)
+# Longest answer of Claude (`claude` and `bedrock` providers), in tokens. An answer that reaches
+# the limit stops there, in the middle of a list or of a telephone number: a question that asks
+# for several things at once needs more room than 1024.
+CLAUDE_MAX_TOKENS = int(os.getenv("CLAUDE_MAX_TOKENS", "1024") or 1024)
 
 # Claude on AWS Bedrock (LLM_PROVIDER=bedrock; requires `pip install "anthropic[bedrock]"`).
 # The "eu." inference profile processes requests only in EU AWS regions;

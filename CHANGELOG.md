@@ -9,6 +9,13 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-23
+
+### Added
+- `CLAUDE_MAX_TOKENS` (default `1024`, as before): the longest answer of Claude (`claude` and `bedrock`
+  providers). It was fixed in the code: a question that asks for several things at once got an answer cut
+  off in the middle of a telephone number.
+
 ## [0.52.2] - 2026-11-23
 
 ### Fixed

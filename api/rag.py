@@ -29,6 +29,7 @@ from config.settings import (
     BEDROCK_AWS_REGION,
     BEDROCK_MODEL,
     BEDROCK_REWRITE_MODEL,
+    CLAUDE_MAX_TOKENS,
     CLAUDE_MODEL,
     CLAUDE_REWRITE_MODEL,
     CRAWL_ALLOWED_DOMAINS,
@@ -1238,7 +1239,7 @@ async def generate_claude(messages: list[dict], uid: str | None = None) -> str:
         model=_ANSWER_MODEL,
         system=system_content,
         messages=user_messages,
-        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=1024),
+        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=CLAUDE_MAX_TOKENS),
     )
     maintenance.recovered()   # the provider answered: a maintenance incident, if any, is over
     try:
@@ -1267,7 +1268,7 @@ async def stream_claude(messages: list[dict], uid: str | None = None) -> AsyncGe
         model=_ANSWER_MODEL,
         system=system_content,
         messages=user_messages,
-        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=1024),
+        **_model_options(_ANSWER_MODEL, temperature=0.3, max_tokens=CLAUDE_MAX_TOKENS),
     ) as stream:
         sent = False
         async for text in stream.text_stream:

@@ -73,6 +73,8 @@ LLM_EFFORT=low
 QUERY_REWRITE=true
 # Model used for the rewrite (default: the answer model)
 #CLAUDE_REWRITE_MODEL=
+# Longest answer of Claude, in tokens (default 1024): raise it if long answers stop halfway
+#CLAUDE_MAX_TOKENS=1024
 #BEDROCK_REWRITE_MODEL=
 
 # Claude on AWS Bedrock (pip install --require-hashes -r requirements-lock.txt -r requirements-bedrock-lock.txt); the "eu." inference
@@ -263,6 +265,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `LLM_EFFORT`           | `low`                          | Reasoning effort (`low`/`medium`/`high`) for adaptive-reasoning models (Sonnet 5.x, Opus 4.7 and later) |
 | `QUERY_REWRITE`        | `true`                         | Rewrite follow-up questions as standalone queries before retrieval |
 | `CLAUDE_REWRITE_MODEL` | `CLAUDE_MODEL`                 | Model used to rewrite follow-up questions (`claude` provider; with Ollama the rewrite uses `OLLAMA_MODEL`) |
+| `CLAUDE_MAX_TOKENS`    | `1024`                         | Longest answer of Claude (`claude` and `bedrock` providers), in tokens: an answer that reaches the limit stops halfway |
 | `BEDROCK_AWS_REGION`   | `eu-south-1`                   | AWS region for Bedrock (Milan)                       |
 | `BEDROCK_MODEL`        | `eu.anthropic.claude-sonnet-4-6` | Bedrock EU cross-region inference profile          |
 | `BEDROCK_REWRITE_MODEL`| `BEDROCK_MODEL`                | Model used to rewrite follow-up questions (`bedrock` provider) |
