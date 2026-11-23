@@ -499,36 +499,47 @@
     .${WIDGET_ID}-fbform-thanks { margin-top: 8px; font-size: 13px; color: #2e7d32; }
 
     /* Sources */
+    /* As wide as the message at most: a long title must not widen the conversation */
     .${WIDGET_ID}-sources {
       margin-top: 6px;
       font-size: 11px;
       color: #666;
+      max-width: 100%;
+      min-width: 0;
     }
     .${WIDGET_ID}-sources-label {
       font-weight: 600;
       margin-bottom: 2px;
       color: #555;
     }
-    /* 24 px tall rows: targets large and spaced enough (WCAG 2.5.8) */
+    /* Rows at least 24 px tall: targets large and spaced enough (WCAG 2.5.8). A long title goes
+       on a second line and is cut there; the space above and below is a border, not padding,
+       because the start of a third line would show through the padding. */
     .${WIDGET_ID}-sources a {
-      display: block;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       color: ${p};
       text-decoration: none;
       line-height: 16px;
-      padding: 4px 0;
+      border: solid transparent;
+      border-width: 4px 0;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
     .${WIDGET_ID}-sources a:hover { text-decoration: underline; }
     .${WIDGET_ID}-sources span {
-      display: block;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
       color: #666;
       line-height: 16px;
-      padding: 4px 0;
+      border: solid transparent;
+      border-width: 4px 0;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
 
     /* Typing indicator */
