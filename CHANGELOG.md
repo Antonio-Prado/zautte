@@ -9,6 +9,18 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.52.2] - 2026-11-23
+
+### Fixed
+- Calls for jobs (`scripts/recruitment_notices.py`): the fact gave the «Fine validità» of the table as the
+  deadline for applications, but an office may type there how long the page stays published (a selection
+  closed for a month was listed as open until 2031). The job now reads the notice attached to each open or
+  announced call and quotes what it says about the deadline and about who can apply; when the notice counts
+  the days from its publication, the date is worked out and the fact says whether it has passed. The text
+  of the notice comes before the dates of the table, which are given as the validity the site states.
+  Nothing is added that the notice does not say. Each attachment is read once (kept by its fingerprint in
+  `recruitment_notices_cache.json`, next to the dynamic facts).
+
 ## [0.52.1] - 2026-11-23
 
 ### Fixed
