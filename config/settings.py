@@ -528,6 +528,15 @@ APPLY_NOTIFY_MAX_PER_HOUR = int(os.getenv("APPLY_NOTIFY_MAX_PER_HOUR", "10"))
 # e-mail when the service is back. Visitors never see the cause.
 MAINTENANCE_HOLD_SECONDS = int(os.getenv("MAINTENANCE_HOLD_SECONDS", "600"))
 MAINTENANCE_ALERT_EMAIL = os.getenv("MAINTENANCE_ALERT_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
+# Off-site backup (scripts/offsite_backup.py, run as root from cron): dated archives sent with sftp to
+# OFFSITE_BACKUP_TARGET (an ssh host or a Host alias of root's ~/.ssh/config; empty = off) in the folder
+# OFFSITE_BACKUP_DIR. The space may be write-only (no rename, no delete): old archives are removed on
+# the backup server. OFFSITE_BACKUP_TMP holds each archive while it is prepared (the largest is about
+# 2 GB); OFFSITE_BACKUP_REPORT_TO receives failures and the weekly summary (default FEEDBACK_NOTIFY_EMAIL).
+OFFSITE_BACKUP_TARGET = os.getenv("OFFSITE_BACKUP_TARGET", "").strip()
+OFFSITE_BACKUP_DIR = os.getenv("OFFSITE_BACKUP_DIR", "zautte").strip().rstrip("/") or "zautte"
+OFFSITE_BACKUP_TMP = Path(os.getenv("OFFSITE_BACKUP_TMP", "").strip() or DATA_DIR / "offsite_tmp")
+OFFSITE_BACKUP_REPORT_TO = os.getenv("OFFSITE_BACKUP_REPORT_TO", "").strip() or FEEDBACK_NOTIFY_EMAIL
 
 # --- System prompts ---
 _site_label = f" di {SITE_NAME}" if SITE_NAME else ""

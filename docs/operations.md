@@ -127,6 +127,10 @@ The sync jobs download and parse documents from the Internet, so they should not
 42       5    *    *     *    zsync /opt/chatbot/scripts/transparency_facts.sh >>/var/log/chatbot-sync.log 2>&1
 30       6    *    *     1    root  cd /opt/chatbot && venv/bin/python -m scripts.pdf_quality_report >>/var/log/chatbot-sync.log 2>&1
 #15      2    *    *     *    root cd /opt/chatbot && venv/bin/python -m scripts.purge_logs >/dev/null 2>&1
+50       *    *    *     *    root  cd /opt/chatbot && venv/bin/python -m scripts.offsite_backup hourly >/dev/null 2>&1
+30       4    *    *     *    root  cd /opt/chatbot && venv/bin/python -m scripts.offsite_backup nightly >/dev/null 2>&1
+0        5    *    *     *    root  cd /opt/chatbot && venv/bin/python -m scripts.offsite_backup documents >/dev/null 2>&1
+15       1    *    *     0    root  cd /opt/chatbot && venv/bin/python -m scripts.offsite_backup weekly >/dev/null 2>&1
 ```
 
 Applications to the pilot (`POST /apply`) are listed and decided in the restricted area (card "Volunteer applications", also from a phone) or with `venv/bin/python -m scripts.applications` (`--accept <id>` creates the account and sends the invitation, `--reject <id>` marks it as not selected, `--all` shows every one). `purge_logs` also drops the expired entries of the logout revocation list (`revoked_tokens.json`). Accounts that stopped asking questions are not removed by themselves: `venv/bin/python -m scripts.inactive_users --days 180` lists them (a new account carries a `created` date; one without it and without any question is listed apart and never removed) and `--remove` deletes them after asking.
@@ -137,6 +141,7 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 |--------------------------------|-------------------------|-------------|
 | every minute                   | `watchdog.sh`           | Restarts the API if it is down or unresponsive; reloads or restarts it when a sync asks for it |
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
+| every hour (minute 50), 04:30 and 05:00 every night, 01:15 every Sunday | `offsite_backup` | Off-site copies: people data every hour, system and application every night, new documents every night, index and programs every Sunday (see [Off-site backup](#off-site-backup)) |
 | 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot-full.log` |
 | every 15 minutes               | `news_sync.sh`          | New articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
@@ -187,6 +192,60 @@ tar -xzf data/backups/vectorstore_YYYYMMDD_HHMMSS.tar.gz -C data/
 chown -R zsync:zsync data/vectorstore   # the sync account must be able to rewrite it
 service chatbot restart
 ```
+
+### Off-site backup
+
+The vector store backup above stays on the same disk. `scripts/offsite_backup.py` sends dated archives to
+another machine with `sftp`, so that a new server can be rebuilt identical to the lost one. The backup
+space needs only `put` and `mkdir`: it may refuse rename and delete (a write-only space is safer, since a
+compromised Zautte cannot destroy its backups), so the job never rewrites or deletes anything there and
+**old archives are removed by the backup server** (for example `find <dir> -mtime +60 -delete` every night
+for two months of history).
+
+Settings in `.env`: `OFFSITE_BACKUP_TARGET` (an ssh host, or a `Host` alias of root's `~/.ssh/config` with
+the key and the pinned host key; empty = off), `OFFSITE_BACKUP_DIR` (folder on the backup server),
+`OFFSITE_BACKUP_TMP` (where each archive is prepared, default `data/offsite_tmp`; the largest is about
+2 GB), `OFFSITE_BACKUP_REPORT_TO` (failures and the weekly summary, default `FEEDBACK_NOTIFY_EMAIL`).
+The archives are not encrypted: the backup space must be as protected as the server itself.
+
+| Mode | Folder | Content | When |
+|------|--------|---------|------|
+| `hourly` | `orari/` | `data/*.json`, `data/*.jsonl` (users, questions, feedback, survey, applications…), `data/facts`, `data/inbox`, `.env`, `.env.sync` | every hour |
+| `nightly` | `notte/` | `/etc`, `/usr/local/etc`, `/boot/loader.conf`, `/root/.ssh`, `/home/*/.ssh`, `/var/db/zautte-sync`, the lists in `/var/db/zautte-backup/meta` (FreeBSD version, packages, locked packages, `gpart backup` of every disk, swap, network, enabled services), the application without `venv`, `deploy_backups` and logs, plus the people data | every night |
+| `weekly` | `settimana/` | `*-indice`: `data/vectorstore` and `data/crawl_cache` without old copies, taken under the sync lock; `*-programmi`: `venv`, the Ollama models (home of the `ollama` account) and the installed Ollama package (a newer Ollama computes different vectors) | Sunday |
+| `documents` | `documenti/` | `data/documents` changed since the last complete run, in uncompressed parts of about 2 GB (`-p001`, `-p002`…); an interrupted run resumes without sending again the parts already sent | every night |
+
+Each archive is followed by `<name>.sha256`, written only after the size on the server matched: an
+archive without it is an interrupted upload, to ignore. Events go to `/var/log/zautte-offsite.log`. Each
+mode has its own lock and scratch folder; `all` runs the four modes in a row (first run, then use
+`--mail` to get the outcome by e-mail).
+
+Setup (as root): create a key (`ssh-keygen -t ed25519 -N "" -f /root/.ssh/id_ed25519_backup`), have its
+public half added to the backup account, write the `Host` alias with `IdentityFile`,
+`StrictHostKeyChecking yes` and a `UserKnownHostsFile` holding the backup server's key (checked against
+its fingerprint), set the variables above, run `venv/bin/python -m scripts.offsite_backup all --mail`,
+then add the four cron lines of the production schedule and `/var/log/zautte-offsite.log` to newsyslog.
+
+**Restoring a whole server** (when the virtual machine itself cannot be restored from the hypervisor,
+which is faster):
+
+1. Fetch the archives with `sftp`: the latest `notte/`, the latest `settimana/*-indice` and
+   `*-programmi`, **every** `documenti/` part (the first complete run and the later nights) and the latest
+   `orari/`. Check them: `for f in *.sha256; do [ "$(sha256 -q "${f%.sha256}")" = "$(cut -d' ' -f1 "$f")" ] || echo "BAD $f"; done`.
+2. Install the same FreeBSD version (`var/db/zautte-backup/meta/freebsd-version.txt` in the `notte`
+   archive), with the disks of `gpart-*.txt` (`gpart restore -F <disk> < gpart-<disk>.txt`, then `newfs`
+   and the mount points of `etc/fstab`), and the same address (`ifconfig.txt`).
+3. `tar -xpf notte/<latest>.tar.zst -C /` (configuration, accounts, keys, cron, pf, the application),
+   then `pwd_mkdb -p /etc/master.passwd`, and create the home folders of the accounts.
+4. Packages: `pkg install $(cat /var/db/zautte-backup/meta/pkg-prime.txt)` without `ollama`, then
+   `tar -xpf settimana/<latest>-programmi.tar.zst -C /`, `pkg add /var/db/zautte-backup/pkg/ollama-*.pkg`
+   and `pkg lock -y ollama`.
+5. Data: `tar -xpf settimana/<latest>-indice.tar.zst -C /`, every `documenti/*.tar` in name order
+   (`for f in $(ls documenti/*.tar | sort); do tar -xpf "$f" -C <parent of data/documents>; done`), and
+   last `tar -xpf orari/<latest>.tar.zst -C /` (the newest people data). If `data` was a link to another
+   disk, recreate it (`ln -s <real data folder> /opt/chatbot/data`).
+6. `service ollama start`, `service chatbot start`, wait for `GET /health`, ask a test question. The
+   syncs bring the index up to date by themselves (news within 15 minutes, the rest at their next run).
 
 ### Watchdog
 
