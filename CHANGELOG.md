@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-24
+
+### Added
+- Off-site backup (`scripts/offsite_backup.py`, run as root from cron): dated archives sent with `sftp`
+  to another machine, so that a lost server can be rebuilt identical. Every hour the people data (users,
+  questions, feedback, survey, applications, dynamic facts) and the `.env` files; every night the system
+  configuration (`/etc`, `/usr/local/etc`, ssh keys, lists of packages, disks and network), the
+  application and the documents changed since the last run; every Sunday the index with the sync state
+  (under the sync lock), the virtualenv, the Ollama models and the installed Ollama package. It works
+  with a write-only space (no rename, no delete): each archive is written once, its size is checked on
+  the server and a `.sha256` file marks it complete; old archives are removed on the backup server.
+  Settings `OFFSITE_BACKUP_TARGET`, `OFFSITE_BACKUP_DIR`, `OFFSITE_BACKUP_TMP`,
+  `OFFSITE_BACKUP_REPORT_TO`; how to restore a whole server in [Operations](docs/operations.md#off-site-backup).
+
 ## [0.53.1] - 2026-11-23
 
 ### Fixed

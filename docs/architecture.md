@@ -193,6 +193,7 @@ zautte/                       # deployed as /opt/chatbot
 │   ├── chatbot_rcd           # rc.d script for the service
 │   ├── cron_setup.sh         # Installs the cron jobs of the syncs, the inbox, the log purge and log rotation (run as root; the watchdog, backup and news sync entries are added separately)
 │   ├── backup_vectorstore.sh # Daily vector store backup
+│   ├── offsite_backup.py     # Off-site copies with sftp (people data, system, index, documents)
 │   ├── watchdog.sh           # Watchdog: restarts the API if it is down or unresponsive
 │   ├── newsyslog-chatbot.conf # Log rotation configuration
 │   └── pf.conf.example       # Firewall template (pf)
