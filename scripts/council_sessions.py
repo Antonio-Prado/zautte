@@ -124,7 +124,7 @@ def parse_sessions(page: str, base_url: str, link_pattern: str = "consiglio") ->
         note = ""
         if "question" in low:
             note = "question time"
-        elif "seduta aperta" in low:
+        elif re.search(r"\bapert[oa]\b", low):   # "in seduta aperta", "Consiglio Comunale aperto del ..."
             note = "seduta aperta"
         elif "straordinari" in low:
             note = "seduta straordinaria"
@@ -165,8 +165,9 @@ def build_fact(sessions: list[dict], today: date, url: str, site_name: str,
         nxt = future[0]
         lines.append(f"Prossima seduta convocata: {_long(nxt['date'])}"
                      + (f" ({nxt['note']})" if nxt["note"] else "") + f". Ordine del giorno: {nxt['url']}")
-        if len(future) > 1:
-            lines.append("Sedute successive già convocate: " + ", ".join(_long(s["date"]) for s in future[1:]) + ".")
+        for s in future[1:]:
+            lines.append(f"Seduta successiva già convocata: {_long(s['date'])}"
+                         + (f" ({s['note']})" if s["note"] else "") + f". Ordine del giorno: {s['url']}")
     else:
         lines.append(f"Prossima seduta: al {today_s} non è ancora pubblicata la convocazione di una seduta "
                      f"successiva. La convocazione, con l'ordine del giorno, compare nella pagina {url} di "

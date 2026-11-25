@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-11-26
+
+### Fixed
+- Council sessions calendar (`scripts/council_sessions.py`): a session listed as «O.d.G. Consiglio
+  Comunale aperto del 30/11/2026» was not marked as an open session, because only the wording «in seduta
+  aperta» was recognised; asked when the next open council was, the assistant answered that the sessions
+  convened were ordinary ones. «aperto» / «aperta» in the link now marks the session, and each session
+  convened after the next one gets its own line with its note and the link to its agenda (they were a
+  bare list of dates).
+
 ## [0.54.0] - 2026-11-24
 
 ### Added
