@@ -3,8 +3,8 @@ publiccodeYmlVersion: "0.4"
 name: Zautte
 url: "https://github.com/Antonio-Prado/zautte"
 landingURL: "https://github.com/Antonio-Prado/zautte"
-releaseDate: "2026-11-24"
-softwareVersion: "0.54.0"
+releaseDate: "2026-11-26"
+softwareVersion: "0.54.1"
 developmentStatus: beta
 softwareType: "standalone/web"
 platforms:

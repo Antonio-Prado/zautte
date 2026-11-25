@@ -49,6 +49,24 @@ def test_fact_last_and_next():
     assert fact["id"] == cs.FACT_ID and "consiglio" in fact["require_any"]
 
 
+def test_open_session_named_in_the_link_and_later_sessions_keep_note_and_agenda():
+    page = """
+<p><strong>Convocazioni anno 2026</strong></p>
+<ul>
+<li><a href="https://files.example.org/odg-2026/lettera-convocazione-2.doc">O.d.G. Consiglio Comunale aperto del 30/11/2026</a></li>
+<li><a href="https://files.example.org/odg-2026/ordine-consiglio-27-novembre.docx">O.d.G. Consiglio Comunale del 27/11/2026</a></li>
+<li><a href="https://files.example.org/odg-2026/ordine-consiglio-6-novembre.docx">O.d.G. Consiglio Comunale del 06/11/2026</a></li>
+</ul>
+"""
+    sessions = cs.parse_sessions(page, URL)
+    assert [s["note"] for s in sessions] == ["", "", "seduta aperta"]
+    text = cs.build_fact(sessions, date(2026, 11, 25), URL, "Comune di Esempio")["text"]
+    assert "Prossima seduta convocata: venerdì 27 novembre 2026. Ordine del giorno:" in text
+    assert ("Seduta successiva già convocata: lunedì 30 novembre 2026 (seduta aperta). Ordine del giorno: "
+            "https://files.example.org/odg-2026/lettera-convocazione-2.doc") in text
+    assert "27 novembre, 30 novembre (seduta aperta)." in text
+
+
 def test_fact_without_a_next_session():
     sessions = [s for s in cs.parse_sessions(PAGE, URL) if s["date"] < date(2026, 11, 1)]
     text = cs.build_fact(sessions, date(2026, 10, 25), URL, "Comune di Esempio")["text"]
