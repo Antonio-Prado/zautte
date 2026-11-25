@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.3] - 2026-11-26
+
+### Fixed
+- News sync (`scripts/news_sync.py`): an article of the Bulletin written in short paragraphs was indexed
+  as one passage per paragraph, and the paragraphs under 80 characters were lost. The convocation of an
+  open council session had the hour in one passage, the subject in another that the search never
+  reached, and «Chiunque potrà partecipare ed intervenire.» nowhere. A paragraph is now joined to the
+  one before when either is shorter than 250 characters or the one before ends with a colon, up to 1000
+  characters per block. It applies to the articles read from now on; an article already indexed is
+  read again when it changes.
+
 ## [0.54.2] - 2026-11-26
 
 ### Fixed
