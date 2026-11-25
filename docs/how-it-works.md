@@ -84,7 +84,7 @@ The four files in `config/` that describe a specific organisation (`known_facts.
 
 ### Query Expansion
 
-`expand_query()` appends the synonyms of every `config/synonyms.json` key that starts a word of the question (a key can be a stem: `"nubend"` matches «nubendi»; it never matches inside a word, so `"cie"` does not match «autosufficienti»). Examples:
+`expand_query()` appends the synonyms of every `config/synonyms.json` key that starts a word of the question (a key can be a stem: `"nubend"` matches «nubendi»; it never matches inside a word, so `"cie"` does not match «autosufficienti»). An entry is the list of words to add, or an object `{"add": [...], "unless": [...]}` when the key has another meaning next to certain words: the words are not added if one of the `unless` words (stems too) starts a word of the question, e.g. `"aperto": {"add": ["orari", "apertura"], "unless": ["consigli", "sedut"]}` keeps the opening hours out of a question about a «Consiglio comunale aperto». Examples:
 
 - `"carta identità"` → `"documento identità CIE carta d'identità elettronica"`
 - `"tari"` → `"tassa rifiuti raccolta rifiuti smaltimento rifiuti tributo rifiuti"`

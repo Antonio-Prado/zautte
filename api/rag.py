@@ -203,7 +203,7 @@ def suggest_office(query: str) -> str | None:
 # Synonyms for query expansion — loaded from config/synonyms.json.
 # The file is specific to the domain of the organisation using the system.
 # If the file does not exist, no expansion is applied.
-def _load_synonyms() -> dict[str, list[str]]:
+def _load_synonyms() -> dict[str, list[str] | dict[str, list[str]]]:
     import json as _j
     f = Path(__file__).parent.parent / "config" / "synonyms.json"
     if not f.exists():
@@ -224,11 +224,23 @@ def expand_query(query: str) -> str:
     """
     query_lower = query.lower()
     expansions = []
-    for term, synonyms in _SYNONYMS.items():
+    for term, entry in _SYNONYMS.items():
+        # An entry is the list of words to add, or {"add": [...], "unless": [...]}: the words are not
+        # added when one of the "unless" words starts a word of the question. «aperto» adds the words
+        # of the opening hours, which pushed the news of a «Consiglio comunale aperto» out of the search
+        if isinstance(entry, dict):
+            synonyms, unless = entry.get("add") or [], entry.get("unless") or []
+        else:
+            synonyms, unless = entry, []
+        if not isinstance(synonyms, list) or not isinstance(unless, list):
+            continue
         # A term is the start of a word ("nubend" for "nubendi"), never its middle: "cie" inside
         # "autosufficienti" added the identity card, "rata" inside "deliberata" the TARI instalments
-        if re.search(r"\b" + re.escape(term), query_lower):
-            expansions.extend(synonyms)
+        if not re.search(r"\b" + re.escape(term), query_lower):
+            continue
+        if any(re.search(r"\b" + re.escape(str(word).lower()), query_lower) for word in unless):
+            continue
+        expansions.extend(str(s) for s in synonyms)
     if expansions:
         return query + " " + " ".join(expansions)
     return query
