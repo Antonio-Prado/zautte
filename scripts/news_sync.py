@@ -85,8 +85,6 @@ log = logging.getLogger(__name__)
 STATE_FILE = CRAWL_CACHE_DIR / "news_state.json"
 ATTACHMENT_EXT = (".pdf", ".odt", ".docx")
 MIN_TEXT_LEN = 100
-SHORT_PARAGRAPH = 250               # a paragraph of an article shorter than this is joined to the one before
-JOINED_PARAGRAPH_MAX = 1000         # ...as long as the block stays under this (the chunker splits over 1200)
 MAX_LINKED_PAGES = 10       # site pages followed per article
 FIRST_RUN_DAYS = 30         # without state and without --backfill: last N days
 WP_PER_PAGE = 100
@@ -467,27 +465,6 @@ def _doc(url: str, chunks: list[dict]) -> dict:
     return {"url": url, "chunks": chunks}
 
 
-def join_short_paragraphs(text: str, short: int = SHORT_PARAGRAPH, limit: int = JOINED_PARAGRAPH_MAX) -> str:
-    """The text with its short paragraphs joined to the one before (a line break instead of an empty
-    line), up to `limit` characters per block. A paragraph is joined when it or the block before it is
-    shorter than `short`, or when the block before ends with a colon. The chunker makes one passage
-    per paragraph and drops those under 80 characters: a convocation written as «… alle ore 18:00 per
-    la trattazione del seguente argomento:» / the subject / «Chiunque potrà partecipare ed
-    intervenire.» became three passages, the hour in one, the subject in another, the last one lost."""
-    blocks: list[str] = []
-    for para in (p.strip() for p in re.split(r"\n{2,}", text)):
-        if not para:
-            continue
-        if blocks:
-            prev = blocks[-1]
-            joins = len(prev) < short or len(para) < short or prev.endswith(":")
-            if joins and len(prev) + 1 + len(para) <= limit:
-                blocks[-1] = f"{prev}\n{para}"
-                continue
-        blocks.append(para)
-    return "\n\n".join(blocks)
-
-
 def post_doc(post: dict, categories: dict[int, str]) -> dict | None:
     body = html_to_text(post["html"])
     if len(body) < MIN_TEXT_LEN:
@@ -500,10 +477,9 @@ def post_doc(post: dict, categories: dict[int, str]) -> dict | None:
     if cats:
         head += f" ({cats})"
     # The date goes in the same paragraph as the first block: the chunker discards
-    # paragraphs under 80 characters and makes one chunk per paragraph. For the same reason the
-    # short paragraphs of the article are joined to the one before.
+    # paragraphs under 80 characters and makes one chunk per paragraph.
     chunks = chunk_document(
-        text=join_short_paragraphs(f"{head}. {body}"), source_url=post["url"], title=post["title"], doc_type="html",
+        text=f"{head}. {body}", source_url=post["url"], title=post["title"], doc_type="html",
         extra_metadata={"category": "notizia", "section": NEWS_SOURCES.get("section", "bollettino"),
                         "date": post["date"], "origin": "news"},
     )

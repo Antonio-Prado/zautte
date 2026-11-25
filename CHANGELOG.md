@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.4] - 2026-11-26
+
+### Removed
+- News sync (`scripts/news_sync.py`): the joining of the short paragraphs of an article, added in 0.54.3
+  (never tagged). Read again as one passage of 600 characters, the convocation of the open council
+  session answered the detailed question («di cosa si parlerà? i cittadini possono intervenire?») in
+  full, but a longer passage is found less easily by a short question: for «quando è previsto il
+  prossimo consiglio comunale aperto?» it went from the 3rd place by meaning and the 5th by words to
+  the 11th and the 162nd, out of the passages given to the model, and the answer lost the hour of the
+  session. Articles are again indexed one passage per paragraph.
+
 ## [0.54.3] - 2026-11-26
 
 ### Fixed
