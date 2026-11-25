@@ -214,7 +214,7 @@ The chunking strategy works in two levels:
 For each chunk:
 - The **page title** is prepended (improves semantic retrieval)
 - Noise lines are removed (navigation, "access the service", "with SPID", etc.)
-- Chunks shorter than **80 characters** are discarded (the news sync joins the short paragraphs of an article to the one before, so that they are not lost)
+- Chunks shorter than **80 characters** are discarded
 
 Each chunk's metadata includes `source` (URL), `title`, `doc_type` (`html`, `pdf`, or `document` for inbox TXT/DOCX), `chunk_index`, `chunk_total`; HTML chunks add `category`, `section`, `date`, `service_status`; crawled PDF chunks add `pdf_pages`; inbox chunks add `category`, `filename` and `origin: "inbox"`; news chunks carry `origin: "news"` and the chunks of the registers of acts (`scripts.sync acts`) `origin: "acts"`, `category: "atto"` and the date of the act.
 
