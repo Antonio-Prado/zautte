@@ -1,4 +1,5 @@
 {
   "identity card": ["ID document", "electronic ID"],
-  "waste tax": ["garbage tax", "waste collection fee"]
+  "waste tax": ["garbage tax", "waste collection fee"],
+  "open": {"add": ["opening hours", "office hours"], "unless": ["council", "session"]}
 }

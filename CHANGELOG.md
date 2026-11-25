@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.2] - 2026-11-26
+
+### Fixed
+- Query expansion (`expand_query`, `config/synonyms.json`): a key with two meanings added its words to
+  every question. «aperto» adds the words of the opening hours («orari», «sportello», «ricevimento»), so
+  «quando è previsto il prossimo consiglio comunale aperto?» was searched as a question about office hours
+  and the news that convened the open session fell from the 3rd place to the 59th, out of the passages
+  given to the model. An entry of `synonyms.json` can now be an object
+  `{"add": [...], "unless": [...]}`: the words are not added when one of the `unless` words starts a word
+  of the question. The list form keeps working.
+
 ## [0.54.1] - 2026-11-26
 
 ### Fixed
