@@ -31,6 +31,7 @@ User question
      │
      ▼
 5. retrieve_context()
+     ├─ linked documents     — «posso partecipare a questo bando? https://…»: the document of the index with that address, whole (whole_documents)
      ├─ known facts          — curated texts from config/known_facts.json and the dynamic facts the jobs write (score 1.0)
      ├─ acts by number       — «determina n. 1200 del 2025»: the act looked up in the index by number and year (find_acts)
      ├─ grants by name       — «contributi alla Croce Rossa»: the grant cards of that beneficiary, with a summary (find_grants)
@@ -115,6 +116,10 @@ A ban, a closure or a temporary ordinance is announced in one news item and ende
 ### Dynamic known facts
 
 Some answers need today's date or a figure that one document of the transparency portal holds: the sessions of the council, the events of the coming days, the calls for jobs open today, the latest acts, the pay of the administrators, the anti-corruption officer, the payment-timeliness indicator, the staff in service. The jobs in [Operations](operations.md) read them from the portals and write them as known facts in `KNOWN_FACTS_DYNAMIC_FILE` (same format as `known_facts.json`, one entry per subject); the API rereads the file when it changes, without a restart. Static facts come first, dynamic ones after.
+
+### Documents linked in the question
+
+«Posso partecipare a questo bando? https://…&dettaglio=176194» is a question about one document, named by its address. The search cannot find it: an address is not a sentence, its pieces («page», «id», the name of the portal) only bring unrelated passages of the same site, and the answer was «the link does not correspond to any document» although the call had been indexed the night before. `_linked_sources()` takes the links of the question that are addresses of documents of the index (`vector_store.sources_of_links()`: the same page with or without `www.`, over http or https, with or without the final slash, a fragment the index does not know dropped) and removes them from the text used for the search and for the known facts. Nothing is fetched: a link to a page that is not in the index stays in the question as it was. `vector_store.whole_documents()` then returns each document (at most `LINKED_DOCUMENTS`, 2) as one passage with score 1.0, put before the known facts and marked with a line that says it is the page linked in the question: its whole text, the passages joined in their order, when it is within `LINKED_DOCUMENT_CHARS` (40,000 characters, shared among the documents); of a longer one, the first passage and as many of the others as fit, the closest to the question first, in the order of the document, with «[…]» where something is left out and a note that says so. The whole text and not the closest passages, because the passage closest to «posso partecipare?» is not the one with the requirements: of the 17 passages of that call, the two with the requirements came after the eighth place. The document is listed under the answer even when the answer does not write its link.
 
 ### Acts asked for by number
 

@@ -9,6 +9,19 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.54.5] - 2026-11-26
+
+### Fixed
+- A question with the link of a document («posso partecipare a questo bando? https://…&dettaglio=176194»)
+  was answered «the link does not correspond to any document», although the call had been indexed the
+  night before with its PDF: an address cannot be searched, and its pieces only brought unrelated
+  passages of the same portal. The links of the question that are addresses of documents of the index
+  are now looked up (never fetched), taken out of the text used for the search, and each document is
+  given to the model whole, as one passage before the others, when it is within 40,000 characters; of a
+  longer one, its beginning and the passages closest to the question, with the omissions marked. Whole
+  because the passage closest to «posso partecipare?» is not the one with the requirements (9th and
+  later of 17 in that call). An answer on such a document costs more input tokens: up to about 13,000.
+
 ## [0.54.4] - 2026-11-26
 
 ### Removed

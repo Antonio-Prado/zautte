@@ -65,7 +65,10 @@ from indexer.vector_store import (
     hybrid_search,
     latest_version_passages,
     news_followups,
+    sources_of_links,
+    url_key,
     version_info,
+    whole_documents,
 )
 
 log = logging.getLogger(__name__)
@@ -161,6 +164,14 @@ OLD_VERSION_PENALTY = 0.02
 # Passages added after the search: of the documents whose first passage (the heading with the list of
 # attachments) was chosen, the passage closest to the question (the figure is in the attachment).
 DOCUMENT_PASSAGES = 2
+# A question that carries the link of a document of the index («posso partecipare a questo bando?
+# https://…») is about that document: it is given to the model whole, as one passage, when it is
+# within this many characters (shared among the documents, at most LINKED_DOCUMENTS of them); of a
+# longer one, the first passage and the passages closest to the question that fit. On the reference
+# index (26/11/2026) 97% of the documents are within 16,000 characters, but the median call for a
+# job is 38,000, and the one that showed the problem 17,800.
+LINKED_DOCUMENT_CHARS = 40000
+LINKED_DOCUMENTS = 2
 
 # Keyword → competent office map — loaded from config/offices.json
 def _load_office_map() -> list[tuple[re.Pattern, str, str, list[re.Pattern]]]:
@@ -594,6 +605,28 @@ def _grants_by_beneficiary(query: str) -> list[dict]:
     return [summary, *cards]
 
 
+_URL_RE = re.compile(r"https?://[^\s)\]>\"'*<]+", re.IGNORECASE)
+_LINKED_NOTE = "(Documento della pagina indicata con un link nella domanda{partial}.)\n"
+_LINKED_PARTIAL = ": è lungo, qui ci sono l'inizio e le parti più vicine alla domanda, «[…]» segna quelle omesse"
+
+
+def _linked_sources(query: str) -> tuple[str, list[str]]:
+    """The links of the question that are documents of the index: (the question without them, the
+    addresses of those documents as indexed). A link is looked up, never fetched: one that is not in
+    the index stays in the question as it was. The question without the links is '' when nothing
+    else was written."""
+    urls = list(dict.fromkeys(u.rstrip(".,;:!?") for u in _URL_RE.findall(query)))
+    found = sources_of_links(urls) if urls else {}
+    if not found:
+        return query, []
+    asked = query
+    for url in sorted(found, key=len, reverse=True):
+        asked = asked.replace(url, " ")
+    asked = re.sub(r"\s+", " ", asked).strip()
+    sources = list(dict.fromkeys(found.values()))[:LINKED_DOCUMENTS]
+    return (asked if re.search(r"[a-zà-ü]{2,}", asked, re.IGNORECASE) else ""), sources
+
+
 def _dedup_chunks(chunks: list[dict]) -> list[dict]:
     """Removes chunks with identical text, keeping the first (highest score)."""
     seen_texts: set[str] = set()
@@ -609,12 +642,16 @@ def _dedup_chunks(chunks: list[dict]) -> list[dict]:
 def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
     """
     Retrieves the most relevant chunks for the query.
-    Pipeline: known facts, acts asked for by number and grants to a named beneficiary → expand →
+    Pipeline: the documents the question links, known facts, acts asked for by number and grants
+    to a named beneficiary → expand →
     hybrid search → dedup → filter → rerank → the transparency card of each resolution of the acts
     job among the chosen → passages of the attachments of the chosen pages → the
     passage of the chosen documents closest to the question → the latest yearly version of a chosen
     document when the search brought only an older one → the article asked for, if any
     """
+    # the search is made with the words of the question, without the links of the documents it names
+    asked, linked = _linked_sources(query)
+    query = asked or query
     known = _inject_known_facts(query) + _acts_by_number(query) + _grants_by_beneficiary(query)
 
     expanded_query = expand_query(query)
@@ -622,6 +659,13 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
 
     # Detect embedding failure (zero vector) — use pure BM25
     vec_is_zero = all(v == 0.0 for v in query_vec[:10])
+    if linked:
+        docs = whole_documents(linked, query_vec if asked and not vec_is_zero else None, LINKED_DOCUMENT_CHARS)
+        for d in docs:
+            d["text"] = _LINKED_NOTE.format(partial=_LINKED_PARTIAL if d.pop("partial") else "") + d["text"]
+            d["known"] = True   # the page the question is about is listed under the answer
+        log.info(f"Linked documents: {len(docs)} from {', '.join(d['source'][-60:] for d in docs)}")
+        known = docs + known
     if vec_is_zero:
         log.warning("Zero embedding: falling back to pure BM25 for retrieval")
         chunks = hybrid_search(query_vec, expanded_query, top_k=top_k * 3,
@@ -716,17 +760,11 @@ def build_context_block(chunks: list[dict]) -> str:
 
 
 _URL_HOST_RE = re.compile(r"https?://([^\s/:?#)\]>\"\']+)", re.IGNORECASE)
-_URL_RE = re.compile(r"https?://[^\s)\]>\"'*<]+", re.IGNORECASE)
-
-
-def _url_key(url: str) -> str:
-    """The same page with and without www., over http or https, with or without the final slash."""
-    return re.sub(r"^https?://(?:www\.)?", "", url.strip(), flags=re.IGNORECASE).rstrip("/").lower()
 
 
 def _links_in(text: str) -> set[str]:
-    """The pages a text links to, as _url_key() keys; a bare host (a home page) is not a page."""
-    keys = {_url_key(u.rstrip(".,;:!?")) for u in _URL_RE.findall(text or "")}
+    """The pages a text links to, as url_key() keys; a bare host (a home page) is not a page."""
+    keys = {url_key(u.rstrip(".,;:!?")) for u in _URL_RE.findall(text or "")}
     return {k for k in keys if "/" in k}
 
 
@@ -745,7 +783,7 @@ def shown_sources(answer_text: str, sources: list[dict]) -> list[dict]:
     text = (answer_text or "").lower()
 
     def cited(s: dict) -> bool:
-        if s.get("url") and _url_key(s["url"]) in links:
+        if s.get("url") and url_key(s["url"]) in links:
             return True
         if links & set(s.get("links", ())):
             return True
@@ -1706,7 +1744,7 @@ async def answer(
         # Dedup by URL when present; by title when the link is hidden —
         # "title-only" documents have an empty url and must not be collapsed into one.
         # The same file with and without www. (or http/https) counts once.
-        key = _url_key(url) if url else f"title::{title}"
+        key = url_key(url) if url else f"title::{title}"
         links = _links_in(c.get("text", ""))
         if key in by_key:
             by_key[key]["links"] = sorted(set(by_key[key]["links"]) | links)
