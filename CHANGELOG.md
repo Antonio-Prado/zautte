@@ -9,6 +9,26 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-26
+
+### Added
+- Who heads each office (`scripts/office_heads.py`, daily from cron through `scripts/office_heads.sh`).
+  «Marco Rossi è ancora il responsabile del Servizio Tributi?» was answered from the management plans of
+  the past years («named as head in the plans up to 2025-2027, I cannot confirm he still is»), while the
+  page of the office names somebody else: the plans carry the old name in hundreds of passages, and the
+  page of the office did not come up in the search at all (58th for «chi è il responsabile del servizio
+  tributi?», the first 21 are considered). The job reads the pages that list the offices
+  (`offices.index_urls` in `crawl_extra.json`), then the page of each unit, and writes the dynamic known
+  fact `office-heads`: every unit with the names under its «Responsabile» heading, or the statement that
+  the page names none, the unit it belongs to, the date the page was last updated and its address. The
+  answer gives the name the site gives today and does not say since when, nor what the person named in
+  the question does now: the site does not say. The fact is injected when the question has a word of the
+  role and a word of the units (a generic one, one of the name of a unit or of a head, or a keyword of
+  `config/offices.json` for that unit); «responsabile del procedimento» and «responsabile della
+  protezione dei dati» are other roles and do not bring it. The requests are five seconds apart and a
+  429 is asked again after a wait: the site refuses some tens of requests in a row. The list is never
+  written in part: when a page cannot be read the previous one is kept.
+
 ## [0.54.5] - 2026-11-26
 
 ### Fixed

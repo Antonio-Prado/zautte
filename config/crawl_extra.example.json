@@ -81,5 +81,10 @@
   "tenders": {
     "voceamt": [561],
     "closed_days": 60
+  },
+  "offices": {
+    "index_urls": [
+      "https://www.example.org/it/page/uffici"
+    ]
   }
 }
