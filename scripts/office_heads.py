@@ -289,6 +289,9 @@ def build_fact(units: list[dict], today: date, index_urls: list[str], site_name:
         "source": index_urls[0],
         "category": "amministrazione",
         "updated": today.isoformat(),
+        # every address in the text is a page this run has read: the API does not try them again
+        # (api/linkcheck.py), which would be some forty requests at once to a site that refuses them
+        "links_checked": True,
         "text": "\n".join(lines).rstrip() + "\n",
     }
 
