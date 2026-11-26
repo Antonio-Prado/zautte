@@ -176,6 +176,11 @@ TENDER_NOTICES: dict = {}
 # crawl_extra.json → {"pay": {"voceamt": 173}, "rpct": {"voceamt": 513}, "payments": {"voceamt": 535},
 # "staff": {"voceamt": 24}}, each with optional "keywords", "require_any", "title"
 AMT_FACTS: dict = {}
+# Who heads each office (scripts/office_heads.py, the pages of the site that list the offices and the page of each
+# one): "offices" key of crawl_extra.json → {"index_urls": ["https://…/it/page/uffici"], "link_pattern":
+# "/unita_organizzative/[^/?#]+$", "head_label": "Responsabile", "delay": 5, "keywords": [...], "require_any": [...],
+# "ignore_phrases": [...]}
+OFFICE_HEADS: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -201,6 +206,7 @@ try:
         LATEST_NEWS.update(_crawl_extra.get("latest_news", {}))
         TENDER_NOTICES.update(_crawl_extra.get("tenders", {}))
         AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
+        OFFICE_HEADS.update(_crawl_extra.get("offices", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
