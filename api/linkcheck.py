@@ -13,6 +13,9 @@ reach the model, the links in their text are tried and the dead ones are replace
 - A question waits at most LINK_CHECK_SECONDS for links never tried before; a check still
   running goes on and serves the next question. Results are remembered in memory for
   LINK_CHECK_TTL_HOURS (an unanswered check for an hour).
+- The links of a passage marked `links_checked` are not tried: a known fact whose job has just
+  read every page it lists (scripts/office_heads.py: some forty pages of one site, which refuses
+  some tens of requests in a row).
 """
 
 import asyncio
@@ -123,7 +126,8 @@ async def without_dead_links(chunks: list[dict]) -> list[dict]:
     themselves are not changed: those touched are copies."""
     if not LINK_CHECK or not chunks:
         return chunks
-    dead = await dead_links({a for c in chunks for a in links_in(str(c.get("text", "")))})
+    dead = await dead_links({a for c in chunks if c.get("links_checked") is not True
+                             for a in links_in(str(c.get("text", "")))})
     if not dead:
         return chunks
     return [{**c, "text": _without(str(c.get("text", "")), dead)} for c in chunks]

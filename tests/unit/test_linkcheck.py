@@ -60,6 +60,14 @@ def test_other_sites_are_never_called(fake_site):
     assert fake_site == []
 
 
+def test_links_a_job_has_just_read_are_not_tried_again(fake_site):
+    chunks = [{"text": "Elenco: https://www.example.org/ok e https://www.example.org/gone", "links_checked": True},
+              {"text": "Vedi https://www.example.org/missing"}]
+    out = asyncio.run(linkcheck.without_dead_links(chunks))
+    assert fake_site == ["https://www.example.org/missing"]          # only the links of the other passage
+    assert out[0]["text"] == chunks[0]["text"] and "(indirizzo non più attivo)" in out[1]["text"]
+
+
 def test_result_is_remembered(fake_site):
     clean("https://www.example.org/gone")
     clean("https://www.example.org/gone")

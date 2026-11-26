@@ -167,6 +167,8 @@ def test_the_api_injects_it_for_the_head_of_an_office_only(tmp_path, monkeypatch
     monkeypatch.setattr(rag, "KNOWN_FACTS_DYNAMIC_FILE", path)
     monkeypatch.setattr(rag, "_DYNAMIC_FACTS", {"facts": [], "mtime": None, "checked": float("-inf")})
     titles = lambda q: [c["title"] for c in rag._inject_known_facts(q)]
+    injected = rag._inject_known_facts("Marco Rossi è ancora il responsabile del Servizio Tributi?")
+    assert [c["links_checked"] for c in injected if c["title"] == fact["title"]] == [True]   # its pages were just read
     assert fact["title"] in titles("Marco Rossi è ancora il responsabile del Servizio Tributi?")
     assert fact["title"] in titles("chi è il capo dell'ufficio TARI?")
     assert fact["title"] in titles("Chi è il responsabile della TARI?")

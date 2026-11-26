@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.55.1] - 2026-11-26
+
+### Fixed
+- The fact with the heads of the offices (0.55.0) lists some forty pages of the same site, and before a
+  passage reaches the model the links in its text are tried, to replace the dead ones: the first questions
+  that brought the fact sent up to twenty requests at once to a site that refuses some tens of requests in
+  a row, and again after every restart (the results are remembered in memory). A known fact can now be
+  marked `links_checked` by the job that writes it, when every address in its text is a page the job has
+  just read: `scripts/office_heads.py` does so, and the links of such a fact are not tried again. The
+  links of every other passage and fact are tried as before.
+
 ## [0.55.0] - 2026-11-26
 
 ### Added

@@ -342,6 +342,8 @@ def _parse_known_facts(entries: list[dict], written_by_admin: bool = False) -> l
                 "category": e.get("category", "pagina"),
                 "known":    True,
                 "admin":    written_by_admin,
+                # the job that wrote the fact has just read every page it links: not tried again
+                "links_checked": e.get("links_checked") is True,
             },
         })
     return result
