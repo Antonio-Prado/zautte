@@ -27,6 +27,7 @@ import unicodedata
 from collections import Counter
 from contextlib import contextmanager
 from datetime import date, timedelta
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -72,6 +73,7 @@ _pdf_link_texts: dict[str, str] = {}      # PDF source → link text (from the c
 _copy_of: dict[str, int] | None = None   # source of a copy → index of a passage of the kept document (lazy)
 _source_rows: dict[str, list[int]] | None = None   # source → its rows, in chunk order (lazy)
 _page_attachments: dict[str, list[str]] | None = None   # page → PDFs it links (lazy, from the crawler)
+_source_keys: tuple[dict, dict[str, str]] | None = None   # (the rows it was built from, url_key → source), lazy
 
 # Deferred saving (see deferred_saves / checkpoint)
 _deferred_depth = 0
@@ -814,6 +816,106 @@ def _rows_by_source() -> dict[str, list[int]]:
             r.sort(key=lambda i: _metadata[i].get("chunk_index", 0))
         _source_rows = rows
     return _source_rows
+
+
+def url_key(url: str) -> str:
+    """The same page with and without www., over http or https, with or without the final slash."""
+    return re.sub(r"^https?://(?:www\.)?", "", url.strip(), flags=re.IGNORECASE).rstrip("/").lower()
+
+
+def _source_by_key() -> dict[str, str]:
+    """url_key() of each address in the index → the address as indexed; rebuilt when the rows are."""
+    global _source_keys
+    rows = _rows_by_source()
+    if _source_keys is None or _source_keys[0] is not rows:
+        keys: dict[str, str] = {}
+        for src in rows:
+            if src:
+                keys.setdefault(url_key(src), src)
+        _source_keys = (rows, keys)
+    return _source_keys[1]
+
+
+def sources_of_links(urls: list[str]) -> dict[str, str]:
+    """The given addresses (links written in a question) that are documents of the index: address as
+    given → address as indexed. Nothing is fetched: a link to a page that was never indexed is not
+    here. A link with a fragment the index does not know is looked up without it."""
+    with _lock:
+        _ensure_loaded()
+        keys = _source_by_key()
+        found = {}
+        for url in urls:
+            key = url_key(url)
+            src = keys.get(key) or (keys.get(url_key(key.split("#", 1)[0])) if "#" in key else None)
+            if src:
+                found[url] = src
+        return found
+
+
+# «Posso partecipare a questo bando? https://…&dettaglio=176194»: the question is about one document,
+# named by its address. The search cannot find it (an address is not a sentence), and the passage of
+# it closest to «posso partecipare?» is not the one with the requirements: the document is given whole.
+_GAP = "\n[…]\n"
+
+
+def whole_documents(sources: list[str], query_embedding: list[float] | None = None,
+                    max_chars: int = 40000) -> list[dict]:
+    """Each of the given documents of the index as one passage (score 1.0): its whole text, the
+    passages joined in their order, when it fits in `max_chars` (shared among the documents); else
+    the first passage, which names the document and lists its attachments, and as many of the others
+    as fit, the closest to the query first (the first ones, without a query vector), in the order of
+    the document, the parts left out marked «[…]» and `partial` set."""
+    with _lock:
+        _ensure_loaded()
+        rows = _rows_by_source()
+        sources = [s for s in dict.fromkeys(sources) if rows.get(s)]
+        if not sources:
+            return []
+        budget = max(max_chars // len(sources), 1)
+        q = None
+        if query_embedding is not None and _embeddings is not None:
+            q = np.array(query_embedding, dtype=np.float32)
+            norm = np.linalg.norm(q)
+            q = q / norm if norm else None
+        out = []
+        for src in sources:
+            r = rows[src]
+            first = _metadata[r[0]]
+            parts = [first.get("text", "").strip()] + [_body(_metadata[i]) for i in r[1:]]
+            keep = [0]
+            if sum(len(p) + 1 for p in parts) <= budget:
+                keep = list(range(len(parts)))
+            else:
+                order = list(range(1, len(parts)))
+                if q is not None:
+                    scores = _embeddings[r] @ q
+                    order.sort(key=lambda k: float(scores[k]), reverse=True)
+                used = len(parts[0])
+                for k in order:
+                    if used + len(parts[k]) + len(_GAP) > budget:
+                        continue
+                    keep.append(k)
+                    used += len(parts[k]) + len(_GAP)
+                keep.sort()
+            text = parts[keep[0]]
+            for prev, k in pairwise(keep):
+                text += ("\n" if k == prev + 1 else _GAP) + parts[k]
+            partial = len(keep) < len(parts)
+            if partial and keep[-1] != len(parts) - 1:
+                text += _GAP.rstrip("\n")
+            doc = _kept_meta(first)
+            out.append({
+                "text":     text,
+                "source":   doc.get("source", ""),
+                "title":    doc.get("title", ""),
+                "display_title": _title(doc),
+                "doc_type": first.get("doc_type", ""),
+                "category": first.get("category", ""),
+                "date":     first.get("date", ""),
+                "score":    1.0,
+                "partial":  partial,
+            })
+        return out
 
 
 def _attachments_of_pages() -> dict[str, list[str]]:
