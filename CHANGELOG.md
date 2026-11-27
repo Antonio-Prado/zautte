@@ -9,6 +9,20 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.5] - 2026-11-27
+
+### Fixed
+- The words of some PDFs were indexed joined together («successivaalleore01:00delgiornoseguente»,
+  «OriginalediDeliberazionedelConsiglioComunale»). In the justified lines of the acts made with
+  OnlyOffice and iText the gap between two words is not a space character, and pypdf joins them: of
+  the resolutions read in full so far, 86% had at least one passage with such words. They are found
+  neither by their letters nor by their meaning: asked until what time music is allowed, the answer
+  had the right order and not the passage with the hours. When the text of pypdf has three or more
+  words of 22 letters or more, the PDF is read again with pdfminer, whose text is kept if it is
+  legible, about as long and has at most half of those words (`pdf_extractor._with_spaces()`). On the
+  three acts tried: 55, 58 and 3 joined words with pypdf, none with pdfminer. It holds for the PDFs
+  read from now on; those already indexed keep their text until they are read again.
+
 ## [0.56.4] - 2026-11-27
 
 ### Fixed
