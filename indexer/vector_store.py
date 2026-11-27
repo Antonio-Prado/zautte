@@ -621,6 +621,11 @@ def _body(meta: dict) -> str:
     title = meta.get("title", "")
     if title and text.startswith(title + "\n"):
         text = text[len(title):].lstrip()
+    act = meta.get("act", "")
+    if act and text.startswith(act + "\n"):
+        # the line the transparency job puts in the passages after the first (which act they are of):
+        # the same text published twice is still the same text
+        text = text[len(act):].lstrip()
     return text
 
 
