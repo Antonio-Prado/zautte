@@ -1002,6 +1002,10 @@ _ACT_TITLE_RE = re.compile(r"\bn\.\s*(\d{1,6})\s+del\s+\d\d/\d\d/(\d{4})\b")
 _ACT_KINDS = (("determina", "determin"), ("ordinanza", "ordinanz"), ("delibera", "deliber"),
               ("decreto", "decret"))
 _ACT_HEAD = 800   # characters of the first passage that hold the number, the date and the type
+# a page that lists its acts in blocks, not in a table, writes them «Ordinanze 34/2026 31/07/2026 AREA …»
+_ACT_LISTED_RE = re.compile(r"^([A-Za-z]{4,20}) (\d{1,6})/\d{4} (\d\d/\d\d/\d{4})\b", re.MULTILINE)
+_ACT_CARD_DATE_RE = re.compile(r"\bNumero: \d{1,6}(?:/\d{4})?; Data: (\d\d/\d\d/\d{4})\b")
+_ACT_LABEL_RE = re.compile(r"(?:Ordinanza|Delibera|Determina|Decreto|Atto) n\. \d{1,6} del \d\d/\d\d/\d{4}")
 
 
 def _act_kind(head: str, title: str) -> str:
@@ -1018,6 +1022,55 @@ def _act_kind(head: str, title: str) -> str:
         if stem in low:
             return kind
     return ""
+
+
+def act_label(head: str, title: str = "") -> str:
+    """«Ordinanza n. 34 del 31/07/2026»: kind, number and date of an act as the register of the
+    transparency section gives them in the first passage of the act (`head`), or '' when it gives
+    none. Made only of a fixed word, digits and a date: it goes into the label of a source in the
+    prompt. Two summer orders with the same subject, one in force in July and one in August, were
+    told as one: every passage after the first carries the subject alone, not the number."""
+    head = head[:_ACT_HEAD]
+    m = _ACT_NUMBER_RE.search(head)
+    if m:
+        number, date = m[1], _ACT_CARD_DATE_RE.search(head)[1]
+        kind = _act_kind(head, title)
+    else:
+        m = _ACT_LISTED_RE.search(head)
+        if not m:
+            return ""
+        number, date = m[2], m[3]
+        kind = next((k for k, stem in _ACT_KINDS if stem in m[1].lower()), "")
+        if not kind:
+            return ""       # «Protocollo 12/2026 …»: not one of the acts told apart by number
+    return f"{(kind or 'atto').capitalize()} n. {int(number)} del {date}"
+
+
+def is_act_label(text: str) -> bool:
+    return bool(_ACT_LABEL_RE.fullmatch(text or ""))
+
+
+def act_labels(sources: list[str]) -> dict[str, str]:
+    """Source → the label of the act it is (see act_label), for the sources that are acts of the
+    transparency section. Read from the label the job stored, else from the first passage."""
+    with _lock:
+        _ensure_loaded()
+        rows = _rows_by_source()
+        out = {}
+        for src in dict.fromkeys(s for s in sources if s):
+            r = rows.get(src)
+            if not r:
+                continue
+            first = _metadata[r[0]]
+            if first.get("origin") != "amt":
+                continue
+            label = first.get("act") or ""
+            if not is_act_label(label):
+                label = act_label(first.get("text", ""), first.get("title", "")) \
+                    if first.get("chunk_index", 0) == 0 else ""
+            if label:
+                out[src] = label
+        return out
 
 
 def _build_acts_index(metadata: list[dict]) -> dict[tuple[int, int], list[tuple[int, str]]]:
