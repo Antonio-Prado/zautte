@@ -18,7 +18,15 @@ makes, all pages of it) and indexes every row as a short card: its description, 
 Columns that hold personal identifiers (fiscal code, VAT number) are left out, as are the ones named
 in "table_skip_columns". A table with at most "max_table_details" rows (default 300) is read in
 full instead: the detail page of each row is parsed like any document page, attachments included.
+So is a bigger table named in "full_tables" (its `voceamt`): the registers of resolutions and
+decisions, whose figures are only in the text of the acts. The detail page of a row is read when
+its turn comes to be indexed, not while walking the table, so a table of thousands of rows is read
+over several nights within "max_documents" and "max_minutes"; until then the row keeps its card.
 Cards do not count against "max_documents" (nothing is downloaded for them), only against the time.
+
+The acts of these portals often carry one attachment that repeats the others (the signed original,
+the opinions, and a «complete» copy of them all). With "skip_repeated_attachments" an attachment
+whose lines are, for the most part, already in the attachments read before it is left out.
 
 A section can name an older copy of the same documents ("replaces": regular expressions matched,
 case-insensitively, against the decoded address of each indexed source): once the section has been
@@ -38,12 +46,14 @@ Configuration: the "amt" key of config/crawl_extra.json
      "max_documents": 200,               # new or changed documents per run (default 200)
      "max_minutes": 150,                 # time per run (default 150)
      "max_table_details": 300,           # rows of a search table read in full, with attachments
+     "full_tables": [49],                # bigger tables read in full all the same (their voceamt)
+     "skip_repeated_attachments": true,  # leave out an attachment that repeats the ones before it
      "table_skip_columns": ["Responsabile"],   # more columns left out of the cards (regexes)
      "sections": [{"voceamt": 56, "name": "Bilanci",
                    "max_chars": 3000000,          # a section can keep more (or less) text
                    "replaces": ["old\\.example\\.org/.*/bilanci/", "Rendiconto_della_gestione"]}]}
-A section's own "max_chars" or "max_attachments" replaces the general one for its documents; when
-they change, the documents of that section are read again at the next run.
+A section's own "max_chars", "max_attachments" or "skip_repeated_attachments" replaces the general
+one for its documents; when they change, the documents of that section are read again at the next run.
 Run (from cron through scripts/amt_sync.sh, which takes the lock of the syncs):
     venv/bin/python -m scripts.sync amt
     venv/bin/python -m scripts.amt_sync --dry-run [--section 56]   # walk and print, write nothing
@@ -242,7 +252,7 @@ def table_rows(post, config: dict, voceamt: int, table: dict, base: str) -> list
     return rows
 
 
-_SECTION_LIMITS = ("max_chars", "max_attachments")
+_SECTION_LIMITS = ("max_chars", "max_attachments", "skip_repeated_attachments")
 
 
 def section_limits(section: dict) -> dict:
@@ -275,12 +285,15 @@ def walk(fetch, config: dict, root: int, name: str, post=None, known: dict | Non
     """All the documents under a section (breadth first). Returns (documents, counters); each
     document has its source, the path of sections and the page it is on. With `post`, the rows of
     the search tables come too: as cards (`card: True`), or as full documents for the small tables
-    (`known`, the state, spares the detail pages of the rows already read and unchanged)."""
+    and for those in "full_tables". No detail page is read here: a row already read and unchanged
+    comes with its document from `known` (the state), any other one is marked `detail: True` and
+    its page is read when the row is indexed (see _detail_doc)."""
     portal, page_id = config["portal"], int(config["page_id"])
     queue: list[tuple[int, list[str]]] = [(root, [name] if name else [])]
     seen: set[int] = set()
     found: list[dict] = []
     counts = {"pages": 0, "failed": 0, "lists": 0, "rows": 0}
+    full_tables = {int(v) for v in config.get("full_tables", [])}
     while queue and counts["pages"] < _MAX_PAGES:
         voce, path = queue.pop(0)
         if voce in seen or voce == 0:
@@ -306,14 +319,14 @@ def walk(fetch, config: dict, root: int, name: str, post=None, known: dict | Non
                     log.warning(f"  {url}: table not read ({e})")
                     counts["failed"] += 1
                     rows = []
-                full = len(rows) <= int(config.get("max_table_details", 300))
+                full = len(rows) <= int(config.get("max_table_details", 300)) or voce in full_tables
                 counts["rows"] += len(rows)
                 log.info(f"  {url}: a search table, {len(rows)} rows" + (" (read in full)" if full else " (cards)"))
                 for row in rows:
                     detail = row.pop("detail")
                     doc = {**row, "source": detail, "page": detail, "path": here, "root": root, "card": not full}
                     if full:
-                        doc = _detail_doc(fetch, doc, known) or doc
+                        doc = _known_detail(doc, known) or {**doc, "card": False, "detail": True}
                     found.append(doc)
         used: dict[str, int] = {}
         for doc in page["docs"]:
@@ -331,24 +344,33 @@ def walk(fetch, config: dict, root: int, name: str, post=None, known: dict | Non
     return found, counts
 
 
-def _detail_doc(fetch, card: dict, known: dict | None) -> dict | None:
-    """The document on the detail page of a row (title, description, attachments), read only when
-    the row is new or changed; None when the page cannot be read or holds no document."""
+def _known_detail(card: dict, known: dict | None) -> dict | None:
+    """The row of a table as the document read from its detail page in an earlier run, when the row
+    has not changed since; None when its page is still to be read."""
     row_digest = doc_digest(card)
     was = (known or {}).get(card["source"], {})
     if was.get("row") == row_digest and was.get("doc"):
         return {**card, **was["doc"], "card": False, "row": row_digest, "cached": card}
+    return None
+
+
+def _detail_doc(fetch, card: dict) -> dict | None:
+    """The document on the detail page of a row (title, description, attachments). A page that holds
+    no document gives the row itself, without attachments, so it is not asked for again; None when
+    the page cannot be read (the row is tried again at the next run)."""
+    row = {k: v for k, v in card.items() if k not in ("detail", "cached")}
+    row_digest = doc_digest(row)
     try:
         page = parse_page(fetch(card["source"]), card["source"])
     except (httpx.HTTPError, ValueError) as e:
         log.warning(f"  {card['source']}: detail not read ({e})")
         return None
     if not page["docs"]:
-        return None
+        return {**row, "card": False, "row": row_digest}
     doc = page["docs"][0]
-    if card["description"] and card["description"] not in doc["description"]:
-        doc["description"] = f"{card['description']}. {doc['description']}".strip(". ")
-    return {**card, **doc, "card": False, "row": row_digest}
+    if row["description"] and row["description"] not in doc["description"]:
+        doc["description"] = f"{row['description']}. {doc['description']}".strip(". ")
+    return {**row, **doc, "card": False, "row": row_digest}
 
 
 # --------------------------------------------------------------------------- documents
@@ -402,15 +424,37 @@ def build_doc(doc: dict, config: dict, texts: list[tuple[str, str]]) -> dict:
     return {"url": doc["source"], "chunks": chunks}
 
 
+_REPEAT_LINE = 40        # characters: shorter lines (page numbers, headings, signatures) do not count
+_REPEAT_MIN_LINES = 5    # an attachment of a few lines is never taken for a copy
+_REPEAT_SHARE = 0.8      # of its lines already read in the attachments before it
+
+
+def _lines(text: str) -> set[str]:
+    return {line for line in (" ".join(raw.split()) for raw in text.splitlines()) if len(line) >= _REPEAT_LINE}
+
+
+def _repeats(text: str, seen: set[str]) -> bool:
+    """True when most lines of this text were already in the attachments read before it (`seen`,
+    which otherwise takes its lines): the «complete» copy published next to the original of an act."""
+    lines = _lines(text)
+    if len(lines) >= _REPEAT_MIN_LINES and len(lines & seen) >= _REPEAT_SHARE * len(lines):
+        return True
+    seen |= lines
+    return False
+
+
 def read_attachments(get_bytes, doc: dict, config: dict) -> list[tuple[str, str]]:
     """(name, text) of the attachments, up to the limits; an attachment that fails or cannot be read
-    (an image, an old .doc) is skipped.
+    (an image, an old .doc) is skipped, and with "skip_repeated_attachments" so is one that repeats
+    the attachments before it.
     The text kept for the document is shared among its attachments (the beginning of each, at
     least 4,000 characters): a long table of figures must not crowd out the report next to it."""
     attachments = doc["attachments"][:int(config.get("max_attachments", 25))]
     budget = int(config.get("max_chars", 60000))
     share = max(4000, budget // max(1, len(attachments)))
     texts = []
+    skip_repeated = bool(config.get("skip_repeated_attachments"))
+    seen: set[str] = set()
     for att in attachments:
         if budget <= 0:
             break
@@ -423,6 +467,9 @@ def read_attachments(get_bytes, doc: dict, config: dict) -> list[tuple[str, str]
             from indexer.pdf_extractor import record_pdf_quality
             record_pdf_quality(doc.get("source") or doc.get("page", ""), len(text),
                                document=doc.get("title", ""), attachment=att["name"])
+        if text and skip_repeated and _repeats(text, seen):
+            log.info(f"    {att['name']}: repeats the attachments before it, left out")
+            continue
         if text:
             texts.append((att["name"], text))
             budget -= len(text)
@@ -488,16 +535,16 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
             counts["failed"] += walked["failed"]
             counts["lists"] += walked["lists"]
             counts["rows"] += walked["rows"]
-            todo = [d for d in docs if items.get(d["source"], {}).get("digest") != doc_digest(d, limits)]
-            # a cached detail (unchanged row) that must be indexed again: fresh attachment links
-            todo = [(_detail_doc(fetch, d["cached"], None) or d) if d.get("cached") else d for d in todo]
+            todo = [d for d in docs
+                    if d.get("detail") or items.get(d["source"], {}).get("digest") != doc_digest(d, limits)]
             gone = set() if walked["failed"] else (
                 {s for s, it in items.items() if it.get("root") == root} - {d["source"] for d in docs})
             log.info(f"  {walked['pages']} pages, {len(docs)} documents ({walked['rows']} rows of tables), "
                      f"{len(todo)} new or changed, {len(gone)} gone")
             if dry_run:
                 for d in todo[:10]:
-                    print(f"- {' > '.join(d['path'])}: {d['title']} ({len(d['attachments'])} allegati) {d['source']}")
+                    what = "pagina di dettaglio da leggere" if d.get("detail") else f"{len(d['attachments'])} allegati"
+                    print(f"- {' > '.join(d['path'])}: {d['title']} ({what}) {d['source']}")
                 continue
 
             from indexer.indexer import _index_documents
@@ -532,6 +579,15 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                     log.info(f"  {len(pending)} documents left for the next run")
                     break
                 batch, pending = pending[:_BATCH], pending[_BATCH:]
+                # the detail page of a row is read now: a row not read yet, or one read in an earlier
+                # run that must be indexed again (the links of its attachments have changed since)
+                batch = [_detail_doc(fetch, d.get("cached") or d) or (d if d.get("cached") else None)
+                         if d.get("detail") or d.get("cached") else d for d in batch]
+                unread = batch.count(None)
+                if unread:
+                    counts["deferred"] += unread
+                    log.info(f"  {unread} detail pages not read, left for the next run")
+                    batch = [d for d in batch if d is not None]
                 built = []
                 for d in batch:
                     log.info(f"  {d['title'][:90]} ({len(d['attachments'])} attachments)")
