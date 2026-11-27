@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.1] - 2026-11-27
+
+### Fixed
+- The rows of the small tables read in full, whose row was not in the state of the job (left out by the
+  rereads of early November), were taken for rows still to read: the first run of 0.56.0 would have
+  downloaded and indexed again some hundreds of documents that have not changed. Seen in the dry run
+  before any run. When the detail page of such a row gives the document already indexed, nothing is
+  downloaded: the row is remembered and its page is not asked for again. Until 0.55.1 those detail pages
+  were fetched again every night, without anything showing it.
+
 ## [0.56.0] - 2026-11-27
 
 ### Added
