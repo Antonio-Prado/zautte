@@ -100,7 +100,7 @@ A section can name the older copy of its documents (`"replaces"`: regular expres
 
 A document a public body publishes must be a PDF/A with searchable text (level «u» or «a»); a scan, or a file whose fonts have no Unicode map, is not, even when Zautte reads it with the OCR. The readers log those files in `PDF_QUALITY_FILE` (`record_pdf_quality` in `indexer/pdf_extractor.py`: the crawler's PDFs and the attachments of the transparency portal, with how they were read). Once a week this script mails the files of the last `--days` days (7) to `PDF_QUALITY_REPORT_TO` (default `FEEDBACK_NOTIFY_EMAIL`), grouped by site and by document, so the offices that publish them can be told; nothing is sent when the list is empty. It runs as root: the SMTP settings are in `.env`. `--dry-run` prints the mail.
 
-Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`, `acts_sync.sh`, `amt_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 30 for the acts, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. They also cap the memory of the job (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB; 0 lifts it): a hostile document that makes a parser blow up ends the job, not the API. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
+Only the cron wrappers (`incremental_sync.sh`, `full_sync.sh`, `news_sync.sh`, `acts_sync.sh`, `amt_sync.sh`) take the lock (`/var/db/zautte-sync/sync.lock`, or `/var/run/chatbot-sync.lock` when that folder does not exist). The wrappers also stop a run that takes too long (`timeout`, then the lock is released): `SYNC_TIMEOUT` seconds, by default 25 minutes for the news, 30 for the acts, 16 hours for the incremental sync and 40 hours for the full one; set it in the cron line to change it. When another sync holds the lock, the news, acts and transparency jobs skip their run (the next one is close), the full sync waits up to 12 hours and the incremental one up to 3 (`SYNC_LOCK_WAIT` seconds). They also cap the memory of the job (`ulimit -v`, `SYNC_MAX_VMEM_KB`, default 24 GiB; 0 lifts it): a hostile document that makes a parser blow up ends the job, not the API. Two syncs writing the store at the same time can corrupt it, so run manual syncs under the same lock:
 
 ```sh
 LOCK=/var/db/zautte-sync/sync.lock; [ -d /var/db/zautte-sync ] || LOCK=/var/run/chatbot-sync.lock
@@ -117,7 +117,7 @@ The sync jobs download and parse documents from the Internet, so they should not
 # minute hour mday month wday who  command
 *        *    *    *     *    root /opt/chatbot/scripts/watchdog.sh
 0        2    *    *     *    root  /opt/chatbot/scripts/backup_vectorstore.sh
-30       2    *    *     1    zsync /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
+37       2    *    *     1    zsync /opt/chatbot/scripts/incremental_sync.sh >/dev/null 2>&1
 0        3    1    *     *    zsync /opt/chatbot/scripts/full_sync.sh >/dev/null 2>&1
 */15     *    *    *     *    zsync /opt/chatbot/scripts/news_sync.sh >/dev/null 2>&1
 50       7,14 *    *     *    zsync /opt/chatbot/scripts/acts_sync.sh >/dev/null 2>&1
@@ -147,7 +147,7 @@ The last line is commented out on purpose: `purge_logs` deletes data for good, s
 | every minute                   | `watchdog.sh`           | Restarts the API if it is down or unresponsive; reloads or restarts it when a sync asks for it |
 | 02:00 every night              | `backup_vectorstore.sh` | Compressed vector store backup |
 | every hour (minute 50), 04:30 and 05:00 every night, 01:15 every Sunday | `offsite_backup` | Off-site copies: people data every hour, system and application every night, new documents every night, index and programs every Sunday (see [Off-site backup](#off-site-backup)) |
-| 02:30 every Monday             | `incremental_sync.sh`   | Incremental sync; skipped if another sync holds the lock |
+| 02:37 every Monday             | `incremental_sync.sh`   | Incremental sync; waits up to 3 hours for the lock (`SYNC_LOCK_WAIT` seconds). Not at a minute when the news sync starts: at 02:30 the news sync took the lock first and the weekly sync was skipped every time |
 | 03:00 on the 1st of each month | `full_sync.sh`          | Full sync; waits up to 12 hours for the lock, output in `/var/log/chatbot-full.log` |
 | every 15 minutes               | `news_sync.sh`          | New articles and site news with their attachments; hot reload of the API; skipped while another sync holds the lock |
 | 07:50 and 14:50 every day      | `acts_sync.sh`          | Registers of acts (resolutions) → one passage per act and the «latest acts» fact; hot reload of the API when something changed; skipped while another sync holds the lock |
