@@ -69,6 +69,23 @@ def _split_long_paragraph(text: str) -> list[str]:
     return splitter.split_text(text)
 
 
+TITLE_CHARS = 200
+_TITLE_END = 60     # characters kept from the end of a longer title
+
+
+def short_title(title: str) -> str:
+    """The title put before every passage, on one line and at most TITLE_CHARS long. A longer one
+    keeps its beginning and its end: the subject of an act often ends with what tells it from the
+    others («… e di svago. Estate 2026.»), and cut at 200 characters the orders of every summer had
+    the same title."""
+    title = re.sub(r"\s+", " ", strip_invisible_chars(title or "")).strip()
+    if len(title) <= TITLE_CHARS:
+        return title
+    head = title[:TITLE_CHARS - _TITLE_END - 3].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    tail = title[-_TITLE_END:].split(" ", 1)[-1].strip()
+    return f"{head} … {tail}"
+
+
 def chunk_document(
     text: str,
     source_url: str,
@@ -92,7 +109,7 @@ def chunk_document(
     }
     """
     text = strip_invisible_chars(text).strip()
-    title = re.sub(r"\s+", " ", strip_invisible_chars(title or "")).strip()[:200]
+    title = short_title(title)
     if not text:
         return []
 

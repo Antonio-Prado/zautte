@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.6] - 2026-11-27
+
+### Fixed
+- A title longer than 200 characters keeps its beginning and its end (`chunker.short_title()`). It was
+  cut at 200, and the subject of an act often ends with what tells it from the others: the orders on
+  public quiet of every summer («… e di svago. Estate 2026.») had the same title in all their passages,
+  and a question about summer 2026 got passages of 2024 and 2025. It holds for the documents indexed
+  from now on.
+
 ## [0.56.5] - 2026-11-27
 
 ### Fixed
