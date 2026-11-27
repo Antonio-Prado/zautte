@@ -9,6 +9,21 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.2] - 2026-11-27
+
+### Fixed
+- Two acts with the same subject were told as one. «What does the order on public quiet of summer 2026
+  provide?» got the period of validity of the order of 3 July and the exceptions of the order of 31 July,
+  as a single act: an act read in full gives its number and date in its first passage only, the others
+  carry its subject, and the two orders have the same one. The label of each source that is an act of
+  the transparency section now says which act it is («atto=Ordinanza n. 34 del 31/07/2026»): kind,
+  number and date as the register gives them in the first passage of the same document
+  (`vector_store.act_labels()`), for resolutions, determinations and orders. The prompt explains the
+  label: two sources with the same title and a different act are different acts, not to be merged.
+  Nothing is read or indexed again. The number is the one of the register: for a few acts it is not the
+  one printed in the act (orders of 2022 listed under a general number, two orders listed among the
+  resolutions under the number of their proposal).
+
 ## [0.56.1] - 2026-11-27
 
 ### Fixed

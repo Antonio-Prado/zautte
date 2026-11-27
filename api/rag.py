@@ -57,12 +57,14 @@ from config.settings import (
 from indexer.embedder import embed_query
 from indexer.textclean import strip_invisible_chars
 from indexer.vector_store import (
+    act_labels,
     article_passages,
     attachment_passages,
     document_passages,
     find_acts,
     find_grants,
     hybrid_search,
+    is_act_label,
     latest_version_passages,
     news_followups,
     sources_of_links,
@@ -719,7 +721,25 @@ def retrieve_context(query: str, top_k: int = RETRIEVAL_TOP_K) -> list[dict]:
         if found:
             log.info(f"Article {article}: {len(found)} passages from {', '.join(c['source'][-60:] for c in found)}")
             chosen = _dedup_chunks(found + chosen)
-    return chosen
+    return _with_act_labels(chosen)
+
+
+def _with_act_labels(chunks: list[dict]) -> list[dict]:
+    """Which act each passage is of («Ordinanza n. 34 del 31/07/2026»), for the passages of the acts
+    of the transparency section: the label of the source says it (build_context_block). An act read
+    in full gives its number and date in its first passage only; the others carry its subject, and
+    two orders with the same subject (summer 2026: one for July, one for August) were told as one."""
+    sources = [c.get("source", "") for c in chunks if "admin" not in c]   # not the known facts
+    try:
+        labels = act_labels(sources) if sources else {}
+    except (ValueError, OSError) as e:
+        log.warning(f"Act labels skipped: {e}")
+        return chunks
+    for c in chunks:
+        label = labels.get(c.get("source", "")) if "admin" not in c else None
+        if label:
+            c["act"] = label
+    return chunks
 
 
 _FAKE_LABEL_RE = re.compile(r"^[ \t]*\[\s*Fonte\s+\d+\s*:", re.IGNORECASE | re.MULTILINE)
@@ -745,6 +765,8 @@ def build_context_block(chunks: list[dict]) -> str:
     for i, chunk in enumerate(chunks, 1):
         # Label enriched with metadata
         label_parts = [f"Fonte {i}: {_one_line(chunk.get('display_title') or chunk['title'])}"]
+        if is_act_label(chunk.get("act", "")):
+            label_parts.append(f"atto={chunk['act']}")
         if chunk.get("category"):
             label_parts.append(f"tipo={_one_line(chunk['category'], 40)}")
         if chunk.get("service_status"):
