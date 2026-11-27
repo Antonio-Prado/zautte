@@ -9,6 +9,17 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.7] - 2026-11-27
+
+### Fixed
+- The weekly incremental sync was skipped whenever it started together with the news sync. Both were
+  due at 02:30 on Monday (the news sync runs every 15 minutes): the news sync took the lock first and
+  `incremental_sync.sh` gave up at once (`lockf -t 0`), leaving only a line on syslog. Where it was
+  found it had been skipped six Mondays in a row, and a document the site had republished at a new
+  address was still answered from its old copy. The wrapper now waits for the lock (`SYNC_LOCK_WAIT`
+  seconds, default 3 hours) before giving up, and the schedule in `docs/operations.md` starts it at
+  02:37. An existing installation has to move its `/etc/crontab` line by hand.
+
 ## [0.56.6] - 2026-11-27
 
 ### Fixed
