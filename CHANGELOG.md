@@ -9,6 +9,15 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.4] - 2026-11-27
+
+### Fixed
+- «What does order n. 34 of 2026 say?» did not find the mayor's orders: the page of the transparency
+  section lists them in blocks («Ordinanze 34/2026 31/07/2026»), not as cards with «Numero: …; Data: …»,
+  and the index of the acts by number (`vector_store.find_acts()`) did not read that line. It does now,
+  for the acts of the transparency section whose line opens with a kind of act. The number is the one of
+  the register, as for the label of 0.56.2.
+
 ## [0.56.3] - 2026-11-27
 
 ### Changed

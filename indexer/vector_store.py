@@ -1008,7 +1008,7 @@ _ACT_KINDS = (("determina", "determin"), ("ordinanza", "ordinanz"), ("delibera",
               ("decreto", "decret"))
 _ACT_HEAD = 800   # characters of the first passage that hold the number, the date and the type
 # a page that lists its acts in blocks, not in a table, writes them «Ordinanze 34/2026 31/07/2026 AREA …»
-_ACT_LISTED_RE = re.compile(r"^([A-Za-z]{4,20}) (\d{1,6})/\d{4} (\d\d/\d\d/\d{4})\b", re.MULTILINE)
+_ACT_LISTED_RE = re.compile(r"^([A-Za-z]{4,20}) (\d{1,6})/(\d{4}) (\d\d/\d\d/\d{4})\b", re.MULTILINE)
 _ACT_CARD_DATE_RE = re.compile(r"\bNumero: \d{1,6}(?:/\d{4})?; Data: (\d\d/\d\d/\d{4})\b")
 _ACT_LABEL_RE = re.compile(r"(?:Ordinanza|Delibera|Determina|Decreto|Atto) n\. \d{1,6} del \d\d/\d\d/\d{4}")
 
@@ -1029,6 +1029,12 @@ def _act_kind(head: str, title: str) -> str:
     return ""
 
 
+def _listed_kind(word: str) -> str:
+    """The kind of act named by the word that opens «Ordinanze 34/2026 31/07/2026», or ''."""
+    low = word.lower()
+    return next((k for k, stem in _ACT_KINDS if stem in low), "")
+
+
 def act_label(head: str, title: str = "") -> str:
     """«Ordinanza n. 34 del 31/07/2026»: kind, number and date of an act as the register of the
     transparency section gives them in the first passage of the act (`head`), or '' when it gives
@@ -1044,8 +1050,8 @@ def act_label(head: str, title: str = "") -> str:
         m = _ACT_LISTED_RE.search(head)
         if not m:
             return ""
-        number, date = m[2], m[3]
-        kind = next((k for k, stem in _ACT_KINDS if stem in m[1].lower()), "")
+        number, date = m[2], m[4]
+        kind = _listed_kind(m[1])
         if not kind:
             return ""       # «Protocollo 12/2026 …»: not one of the acts told apart by number
     return f"{(kind or 'atto').capitalize()} n. {int(number)} del {date}"
@@ -1088,12 +1094,19 @@ def _build_acts_index(metadata: list[dict]) -> dict[tuple[int, int], list[tuple[
         m = _ACT_NUMBER_RE.search(head)
         if m:
             number, year = int(m[1]), int(m[2] or m[3])
-        else:
-            m = _ACT_TITLE_RE.search(title)
-            if not m:
-                continue
+            kind = _act_kind(head, title)
+        elif (m := _ACT_TITLE_RE.search(title)):
             number, year = int(m[1]), int(m[2])
-        index.setdefault((number, year), []).append((i, _act_kind(head, title)))
+            kind = _act_kind(head, title)
+        else:
+            # the acts a transparency page lists in blocks: «Ordinanze 34/2026 31/07/2026 AREA …».
+            # «Cosa dice l'ordinanza n. 34 del 2026?» did not find the mayor's orders, listed this way
+            m = _ACT_LISTED_RE.search(head) if meta.get("origin") == "amt" else None
+            kind = _listed_kind(m[1]) if m else ""
+            if not kind:
+                continue
+            number, year = int(m[2]), int(m[3])
+        index.setdefault((number, year), []).append((i, kind))
     return index
 
 
