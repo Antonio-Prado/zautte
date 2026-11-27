@@ -9,6 +9,8 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-27
+
 ### Added
 - The acts of a register can be read in full, not only listed (`scripts/amt_sync.py`). «Compare this
   year's waste tax rates with last year's» was answered «I do not have the rates»: they are only in the
