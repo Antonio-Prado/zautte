@@ -47,3 +47,20 @@ def test_chunk_document_keeps_lines_of_a_regulation_read_by_ocr():
     assert len(chunks) >= 3
     assert any("\nArt. 41 - Titolo" in c["text"] for c in chunks)
     assert all(c["metadata"]["doc_type"] == "pdf" for c in chunks)
+
+
+def test_a_long_title_keeps_its_end():
+    """Cut at 200 characters, the orders of every summer had the same title: the year is at the end."""
+    subject = ("Disposizioni in materia di tutela della quiete pubblica, della salute, dell'ambiente e del "
+               "patrimonio, dirette ad assicurare la convivenza tra le funzioni residenziali e le attività di "
+               "esercizio pubblico e di svago in alcuni ambiti del territorio comunale. Estate {year}.")
+    a, b = chunker.short_title(subject.format(year=2025)), chunker.short_title(subject.format(year=2026))
+    assert a != b and a.endswith("Estate 2025.") and b.endswith("Estate 2026.")
+    assert len(b) <= chunker.TITLE_CHARS and b.startswith("Disposizioni in materia di tutela della quiete pubblica")
+    assert " … " in b and "  " not in b
+    # a title that fits is left as it is, on one line
+    assert chunker.short_title("  Regolamento\n di polizia   urbana ") == "Regolamento di polizia urbana"
+    assert chunker.short_title("x" * 200) == "x" * 200
+    text = "La presente ordinanza ha efficacia dal 3 agosto al 7 settembre. " * 5
+    chunks = chunker.chunk_document(text, "https://example.org/o", subject.format(year=2026))
+    assert chunks and all(c["metadata"]["title"] == b and c["text"].startswith(b + "\n\n") for c in chunks)
