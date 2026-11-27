@@ -100,6 +100,8 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         full_text = "\n\n".join(parts)[:PDF_MAX_CHARS]
         if not full_text.strip():
             full_text = _fallback_text(pdf_path, "no text")
+        else:
+            full_text = _with_spaces(pdf_path, full_text)
         return _with_ocr(pdf_path, full_text)
 
     except Exception as e:  # noqa: BLE001 - pypdf raises heterogeneous exception types on corrupt PDFs
@@ -107,6 +109,35 @@ def extract_text_from_pdf(pdf_path: str | Path) -> str:
         if not text:
             log.error(f"PDF extraction error {pdf_path.name}: {e}")
         return text
+
+
+# «successivaalleore01:00delgiornoseguente», «OriginalediDeliberazionedelConsiglioComunale»: in the
+# justified lines of some PDFs (the acts made with OnlyOffice and iText) the gap between two words is
+# a movement of the pen, not a space character, and pypdf joins the words. A word of that length is
+# found neither by its letters nor by its meaning. pdfminer reads the gaps.
+_RUN_TOGETHER = re.compile(r"[^\W\d_]{22,}", re.UNICODE)
+_RUN_TOGETHER_MIN = 3     # words of 22 letters or more before the other reader is tried
+
+
+def run_together(text: str) -> int:
+    """How many words of 22 letters or more a text has: in Italian almost none exists, so three in
+    one document are words that lost the spaces between them."""
+    return len(_RUN_TOGETHER.findall(text))
+
+
+def _with_spaces(pdf_path: Path, text: str) -> str:
+    """The text of pypdf, or the one of pdfminer when pypdf joined the words and pdfminer did not.
+    pdfminer's text is taken only if it is text, about as long, and has at most half of those words:
+    a file with long strings of letters of its own (a digest, a key) gives them with both readers."""
+    global last_method
+    joined = run_together(text)
+    if joined < _RUN_TOGETHER_MIN:
+        return text
+    other = _fallback_text(pdf_path, f"{joined} words run together")
+    if other and legible(other) and len(other) >= 0.7 * len(text) and run_together(other) * 2 <= joined:
+        return other
+    last_method = "pypdf"
+    return text
 
 
 def _fallback_text(pdf_path: Path, reason: str) -> str:

@@ -54,3 +54,50 @@ def test_report_groups_by_host_and_keeps_the_latest(tmp_path):
     assert "«Procedura negoziata» — allegato Tavola 3.pdf" in body
     assert "solo immagine: letto con il riconoscimento ottico" in body and "PDF/A" in body
     assert rep.read_entries(tmp_path / "missing.jsonl", today) == []
+
+
+JOINED = ("vietata ladiffusione sonora dal lunedì algiovedìnellafasciaorariasuccessivaalleore01:00 "
+          "delgiornoseguenteedalvenerdìalladomenica OriginalediDeliberazionedelConsiglioComunale "
+          "INTERROGAZIONEAINIZIATIVADEICONSIGLIERI e il resto della pagina è scritto normalmente.")
+SPACED = ("vietata la diffusione sonora dal lunedì al giovedì nella fascia oraria successiva alle ore 01:00 "
+          "del giorno seguente e dal venerdì alla domenica Originale di Deliberazione del Consiglio Comunale "
+          "INTERROGAZIONE A INIZIATIVA DEI CONSIGLIERI e il resto della pagina è scritto normalmente.")
+
+
+def test_words_run_together_are_read_again_with_the_other_reader(monkeypatch, tmp_path):
+    """pypdf joins the words of the justified lines of some PDFs («successivaalleore01:00»): a word
+    of that length is found neither by its letters nor by its meaning. pdfminer reads the gaps."""
+    assert pe.run_together(JOINED) >= 3 and pe.run_together(SPACED) == 0
+    calls = []
+
+    def other_reader(path, reason):
+        calls.append(reason)
+        pe.last_method = "pdfminer"
+        return SPACED
+
+    monkeypatch.setattr(pe, "_fallback_text", other_reader)
+    monkeypatch.setattr(pe, "last_method", "pypdf")
+    assert pe._with_spaces(tmp_path / "a.pdf", JOINED) == SPACED
+    assert pe.last_method == "pdfminer" and "words run together" in calls[0]
+    # a text read well is not read twice
+    calls.clear()
+    monkeypatch.setattr(pe, "last_method", "pypdf")
+    assert pe._with_spaces(tmp_path / "b.pdf", SPACED) == SPACED and calls == []
+
+
+def test_the_other_reader_is_kept_only_when_it_is_better(monkeypatch, tmp_path):
+    # long strings of letters of the file itself (a key, a digest): both readers give them
+    keys = "chiave AAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC del documento firmato"
+
+    def same(path, reason):
+        pe.last_method = "pdfminer"
+        return keys
+
+    monkeypatch.setattr(pe, "_fallback_text", same)
+    monkeypatch.setattr(pe, "last_method", "pypdf")
+    assert pe._with_spaces(tmp_path / "a.pdf", keys) == keys and pe.last_method == "pypdf"
+    # the other reader gave much less text, or nothing: the first one is kept
+    monkeypatch.setattr(pe, "_fallback_text", lambda path, reason: "la diffusione sonora è vietata")
+    assert pe._with_spaces(tmp_path / "b.pdf", JOINED) == JOINED and pe.last_method == "pypdf"
+    monkeypatch.setattr(pe, "_fallback_text", lambda path, reason: "")
+    assert pe._with_spaces(tmp_path / "c.pdf", JOINED) == JOINED
