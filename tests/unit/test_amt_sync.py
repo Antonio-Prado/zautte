@@ -171,22 +171,61 @@ def test_walk_reads_small_tables_in_full_and_big_ones_as_cards(monkeypatch):
     config = {"portal": PORTAL, "page_id": 36046, "max_table_details": 300}
     docs, counts = m.walk(fetch, config, 544, "Bandi di concorso", post=post)
     assert counts == {"pages": 1, "failed": 0, "lists": 1, "rows": 3}
-    assert len(docs) == 3 and not docs[0]["card"] and docs[0]["row"]
+    assert len(docs) == 3 and all(d["detail"] and not d["card"] and not d["attachments"] for d in docs)
     assert docs[0]["source"] == PORTAL + "?page_id=36046&voceamt=544&dettaglio=0"
-    assert docs[0]["attachments"][0]["name"] == "1_-_Bilancio.pdf"              # from the detail page
-    assert docs[0]["description"].startswith("Numero: 0; Data: 01/03/2026; Responsabile: Rossi. ")   # the card's fields first
-    assert len(fetched) == 4                                                    # the page + 3 details
+    assert len(fetched) == 1                                                    # the page: no detail while walking
 
-    known = {docs[0]["source"]: {"row": docs[0]["row"], "doc": {k: docs[0][k] for k in ("title", "description", "attachments", "published")}}}
+    doc = m._detail_doc(fetch, docs[0])                                         # read when the row is indexed
+    assert not doc["card"] and doc["row"] and "detail" not in doc
+    assert doc["attachments"][0]["name"] == "1_-_Bilancio.pdf"                  # from the detail page
+    assert doc["description"].startswith("Numero: 0; Data: 01/03/2026; Responsabile: Rossi. ")   # the card's fields first
+    assert len(fetched) == 2
+
+    known = {doc["source"]: {"row": doc["row"], "doc": {k: doc[k] for k in ("title", "description", "attachments", "published")}}}
     fetched.clear()
     again, _ = m.walk(fetch, config, 544, "Bandi di concorso", post=post, known=known)
-    assert len(fetched) == 3 and again[0]["cached"]["title"] == "Concorso n. 0"   # the known detail is not fetched
+    assert len(fetched) == 1 and again[0]["cached"]["title"] == "Concorso n. 0"   # the known detail comes from the state
+    assert "detail" not in again[0] and again[0]["attachments"] and again[1]["detail"]
+    assert m.doc_digest(again[0]) == m.doc_digest(doc)
 
     cards, counts = m.walk(fetch, {**config, "max_table_details": 2}, 544, "x", post=post)
-    assert all(d["card"] and not d["attachments"] for d in cards) and counts["rows"] == 3
+    assert all(d["card"] and not d["attachments"] and "detail" not in d for d in cards) and counts["rows"] == 3
     assert m.doc_text(cards[1], "Ente", []) == ("Ente, Amministrazione trasparente, sezione x > Bandi di concorso: Concorso n. 1.\n"
                                                "Numero: 1; Data: 02/03/2026; Responsabile: Rossi\nPubblicato dal 02/03/2026.\n"
                                                f"Pagina del documento: {PORTAL}?page_id=36046&voceamt=544&dettaglio=1")
+
+    big, _ = m.walk(fetch, {**config, "max_table_details": 2, "full_tables": ["544"]}, 544, "x", post=post)
+    assert all(d["detail"] and not d["card"] for d in big)                      # a big table named in full_tables
+
+
+def test_a_detail_page_without_a_document_keeps_the_row_and_an_unread_one_is_tried_again():
+    import httpx
+    headers = m.parse_page(TABLE_PAGE, PORTAL)["table"]["headers"]
+    card = m.parse_row(row(4), headers, PORTAL, {})
+    card = {**card, "source": card.pop("detail"), "card": False, "detail": True}
+    empty = m._detail_doc(lambda url: "<html><body><div class='page-content'><h1>x</h1></div></body></html>", card)
+    assert empty["row"] and not empty["card"] and empty["attachments"] == [] and "detail" not in empty
+    assert empty["description"] == card["description"]
+
+    def down(url):
+        raise httpx.ConnectError("boom")
+    assert m._detail_doc(down, card) is None
+
+
+def test_an_attachment_that_repeats_the_others_is_left_out_only_when_asked(monkeypatch):
+    doc = m.parse_page(PAGE, PORTAL)["docs"][0]
+    act = "\n".join(f"Il Consiglio comunale delibera il punto numero {i} dell'ordine del giorno" for i in range(30))
+    opinion = "\n".join(f"Parere favorevole di regolarità tecnica sulla proposta, riga {i}" for i in range(6))
+    doc["attachments"] = [{"name": n, "url": n, "md5": n} for n in ("atto.pdf", "parere.pdf", "completo.pdf", "breve.pdf")]
+    texts = {"atto.pdf": act, "parere.pdf": opinion, "completo.pdf": act + "\n" + opinion + "\nCopia conforme all'originale, in carta libera per uso amministrativo",
+             "breve.pdf": "Il Consiglio comunale delibera il punto numero 1 dell'ordine del giorno"}
+    monkeypatch.setattr(m, "_pdf_text", lambda data, limit: texts[data.decode()][:limit])
+    read = m.read_attachments(lambda url: url.encode(), doc, {"max_chars": 100000})
+    assert [n for n, _ in read] == ["atto.pdf", "parere.pdf", "completo.pdf", "breve.pdf"]
+    read = m.read_attachments(lambda url: url.encode(), doc, {"max_chars": 100000, "skip_repeated_attachments": 1})
+    assert [n for n, _ in read] == ["atto.pdf", "parere.pdf", "breve.pdf"]     # a short attachment is never a copy
+    assert m.section_limits({"voceamt": 48, "skip_repeated_attachments": True}) == {"skip_repeated_attachments": 1}
+    assert m.doc_digest(doc, {"skip_repeated_attachments": 1}) != m.doc_digest(doc)
 
 
 def test_walk_without_post_only_counts_the_tables():
@@ -199,3 +238,73 @@ def test_a_table_that_fails_marks_the_section_as_not_read():
         raise ValueError("boom")
     docs, counts = m.walk(lambda url: TABLE_PAGE, {"portal": PORTAL, "page_id": 36046}, 544, "x", post=post)
     assert docs == [] and counts["failed"] == 1
+
+
+def test_a_big_table_is_read_in_full_a_few_rows_per_run(monkeypatch):
+    """The rows of a table in "full_tables" already indexed as cards: each run reads the detail pages
+    of the rows it indexes, within max_documents, and none of the rows it has already read."""
+    import indexer.indexer as ix
+    import indexer.vector_store as vs
+    section = PORTAL + "?page_id=36046&voceamt=544"
+    fetched, indexed, state = [], [], {}
+
+    class Resp:
+        def __init__(self, text):
+            self.text, self.content = text, b"%PDF"
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return ["3", [row(i) for i in range(3)]]
+
+    class Client:
+        def __init__(self, **kw):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def post(self, url, data=None):
+            return Resp("")
+
+    def get(client, url):
+        fetched.append(url)
+        return Resp(PAGE if "dettaglio=" in url or "vediAllegato" in url else TABLE_PAGE)
+    monkeypatch.setattr(m.httpx, "Client", Client)
+    monkeypatch.setattr(m, "_get", get)
+    monkeypatch.setattr(m.time, "sleep", lambda s: None)
+    monkeypatch.setattr(m, "_BATCH", 1)                     # the limit is checked between groups of documents
+    monkeypatch.setattr(m, "_pdf_text", lambda data, limit: "testo dell'atto")
+    monkeypatch.setattr(m, "load_state", lambda: state)
+    monkeypatch.setattr(m, "save_state", lambda s: None)
+    monkeypatch.setattr(ix, "_index_documents", lambda built, *a, **kw: (indexed.extend(b["url"] for b in built), len(built)))
+    monkeypatch.setattr(vs, "get_indexed_sources", lambda: set())
+    monkeypatch.setattr(vs, "remove_sources", lambda *a, **kw: None)
+    config = {"portal": PORTAL, "page_id": 36046, "max_table_details": 2, "max_documents": 2,
+              "sections": [{"voceamt": 544, "name": "Atti"}]}
+    monkeypatch.setattr(m, "AMT_SOURCES", config)
+
+    counts = m.run_amt()                                    # a big table: three cards
+    assert counts["cards"] == 3 and [u for u in fetched if "dettaglio=" in u] == []
+    assert all("row" not in it for it in state["items"].values())
+
+    monkeypatch.setattr(m, "AMT_SOURCES", {**config, "full_tables": [544]})
+    fetched.clear()
+    indexed.clear()
+    counts = m.run_amt()
+    details = [u for u in fetched if "dettaglio=" in u]
+    assert details == [section + "&dettaglio=0", section + "&dettaglio=1"] and indexed == details
+    assert counts["changed"] == 2 and counts["deferred"] == 1 and counts["cards"] == 0
+    assert state["items"][details[0]]["doc"]["attachments"] and "row" not in state["items"][section + "&dettaglio=2"]
+
+    fetched.clear()
+    counts = m.run_amt()                                    # the row left, and only that one
+    assert [u for u in fetched if "dettaglio=" in u] == [section + "&dettaglio=2"] and counts["deferred"] == 0
+
+    fetched.clear()
+    counts = m.run_amt()                                    # nothing to read again
+    assert fetched == [section] and counts["changed"] == counts["new"] == counts["deferred"] == 0

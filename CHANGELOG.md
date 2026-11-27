@@ -9,6 +9,24 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-27
+
+### Added
+- The acts of a register can be read in full, not only listed (`scripts/amt_sync.py`). «Compare this
+  year's waste tax rates with last year's» was answered «I do not have the rates»: they are only in the
+  text of the two council resolutions, and of a search table with more than `max_table_details` rows the
+  job indexed a short card per row (title, number, date, link). A bigger table named in `full_tables`
+  (its `voceamt`) is now read in full all the same. The detail page of a row is read when the row is
+  indexed, no longer while walking the table: a register of thousands of acts is read over several
+  nights within `max_documents` and `max_minutes`, each row keeps its card until its turn comes, and a
+  row already read is not asked for again. A detail page that cannot be read is tried again at the next
+  run; one that holds no document keeps the row as it is.
+- `skip_repeated_attachments` (general, or for a section): an attachment whose lines are, for the most
+  part, already in the attachments read before it is left out. The acts of these portals carry the
+  signed original, the opinions and a «complete» copy of them all: on a sample of 56 acts the copy was
+  from a fifth to almost half of the text. Off by default; turning it on for a section reads its
+  documents again once.
+
 ## [0.55.1] - 2026-11-26
 
 ### Fixed
