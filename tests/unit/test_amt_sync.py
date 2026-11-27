@@ -308,3 +308,18 @@ def test_a_big_table_is_read_in_full_a_few_rows_per_run(monkeypatch):
     fetched.clear()
     counts = m.run_amt()                                    # nothing to read again
     assert fetched == [section] and counts["changed"] == counts["new"] == counts["deferred"] == 0
+
+    # rows indexed in full by an earlier version, which left their row out of the state: the detail
+    # page is read once, nothing is downloaded or indexed again, and the row is remembered
+    for it in state["items"].values():
+        del it["row"], it["doc"]
+    fetched.clear()
+    indexed.clear()
+    counts = m.run_amt()
+    assert [u for u in fetched if "dettaglio=" in u] == [f"{section}&dettaglio={i}" for i in range(3)]
+    assert not [u for u in fetched if "vediAllegato" in u] and indexed == []
+    assert counts["changed"] == counts["new"] == counts["deferred"] == 0
+    assert all(it["row"] and it["doc"]["attachments"] for it in state["items"].values())
+    fetched.clear()
+    m.run_amt()
+    assert fetched == [section]

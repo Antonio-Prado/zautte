@@ -581,18 +581,32 @@ def run_amt(dry_run: bool = False, only: int | None = None) -> dict:
                 batch, pending = pending[:_BATCH], pending[_BATCH:]
                 # the detail page of a row is read now: a row not read yet, or one read in an earlier
                 # run that must be indexed again (the links of its attachments have changed since)
-                batch = [_detail_doc(fetch, d.get("cached") or d) or (d if d.get("cached") else None)
-                         if d.get("detail") or d.get("cached") else d for d in batch]
-                unread = batch.count(None)
+                ready, unread, same = [], 0, 0
+                for d in batch:
+                    if d.get("detail") or d.get("cached"):
+                        got = _detail_doc(fetch, d.get("cached") or d)
+                        if got is None and not d.get("cached"):
+                            unread += 1
+                            continue
+                        # a row indexed in full by an earlier run whose row was not in the state: when
+                        # its document has not changed, nothing is downloaded, the row is only remembered
+                        if d.get("detail") and items.get(d["source"], {}).get("digest") == doc_digest(got, limits):
+                            remember(got)
+                            same += 1
+                            continue
+                        d = got or d
+                    ready.append(d)
                 if unread:
                     counts["deferred"] += unread
                     log.info(f"  {unread} detail pages not read, left for the next run")
-                    batch = [d for d in batch if d is not None]
+                if same:
+                    log.info(f"  {same} rows already indexed and unchanged")
+                batch = ready
                 built = []
                 for d in batch:
                     log.info(f"  {d['title'][:90]} ({len(d['attachments'])} attachments)")
                     built.append(build_doc(d, sconfig, read_attachments(get_bytes, d, sconfig)))
-                _, inserted = _index_documents(built, "AMT", lambda b: b["chunks"], skip_existing=False)
+                inserted = _index_documents(built, "AMT", lambda b: b["chunks"], skip_existing=False)[1] if built else 0
                 counts["chunks"] += inserted
                 for d in batch:
                     counts["changed" if d["source"] in items else "new"] += 1
