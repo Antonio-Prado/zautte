@@ -421,7 +421,24 @@ def build_doc(doc: dict, config: dict, texts: list[tuple[str, str]]) -> dict:
     chunks = chunk_document(text=text, source_url=doc["source"], title=doc["title"],
                             doc_type="pdf" if any(t.strip() for _, t in texts) else "html",
                             extra_metadata=extra)
-    return {"url": doc["source"], "chunks": chunks}
+    return {"url": doc["source"], "chunks": _with_act_line(chunks, text)}
+
+
+def _with_act_line(chunks: list[dict], text: str) -> list[dict]:
+    """Which act a passage is of, written in every passage after the first: «Ordinanza n. 34 del
+    31/07/2026», as the register gives number and date. The first passage has them already; the
+    others carried the subject alone, and two acts with the same subject could not be told apart."""
+    from indexer.vector_store import act_label
+    label = act_label(text, chunks[0]["metadata"]["title"]) if chunks else ""
+    if not label:
+        return chunks
+    for c in chunks:
+        meta = c["metadata"]
+        meta["act"] = label
+        head = meta["title"] + "\n\n"
+        if meta["chunk_index"] > 0 and meta["title"] and c["text"].startswith(head):
+            c["text"] = f"{head}{label}\n{c['text'][len(head):]}"
+    return chunks
 
 
 _REPEAT_LINE = 40        # characters: shorter lines (page numbers, headings, signatures) do not count

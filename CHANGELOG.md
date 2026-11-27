@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.56.3] - 2026-11-27
+
+### Changed
+- The transparency job writes which act a passage is of in every passage after the first: a line
+  «Ordinanza n. 34 del 31/07/2026» under the title, and the same label in the metadata (`act`), which the
+  answer reads instead of the first passage (0.56.2). It holds for the acts indexed from now on; those
+  already indexed are not read again (no change to the digest: tens of thousands of documents would be
+  downloaded again) and get the label at answer time. The line is left out when two passages are compared
+  to tell the same text published twice.
+
 ## [0.56.2] - 2026-11-27
 
 ### Fixed
