@@ -123,3 +123,17 @@ def test_the_job_leaves_other_documents_as_they_are():
     chunks = amt_sync.build_doc(_doc("Avviso pubblico per la selezione di un istruttore."), {}, texts)["chunks"]
     assert chunks and all("act" not in c["metadata"] for c in chunks)
     assert all(c["text"].startswith(f"{SUBJECT}\n\n") and "n. " not in c["text"][:len(SUBJECT) + 12] for c in chunks)
+
+
+def test_a_listed_order_is_found_by_its_number(store):
+    """«Cosa dice l'ordinanza n. 34 del 2026?»: the mayor's orders are listed in blocks («Ordinanze
+    34/2026 31/07/2026»), not as cards with «Numero: …; Data: …», and were not in the index of numbers."""
+    found = vs.find_acts(34, 2026, "ordinanza")
+    assert [c["source"] for c in found] == [f"{PAGE}#estate"]
+    assert found[0]["score"] == 1.0 and "Ordinanze 34/2026 31/07/2026" in found[0]["text"]
+    assert [c["source"] for c in vs.find_acts(28, 2026)] == [f"{PAGE}#estate-2"]
+    assert vs.find_acts(34, 2026, "delibera") == [] and vs.find_acts(34, 2025) == []
+    # the page of the site that only mentions the order is not an act
+    assert all("example.org/it/page" not in c["source"] for c in vs.find_acts(34, 2026))
+    by_number = rag._acts_by_number("Cosa dice l'ordinanza n. 34 del 2026?")
+    assert [c["source"] for c in by_number] == [f"{PAGE}#estate"] and by_number[0]["known"] is True
