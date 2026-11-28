@@ -14,6 +14,8 @@ deadline that has passed inside a fact about how to pay). scripts/known_facts_re
 facts whose dates are near or past. Shared by the API (which only needs `expires`) and that script.
 """
 
+import hashlib
+import json
 from datetime import date
 from pathlib import Path
 
@@ -36,3 +38,37 @@ def fact_date(entry: dict, field: str) -> date | None:
 def is_expired(expires: date | None, today: date) -> bool:
     """`expires` is the last day of use: the fact is out from the day after."""
     return expires is not None and today > expires
+
+
+def watch_targets(entries: list[dict]) -> dict[str, dict]:
+    """The pages to read again for the facts (scripts/known_facts_watch.py): for each address the
+    titles of the facts that come from it, what they ask to look for and a key that changes when one
+    of those facts is edited (an alert stays open until then).
+
+    A fact is watched at its "source" unless it says otherwise:
+        "watch": false                        # not watched (a home page, a list that changes every day)
+        "watch": {"url": "https://…",         # another page than the source (default: the source)
+                  "appears": "regex",         # tell when the page has this (what the fact says is not there yet)
+                  "disappears": "regex"}      # tell when the page no longer has this
+    """
+    targets: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        watch = entry.get("watch")
+        if watch is False:
+            continue
+        watch = watch if isinstance(watch, dict) else {}
+        url = str(watch.get("url") or entry.get("source") or "").strip()
+        if not url.lower().startswith(("http://", "https://")):
+            continue
+        target = targets.setdefault(url, {"titles": [], "appears": [], "disappears": [], "keys": []})
+        target["titles"].append(" ".join(str(entry.get("title", "")).split()))
+        for kind in ("appears", "disappears"):
+            if isinstance(watch.get(kind), str) and watch[kind].strip():
+                target[kind].append(watch[kind].strip())
+        target["keys"].append(hashlib.sha256(
+            json.dumps(entry, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest())
+    for target in targets.values():
+        target["key"] = hashlib.sha256("".join(sorted(target.pop("keys"))).encode()).hexdigest()[:16]
+    return targets
