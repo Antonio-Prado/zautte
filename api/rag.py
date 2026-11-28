@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api import linkcheck, maintenance, openai_llm, shadow, smalltalk
 from api.filelock import file_lock
+from api.knownfacts import fact_date, is_expired
 from api.safefile import dump_line, read_json_bounded, write_text_atomic
 from config.settings import (
     ANTHROPIC_API_KEY,
@@ -328,8 +329,15 @@ def _parse_known_facts(entries: list[dict], written_by_admin: bool = False) -> l
             source = SITE_URL.rstrip("/") + e["source_path"]
         else:
             source = ""
+        try:
+            expires = fact_date(e, "expires")
+        except ValueError as exc:
+            # a mistyped date must not switch a fact off: it stays in use, and the daily report lists it
+            log.warning("Known fact «%s»: %s; used as if it had no end date", str(e.get("title", ""))[:80], exc)
+            expires = None
         result.append({
             "keywords":    set(e["keywords"]),
+            "expires":     expires,   # the last day the fact is used (api/knownfacts.py); None = no end
             "require_any": set(e.get("require_any", e["keywords"])),
             # Phrases removed from the question before matching this fact: "storico" is meant for
             # "stato di famiglia storico", not for "centro storico".
@@ -401,8 +409,11 @@ def _inject_known_facts(query: str) -> list[dict]:
     """Returns the known facts relevant to the query (static ones first, then the dynamic ones)."""
     lowered = query.lower()
     words = set(re.findall(r"\w+", lowered))
+    today = now_local().date()   # read at every question: a fact ends at midnight without a restart
     results = []
     for fact in _KNOWN_FACTS + _dynamic_known_facts():
+        if is_expired(fact["expires"], today):
+            continue
         keywords = fact["keywords"]
         require_any = fact.get("require_any", keywords)
         q = words

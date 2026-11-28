@@ -6,6 +6,14 @@
     "text": "Opening hours of the town hall\n\nMonday to Friday 9:00-13:00. Phone: 000 000000.",
     "title": "Town hall opening hours",
     "source": "https://www.example.org/opening-hours",
-    "category": "info"
+    "category": "info",
+    "review_by": "2027-01-10"
+  },
+  {
+    "keywords": ["fair", "market"],
+    "text": "Christmas fair\n\nSaturday 12 and Sunday 13 December 2026, 8:00-22:00, in the town centre.",
+    "title": "Christmas fair 2026",
+    "source": "https://www.example.org/news/christmas-fair",
+    "expires": "2026-12-13"
   }
 ]

@@ -9,6 +9,25 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-28
+
+### Added
+- A known fact may carry an end date and a date to check it again (`api/knownfacts.py`). A curated
+  fact stays in `config/known_facts.json` until somebody takes it out, and nothing said when to look at
+  it again: a fact saying «the Christmas programme has not been published yet» was still answered the
+  day after the programme came out, and in the same conversation the assistant changed its mind at
+  every question. `"expires": "YYYY-MM-DD"` is the last day the fact is used: from the day after the
+  API leaves it out, without a restart (the date is read at every question; the answer cache is already
+  dropped when the day changes). `"review_by": "YYYY-MM-DD"` only asks for a check: the fact stays in
+  use. A date that is not a date never switches a fact off: it is logged and the fact is used as if it
+  had none.
+- `scripts/known_facts_report.py`, daily from cron: mails to `KNOWN_FACTS_REPORT_TO` (default
+  `FEEDBACK_NOTIFY_EMAIL`) the facts that have expired, the ones that expire or are to be checked
+  within `KNOWN_FACTS_REPORT_DAYS` days (7), the overdue checks and the mistyped dates. It keeps no
+  state: a mail goes out on the days something happens to a fact, every day while a date is mistyped,
+  and every Monday while a fact is expired or a check is overdue. An existing installation adds the
+  cron line of `docs/operations.md` by hand.
+
 ## [0.56.7] - 2026-11-27
 
 ### Fixed

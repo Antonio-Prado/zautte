@@ -521,6 +521,11 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
 FEEDBACK_NOTIFY_EMAIL = os.getenv("FEEDBACK_NOTIFY_EMAIL", "").strip()
 PDF_QUALITY_REPORT_TO = os.getenv("PDF_QUALITY_REPORT_TO", "").strip() or FEEDBACK_NOTIFY_EMAIL
 APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOTIFY_EMAIL
+# Known facts with an end date ("expires") or a date to check them again ("review_by", see
+# api/knownfacts.py): scripts/known_facts_report.py mails the ones whose date is near or past to
+# KNOWN_FACTS_REPORT_TO, starting KNOWN_FACTS_REPORT_DAYS days before the date
+KNOWN_FACTS_REPORT_TO = os.getenv("KNOWN_FACTS_REPORT_TO", "").strip() or FEEDBACK_NOTIFY_EMAIL
+KNOWN_FACTS_REPORT_DAYS = max(0, int(os.getenv("KNOWN_FACTS_REPORT_DAYS", "7")))
 # Limits on those e-mails (api/notify_guard.py; the data is stored and shown anyway): one e-mail per
 # feedback in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR feedback e-mails and
 # APPLY_NOTIFY_MAX_PER_HOUR application e-mails per hour (0 = no hourly cap)
