@@ -112,6 +112,8 @@ def test_the_fact_holds_the_latest_session_with_its_resolutions_by_number():
     assert text.index("n. 129") < text.index("n. 130") and "OLD SESSION" not in text
     assert "– Voti contrari n. 3 (Paolo Neri, Carla Gialli, Ugo Blu);" in text
     assert "votazioni" in fact["keywords"] and "consiglio" in fact["require_any"]
+    # the figures are reported, never commented: no «defections», no parties next to the names
+    assert "Nessun commento ai numeri" in text and "non scrivere gruppi o partiti accanto ai nomi" in text
 
 
 def test_the_api_adds_the_fact_to_a_question_on_the_votes_of_the_council(tmp_path, monkeypatch):

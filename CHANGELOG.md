@@ -9,6 +9,16 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.58.1] - 2026-11-28
+
+### Fixed
+- The fact with the votes of the council's latest session (`scripts/council_votes.py`) tells the model
+  more firmly to report the figures and stop there. Asked «is the majority solid?», the assistant
+  declined to judge and then went on to sum the votes up («a mixed picture», «some defections in the
+  majority») with the party of some councillors next to their names. The instructions of the fact now
+  rule out any comment on the figures, saying who belongs to the majority or to the opposition, and
+  parties next to the names unless the question asks for the group of a councillor.
+
 ## [0.58.0] - 2026-11-28
 
 ### Added
