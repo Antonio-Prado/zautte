@@ -58,6 +58,9 @@ CRAWL_MAX_FILE_MB=100
 # a dynamic fact no job has written is reported (0 = never)
 #KNOWN_FACTS_WATCH_FILE=data/facts/known_facts_watch.json
 #KNOWN_FACTS_STALE_DAYS=3
+# For a page that changed, ask the model what to change in the fact: proposals a mail (each a paid request;
+# 0 = none). They are printed in the mail, never applied
+#KNOWN_FACTS_DRAFT_MAX=0
 # Domains whose links are dead after a migration: content stays indexed, links are hidden
 # (comma-separated domains or path prefixes; empty = none)
 MIGRATED_DOMAINS=
@@ -250,6 +253,7 @@ Parameters that are not variables of `.env` (constants in `config/settings.py`, 
 | `PDF_QUALITY_FILE` / `PDF_QUALITY_REPORT_TO` | `data/crawl_cache/pdf_quality.jsonl` / `FEEDBACK_NOTIFY_EMAIL` | Where the readers log the PDFs that had no searchable text (scans, fonts without a Unicode map), and who receives the weekly list from `scripts/pdf_quality_report.py` to have them published again as PDF/A |
 | `KNOWN_FACTS_REPORT_TO` / `KNOWN_FACTS_REPORT_DAYS` | `FEEDBACK_NOTIFY_EMAIL` / `7` | Who receives the known facts whose `expires` or `review_by` date is near or past (`scripts/known_facts_report.py`), and how many days before a date a fact enters the list |
 | `KNOWN_FACTS_WATCH_FILE` / `KNOWN_FACTS_STALE_DAYS` | `data/facts/known_facts_watch.json` / `3` | Where `scripts/known_facts_watch.py` keeps the text of the pages the facts come from, and after how many days a dynamic fact no job has written is listed in the report (0 = never); the lines of a page not to compare are in the `facts_watch` key of `crawl_extra.json` |
+| `KNOWN_FACTS_DRAFT_MAX` | `0` | How many proposals the report of the known facts asks the model for in one mail, for the pages that changed (`scripts/known_facts_draft.py`): each is a paid request to the model of `LLM_PROVIDER`; the proposals are printed in the mail and never applied; 0 = none |
 | `CRAWL_EXCLUDE_PATTERNS`| Lists of patterns to exclude  | URLs to ignore (admin, feeds, images, etc.), plus `exclude_patterns` from `config/crawl_extra.json` |
 | `CRAWL_MAX_PATH_DEPTH` | `10`                           | Maximum URL path depth (per-domain limits in `crawl_extra.json`) |
 | `CRAWL_PDF_EXCLUDE_PATTERNS` | `pdf_exclude_patterns` in `crawl_extra.json` | Pieces of PDF URLs not to download (PDF links do not go through `CRAWL_EXCLUDE_PATTERNS`, which contains `.pdf` to keep PDFs out of page crawling); for example attachments that are of no use to citizens (theses, technical drawings) |

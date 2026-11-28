@@ -9,6 +9,24 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-11-28
+
+### Added
+- For a page that changed, the report of the known facts can ask the model what to change in the fact
+  (`scripts/known_facts_draft.py`, `KNOWN_FACTS_DRAFT_MAX` proposals a mail, default 0 = none). The mail
+  already gives the lines added to the page and taken out of it; comparing them with a fact of some
+  thousand characters was left to the reader. The model that answers the questions (`LLM_PROVIDER`:
+  Claude, Claude on Bedrock or an OpenAI-compatible API) receives the fact, what changed and the page as
+  it is now, and answers whether the fact still holds and, if not, which sentences to replace. The
+  proposal is printed in the mail under the page and is never applied: the page is text from the web,
+  which the prompt tells the model to treat as data, and the answer goes into the mail as a few plain
+  lines. Asked only for the items that are new that day, not for the weekly reminders; a model that
+  cannot be reached leaves the mail without the proposal. `--drafts N` asks for them also in a dry run.
+
+### Fixed
+- The mail of the known facts said the source pages are read again «every morning»: they are read once
+  a day, at the hour of the cron line.
+
 ## [0.59.0] - 2026-11-28
 
 ### Added

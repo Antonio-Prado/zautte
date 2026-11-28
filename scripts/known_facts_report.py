@@ -31,7 +31,9 @@ nothing is sent.
 
 Run (daily from cron, as root: the SMTP settings are in .env; it reads only the installation's
 own file, nothing from the Internet):
-    venv/bin/python -m scripts.known_facts_report [--dry-run] [--force] [--today YYYY-MM-DD]
+    venv/bin/python -m scripts.known_facts_report [--dry-run] [--force] [--today YYYY-MM-DD] [--drafts N]
+For the pages that changed, with KNOWN_FACTS_DRAFT_MAX above 0 the model is asked what to change in
+the fact (scripts/known_facts_draft.py): a proposal printed in the mail, never applied.
 Exit codes: 0 sent or nothing to send, 1 file unreadable, no address or send error.
 """
 
@@ -48,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from api.knownfacts import DATE_FIELDS, KNOWN_FACTS_FILE, fact_date, watch_targets
 from api.safefile import read_json_bounded
 from config.settings import (
+    KNOWN_FACTS_DRAFT_MAX,
     KNOWN_FACTS_DYNAMIC_FILE,
     KNOWN_FACTS_REPORT_DAYS,
     KNOWN_FACTS_REPORT_TO,
@@ -167,7 +170,8 @@ def watch_items(entries: list[dict], state: dict, today: date) -> list[dict]:
         record = state.get(url)
         if not isinstance(record, dict):
             continue
-        base = {"url": url, "titles": [_title({"title": t}) for t in target["titles"]], "date": None, "left": 0}
+        base = {"url": url, "titles": [_title({"title": t}) for t in target["titles"]], "date": None, "left": 0,
+                "indexes": target["indexes"]}
         if record.get("gone_since"):
             items.append({**base, "kind": "page_gone", "day": str(record["gone_since"]),
                           "new": record["gone_since"] in recent})
@@ -288,12 +292,51 @@ def _page_lines(item: dict) -> list[str]:
         what += " (era già così alla prima lettura)"
     lines = [f"- {item['url']}", f"  {what}"]
     lines += [f"  + {x}" for x in item.get("added", [])] + [f"  − {x}" for x in item.get("removed", [])]
-    return lines + [f"  fatto: «{t}»" for t in item["titles"]]
+    lines += [f"  fatto: «{t}»" for t in item["titles"]]
+    for d in item.get("drafts", []):
+        if d["change"]:
+            lines.append(f"  proposta del modello per «{d['title']}» (da verificare sulla pagina, NON applicata):")
+            lines += [f"    {x}" for x in d["lines"][1:]]
+        else:
+            lines.append(f"  secondo il modello «{d['title']}» non va cambiato: {' '.join(d['lines'][1:3])}".rstrip(": "))
+    return lines
+
+
+def add_drafts(items: list[dict], entries: list[dict], state: dict, limit: int, propose=None) -> int:
+    """Asks the model what to change in the facts of the pages that changed, for the items that are
+    new today, `limit` facts at most. Returns how many proposals were added (to `item["drafts"]`)."""
+    if propose is None:
+        from scripts import known_facts_draft
+        if not known_facts_draft.provider_ready():
+            log.info("no model to ask (LLM_PROVIDER): the mail goes without proposals")
+            return 0
+        propose = known_facts_draft.draft
+    done = 0
+    for item in items:
+        if item["kind"] not in ("page_changed", "page_appears", "page_disappears") or not item.get("new"):
+            continue
+        record = state.get(item["url"]) if isinstance(state.get(item["url"]), dict) else {}
+        after = record.get("text") if isinstance(record.get("text"), str) else ""
+        before = record.get("ref_text") if isinstance(record.get("ref_text"), str) else ""
+        if not after or after.startswith("sha256:"):
+            continue   # not a page of text (a PDF): nothing to show the model
+        for index in item.get("indexes", []):
+            if done >= limit:
+                return done
+            if any(d["index"] == index for i in items for d in i.get("drafts", [])):
+                continue   # the same fact for two items of the same page: asked once
+            fact = entries[index]
+            proposal = propose(fact, before, after, item.get("pattern", "") if item["kind"] == "page_appears" else "")
+            done += 1
+            if proposal:
+                item.setdefault("drafts", []).append({"index": index, "title": _title(fact), **proposal})
+    return done
 
 
 def build_report(items: list[dict], today: date, site: str, days: int) -> tuple[str, str]:
     """(subject, body) of the mail: the items by kind, each with its date and what to do."""
-    lines = [(f"Fatti noti di Zautte da rivedere, al {today:%d/%m/%Y}: {len(items)} voci (date vicine o passate, "
+    lines = [(f"Fatti noti di Zautte da rivedere, al {today:%d/%m/%Y}: "
+              f"{len(items)} {'voce' if len(items) == 1 else 'voci'} (date vicine o passate, "
               "pagine di origine cambiate o sparite, schede automatiche ferme)."), ""]
     for kind in KINDS:
         group = [i for i in items if i["kind"] == kind]
@@ -315,8 +358,11 @@ def build_report(items: list[dict], today: date, site: str, days: int) -> tuple[
         lines += [f"  {_TODO[kind]}", ""]
     lines.append(f"Elenco automatico di Zautte ({site}). Le date si scrivono nel file dei fatti noti: "
                  "\"expires\" è l'ultimo giorno in cui il fatto viene usato, \"review_by\" il giorno entro cui "
-                 "ricontrollarlo. Le pagine di origine (\"source\") vengono rilette ogni mattina. Questo messaggio "
+                 "ricontrollarlo. Le pagine di origine (\"source\") vengono rilette ogni giorno. Questo messaggio "
                  "arriva quando succede qualcosa, e ogni lunedì finché resta qualcosa in sospeso.")
+    if any(i.get("drafts") for i in items):
+        lines.append("Le proposte del modello sono un aiuto alla lettura: possono essere sbagliate, non sono state "
+                     "applicate e vanno confrontate con la pagina prima di toccare un fatto.")
     urgent = sum(1 for i in items if i["kind"] in URGENT_KINDS)
     subject = (f"Zautte: {len(items)} fatti noti da rivedere" if len(items) != 1 else "Zautte: 1 fatto noto da rivedere")
     if urgent:
@@ -330,6 +376,9 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="send (or print) the list even on a day without news")
     ap.add_argument("--today", type=date.fromisoformat, help="pretend today is this day (YYYY-MM-DD)")
     ap.add_argument("--days", type=int, default=KNOWN_FACTS_REPORT_DAYS, help="days before a date")
+    ap.add_argument("--drafts", type=int, metavar="N",
+                    help="ask the model for at most N proposals (default KNOWN_FACTS_DRAFT_MAX; with --dry-run "
+                         "none unless this is given: each proposal is a paid request)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     today = args.today or now_local().date()
@@ -342,8 +391,10 @@ def main() -> int:
         log.error("%s cannot be read: %s", KNOWN_FACTS_FILE.name, exc)
         return 1
     items = open_items(entries, today, args.days)
+    state: dict = {}
     try:   # written by the sync account from pages of the web: read as data, bounded, never trusted
-        items += watch_items(entries, read_json_bounded(KNOWN_FACTS_WATCH_FILE, _WATCH_STATE_MAX_BYTES, dict), today)
+        state = read_json_bounded(KNOWN_FACTS_WATCH_FILE, _WATCH_STATE_MAX_BYTES, dict)
+        items += watch_items(entries, state, today)
     except FileNotFoundError:
         log.info("no %s yet: the pages are not in this report", KNOWN_FACTS_WATCH_FILE.name)
     except (OSError, ValueError) as exc:
@@ -362,6 +413,9 @@ def main() -> int:
         log.info("%d facts, %d with a date: %d in the list, nothing new today, nothing sent",
                  len(entries), dated, len(items))
         return 0
+    drafts = args.drafts if args.drafts is not None else (0 if args.dry_run else KNOWN_FACTS_DRAFT_MAX)
+    if drafts > 0:
+        log.info("%d proposals asked to the model", add_drafts(items, entries, state, drafts))
     subject, body = build_report(items, today, SITE_NAME, args.days)
     if args.dry_run:
         print(subject, "\n\n", body)

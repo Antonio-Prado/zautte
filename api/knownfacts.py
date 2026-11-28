@@ -52,7 +52,7 @@ def watch_targets(entries: list[dict]) -> dict[str, dict]:
                   "disappears": "regex"}      # tell when the page no longer has this
     """
     targets: dict[str, dict] = {}
-    for entry in entries:
+    for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             continue
         watch = entry.get("watch")
@@ -62,8 +62,9 @@ def watch_targets(entries: list[dict]) -> dict[str, dict]:
         url = str(watch.get("url") or entry.get("source") or "").strip()
         if not url.lower().startswith(("http://", "https://")):
             continue
-        target = targets.setdefault(url, {"titles": [], "appears": [], "disappears": [], "keys": []})
+        target = targets.setdefault(url, {"titles": [], "indexes": [], "appears": [], "disappears": [], "keys": []})
         target["titles"].append(" ".join(str(entry.get("title", "")).split()))
+        target["indexes"].append(index)   # where the facts are in `entries`
         for kind in ("appears", "disappears"):
             if isinstance(watch.get(kind), str) and watch[kind].strip():
                 target[kind].append(watch[kind].strip())
