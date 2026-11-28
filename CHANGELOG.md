@@ -9,6 +9,22 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-28
+
+### Added
+- `scripts/council_votes.py`, daily from cron: how the council voted in its latest session, as a dynamic
+  known fact (`council-votes`). Once the resolutions are indexed in full, each one says who was present
+  and how many voted for, against or abstained, often with the names; but a question about «the last
+  votes in the council» names no resolution, the search did not bring those passages up, and the
+  assistant answered that it had no access to the results. The job downloads nothing: it reads the
+  metadata of the index, keeps the passages of the configured sources where a vote is recorded (a
+  record broken off by the end of a passage goes on in the next one; the note of who came into the room
+  during a debate is not a vote), and writes the resolutions of the latest session that has any, each
+  with its number, date, subject, page and the lines of the vote as they are written. Configuration:
+  the `council_votes` key of `config/crawl_extra.json` (`source_contains`, `page_url`, the patterns,
+  `sessions`, `keywords`, `require_any`); without it the job does nothing. An existing installation
+  adds the cron line of `docs/operations.md` by hand.
+
 ## [0.57.0] - 2026-11-28
 
 ### Added

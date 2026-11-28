@@ -181,6 +181,11 @@ AMT_FACTS: dict = {}
 # "/unita_organizzative/[^/?#]+$", "head_label": "Responsabile", "delay": 5, "keywords": [...], "require_any": [...],
 # "ignore_phrases": [...]}
 OFFICE_HEADS: dict = {}
+# How the council voted in its latest session (scripts/council_votes.py, from the resolutions already in the index):
+# "council_votes" key of crawl_extra.json → {"source_contains": ["voceamt=49"], "page_url": "https://…",
+# "vote_pattern": "Consiglieri\\s*presenti", "result_pattern": "…", "end_pattern": "\\bDELIBERA\\b", "sessions": 1,
+# "keywords": [...], "require_any": [...]}; without "source_contains" the job does nothing
+COUNCIL_VOTES: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -207,6 +212,7 @@ try:
         TENDER_NOTICES.update(_crawl_extra.get("tenders", {}))
         AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
         OFFICE_HEADS.update(_crawl_extra.get("offices", {}))
+        COUNCIL_VOTES.update(_crawl_extra.get("council_votes", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
