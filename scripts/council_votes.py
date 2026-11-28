@@ -176,8 +176,13 @@ def build_fact(sessions: list[tuple[date, list[dict]]], today: date, page_url: s
          "Una deliberazione può avere più votazioni (emendamenti, il punto, l'immediata eseguibilità): "
          "distinguile. Non sommare, non fare medie e non dedurre schieramenti che il testo non dice. Se il "
          "calendario delle sedute indica una seduta più recente di questa, le sue deliberazioni non sono "
-         "ancora state pubblicate: dillo. Sulla solidità della maggioranza e su ogni altra valutazione "
-         "politica non esprimerti: riporta i numeri."),
+         "ancora state pubblicate: dillo."),
+        ("Nessun commento ai numeri: sulla solidità della maggioranza e su ogni altra valutazione politica non "
+         "esprimerti, nemmeno in forma attenuata. Dopo aver detto che non dai valutazioni non aggiungere "
+         "giudizi o sintesi sull'andamento dei voti («quadro variabile», maggioranza «compatta», «divisa» o "
+         "«in difficoltà», «defezioni», «tenuta», «spaccatura»), non dire chi è di maggioranza e chi di "
+         "minoranza e non scrivere gruppi o partiti accanto ai nomi, a meno che la domanda chieda "
+         "espressamente il gruppo di un consigliere. Riporta i numeri e i nomi come sono scritti, e fermati lì."),
         "",
     ]
     for day, acts in sessions:
