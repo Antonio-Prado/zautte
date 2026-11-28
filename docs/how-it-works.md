@@ -117,7 +117,7 @@ A ban, a closure or a temporary ordinance is announced in one news item and ende
 
 ### Dynamic known facts
 
-Some answers need today's date or a figure that one document of the transparency portal holds: the sessions of the council, the events of the coming days, the calls for jobs open today, the latest acts, the pay of the administrators, the anti-corruption officer, the payment-timeliness indicator, the staff in service. The jobs in [Operations](operations.md) read them from the portals and write them as known facts in `KNOWN_FACTS_DYNAMIC_FILE` (same format as `known_facts.json`, one entry per subject); the API rereads the file when it changes, without a restart. Static facts come first, dynamic ones after.
+Some answers need today's date or a figure that one document of the transparency portal holds (or, for the votes of the council's latest session, lines that are in the index but that no search brings up: `scripts/council_votes.py`): the sessions of the council, the events of the coming days, the calls for jobs open today, the latest acts, the pay of the administrators, the anti-corruption officer, the payment-timeliness indicator, the staff in service. The jobs in [Operations](operations.md) read them from the portals and write them as known facts in `KNOWN_FACTS_DYNAMIC_FILE` (same format as `known_facts.json`, one entry per subject); the API rereads the file when it changes, without a restart. Static facts come first, dynamic ones after.
 
 ### Documents linked in the question
 
