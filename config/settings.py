@@ -542,6 +542,10 @@ KNOWN_FACTS_REPORT_DAYS = max(0, int(os.getenv("KNOWN_FACTS_REPORT_DAYS", "7")))
 # has not written for KNOWN_FACTS_STALE_DAYS days (0 = not checked)
 KNOWN_FACTS_WATCH_FILE = Path(os.getenv("KNOWN_FACTS_WATCH_FILE") or DATA_DIR / "facts" / "known_facts_watch.json")
 KNOWN_FACTS_STALE_DAYS = max(0, int(os.getenv("KNOWN_FACTS_STALE_DAYS", "3")))
+# For a page that changed, the report can ask the model (the one that answers the questions, LLM_PROVIDER) to
+# propose how the fact should change: at most KNOWN_FACTS_DRAFT_MAX proposals a mail, each a paid request;
+# 0 (default) = none. The proposal is only printed in the mail: nothing is applied (scripts/known_facts_draft.py)
+KNOWN_FACTS_DRAFT_MAX = max(0, int(os.getenv("KNOWN_FACTS_DRAFT_MAX", "0")))
 # Limits on those e-mails (api/notify_guard.py; the data is stored and shown anyway): one e-mail per
 # feedback in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR feedback e-mails and
 # APPLY_NOTIFY_MAX_PER_HOUR application e-mails per hour (0 = no hourly cap)
