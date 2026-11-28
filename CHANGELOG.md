@@ -9,6 +9,27 @@ facts, texts, logos, see [Configuration](docs/configuration.md)) are not release
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-11-28
+
+### Added
+- The pages the known facts come from are read again every day (`scripts/known_facts_watch.py`, from
+  cron). A curated fact names the page it was written from as its `source`; when that
+  page changed or was taken off the site, the fact went on saying what the page said the day it was
+  written. The first check found four sources of 106 gone from the site. The job keeps the main text of
+  each page (without menus, header, footer, forms and the lines listed in `facts_watch.ignore_lines`, such
+  as a counter of visits; a PDF is compared byte by byte) in `KNOWN_FACTS_WATCH_FILE` and records the
+  pages that are gone, the ones whose text is no longer what it was when their facts were last edited
+  (one open alert per page, with the lines added and taken out since then), the ones that could not be
+  read for three runs, and, when a fact asks for it with `"watch": {"appears": "…"}` or
+  `"disappears"`, the day a page gets or loses what the fact is about («not published yet»). A fact
+  whose source changes every day says `"watch": false`. The first reading of a page reports nothing.
+- `scripts/known_facts_report.py` also lists what the watch found, each item until the fact that comes
+  from that page is edited (moving its `review_by` is enough), the watch job itself when it has not read
+  the pages for two days, and the dynamic facts that no job has written for `KNOWN_FACTS_STALE_DAYS`
+  days (3): a job that can no longer read its page keeps its last
+  fact, which went on being answered with nobody told. What a page says goes into the mail as short
+  plain lines. An existing installation adds the cron line of `docs/operations.md` by hand.
+
 ## [0.58.1] - 2026-11-28
 
 ### Fixed

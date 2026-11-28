@@ -186,6 +186,10 @@ OFFICE_HEADS: dict = {}
 # "vote_pattern": "Consiglieri\\s*presenti", "result_pattern": "…", "end_pattern": "\\bDELIBERA\\b", "sessions": 1,
 # "keywords": [...], "require_any": [...]}; without "source_contains" the job does nothing
 COUNCIL_VOTES: dict = {}
+# The pages the known facts come from, read again every day (scripts/known_facts_watch.py): "facts_watch" key of
+# crawl_extra.json → {"ignore_lines": ["^Numero accessi"], "delay": 5}: regexes of the lines of a page that change
+# by themselves (a counter of visits, a clock) and the seconds between two requests to the same site
+FACTS_WATCH: dict = {}
 
 # Site-specific overrides — loaded from config/crawl_extra.json if present.
 # Allows adding exclusion patterns and depth limits without changing the code.
@@ -213,6 +217,7 @@ try:
         AMT_FACTS.update(_crawl_extra.get("amt_facts", {}))
         OFFICE_HEADS.update(_crawl_extra.get("offices", {}))
         COUNCIL_VOTES.update(_crawl_extra.get("council_votes", {}))
+        FACTS_WATCH.update(_crawl_extra.get("facts_watch", {}))
 except (OSError, ValueError, TypeError, AttributeError) as _e:
     logging.getLogger(__name__).warning("crawl_extra.json non caricato: %s", _e)
 
@@ -532,6 +537,11 @@ APPLY_NOTIFY_EMAIL = os.getenv("APPLY_NOTIFY_EMAIL", "").strip() or FEEDBACK_NOT
 # KNOWN_FACTS_REPORT_TO, starting KNOWN_FACTS_REPORT_DAYS days before the date
 KNOWN_FACTS_REPORT_TO = os.getenv("KNOWN_FACTS_REPORT_TO", "").strip() or FEEDBACK_NOTIFY_EMAIL
 KNOWN_FACTS_REPORT_DAYS = max(0, int(os.getenv("KNOWN_FACTS_REPORT_DAYS", "7")))
+# The pages the facts come from are read again every day (scripts/known_facts_watch.py keeps what it read in
+# KNOWN_FACTS_WATCH_FILE); the same report lists the pages that changed or are gone, and the dynamic facts a job
+# has not written for KNOWN_FACTS_STALE_DAYS days (0 = not checked)
+KNOWN_FACTS_WATCH_FILE = Path(os.getenv("KNOWN_FACTS_WATCH_FILE") or DATA_DIR / "facts" / "known_facts_watch.json")
+KNOWN_FACTS_STALE_DAYS = max(0, int(os.getenv("KNOWN_FACTS_STALE_DAYS", "3")))
 # Limits on those e-mails (api/notify_guard.py; the data is stored and shown anyway): one e-mail per
 # feedback in FEEDBACK_NOTIFY_GAP_SECONDS, at most FEEDBACK_NOTIFY_MAX_PER_HOUR feedback e-mails and
 # APPLY_NOTIFY_MAX_PER_HOUR application e-mails per hour (0 = no hourly cap)
